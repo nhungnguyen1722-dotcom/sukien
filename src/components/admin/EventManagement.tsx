@@ -21,6 +21,7 @@ import {
   Handshake,
   UserCheck,
   Info,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export interface Event {
@@ -109,11 +110,32 @@ export default function EventManagement({
 
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleSyncSheet = async () => {
+    setIsSyncingSheet(true);
+    try {
+      const res = await fetch('/api/admin/events/sync-sheet', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('success', data.message || 'Đồng bộ danh sách sự kiện lên Google Sheet thành công!');
+      } else {
+        showToast('error', data.error || 'Lỗi khi đồng bộ Google Sheet');
+      }
+    } catch (err) {
+      console.error('Sync sheet error:', err);
+      showToast('error', 'Lỗi kết nối khi đồng bộ Google Sheet');
+    } finally {
+      setIsSyncingSheet(false);
+    }
   };
 
   // Tải cấu hình 5 trường cố định từ hệ thống
@@ -331,6 +353,17 @@ export default function EventManagement({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSyncSheet}
+            disabled={isSyncingSheet}
+            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+            title="Đồng bộ danh sách sự kiện sang Google Sheet"
+          >
+            <FileSpreadsheet className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
+            <span>{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Sheet'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => {

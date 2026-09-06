@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     const newReg = insertResult.rows[0];
 
-    // Fetch joined sale info
+    // Fetch joined sale info & event info for Google Sheet sync
     let saleName = '';
     if (newReg.referrer_id) {
       const userRes = await pool.query('SELECT full_name FROM users WHERE id = $1', [newReg.referrer_id]);
@@ -137,6 +137,32 @@ export async function POST(request: NextRequest) {
         saleName = userRes.rows[0].full_name;
       }
     }
+
+    let eventName = '';
+    let eventDate = '';
+    if (newReg.event_id) {
+      const eventRes = await pool.query('SELECT name, event_date::text FROM events WHERE id = $1', [newReg.event_id]);
+      if (eventRes.rows.length > 0) {
+        eventName = eventRes.rows[0].name;
+        eventDate = eventRes.rows[0].event_date;
+      }
+    }
+
+    // Trigger async sync to Google Sheet (non-blocking)
+    import('@/lib/googleSheetWebhook').then(({ sendToGoogleSheet }) => {
+      sendToGoogleSheet({
+        guest_code: newReg.guest_code,
+        guest_name: newReg.guest_name,
+        guest_phone: newReg.guest_phone,
+        event_name: eventName,
+        event_date: eventDate,
+        sale_name: saleName,
+        source: newReg.source,
+        attendance_status: newReg.attendance_status,
+        notes: newReg.notes,
+      }).catch((err) => console.error('Google Sheet background sync error:', err));
+    });
+
 
     return NextResponse.json(
       {

@@ -12,8 +12,10 @@ import {
   UserCheck,
   RefreshCw,
   X,
-  ChevronDown
+  ChevronDown,
+  FileSpreadsheet
 } from 'lucide-react';
+
 
 export interface EventItem {
   id: number;
@@ -121,6 +123,7 @@ export default function ReceptionManagement({
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [formError, setFormError] = useState('');
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -131,6 +134,29 @@ export default function ReceptionManagement({
       setToast(null);
     }, 4000);
   };
+
+  const handleSyncSheet = async () => {
+    setIsSyncingSheet(true);
+    try {
+      const res = await fetch('/api/admin/le-tan/sync-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: selectedEventId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('success', data.message || 'Đồng bộ Google Sheet thành công!');
+      } else {
+        showToast('error', data.error || 'Lỗi khi đồng bộ Google Sheet');
+      }
+    } catch (err) {
+      console.error('Sync sheet error:', err);
+      showToast('error', 'Lỗi kết nối khi đồng bộ Google Sheet');
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
 
   // Find currently selected event object
   const currentEvent = useMemo(() => {
@@ -650,8 +676,21 @@ export default function ReceptionManagement({
               )}
             </div>
 
-            {/* Quick search input */}
-            <div className="relative w-full sm:w-60">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncSheet}
+                disabled={isSyncingSheet}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 py-1.5 px-3 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Đồng bộ danh sách sang Google Sheet"
+              >
+                <FileSpreadsheet className={`w-3.5 h-3.5 ${isSyncingSheet ? 'animate-spin' : ''}`} />
+                <span>{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Sheet'}</span>
+              </button>
+
+              {/* Quick search input */}
+              <div className="relative w-full sm:w-52">
+
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -670,6 +709,9 @@ export default function ReceptionManagement({
               )}
             </div>
           </div>
+        </div>
+
+
 
           {/* Table */}
           <div className="overflow-x-auto">
