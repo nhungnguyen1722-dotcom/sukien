@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, MapPin, Users, Receipt, Wallet, CreditCard } from 'lucide-react';
 import pool from '@/lib/db';
+import SystemLogo from '@/components/SystemLogo';
 
 export const revalidate = 0;
 
@@ -55,12 +56,9 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="bg-[#2563eb] text-white w-8 h-8 rounded flex items-center justify-center font-bold text-lg">
-            N
-          </div>
-          <span className="font-bold text-gray-900 text-lg">Nghiêng Complex</span>
-        </div>
+        <Link href="/" className="flex items-center gap-2">
+          <SystemLogo className="h-10 w-auto max-h-10 object-contain" />
+        </Link>
         <Link href="/" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Quay lại
@@ -69,8 +67,13 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
 
       <main className="max-w-5xl mx-auto px-6 pb-12">
         {/* Banner */}
-        <div className="w-full bg-[#2563eb] rounded-2xl h-[300px] flex items-center justify-center mb-8">
-          <Calendar className="w-16 h-16 text-white opacity-60" />
+        <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl h-[300px] flex items-center justify-center mb-8 overflow-hidden">
+          {event.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={event.image_url} alt={event.name} className="w-full h-full object-cover" />
+          ) : (
+            <SystemLogo className="max-h-48 w-auto object-contain" />
+          )}
         </div>
 
         {/* Event Header Info */}

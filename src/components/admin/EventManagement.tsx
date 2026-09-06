@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   CalendarDays,
@@ -14,6 +14,13 @@ import {
   Check,
   AlertCircle,
   ChevronRight,
+  Settings2,
+  Mic,
+  Presentation,
+  Coffee,
+  Handshake,
+  UserCheck,
+  Info,
 } from 'lucide-react';
 
 export interface Event {
@@ -72,6 +79,18 @@ export default function EventManagement({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
 
+  // 5 Trường giá cố định (Mục 6 & 7)
+  const [fixedFees, setFixedFees] = useState({
+    support_fee: 200000,
+    mc_fee: 200000,
+    speaker_fee: 300000,
+    closer_fee: 200000,
+    tea_break_fee: 1250000,
+  });
+  const [tempFixedFees, setTempFixedFees] = useState(fixedFees);
+  const [isFixedFeesDrawerOpen, setIsFixedFeesDrawerOpen] = useState(false);
+  const [isSavingFixedFees, setIsSavingFixedFees] = useState(false);
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -80,11 +99,11 @@ export default function EventManagement({
     location: '',
     manager_id: '',
     status: 'Kế hoạch',
-    mc_fee: 0,
-    speaker_fee: 0,
-    support_fee: 0,
-    closer_fee: 0,
-    tea_break_fee: 0,
+    mc_fee: 200000,
+    speaker_fee: 300000,
+    support_fee: 200000,
+    closer_fee: 200000,
+    tea_break_fee: 1250000,
     notes: '',
   });
 
@@ -95,6 +114,47 @@ export default function EventManagement({
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Tải cấu hình 5 trường cố định từ hệ thống
+  useEffect(() => {
+    fetch('/api/admin/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.settings?.fixed_fees) {
+          setFixedFees(data.settings.fixed_fees);
+          setTempFixedFees(data.settings.fixed_fees);
+        }
+      })
+      .catch(err => console.error('Error fetching settings:', err));
+  }, []);
+
+  // Lưu cập nhật 5 trường cố định (Mục 6)
+  const handleSaveFixedFees = async () => {
+    setIsSavingFixedFees(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'fixed_fees',
+          value: tempFixedFees,
+          description: '5 trường chi phí cố định cho sự kiện mới',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Cập nhật thất bại');
+      }
+
+      setFixedFees(tempFixedFees);
+      setIsFixedFeesDrawerOpen(false);
+      showToast('success', 'Đã cập nhật giá 5 trường cố định cho các sự kiện tạo mới!');
+    } catch (err: any) {
+      showToast('error', err.message || 'Lỗi khi lưu 5 trường cố định');
+    } finally {
+      setIsSavingFixedFees(false);
+    }
   };
 
   const refreshData = async () => {
@@ -138,11 +198,11 @@ export default function EventManagement({
       location: '',
       manager_id: '',
       status: 'Kế hoạch',
-      mc_fee: 0,
-      speaker_fee: 0,
-      support_fee: 0,
-      closer_fee: 0,
-      tea_break_fee: 0,
+      mc_fee: Number(fixedFees.mc_fee) || 200000,
+      speaker_fee: Number(fixedFees.speaker_fee) || 300000,
+      support_fee: Number(fixedFees.support_fee) || 200000,
+      closer_fee: Number(fixedFees.closer_fee) || 200000,
+      tea_break_fee: Number(fixedFees.tea_break_fee) || 1250000,
       notes: '',
     });
     setFormError('');
@@ -270,13 +330,27 @@ export default function EventManagement({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tạo sự kiện</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setTempFixedFees(fixedFees);
+              setIsFixedFeesDrawerOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
+          >
+            <Settings2 className="w-4 h-4 text-blue-600" />
+            <span>Cập nhật giá 5 trường cố định</span>
+          </button>
+
+          <button
+            onClick={handleOpenAddModal}
+            className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tạo sự kiện mới</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -320,6 +394,24 @@ export default function EventManagement({
           </div>
           <div className="text-2xl font-bold text-slate-900 pl-1">{formatCurrency(stats.totalCost)}</div>
         </div>
+      </div>
+
+      {/* Quy tắc chi phí tiệc trà banner (Hình 9 & 10) */}
+      <div className="mb-6 p-4 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
+            <Info className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-bold text-blue-900">Quy tắc chi phí tiệc trà: </span>
+            <span className="text-blue-800">
+              Khách mời đã được công ty chi trả phí tiệc trà quá 5 lần, từ lần thứ 6 trở đi khách sẽ tự trả phí.
+            </span>
+          </div>
+        </div>
+        <span className="text-blue-600 font-semibold cursor-pointer hover:underline text-xs shrink-0 ml-4 hidden sm:inline">
+          Xem chi tiết quy tắc →
+        </span>
       </div>
 
       {/* Filters */}
@@ -529,53 +621,63 @@ export default function EventManagement({
                 </div>
               </div>
 
-              {/* 5 trường giá cố định */}
+              {/* 5 trường giá cố định (Mục 7: Read-only / Không cho chỉnh sửa) */}
               <div className="pt-2">
-                <h3 className="text-sm font-bold text-slate-800 mb-3">5 trường giá cố định (chỉ áp dụng sự kiện mới)</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-slate-800">5 trường giá cố định (chỉ áp dụng sự kiện mới)</h3>
+                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                    Cố định (Không thể sửa)
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Giá MC</label>
                     <input
-                      type="number"
-                      value={formData.mc_fee}
-                      onChange={(e) => setFormData({ ...formData, mc_fee: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      type="text"
+                      readOnly
+                      disabled
+                      value={new Intl.NumberFormat('vi-VN').format(formData.mc_fee) + ' đ'}
+                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Giá Thuyết trình</label>
                     <input
-                      type="number"
-                      value={formData.speaker_fee}
-                      onChange={(e) => setFormData({ ...formData, speaker_fee: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      type="text"
+                      readOnly
+                      disabled
+                      value={new Intl.NumberFormat('vi-VN').format(formData.speaker_fee) + ' đ'}
+                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Giá Phụng sự</label>
                     <input
-                      type="number"
-                      value={formData.support_fee}
-                      onChange={(e) => setFormData({ ...formData, support_fee: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      type="text"
+                      readOnly
+                      disabled
+                      value={new Intl.NumberFormat('vi-VN').format(formData.support_fee) + ' đ'}
+                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Giá Chốt sự kiện</label>
                     <input
-                      type="number"
-                      value={formData.closer_fee}
-                      onChange={(e) => setFormData({ ...formData, closer_fee: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      type="text"
+                      readOnly
+                      disabled
+                      value={new Intl.NumberFormat('vi-VN').format(formData.closer_fee) + ' đ'}
+                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
                     />
                   </div>
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-xs font-medium text-slate-600 mb-1">Giá Tiệc trà</label>
                     <input
-                      type="number"
-                      value={formData.tea_break_fee}
-                      onChange={(e) => setFormData({ ...formData, tea_break_fee: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      type="text"
+                      readOnly
+                      disabled
+                      value={new Intl.NumberFormat('vi-VN').format(formData.tea_break_fee) + ' đ'}
+                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
                     />
                   </div>
                 </div>
@@ -615,6 +717,197 @@ export default function EventManagement({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* DRAWER: CẬP NHẬT 5 TRƯỜNG CỐ ĐỊNH (Mục 6 - Hình 9 & 10)       */}
+      {/* ============================================================ */}
+      {isFixedFeesDrawerOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex justify-end animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
+                Cập nhật 5 trường cố định
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsFixedFeesDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              {/* Notice */}
+              <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-100 flex items-start gap-3 text-xs text-blue-900">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <p>5 trường dưới đây được áp dụng cố định cho tất cả sự kiện mới.</p>
+              </div>
+
+              {/* Table / List */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <div className="grid grid-cols-12 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-600 border-b border-slate-200">
+                  <div className="col-span-6">Trường cố định</div>
+                  <div className="col-span-6 text-right">Giá hiện tại (VNĐ)</div>
+                </div>
+
+                <div className="divide-y divide-slate-100 bg-white text-sm">
+                  {/* 1. Thù lao phụng sự */}
+                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
+                    <div className="col-span-6 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                        <UserCheck className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Thù lao phụng sự</span>
+                    </div>
+                    <div className="col-span-6">
+                      <input
+                        type="number"
+                        min="0"
+                        step="10000"
+                        value={tempFixedFees.support_fee}
+                        onChange={(e) =>
+                          setTempFixedFees({ ...tempFixedFees, support_fee: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2. Thù lao MC */}
+                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
+                    <div className="col-span-6 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Mic className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Thù lao MC</span>
+                    </div>
+                    <div className="col-span-6">
+                      <input
+                        type="number"
+                        min="0"
+                        step="10000"
+                        value={tempFixedFees.mc_fee}
+                        onChange={(e) =>
+                          setTempFixedFees({ ...tempFixedFees, mc_fee: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3. Thù lao thuyết trình */}
+                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
+                    <div className="col-span-6 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                        <Presentation className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Thù lao thuyết trình</span>
+                    </div>
+                    <div className="col-span-6">
+                      <input
+                        type="number"
+                        min="0"
+                        step="10000"
+                        value={tempFixedFees.speaker_fee}
+                        onChange={(e) =>
+                          setTempFixedFees({ ...tempFixedFees, speaker_fee: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4. Chốt sự kiện */}
+                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
+                    <div className="col-span-6 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <Handshake className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Chốt sự kiện</span>
+                    </div>
+                    <div className="col-span-6">
+                      <input
+                        type="number"
+                        min="0"
+                        step="10000"
+                        value={tempFixedFees.closer_fee}
+                        onChange={(e) =>
+                          setTempFixedFees({ ...tempFixedFees, closer_fee: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 5. Chi phí tiệc trà (50đ, TD hỗ trợ) */}
+                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
+                    <div className="col-span-6 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                        <Coffee className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Chi phí tiệc trà (50đ, TD hỗ trợ)</span>
+                    </div>
+                    <div className="col-span-6">
+                      <input
+                        type="number"
+                        min="0"
+                        step="10000"
+                        value={tempFixedFees.tea_break_fee}
+                        onChange={(e) =>
+                          setTempFixedFees({ ...tempFixedFees, tea_break_fee: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lưu ý quan trọng */}
+              <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-3 text-xs text-amber-900">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold mb-1 text-amber-950">Lưu ý quan trọng</p>
+                  <p className="text-amber-900 leading-relaxed">
+                    Khách mời đã được công ty chi trả phí tiệc trà quá 5 lần, từ lần thứ 6 trở đi khách sẽ tự trả phí.
+                    Các thay đổi ở đây chỉ áp dụng cho sự kiện tạo mới sau thời điểm lưu, sự kiện cũ sẽ giữ nguyên giá trị snapshot.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-white">
+              <button
+                type="button"
+                onClick={() => setIsFixedFeesDrawerOpen(false)}
+                disabled={isSavingFixedFees}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveFixedFees}
+                disabled={isSavingFixedFees}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSavingFixedFees ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>Lưu cập nhật</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -6,7 +6,7 @@ export const revalidate = 0;
 async function getEvents(): Promise<EventData[]> {
   try {
     const result = await pool.query(`
-      SELECT id, name, event_date, location, expected_guests, status, approval_status 
+      SELECT id, name, event_date, location, expected_guests, status, approval_status, image_url 
       FROM events 
       ORDER BY event_date ASC
     `);

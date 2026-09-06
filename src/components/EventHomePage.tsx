@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Calendar, MapPin, Users, Search } from 'lucide-react';
 import Link from 'next/link';
+import SystemLogo from './SystemLogo';
 
 export type EventData = {
   id: number;
@@ -12,6 +13,7 @@ export type EventData = {
   expected_guests: number;
   status: string;
   approval_status: string;
+  image_url?: string | null;
 };
 
 interface EventHomePageProps {
@@ -104,9 +106,18 @@ export default function EventHomePage({ events }: EventHomePageProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredEvents.map((event) => (
             <div key={event.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-              {/* Card Image Placeholder */}
-              <div className="bg-[#3b82f6] h-32 flex items-center justify-center">
-                <Calendar className="w-8 h-8 text-white opacity-80" />
+              {/* Card Image */}
+              <div className="bg-slate-50 border-b border-gray-100 h-36 flex items-center justify-center p-3 overflow-hidden">
+                {event.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={event.image_url}
+                    alt={event.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <SystemLogo className="max-h-24 w-auto object-contain transition-transform hover:scale-105 duration-200" />
+                )}
               </div>
               
               {/* Card Content */}

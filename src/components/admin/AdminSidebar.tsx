@@ -10,8 +10,11 @@ import {
   ConciergeBell,
   Ticket,
   ShieldCheck,
+  FileSpreadsheet,
+  Settings,
   LogOut,
 } from 'lucide-react';
+import SystemLogo from '@/components/SystemLogo';
 
 const menuItems = [
   { label: 'Tổng quan', href: '/admin', icon: LayoutDashboard },
@@ -20,7 +23,9 @@ const menuItems = [
   { label: 'Người mời', href: '/admin/nguoi-moi', icon: UserPlus },
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
+  { label: 'Nhật ký hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Tài khoản & Phân quyền', href: '/admin/tai-khoan', icon: ShieldCheck },
+  { label: 'Thiết lập', href: '/admin/thiet-lap', icon: Settings },
 ];
 
 interface AdminSidebarProps {
@@ -42,11 +47,16 @@ export default function AdminSidebar({
   return (
     <aside className="w-[260px] min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none">
       {/* Brand Header */}
-      <div className="flex items-center gap-3 px-6 py-6">
-        <div className="bg-[#2563eb] text-white w-9 h-9 flex items-center justify-center rounded-xl font-bold text-lg shadow-sm">
-          W
-        </div>
-        <span className="font-bold text-xl tracking-tight">WeLink</span>
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800/60">
+        <Link href="/admin" className="flex items-center gap-3 w-full">
+          <div className="bg-white px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-center flex-shrink-0">
+            <SystemLogo className="h-7 w-auto max-h-7 object-contain" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="font-bold text-base tracking-tight text-white truncate">Nghiêng Complex</span>
+            <span className="text-[10px] text-slate-400 font-medium tracking-wide">Hệ thống quản trị</span>
+          </div>
+        </Link>
       </div>
 
       {/* Navigation List */}

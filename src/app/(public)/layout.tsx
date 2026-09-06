@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SystemLogo from "@/components/SystemLogo";
 
 export default function PublicLayout({
   children,
@@ -8,13 +9,10 @@ export default function PublicLayout({
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-[#2563eb] text-white w-8 h-8 flex items-center justify-center rounded-lg font-bold text-lg">
-            N
-          </div>
-          <span className="font-bold text-lg">Nghiêng Complex</span>
-        </div>
+      <header className="bg-white border-b border-gray-100 flex items-center justify-between px-6 py-3">
+        <Link href="/" className="flex items-center gap-3">
+          <SystemLogo className="h-10 w-auto max-h-10 object-contain" />
+        </Link>
         <nav className="flex items-center gap-6 text-sm font-medium">
           <Link href="/" className="text-gray-900">Sự kiện</Link>
           <Link href="/login" className="text-gray-500 hover:text-gray-900">Đăng nhập</Link>
