@@ -1,13 +1,8 @@
 const fs = require('fs');
 const { Client } = require('pg');
+const { getDatabaseConfig } = require('./db-config');
 
-const client = new Client({
-  user: 'postgres',
-  password: '1111222267',
-  host: 'localhost',
-  port: 5433,
-  database: 'postgismap',
-});
+const client = new Client(getDatabaseConfig());
 
 async function runSQL() {
   try {

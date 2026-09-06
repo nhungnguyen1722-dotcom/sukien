@@ -6,7 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:schema": "node create_tables.js",
+    "db:seed": "node seed_data.js",
+    "db:seed:members": "node seed_rich_members.js",
+    "db:seed:events": "node seed_events.js",
+    "db:migrate:auth": "node migrate_google_auth.js",
+    "db:migrate:reception": "node migrate_le_tan.js",
+    "db:migrate:logs": "node migrate_event_logs.js",
+    "db:permissions": "node run_permissions_sql.js",
+    "db:test": "node test_db.js"
   },
   "dependencies": {
     "lucide-react": "^1.38.0",
