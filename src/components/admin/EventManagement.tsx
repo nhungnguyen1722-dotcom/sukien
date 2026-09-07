@@ -22,7 +22,20 @@ import {
   UserCheck,
   Info,
   FileSpreadsheet,
+  Upload,
+  Image as LucideImage,
 } from 'lucide-react';
+
+const PRESET_EVENT_IMAGES = [
+  { url: '/events/event-1.jpg', title: 'Hội thảo Doanh nghiệp' },
+  { url: '/events/event-2.jpg', title: 'Workshop Chuyển đổi số' },
+  { url: '/events/event-3.jpg', title: 'CEO Talk & Lãnh đạo' },
+  { url: '/events/event-4.jpg', title: 'Hội nghị Thường niên' },
+  { url: '/events/event-5.jpg', title: 'Đào tạo Kỹ năng mềm' },
+  { url: '/events/event-6.jpg', title: 'Hội thảo AI & Công nghệ' },
+  { url: '/events/event-7.jpg', title: 'Teambuilding Gắn kết' },
+  { url: '/events/event-8.jpg', title: 'Gala Ra mắt Sản phẩm' },
+];
 
 export interface Event {
   id: number;
@@ -40,6 +53,7 @@ export interface Event {
   closer_fee: string | number;
   tea_break_fee: string | number;
   notes: string | null;
+  image_url?: string | null;
 }
 
 export interface Stats {
@@ -106,12 +120,45 @@ export default function EventManagement({
     closer_fee: 200000,
     tea_break_fee: 1250000,
     notes: '',
+    image_url: '/events/event-1.jpg',
   });
 
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Image upload & Media library state
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setFormData((prev) => ({ ...prev, image_url: data.url }));
+        showToast('success', 'Tải ảnh sự kiện lên thành công!');
+      } else {
+        showToast('error', data.error || 'Lỗi khi tải ảnh');
+      }
+    } catch {
+      showToast('error', 'Lỗi kết nối khi tải ảnh');
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
@@ -226,6 +273,7 @@ export default function EventManagement({
       closer_fee: Number(fixedFees.closer_fee) || 200000,
       tea_break_fee: Number(fixedFees.tea_break_fee) || 1250000,
       notes: '',
+      image_url: '/events/event-1.jpg',
     });
     setFormError('');
     setIsModalOpen(true);
@@ -250,6 +298,7 @@ export default function EventManagement({
       closer_fee: Number(event.closer_fee) || 0,
       tea_break_fee: Number(event.tea_break_fee) || 0,
       notes: event.notes || '',
+      image_url: event.image_url || '/events/event-1.jpg',
     });
     setFormError('');
     setIsModalOpen(true);
@@ -566,6 +615,130 @@ export default function EventManagement({
                   {formError}
                 </div>
               )}
+
+              {/* Hình ảnh sự kiện (Mục 3, Hình 9 & 10) */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Hình ảnh sự kiện
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                  {formData.image_url ? (
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-900 group aspect-[16/9] max-h-48">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={formData.image_url}
+                        alt="Event Preview"
+                        className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-800 text-xs font-semibold rounded-lg shadow transition-colors flex items-center gap-1.5"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Đổi ảnh khác
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, image_url: '' })}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow transition-colors flex items-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center bg-white">
+                      <LucideImage className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 mb-3">Chưa có hình ảnh sự kiện</p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      disabled={isUploadingImage}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-60"
+                    >
+                      {isUploadingImage ? (
+                        <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      )}
+                      <span>Tải ảnh từ máy</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMediaLibrary(!showMediaLibrary)}
+                      className="px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-all flex items-center gap-1.5"
+                    >
+                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Chọn từ Thư viện Media</span>
+                    </button>
+                  </div>
+
+                  {/* Media Library Accordion / Grid */}
+                  {showMediaLibrary && (
+                    <div className="mt-3 p-3 bg-white border border-blue-100 rounded-xl shadow-inner space-y-2 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-700">Thư viện ảnh sự kiện có sẵn:</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowMediaLibrary(false)}
+                          className="text-slate-400 hover:text-slate-600 text-xs"
+                        >
+                          Đóng
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                        {PRESET_EVENT_IMAGES.map((img) => (
+                          <div
+                            key={img.url}
+                            onClick={() => {
+                              setFormData({ ...formData, image_url: img.url });
+                              setShowMediaLibrary(false);
+                            }}
+                            className={`group relative rounded-lg overflow-hidden border-2 cursor-pointer aspect-video transition-all hover:scale-105 ${
+                              formData.image_url === img.url
+                                ? 'border-blue-600 ring-2 ring-blue-500/20'
+                                : 'border-slate-200 hover:border-blue-400'
+                            }`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              alt={img.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
+                              <span className="text-[10px] text-white font-medium truncate">
+                                {img.title}
+                              </span>
+                            </div>
+                            {formData.image_url === img.url && (
+                              <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                                <Check className="w-2.5 h-2.5" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Tên sự kiện */}
               <div>

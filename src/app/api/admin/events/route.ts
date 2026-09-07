@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       closer_fee,
       tea_break_fee,
       notes,
+      image_url,
     } = body;
 
     if (!name || !name.trim()) {
@@ -113,8 +114,9 @@ export async function POST(request: NextRequest) {
         closer_fee,
         tea_break_fee,
         notes,
+        image_url,
         approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Chờ duyệt')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Chờ duyệt')
       RETURNING *`,
       [
         name.trim(),
@@ -129,6 +131,7 @@ export async function POST(request: NextRequest) {
         closer_fee ? parseFloat(closer_fee) : 0,
         tea_break_fee ? parseFloat(tea_break_fee) : 0,
         notes ? notes.trim() : null,
+        image_url ? image_url.trim() : '/events/event-1.jpg',
       ]
     );
 

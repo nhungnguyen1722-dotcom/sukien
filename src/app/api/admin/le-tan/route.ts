@@ -188,14 +188,14 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, attendance_status, guest_role, notes } = body;
+    const { id, attendance_status, guest_role, notes, is_food_approved } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Thiếu ID khách mời' }, { status: 400 });
     }
 
     const updates: string[] = [];
-    const params: (string | number)[] = [id];
+    const params: (string | number | boolean)[] = [id];
 
     if (attendance_status !== undefined) {
       params.push(attendance_status);
@@ -208,6 +208,11 @@ export async function PATCH(request: NextRequest) {
     if (guest_role !== undefined) {
       params.push(guest_role);
       updates.push(`guest_role = $${params.length}`);
+    }
+
+    if (is_food_approved !== undefined) {
+      params.push(Boolean(is_food_approved));
+      updates.push(`is_food_approved = $${params.length}`);
     }
 
     if (notes !== undefined) {

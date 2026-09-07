@@ -18,7 +18,7 @@ async function resolveEventId(idParam: string): Promise<number | null> {
   const parsed = parseInt(idParam, 10);
   if (!isNaN(parsed)) return parsed;
   if (idParam === '6a9254fd7194452499f20df3') return 2; // "Hội nghị khách hàng Hà Đông"
-  if (idParam === '6a0fddfa6b74280edb94560e') return 1; // "Sự kiện 1"
+  if (idParam === '6a0fddfa6b74280edb94560e' || idParam === '6a8fddfa6b74280edb94560e') return 1; // "Hội thảo Kết nối Doanh nghiệp 2024"
 
   const codeRes = await pool.query('SELECT id FROM events WHERE code = $1 LIMIT 1', [idParam]);
   if (codeRes.rows.length > 0) return codeRes.rows[0].id;

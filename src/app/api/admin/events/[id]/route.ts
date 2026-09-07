@@ -12,8 +12,8 @@ async function resolveEventId(idParam: string): Promise<number | null> {
   if (idParam === '6a9254fd7194452499f20df3') {
     return 2; // "Hội nghị khách hàng Hà Đông"
   }
-  if (idParam === '6a0fddfa6b74280edb94560e') {
-    return 1; // "Sự kiện 1"
+  if (idParam === '6a0fddfa6b74280edb94560e' || idParam === '6a8fddfa6b74280edb94560e') {
+    return 1; // "Hội thảo Kết nối Doanh nghiệp 2024"
   }
 
   // Look up by code
@@ -146,6 +146,7 @@ export async function PUT(
       closer_fee,
       tea_break_fee,
       notes,
+      image_url,
     } = body;
 
     if (!name || !name.trim()) {
@@ -170,8 +171,9 @@ export async function PUT(
         closer_fee = $10,
         tea_break_fee = $11,
         notes = $12,
+        image_url = COALESCE($13, image_url),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *`,
       [
         name.trim(),
@@ -186,6 +188,7 @@ export async function PUT(
         closer_fee !== undefined ? parseFloat(closer_fee) : 0,
         tea_break_fee !== undefined ? parseFloat(tea_break_fee) : 0,
         notes !== undefined ? notes?.trim() : null,
+        image_url || null,
         eventId,
       ]
     );

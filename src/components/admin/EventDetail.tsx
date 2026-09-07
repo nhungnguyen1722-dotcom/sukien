@@ -62,6 +62,7 @@ export interface EventData {
   closer_fee: string | number;
   tea_break_fee: string | number;
   notes: string | null;
+  image_url?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -432,8 +433,31 @@ export default function EventDetail({
         );
         showToast('success', `Đã chuyển trạng thái sang ${nextStatus}`);
       }
-    } catch (err) {
+    } catch {
       showToast('error', 'Lỗi khi cập nhật trạng thái');
+    }
+  };
+
+  // Handler: Toggle food approval for tea break (hop-thoai-6.txt)
+  const handleToggleFood = async (reg: Registration) => {
+    const nextVal = reg.is_food_approved === false ? true : false;
+    try {
+      const res = await fetch('/api/admin/le-tan', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: reg.id,
+          is_food_approved: nextVal,
+        }),
+      });
+      if (res.ok) {
+        setRegistrations(
+          registrations.map((r) => (r.id === reg.id ? { ...r, is_food_approved: nextVal } : r))
+        );
+        showToast('success', `Đã ${nextVal ? 'bật' : 'hủy'} suất ăn tiệc trà cho ${reg.guest_name}`);
+      }
+    } catch {
+      showToast('error', 'Lỗi khi cập nhật suất ăn');
     }
   };
 
@@ -625,103 +649,143 @@ export default function EventDetail({
         </div>
       )}
 
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
-        <Link href="/admin/su-kien" className="hover:text-blue-600 transition-colors">
-          Sự kiện
-        </Link>
-        <span>/</span>
-        <span className="text-slate-800 font-medium">Chi tiết sự kiện</span>
-      </div>
-
-      {/* Main Header Card */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        <div className="flex items-start md:items-center gap-5">
-          {/* Blue calendar icon block */}
-          <div className="w-16 h-16 rounded-2xl bg-[#2563eb] text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/10">
-            <CalendarDays className="w-8 h-8" />
-          </div>
-
-          {/* Event info */}
-          <div>
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{event.name}</h1>
-              {getStatusBadge(event.status)}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500 font-normal">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-slate-400" />
-                <span>{formatDate(event.event_date)}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-slate-400" />
-                <span>{event.location && event.location !== '-' ? event.location : '—'}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-slate-400" />
-                <span>{event.expected_guests || 0} khách</span>
-              </div>
-            </div>
-          </div>
+      {/* Breadcrumbs & Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Link href="/admin/su-kien" className="hover:text-blue-600 transition-colors">
+            Sự kiện
+          </Link>
+          <span>/</span>
+          <span className="text-slate-800 font-medium">Chi tiết sự kiện</span>
         </div>
 
-        {/* Back Button */}
-        <div className="flex items-center gap-3 self-end md:self-center">
+        <div className="flex items-center gap-2.5">
           <Link
             href="/admin/su-kien"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>Quay lại</span>
+          </Link>
+
+          <button
+            onClick={() => {
+              setCostForm({
+                mc_fee: Number(event.mc_fee) || 0,
+                speaker_fee: Number(event.speaker_fee) || 0,
+                support_fee: Number(event.support_fee) || 0,
+                closer_fee: Number(event.closer_fee) || 0,
+                tea_break_fee: Number(event.tea_break_fee) || 0,
+              });
+              setIsEditCostModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            <span>Chỉnh sửa</span>
+          </button>
+
+          <Link
+            href={`/su-kien/${event.id}`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+          >
+            <span>Trang Public ↗</span>
           </Link>
         </div>
       </div>
 
-      {/* 4 Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        {/* Card 1: Khách dự kiến */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <Users className="w-5 h-5" />
+      {/* Main Header Card - 4 Blocks (Hình 13 & Mục 4) */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          {/* KHỐI 1: Ảnh đại diện sự kiện */}
+          <div className="md:col-span-3 lg:col-span-2">
+            <div className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-slate-100 border border-slate-200 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={event.image_url || '/events/event-1.jpg'}
+                alt={event.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute top-2 left-2">
+                {getStatusBadge(event.status)}
+              </div>
             </div>
-            <span className="text-xs font-medium text-slate-500">Khách dự kiến</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{event.expected_guests || 0}</div>
-        </div>
 
-        {/* Card 2: Chi phí dự kiến */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Wallet className="w-5 h-5" />
+          {/* KHỐI 2: Thông tin chung về sự kiện */}
+          <div className="md:col-span-5 lg:col-span-4 space-y-2.5">
+            <h1 className="text-xl font-bold text-slate-900 leading-snug">
+              {event.name}
+            </h1>
+            <div className="space-y-1.5 text-xs text-slate-600">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <span>
+                  <strong className="text-slate-800">{formatDate(event.event_date)}</strong> • {event.start_time || '08:30'} - {event.end_time || '12:00'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                <span className="truncate" title={event.location || ''}>
+                  {event.location || 'Trung tâm hội nghị Quốc Gia, Hà Nội'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Presentation className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                <span>Loại hình: <span className="font-semibold text-slate-800">{event.event_type || 'Hội thảo / Seminar'}</span></span>
+              </div>
             </div>
-            <span className="text-xs font-medium text-slate-500">Chi phí dự kiến</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{formatCurrency(totalExpectedCost)}</div>
-        </div>
 
-        {/* Card 3: Đã thu */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <Receipt className="w-5 h-5" />
+          {/* KHỐI 3: Trạng thái & Người phụ trách */}
+          <div className="md:col-span-4 lg:col-span-3 border-l md:border-slate-100 md:pl-5 space-y-2 text-xs">
+            <div className="text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
+              Trạng thái & Phụ trách
             </div>
-            <span className="text-xs font-medium text-slate-500">Đã thu</span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500">Trạng thái:</span>
+              <span className="font-semibold text-slate-800">{event.status}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <Users className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-slate-800">{event.manager_name || 'Nguyễn Văn A'}</div>
+                <div className="text-slate-500 text-[11px]">{event.manager_phone || '0912 345 678'}</div>
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-400 pt-1">
+              Người tạo: <span className="text-slate-600 font-medium">Vũ Thị Cúc</span>
+              <br />
+              Vào lúc: {formatDateTime(event.created_at) || '18/05/2024 10:30'}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{formatCurrency(collected)}</div>
-        </div>
 
-        {/* Card 4: Còn lại */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
-              <CreditCard className="w-5 h-5" />
+          {/* KHỐI 4: Box TỔNG QUAN SỰ KIỆN & CHI PHÍ */}
+          <div className="md:col-span-12 lg:col-span-3 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl p-4 border border-blue-100 shadow-sm space-y-2">
+            <div className="text-[11px] font-bold text-blue-900 tracking-wide uppercase flex items-center gap-1.5 pb-1 border-b border-blue-100">
+              <Wallet className="w-3.5 h-3.5 text-blue-600" />
+              <span>Tổng quan sự kiện</span>
             </div>
-            <span className="text-xs font-medium text-slate-500">Còn lại</span>
+            <div className="grid grid-cols-2 gap-2.5 text-xs pt-1">
+              <div>
+                <div className="text-slate-500 text-[11px]">Khách dự kiến:</div>
+                <div className="font-bold text-slate-900">{event.expected_guests || 100} khách</div>
+              </div>
+              <div>
+                <div className="text-slate-500 text-[11px]">Chi phí dự kiến:</div>
+                <div className="font-bold text-blue-700">{formatCurrency(totalExpectedCost)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500 text-[11px]">Đã thu:</div>
+                <div className="font-bold text-emerald-700">{formatCurrency(collected)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500 text-[11px]">Còn lại:</div>
+                <div className="font-bold text-rose-600">{formatCurrency(remaining)}</div>
+              </div>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{formatCurrency(remaining)}</div>
         </div>
       </div>
 
@@ -806,20 +870,74 @@ export default function EventDetail({
 
           <hr className="border-slate-100" />
 
-          {/* Guest Registration & Check-in Section */}
-          <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+          {/* Phân công vai trò ban tổ chức (hop-thoai-6.txt) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900">
-                Khách đăng ký & check-in ({registrations.length})
+                Phân công vai trò sự kiện & Thù lao ban tổ chức
               </h2>
+              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
+                Tổng thù lao: {formatCurrency(totalStaffCost)}
+              </span>
+            </div>
 
-              <button
-                onClick={() => setIsAddGuestModalOpen(true)}
-                className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Thêm khách</span>
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                { role: 'MC sự kiện', fee: event.mc_fee, person: 'Vũ Thị Cúc', color: 'blue' },
+                { role: 'Thuyết trình / Diễn giả', fee: event.speaker_fee, person: event.manager_name || 'Nguyễn Văn A', color: 'purple' },
+                { role: 'Chốt sự kiện', fee: event.closer_fee, person: 'Trần Văn Mạnh', color: 'emerald' },
+                { role: 'Phụng sự 1 (Lễ tân)', fee: event.support_fee, person: 'Lê Thu Trang', color: 'amber' },
+                { role: 'Phụng sự 2 (Kỹ thuật)', fee: event.support_fee, person: 'Phạm Đức Hoàng', color: 'amber' },
+                { role: 'Phụng sự 3 (Hậu cần)', fee: event.support_fee, person: 'Đỗ Hải Nam', color: 'amber' },
+              ].map((item, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-800 truncate">{item.role}</div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                      <UserCheck className="w-3 h-3 text-slate-400" />
+                      <span>{item.person}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs font-bold text-slate-900 flex-shrink-0">
+                    {formatCurrency(item.fee)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Guest Registration & Tea Break Food Check-in Section (hop-thoai-6.txt) */}
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Khách đăng ký & Check-in Suất ăn Tiệc trà ({registrations.length})
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Mặc định tính suất ăn 50.000đ/khách. Bỏ tích chọn người không ăn để chốt đề xuất thanh toán.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
+                  <span>Khách ăn: {registrations.filter((r) => r.is_food_approved !== false).length}/{registrations.length}</span>
+                  <span>•</span>
+                  <span>Tiệc trà: {formatCurrency(registrations.filter((r) => r.is_food_approved !== false).length * 50000)}</span>
+                </div>
+
+                <button
+                  onClick={() => setIsAddGuestModalOpen(true)}
+                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Thêm khách</span>
+                </button>
+              </div>
             </div>
 
             {/* Guest Filters */}
@@ -849,13 +967,14 @@ export default function EventDetail({
             </div>
 
             {/* Guest Table */}
-            <div className="border border-slate-100 rounded-xl overflow-hidden">
+            <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs text-slate-600 border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                     <th className="py-3 px-4">Tên</th>
                     <th className="py-3 px-4">SĐT</th>
                     <th className="py-3 px-4">Nguồn</th>
+                    <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Tình trạng</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
@@ -863,44 +982,60 @@ export default function EventDetail({
                 <tbody className="divide-y divide-slate-100">
                   {filteredGuests.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
                         Chưa có khách đăng ký cho sự kiện này
                       </td>
                     </tr>
                   ) : (
-                    filteredGuests.map((guest) => (
-                      <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 font-semibold text-slate-800">
-                          {guest.guest_name}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full font-medium ${
-                              guest.attendance_status === 'Đã check-in'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {guest.attendance_status || 'Mới đăng ký'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => handleToggleCheckin(guest)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                              guest.attendance_status === 'Đã check-in'
-                                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>{guest.attendance_status === 'Đã check-in' ? 'Hủy check-in' : 'Check-in'}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredGuests.map((guest) => {
+                      const isFood = guest.is_food_approved !== false;
+                      return (
+                        <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-slate-800">
+                            {guest.guest_name}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
+                          <td className="py-3.5 px-4 text-center">
+                            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isFood}
+                                onChange={() => handleToggleFood(guest)}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className={`text-[11px] font-semibold ${isFood ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                {isFood ? 'Ăn tiệc trà' : 'Không ăn'}
+                              </span>
+                            </label>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full font-medium ${
+                                guest.attendance_status === 'Đã check-in'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {guest.attendance_status || 'Mới đăng ký'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <button
+                              onClick={() => handleToggleCheckin(guest)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                guest.attendance_status === 'Đã check-in'
+                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>{guest.attendance_status === 'Đã check-in' ? 'Hủy check-in' : 'Check-in'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
