@@ -47,14 +47,10 @@ export default function AdminSidebar({
   return (
     <aside className="w-[260px] min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none">
       {/* Brand Header */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800/60">
-        <Link href="/admin" className="flex items-center gap-3 w-full">
-          <div className="bg-white px-2.5 py-1.5 rounded-xl shadow-sm flex items-center justify-center flex-shrink-0">
-            <SystemLogo className="h-7 w-auto max-h-7 object-contain" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="font-bold text-base tracking-tight text-white truncate">Nghiêng Complex</span>
-            <span className="text-[10px] text-slate-400 font-medium tracking-wide">Hệ thống quản trị</span>
+      <div className="flex items-center justify-center px-4 py-4 border-b border-slate-800/60">
+        <Link href="/admin" className="flex items-center justify-center w-full group">
+          <div className="bg-white px-4 py-2.5 rounded-2xl shadow-md flex items-center justify-center w-full max-w-[210px] hover:shadow-lg transition-all">
+            <SystemLogo className="h-10 w-auto max-h-10 object-contain transition-transform group-hover:scale-105 duration-200" />
           </div>
         </Link>
       </div>

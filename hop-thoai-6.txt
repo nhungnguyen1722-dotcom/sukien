@@ -1,0 +1,81 @@
+=== LỜI ĐỐI THOẠI TRONG AUDIO: P. Đại Mỗ 6.m4a ===
+
+* Người hướng dẫn/Quản lý: Mình sẽ thấy khi mà vi quét mã à mình sẽ làm cái mã link này đúng không? Và họ sẽ ra danh sách các cái sự kiện đúng không?
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Cái tiệc trà và ở đây thì họ ok ấn vào chi tiết. Đây là giao diện của khách hàng khi chưa đăng nhập. À
+* An: Dạ vâng.
+* Người hướng dẫn/Quản lý: Thế nút nút đăng ký tham dự đâu?
+* An: À cái đấy bổ sung sau ở trên nó tức là phải có trên header.
+* Người hướng dẫn/Quản lý: Tức là ví dụ thế còn ví dụ bây giờ đăng nhập vào thì nó có bên khách hàng đăng ký bằng cách nào? Chưa có ạ. Anh bấm nút đăng nhập kia xem được chưa chưa? Không cần đăng nhập nhưng phải đăng ký được chứ.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Khi mà đăng ký họ chỉ cần điền số điện thoại thôi là mặc định mình tạo cho họ tài khoản bằng số điện thoại luôn đi đúng không? Có phải nhàn không? Bây giờ tự nhiên bắt người ta tạo mật khẩu với tài khoản có phiền không?
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Em mở ra cái thứ nhất là mở ra cái nhé, về show trên điện thoại mình phải nhìn trên giao diện điện thoại nó mới tiện chứ mình để này là rất phiền. Cái này dành cho quản trị thôi. Mình đừng tư duy theo góc độ quản trị mà tư duy hộ khách hàng. Đây, khách hàng mở ra cái là thấy các sự kiện rồi hiển thị luôn ở đây chứ không cần phải ấn vào chi tiết nhé. Hiện luôn nút...
+* An: À, nút đăng ký, em hiểu ý rồi.
+* Người hướng dẫn/Quản lý: Đăng ký thì họ thấy rất nhiều cái sự kiện, tôi có thể đăng ký một trong các sự kiện này luôn, phải giảm bớt đi một thao tác thôi, chứ bắt ấn vào đây xong bắt đầu mới đăng ký thì phiền không?
+* An: Rồi.
+* Người hướng dẫn/Quản lý: Trừ khi ai đó cẩn thận bảo "À tôi muốn xem nội dung hôm đấy có gì mới hay không", còn bình thường nhé, anh nói thật, họ sẽ đăng ký luôn, chẳng hạn như em là người giới thiệu, họ tin tưởng mới đăng ký. Thế thì ở đây đăng ký nó có nhiều cái đăng ký, ví dụ trước khi sự kiện diễn ra thì chỉ là đăng ký tham dự sự kiện thôi, gọi là lên danh sách thôi. Sự kiện mới thì sẽ có nút đăng ký đúng không? Nhưng nếu sự kiện đó đang diễn ra vào chẳng hạn như hôm nay, buổi sáng hôm đấy rồi thì lúc đấy là đăng ký tham dự, cái nút đấy nó phải thay đổi theo thời gian rồi đấy. Hoặc là đến hết sự kiện rồi thì nó chuyển vào cái kho là sự kiện đã xảy ra, lúc đấy chỉ còn nút là xem kết quả của sự kiện thôi.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Thì nó hiện ra bài viết là hôm đấy có những ai là người đứng lên phát biểu, bức ảnh giao thưởng hay gì đó, hoặc là có thể có bài viết ngắn tổng kết hôm nay chúng ta đã thành công cái gì.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Thế thì cái cách hiển thị sự kiện này nó sẽ thay đổi theo cái thời điểm trước, trong và sau sự kiện đúng không?
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Vậy thì khi mà trước sự kiện, họ chỉ được đăng ký danh sách, mình chỉ cần lấy số điện thoại, tên, và ai là người giới thiệu gì đó.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Cái này thì thường là người giới thiệu sẽ là người hướng dẫn nên họ sẽ là người nhắc nhở hay chỉ luôn. Còn nếu mà trong sự kiện thì nó chỉ là tham dự sự kiện để mình đăng ký suất ăn các thứ để cho mình theo dõi. Đấy, và như hôm trước trong cái phần admin của em ấy, nó có phần đăng ký tham gia với vai trò gì, thì cái link đó nó phải là link của trang quản trị gửi cho những người nhân sự trong công ty.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Thì anh cần cái màn hình đấy. Ví dụ như anh là chị Cúc, chị sẽ là người... nhưng cái này phải có người tạo ra các sự kiện đúng không? Để có bốn sự kiện này thì phải có người tạo ra bốn sự kiện này chứ đúng không?
+* An: Vâng, đúng rồi.
+* Người hướng dẫn/Quản lý: Thế thì trong bốn sự kiện này sẽ có người tạo ra. Tạo ra xong thì nó sẽ có thêm phần chỉ định hoặc là mời các vị trí tham gia sự kiện. Ví dụ mời MC, chỉ định MC, mời người thuyết trình hoặc là mời người chốt sự kiện.
+* An: Thì mình sẽ chọn tên, trong mỗi sự kiện mình sẽ chọn tên ai làm đúng không?
+* Người hướng dẫn/Quản lý: Không, sẽ là gửi link để chỉ định và mời. Ví dụ như trong cái sự kiện này, đây là trang của khách hàng không nói nhé. Trong trang quản trị, trước khi có một sự kiện hiển thị trên trang chủ phải có người tạo ra đúng không?
+* An: Ừ.
+* Người hướng dẫn/Quản lý: Và khi tạo ra trong trang chủ rồi thì cái nút đấy có cái phần gửi lời mời luôn để làm MC mời ấy rồi hoặc là chỉ định. Nếu mà chỉ định thì phải là danh sách nhân sự đã đăng ký từ trước đúng không? Ví dụ như bây giờ có danh sách MC là em phải cho chị ấy nhập liệu tất cả thông tin của các MC có thể làm được để mình còn phân loại dữ liệu. Mà hôm trước trong cái demo của em anh thấy có rồi mà đúng không? Trong cái demo hôm trước anh thấy có rồi mà.
+* An: AppSheet đúng không anh?
+* Người hướng dẫn/Quản lý: Ừ, trên app ấy. Đây, cái dữ liệu đổ về để sau này mình lọc đúng không? Thì rõ ràng nhé, hôm trước Vân đã thiết kế cái bản cơ sở dữ liệu. Đây là cơ sở dữ liệu em đổ về từ trên database đúng không? Trên cái vicle kia về đấy.
+* An: Tức là cơ sở dữ liệu đổ về đây, nhưng trên nó có database riêng của nó. Còn đây chỉ là đổ thêm về để đối chiếu thôi đúng không?
+* Người hướng dẫn/Quản lý: Không. Đây chính là dữ liệu thật của database đấy ạ.
+* An: Em dùng AppSheet và Google Sheets để làm database.
+* Người hướng dẫn/Quản lý: Vâng. Ok, cũng được. Không phải, tức là từ database trong cái link mà anh đang xem đấy thì nó có đồng bộ được sang bên sự kiện rồi. Ok, thế cũng được. Sau này mình dùng tài khoản chị Cúc để...
+* An: Không phải, em muốn hỏi cái thứ hai về Google Sheets của thành viên mình chỉ cho hiện tên với cả số điện thoại thôi đúng không?
+* Người hướng dẫn/Quản lý: Thế thôi không cần nhiều, đừng cho nhiều, mặc định như thế.
+* An: "Vậy em muốn hỏi là Google đồng bộ đến Google Sheets gồm những bảng nào?"
+* Người hướng dẫn/Quản lý: Em có thảo luận với Vân không? Trước các cái bảng của Vân ấy liên quan đến quản lý thành viên, quản lý hợp đồng, quản lý các thứ đâu nhỉ? Trong công việc ấy, Vân gửi cái đấy rồi đúng không?
+* An: Đã bao giờ anh xem qua được chưa?
+* Người hướng dẫn/Quản lý: Rồi ạ. Thì đấy là các trường thông tin mà cần hiển thị đây.
+* An: Anh xem link kia ạ. Xem tất cả chỗ link dưới này. Đây đây đây đây. Tổng hợp tin à đây à không, tổng hợp chứ không phải của bên Nghiêng ấy ạ. Chắc ngày mùng 3 tháng 9 đề... à không có tên... xem tin nhắn của bên đây.
+* Người hướng dẫn/Quản lý: Đây. Đây này nhé, anh bảo cách của em để hiện tên nhé. Vẫn là tin nhắn của Vân, em đi cùng với chữ thì nó sẽ không ra nhưng mà em rải riêng ra thì ra nó phải hiện tên, trong lịch sử của mình mình sẽ có tên để trong dữ liệu này này thì xong bắt đầu em mới nhắn tin "anh ơi, này kia" thì anh em mình tìm lịch sử rất dễ. Bây giờ đây này, nó từ form dữ liệu được đấy, nó sẽ dễ hơn, và sau này đặt tên đầy đủ hơn đi. Phòng dữ liệu gì nhé. Ok, chúng ta hướng cách thức để nhắn tin như vậy. Đây chính là các trường thông tin cần phải hiển thị để em gọi về đúng không? Thì mình sẽ... đây là cái kiểu báo cáo của Vân thôi. Mình sẽ cấu trúc lại nhé. Thì dạng danh sách thành viên bảng nó sẽ là như này này.
+* An: Danh sách thành viên bảng như này đúng không?
+* Người hướng dẫn/Quản lý: Ừ, đấy là các trường gọi về.
+* An: Mà chỉ có tài khoản chị Cúc mới xem đúng không ạ?
+* Người hướng dẫn/Quản lý: Không, tài khoản của bên em và phân quyền kế toán hay quản trị đều xem được, chứ không thì làm sao làm báo cáo được. Nhưng mà chị Cúc sẽ không tham gia vào đây nhiều, cái file này đa phần dữ liệu để mình xem thôi để mình thao tác lọc hay làm báo cáo theo thời gian, theo buổi các thứ thôi. Còn chị Cúc ấy, chị ấy phải vào phần app để check-in là "Hôm nay có danh sách tham dự là 50 khách cộng thêm MC các thứ".
+* An: Ừ, thì ai là người không ăn?
+* Người hướng dẫn/Quản lý: Ừ. Chứ không phải check người ăn nhé. Mặc định sẽ là ăn hết, thì chị sẽ chọn "Người này không ăn, người này không đăng ký ăn" rồi tích bỏ đi. Sau khi chị ấn nút chốt thì hệ thống sẽ khóa lại cái bảng đấy để gửi ra một cái... sau này Vân sẽ có một cái file đề xuất đề nghị thanh toán tiền ăn tiệc trà này cho bao nhiêu sự kiện, em hình dung không?
+* An: Rồi. Đó thì cái bản cơ sở dữ liệu này thì em hoàn toàn có thể tham khảo để biết mình cần các trường thông tin gì đổ về đúng không?
+* An: Màu có cần như thế không ạ?
+* Người hướng dẫn/Quản lý: Tùy các em, muốn làm màu nào cũng được nhưng cần đủ thông tin.
+* An: Vâng, để chúng ta có thể lập...
+* Người hướng dẫn/Quản lý: Và nó sẽ là một cái bảng dài dằng dặc dằng dặc xuống nhé, chứ không chia thành từng phần kiểu này, đây chỉ là bảng công thức thôi đúng không? Bảng danh sách thành viên này, nhật ký sự kiện này, chi tiết sự kiện này, cũng dằng dặc xuống cho anh để xem.
+* An: Chi tiết sự kiện mà cũng đồng bộ như thế này thì được, không vấn đề gì đâu. Để em nghĩ xem đồng bộ như thế nào.
+* Người hướng dẫn/Quản lý: Chị chỉ cần tích là ăn thì mới cho ra 50.000đ mà.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Em phải đọc cái bảng này đi, anh xem nếu phù hợp hay không phù hợp thì phản hồi lại nhé. Xem kỹ cái bảng này đi, trao đổi với Vân. Thì bây giờ làm trước cho anh cái việc trang chủ này đã để nếu có tiệc trà là anh cần họ đăng ký được ngay. Trang chủ này anh vừa nói đó, họ vào cái là họ đăng ký được luôn. Ấn "Đăng ký tham dự sự kiện" dựa trên thời điểm của sự kiện đó, thường là sự kiện tiệc trà ngày bao nhiêu, ở địa điểm nào hiển thị ở bên dưới luôn.
+* An: Họ tên, số điện thoại. Vâng. Tên sự kiện và địa điểm tổ chức sự kiện ngay đây luôn.
+* Người hướng dẫn/Quản lý: Vâng, cái ngày này em phải mở to luôn trên này, trung tâm, địa chỉ các thứ hiển thị đây. Ở đây có nút đăng ký luôn. Khi đăng ký thì bắt đầu ấn đăng ký xong, đối với người dùng đăng ký thì phải có số điện thoại. Thì mặc nhiên em cho đăng nhập luôn nhé. Em dùng logic hệ thống này: khi có một số điện thoại mới xuất hiện, mặc nhiên tạo luôn ra một cái tài khoản. Tài khoản đó có tên đăng nhập và mật khẩu bằng số điện thoại luôn. Và khi họ đăng nhập thành công thì lưu lại trên thiết bị cho họ.
+* An: Ừ, mật khẩu trên thiết bị cho họ để người dùng đỡ phiền nhất, lần sau đối với đăng ký tham dự sự kiện tiệc trà họ chỉ cần thế và vào thôi.
+* Người hướng dẫn/Quản lý: Đúng, đấy là lần một. Thế lần hai thì họ chỉ việc bấm tham dự thôi chứ không phải đăng ký nữa, đăng ký tham dự sự kiện chứ không phải đăng ký thêm tài khoản nữa.
+* An: Mà dạng sẽ là khách vãng lai đúng không?
+* Người hướng dẫn/Quản lý: Họ thành thành viên rồi, có người giới thiệu đi kèm mà. Anh bảo nhé, cái đầu tiên nếu họ chưa có trong cơ sở dữ liệu của mình thì đầu tiên họ phải đăng ký thành viên ạ, sau đó họ mới đăng ký sự kiện đúng không?
+* An: Thành viên. Khi đăng ký thành viên thì họ đã khai báo cho mình số điện thoại.
+* Người hướng dẫn/Quản lý: Vâng, thì mặc nhiên hệ thống sẽ tự động tạo ra tài khoản luôn. Tài khoản đó có tên tài khoản bằng số điện thoại và mật khẩu bằng số điện thoại luôn. Khi chưa là thành viên, khi họ ấn nút vào đăng ký đấy thì đồng thời cũng nhập vào cơ sở dữ liệu thành viên luôn đúng không? Đúng rồi, họ đăng ký thành viên cái là họ là thành viên luôn.
+* An: Ok anh.
+* Người hướng dẫn/Quản lý: Và sự kiện đó họ cũng được đăng ký tham gia luôn. Nếu như sự kiện đấy chưa diễn ra thì gọi là đăng ký tham gia để vào danh sách những người dự kiến sẽ tham dự sự kiện. Còn nếu như sự kiện đó mà đang diễn ra vào ngày hôm đấy thì họ sẽ ấn vào nút "đăng ký tham dự" giống như kiểu check-in ấy.
+* An: Vâng. Check-in là tham dự đấy để biết được hôm nay có bao nhiêu người. Đăng ký 100 người nhưng thực ra có 50 người đến thì lúc đấy phải có 50 người ấn nút tham dự. Thế thì họ đăng ký tham dự thì đồng thời là họ cứ vào thôi. Và đương nhiên khi đăng ký tham dự thì mình cũng sẽ có thông tin người giới thiệu rồi. Thì mặc định nhé, người giới thiệu hay tên thành viên tham dự sự kiện và đăng ký sự kiện thì cần khoảng một lần thôi, mình đã lưu trên thiết bị cho họ rồi, mình sẽ gửi hiển thị cái popup "Có lưu lại cái này không", cái đó dễ rồi nhé. Và nếu các buổi tiếp theo thì họ không cần phải nhập lại dữ liệu nữa. Họ chỉ việc ấn nút đăng ký thôi hoặc ấn nút tham dự thôi chứ không cần nhập lại số điện thoại hay mật khẩu làm gì cả, hay là thông tin người giới thiệu làm gì cả đúng không? Chỉ cần thông tin tên người dùng, số điện thoại và người giới thiệu. Số điện thoại người giới thiệu cũng lưu hết. Đấy là đăng ký ban đầu thôi, nhưng lần sau không phải cập nhật lại nữa bởi vì hệ thống đã tự lưu trữ rồi.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Thế thì lúc đấy họ chỉ cần đăng ký là có tham dự buổi này hay không thôi. Và các buổi tiếp theo diễn ra thì họ chỉ cần việc ấn nút đăng ký hay là ấn nút tham dự thôi chứ không cần phải tạo tài khoản mới nữa vì hệ thống đã tự lưu trữ rồi. Thì mặc định trong hệ thống tài khoản của chị Cúc trên app sự kiện này, chị Cúc sẽ là người theo dõi được là có bao nhiêu người tham gia. Đầu tiên chị Cúc phải là người tạo ra được các sự kiện nhé. Và khi duyệt rồi thì có bao nhiêu người tham gia và chị ấy được mời MC hoặc chỉ định MC hoặc là các vị trí để tham gia sự kiện đó: vị trí MC, vị trí thuyết trình, vị trí chốt, vị trí phụng sự. Phụng sự thì có ba vị trí trở lên. Và các vị trí đó thì ngoài danh sách thành viên đăng ký ra thì mình sẽ có danh sách nhân sự cũng cần phải đăng ký. Nhân sự có thể đăng ký "Tôi đăng ký chuyên làm phụng sự", một người có thể làm nhiều vai trò. Ví dụ tôi là Tuấn, tôi đăng ký làm nhân viên của bên Nghiêng ở trong hoạt động tiệc trà, tôi có thể làm được vị trí MC và thuyết trình, có thể làm được hết tất cả các vị trí chỉ cần tích chọn thôi. Và như thế khi mỗi lần chị ấy chỉ định, chị ấy sẽ ra được danh sách MC là những ai có thể làm được ngày đó để chị chọn và khi chọn rồi thì giống như gửi yêu cầu thôi, cái thành viên kia cũng cần phải xác nhận nữa đúng không để tính lương, tính công cho họ trên số buổi họ tham dự vào các sự kiện.
+* An: Vâng.
+* Người hướng dẫn/Quản lý: Cái này thì ra là anh nói rồi nhé, có gì Vân nắm bắt phối hợp với An. Em (An) sẽ là người đầu tiên kết hợp cho anh. Em đóng vai là người dùng giống như anh nói, và có lúc em đóng vai chị Cúc thì em sẽ vào đâu để thao tác điều đó để cung cấp dữ liệu cho Vân, rồi em sẽ là người có danh sách đề xuất đề nghị. Em đóng vai là người dùng tham gia sự kiện như thế nào, em thuyết phục được Vân thì sẽ gặp anh luôn, cái đấy gần như anh tưởng các em làm xong rồi, không thì bổ sung thêm nút đấy cho anh nhé. Làm luôn trong sáng nay đi, ưu tiên trước việc đăng ký người dùng và đăng ký nhân sự cho sự kiện.
+* An: Rồi.
+* Người hướng dẫn/Quản lý: Còn về cơ sở dữ liệu sau khi có rồi thì anh em sẽ sàn nấu xong, đơn giản thôi.
+* An: Ừ.
+* Người hướng dẫn/Quản lý: Rồi, thế về làm luôn đi, có gì cần khai báo nữa không? Ok.
