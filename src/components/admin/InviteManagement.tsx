@@ -88,9 +88,17 @@ export default function InviteManagement({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Computed referral code & URL
+  // Computed referral code & Dynamic URL according to environment (localhost vs production Vercel)
+  const [baseUrl, setBaseUrl] = useState<string>('http://localhost:3000');
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.origin) {
+      setBaseUrl(window.location.origin);
+    }
+  }, []);
+
   const refCode = currentUser.ref_code || 'REF_CUC12';
-  const referralUrl = `http://localhost:3000/qr-checkin?ref=${refCode}`;
+  const referralUrl = `${baseUrl}/qr-checkin?ref=${refCode}`;
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });

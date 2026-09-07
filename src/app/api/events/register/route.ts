@@ -6,16 +6,14 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      eventId,
-      fullName,
-      phone,
-      email,
-      company,
-      referrer,
-      notes,
-      isTodayCheckin,
-    } = body;
+    const eventId = body.eventId || body.event_id;
+    const fullName = body.fullName || body.guest_name;
+    const phone = body.phone || body.guest_phone;
+    const email = body.email || body.guest_email;
+    const company = body.company || body.company_address;
+    const referrer = body.referrer || body.referrer_name;
+    const notes = body.notes;
+    const isTodayCheckin = body.isTodayCheckin;
 
     if (!eventId) {
       return NextResponse.json(
