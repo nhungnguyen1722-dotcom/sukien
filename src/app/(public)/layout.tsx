@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Search, Bell, LogIn } from "lucide-react";
 import SystemLogo from "@/components/SystemLogo";
 import PublicHeaderNav from "@/components/PublicHeaderNav";
+import PublicHeaderAuth from "@/components/PublicHeaderAuth";
 
 export default function PublicLayout({
   children,
@@ -23,35 +24,8 @@ export default function PublicLayout({
           {/* Menu Điều Hướng */}
           <PublicHeaderNav />
 
-          {/* Công cụ bên phải */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
-              title="Tìm kiếm"
-            >
-              <Search className="w-4.5 h-4.5" />
-            </button>
-            <div className="relative">
-              <button
-                type="button"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
-                title="Thông báo"
-              >
-                <Bell className="w-4.5 h-4.5" />
-              </button>
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-                3
-              </span>
-            </div>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-blue-500/20 active:scale-95"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Đăng nhập</span>
-            </Link>
-          </div>
+          {/* Công cụ bên phải (3 trạng thái theo Hình 3: image3.png) */}
+          <PublicHeaderAuth />
         </div>
       </header>
 
