@@ -41,15 +41,15 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Redirect to /admin on successful login
-        router.push(data.redirectTo || "/admin");
+        // Redirect based on server-provided URL; default to home page for non-admin users
+        router.push(data.redirectTo ?? "/");
         router.refresh();
       } else {
         setErrorMsg(data.error || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
       }
     } catch (err) {
       console.error(err);
-      router.push("/admin");
+      router.push("/");
     } finally {
       setIsLoading(false);
     }
