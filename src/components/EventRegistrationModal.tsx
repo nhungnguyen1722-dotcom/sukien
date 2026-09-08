@@ -56,6 +56,7 @@ export default function EventRegistrationModal({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('vang_lai');
   const [referrer, setReferrer] = useState('');
   const [notes, setNotes] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(true);
@@ -82,7 +83,12 @@ export default function EventRegistrationModal({
           setFullName(parsed.fullName || '');
           setEmail(parsed.email || '');
           setCompany(parsed.company || '');
-          setReferrer(parsed.referrer || '');
+          if (parsed.referrer && parsed.referrer !== 'Khách vãng lai') {
+            setReferrer(parsed.referrer);
+            setReferrerType('co_nguoi_gioi_thieu');
+          } else {
+            setReferrerType('vang_lai');
+          }
           setHasSavedProfile(true);
         }
       }
@@ -124,6 +130,8 @@ export default function EventRegistrationModal({
     setIsSubmitting(true);
     setErrorMsg('');
 
+    const finalReferrer = referrerType === 'vang_lai' ? 'Khách vãng lai' : referrer.trim();
+
     try {
       const res = await fetch('/api/events/register', {
         method: 'POST',
@@ -134,7 +142,7 @@ export default function EventRegistrationModal({
           phone,
           email,
           company,
-          referrer,
+          referrer: finalReferrer,
           notes,
           isTodayCheckin: isToday,
         }),
@@ -154,7 +162,7 @@ export default function EventRegistrationModal({
             fullName: fullName.trim(),
             email: email.trim(),
             company: company.trim(),
-            referrer: referrer.trim(),
+            referrer: finalReferrer,
           })
         );
       } catch {
@@ -453,21 +461,49 @@ export default function EventRegistrationModal({
                     </div>
                   </div>
 
-                  {/* Người giới thiệu */}
+                  {/* Người giới thiệu (Item 4) */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Người giới thiệu <span className="text-gray-400 font-normal">(tùy chọn)</span>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Người giới thiệu
                     </label>
-                    <div className="relative">
-                      <Users className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={referrer}
-                        onChange={(e) => setReferrer(e.target.value)}
-                        placeholder="Chọn hoặc nhập tên / SĐT người giới thiệu"
-                        className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      />
+                    <div className="flex items-center gap-6 mb-2">
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-700">
+                        <input
+                          type="radio"
+                          name="referrerType"
+                          value="vang_lai"
+                          checked={referrerType === 'vang_lai'}
+                          onChange={() => setReferrerType('vang_lai')}
+                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Người vãng lai</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-700">
+                        <input
+                          type="radio"
+                          name="referrerType"
+                          value="co_nguoi_gioi_thieu"
+                          checked={referrerType === 'co_nguoi_gioi_thieu'}
+                          onChange={() => setReferrerType('co_nguoi_gioi_thieu')}
+                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Người giới thiệu</span>
+                      </label>
                     </div>
+
+                    {referrerType === 'co_nguoi_gioi_thieu' && (
+                      <div className="relative animate-in fade-in duration-200">
+                        <Users className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          required={referrerType === 'co_nguoi_gioi_thieu'}
+                          value={referrer}
+                          onChange={(e) => setReferrer(e.target.value)}
+                          placeholder="Nhập đúng tên hoặc SĐT của User thành viên mời"
+                          className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Ghi chú */}

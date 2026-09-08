@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -34,21 +35,55 @@ interface AdminSidebarProps {
 }
 
 export default function AdminSidebar({
-  adminName = 'Nhung Nguyễn',
-  adminRole = 'ADMIN',
+  adminName: defaultAdminName = 'Nhung Nguyễn',
+  adminRole: defaultAdminRole = 'ADMIN',
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [currentRole, setCurrentRole] = useState(defaultAdminRole);
+  const [currentName, setCurrentName] = useState(defaultAdminName);
+
+  useEffect(() => {
+    try {
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+        return match ? decodeURIComponent(match[3]) : null;
+      };
+      const cRole = getCookie('user_role');
+      const cName = getCookie('user_name');
+      if (cRole) setCurrentRole(cRole);
+      if (cName) setCurrentName(cName);
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  const isReception = currentRole.toLowerCase().includes('lễ tân') || currentRole.toLowerCase().includes('reception');
+
+  const visibleMenuItems = isReception
+    ? menuItems.filter((item) => item.href === '/admin/le-tan')
+    : menuItems;
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem('nghieng_auth_role');
+      document.cookie = 'user_role=; path=/; max-age=0';
+      document.cookie = 'user_name=; path=/; max-age=0';
+      document.cookie = 'user_email=; path=/; max-age=0';
+      document.cookie = 'user_phone=; path=/; max-age=0';
+      document.cookie = 'user_id=; path=/; max-age=0';
+    } catch {
+      // Ignore
+    }
     router.push('/login');
+    router.refresh();
   };
 
   return (
     <aside className="w-[260px] min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none">
       {/* Brand Header */}
       <div className="flex items-center justify-center px-4 py-4 border-b border-slate-800/60">
-        <Link href="/admin" className="flex items-center justify-center w-full group">
+        <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center w-full group">
           <div className="bg-white px-4 py-2.5 rounded-2xl shadow-md flex items-center justify-center w-full max-w-[210px] hover:shadow-lg transition-all">
             <SystemLogo className="h-10 w-auto max-h-10 object-contain transition-transform group-hover:scale-105 duration-200" />
           </div>
@@ -58,7 +93,7 @@ export default function AdminSidebar({
       {/* Navigation List */}
       <nav className="flex-1 px-4 mt-2 overflow-y-auto">
         <ul className="space-y-1.5">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const isActive =
               item.href === '/admin'
                 ? pathname === '/admin'
@@ -89,20 +124,26 @@ export default function AdminSidebar({
         <div className="flex items-center gap-3 px-2 py-2">
           {/* Avatar */}
           <div className="w-10 h-10 rounded-full bg-[#2563eb] flex items-center justify-center text-white text-base font-bold flex-shrink-0 shadow-sm">
-            {adminName ? adminName.trim().charAt(0).toUpperCase() : 'N'}
+            {currentName ? currentName.trim().charAt(0).toUpperCase() : 'N'}
           </div>
 
           {/* Name & Role */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-white text-sm font-semibold truncate max-w-[90px]">
-                {adminName}
+                {currentName}
               </span>
-              <span className="bg-[#831843]/70 text-[#f472b6] text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wide uppercase border border-[#ec4899]/20">
-                {adminRole}
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wide uppercase border ${
+                isReception
+                  ? 'bg-amber-950/70 text-amber-400 border-amber-500/20'
+                  : 'bg-[#831843]/70 text-[#f472b6] border-[#ec4899]/20'
+              }`}>
+                {isReception ? 'LỄ TÂN' : currentRole}
               </span>
             </div>
-            <p className="text-slate-400 text-xs truncate">Quản trị viên</p>
+            <p className="text-slate-400 text-xs truncate">
+              {isReception ? 'Nhân viên lễ tân' : 'Quản trị viên'}
+            </p>
           </div>
 
           {/* Logout Button */}

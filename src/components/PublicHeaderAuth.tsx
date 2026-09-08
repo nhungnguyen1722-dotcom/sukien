@@ -28,23 +28,42 @@ interface PublicHeaderAuthProps {
 export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeaderAuthProps) {
   const router = useRouter();
   const [role, setRole] = useState<AuthRole>(initialRole);
+  const [userName, setUserName] = useState<string>('Thành viên');
+  const [userEmail, setUserEmail] = useState<string>('member@example.com');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sync role from localStorage or cookies on load
+  // Sync role and user info from cookies or localStorage
   useEffect(() => {
     try {
-      const savedRole = localStorage.getItem('nghieng_auth_role') as AuthRole | null;
-      if (savedRole && ['guest', 'member', 'admin'].includes(savedRole)) {
-        setRole(savedRole);
+      // Check document.cookie first
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+        return match ? decodeURIComponent(match[3]) : null;
+      };
+
+      const cRole = getCookie('user_role');
+      const cName = getCookie('user_name');
+      const cEmail = getCookie('user_email');
+
+      if (cName) setUserName(cName);
+      if (cEmail) setUserEmail(cEmail);
+
+      if (cRole) {
+        const lower = cRole.toLowerCase();
+        if (lower.includes('admin') || lower.includes('quản trị')) {
+          setRole('admin');
+        } else if (lower.includes('lễ tân')) {
+          setRole('admin'); // or staff
+        } else {
+          setRole('member');
+        }
       } else {
-        // Check document.cookie
-        const match = document.cookie.match(/user_role=([^;]+)/);
-        if (match) {
-          const cRole = match[1].toLowerCase();
-          if (cRole.includes('admin')) setRole('admin');
-          else if (cRole.includes('nhân viên') || cRole.includes('thành viên') || cRole.includes('member')) setRole('member');
+        const savedRole = localStorage.getItem('nghieng_auth_role') as AuthRole | null;
+        if (savedRole && ['guest', 'member', 'admin'].includes(savedRole)) {
+          setRole(savedRole);
+        } else {
+          setRole('guest');
         }
       }
     } catch {
@@ -57,24 +76,11 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
-        setIsRoleSwitcherOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleSwitchRole = (newRole: AuthRole) => {
-    setRole(newRole);
-    try {
-      localStorage.setItem('nghieng_auth_role', newRole);
-      document.cookie = `user_role=${newRole === 'admin' ? 'Admin' : newRole === 'member' ? 'Thành viên' : ''}; path=/`;
-    } catch {
-      // Ignore
-    }
-    setIsDropdownOpen(false);
-    setIsRoleSwitcherOpen(false);
-  };
 
   const handleLogout = () => {
     setRole('guest');
@@ -82,10 +88,14 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
       localStorage.removeItem('nghieng_auth_role');
       document.cookie = 'user_role=; path=/; max-age=0';
       document.cookie = 'user_name=; path=/; max-age=0';
+      document.cookie = 'user_email=; path=/; max-age=0';
+      document.cookie = 'user_phone=; path=/; max-age=0';
+      document.cookie = 'user_id=; path=/; max-age=0';
     } catch {
       // Ignore
     }
     setIsDropdownOpen(false);
+    router.push('/');
     router.refresh();
   };
 
@@ -118,7 +128,7 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
         </span>
       </div>
 
-      {/* 3. TRẠNG THÁI GÓC PHẢI (Theo Hình 3: image3.png) */}
+      {/* 3. TRẠNG THÁI GÓC PHẢI */}
 
       {/* TRẠNG THÁI 1: CHƯA ĐĂNG NHẬP */}
       {role === 'guest' && (
@@ -130,16 +140,6 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
             <LogIn className="w-4 h-4" />
             <span>Đăng nhập</span>
           </Link>
-
-          {/* Role quick toggle for instant test */}
-          <button
-            type="button"
-            onClick={() => setIsRoleSwitcherOpen(!isRoleSwitcherOpen)}
-            className="text-[11px] font-semibold text-slate-400 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
-            title="Đổi trạng thái tài khoản demo"
-          >
-            Demo ▾
-          </button>
         </div>
       )}
 
@@ -155,7 +155,7 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-                alt="Nguyễn Văn A"
+                alt={userName}
                 className="w-full h-full object-cover"
               />
               <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full ring-1 ring-white" />
@@ -163,7 +163,7 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
             <ChevronDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-800 transition-transform" />
           </button>
 
-          {/* Dropdown tài khoản thành viên (Chuẩn Hình 3 - Mẫu 2) */}
+          {/* Dropdown tài khoản thành viên */}
           {isDropdownOpen && (
             <div className="absolute right-0 mt-2.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               {/* Header profile row */}
@@ -182,8 +182,8 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
                     />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-slate-900 truncate">Nguyễn Văn A</div>
-                    <div className="text-[11px] text-slate-400 truncate">nguyenvana@example.com</div>
+                    <div className="text-xs font-bold text-slate-900 truncate">{userName}</div>
+                    <div className="text-[11px] text-slate-400 truncate">{userEmail}</div>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -270,7 +270,7 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
             <ChevronDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-800 transition-transform" />
           </button>
 
-          {/* Dropdown tài khoản admin (Chuẩn Hình 3 - Mẫu 3) */}
+          {/* Dropdown tài khoản admin */}
           {isDropdownOpen && (
             <div className="absolute right-0 mt-2.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               {/* Header admin row */}
@@ -279,7 +279,7 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900">Admin</div>
+                  <div className="text-xs font-bold text-slate-900">{userName || 'Admin'}</div>
                   <div className="text-[11px] text-blue-700 font-medium">Quản trị hệ thống</div>
                 </div>
               </div>
@@ -344,49 +344,6 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Role Switcher Menu Popup (cho phép test nhanh 3 trạng thái theo Hình 3) */}
-      {isRoleSwitcherOpen && (
-        <div className="absolute right-0 mt-2.5 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in duration-150">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-            Chọn trạng thái test
-          </div>
-          <div className="space-y-0.5 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => handleSwitchRole('guest')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
-                role === 'guest' ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <span>1. Chưa đăng nhập</span>
-              {role === 'guest' && <Check className="w-3.5 h-3.5 text-blue-600" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSwitchRole('member')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
-                role === 'member' ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <span>2. Thành viên thường</span>
-              {role === 'member' && <Check className="w-3.5 h-3.5 text-blue-600" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSwitchRole('admin')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
-                role === 'admin' ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <span>3. Quản trị viên (Admin)</span>
-              {role === 'admin' && <Check className="w-3.5 h-3.5 text-blue-600" />}
-            </button>
-          </div>
         </div>
       )}
     </div>

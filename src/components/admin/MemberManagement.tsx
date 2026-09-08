@@ -151,12 +151,34 @@ export default function MemberManagement({
 
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Hiển thị Toast
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Đồng bộ Google Sheet (Mục 10 - Hình 13)
+  const handleSyncSheet = async () => {
+    setIsSyncingSheet(true);
+    try {
+      const res = await fetch('/api/admin/members/sync-sheet', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('success', data.message || 'Đồng bộ danh sách thành viên lên Google Sheet thành công!');
+      } else {
+        showToast('error', data.error || 'Lỗi khi đồng bộ Google Sheet');
+      }
+    } catch (err) {
+      console.error('Sync sheet error:', err);
+      showToast('error', 'Lỗi kết nối khi đồng bộ Google Sheet');
+    } finally {
+      setIsSyncingSheet(false);
+    }
   };
 
   // Refresh data from API
@@ -343,7 +365,7 @@ export default function MemberManagement({
         </div>
       )}
 
-      {/* Header Section */}
+      {/* Header Section (Item 10: Đồng bộ Google Sheet) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Thành viên</h1>
@@ -352,14 +374,28 @@ export default function MemberManagement({
           </p>
         </div>
 
-        {/* Nút Thêm mới */}
-        <button
-          onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm mới</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Nút Đồng bộ Google Sheet (Mục 10 - Hình 13) */}
+          <button
+            type="button"
+            onClick={handleSyncSheet}
+            disabled={isSyncingSheet}
+            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+            title="Đồng bộ danh sách thành viên sang Google Sheet"
+          >
+            <span className={`w-2 h-2 rounded-full bg-emerald-500 ${isSyncingSheet ? 'animate-ping' : ''}`} />
+            <span>{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
+          </button>
+
+          {/* Nút Thêm mới */}
+          <button
+            onClick={handleOpenAddModal}
+            className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm mới</span>
+          </button>
+        </div>
       </div>
 
       {/* 4 Thẻ Thống kê (Stat Cards) */}
@@ -440,7 +476,6 @@ export default function MemberManagement({
                 <th className="py-4 px-5">Họ và tên</th>
                 <th className="py-4 px-5">SĐT</th>
                 <th className="py-4 px-5">Vai trò</th>
-                <th className="py-4 px-5">Phân loại</th>
                 <th className="py-4 px-5">Chức danh</th>
                 <th className="py-4 px-5">Số lần làm khách</th>
                 <th className="py-4 px-5">Nhóm người mới</th>
@@ -451,7 +486,7 @@ export default function MemberManagement({
             <tbody className="divide-y divide-slate-100">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
                     {searchQuery ? 'Không tìm thấy thành viên phù hợp với từ khóa' : 'Chưa có thành viên nào trong danh sách'}
                   </td>
                 </tr>
@@ -474,11 +509,6 @@ export default function MemberManagement({
                     {/* Vai trò */}
                     <td className="py-4 px-5 text-slate-700">
                       {member.role || '—'}
-                    </td>
-
-                    {/* Phân loại */}
-                    <td className="py-4 px-5 text-slate-600">
-                      {member.classification || '—'}
                     </td>
 
                     {/* Chức danh */}
@@ -541,7 +571,7 @@ export default function MemberManagement({
       </div>
 
       {/* ============================================================ */}
-      {/* POPUP MODAL: Thêm mới / Sửa thành viên (16 trường Base44)     */}
+      {/* POPUP MODAL: Thêm mới / Sửa thành viên (Item 22: Đã bỏ Phân loại) */}
       {/* ============================================================ */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
@@ -648,25 +678,7 @@ export default function MemberManagement({
                 </select>
               </div>
 
-              {/* 6. Phân loại */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Phân loại
-                </label>
-                <select
-                  value={formData.classification}
-                  onChange={(e) => setFormData({ ...formData, classification: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 shadow-2xs cursor-pointer"
-                >
-                  {CLASSIFICATION_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 7. Chức danh */}
+              {/* 6. Chức danh */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Chức danh

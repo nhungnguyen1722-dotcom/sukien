@@ -139,14 +139,77 @@ export default function EventDetail({
   const [logs, setLogs] = useState<EventLog[]>(initialLogs);
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
 
-  // Active Tab: 'general' | 'costs' | 'approval' | 'logs' | 'attachments'
-  const [activeTab, setActiveTab] = useState<'general' | 'costs' | 'approval' | 'logs' | 'attachments'>('general');
+  // Active Tab: 'general' | 'schedule' | 'costs' | 'approval' | 'logs' | 'attachments'
+  const [activeTab, setActiveTab] = useState<'general' | 'schedule' | 'costs' | 'approval' | 'logs' | 'attachments'>('general');
 
-  // Modals
+  // Modals & Drawers
+  const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
+  const [isFixedFeesDrawerOpen, setIsFixedFeesDrawerOpen] = useState(false);
   const [isEditCostModalOpen, setIsEditCostModalOpen] = useState(false);
   const [isAddLogModalOpen, setIsAddLogModalOpen] = useState(false);
   const [isAddGuestModalOpen, setIsAddGuestModalOpen] = useState(false);
   const [isAddAttachModalOpen, setIsAddAttachModalOpen] = useState(false);
+  const [isAddInChargeModalOpen, setIsAddInChargeModalOpen] = useState(false);
+  const [editingInCharge, setEditingInCharge] = useState<any | null>(null);
+  const [isAddScheduleModalOpen, setIsAddScheduleModalOpen] = useState(false);
+
+  // In-charge persons state (Item 21)
+  const [inChargePersons, setInChargePersons] = useState([
+    {
+      id: 1,
+      full_name: 'Nguyễn Văn A',
+      position: 'Trưởng phòng Kinh Doanh',
+      phone: '0912 345 678',
+      email: 'nguyenvana@example.com',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      roles: ['Diễn giả', 'MC'],
+    },
+    {
+      id: 2,
+      full_name: 'Trần Văn Mạnh',
+      position: 'Chuyên viên Tư vấn',
+      phone: '0987 654 321',
+      email: 'tranvanmanh@example.com',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+      roles: ['Chốt sự kiện'],
+    },
+    {
+      id: 3,
+      full_name: 'Lê Thu Trang',
+      position: 'Nhân viên Lễ tân',
+      phone: '0901 234 567',
+      email: 'lethutrang@example.com',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+      roles: ['Phụng sự', 'Điều phối'],
+    },
+  ]);
+
+  // In charge form state
+  const [inChargeForm, setInChargeForm] = useState({
+    user_id: '',
+    full_name: '',
+    position: 'Thành viên',
+    phone: '',
+    email: '',
+    roles: [] as string[],
+    notes: '',
+  });
+
+  // Schedule list state (Item 7.1)
+  const [scheduleList, setScheduleList] = useState([
+    { id: 1, time: '08:00 - 08:30', title: 'Đón tiếp đại biểu & Check-in', speaker: 'Ban Lễ tân', description: 'Đón khách tại sảnh, cấp phát tài liệu hội thảo và thẻ đeo.' },
+    { id: 2, time: '08:30 - 09:00', title: 'Khai mạc & Tuyên bố lý do', speaker: 'MC sự kiện', description: 'Giới thiệu ban tổ chức, đại biểu và mục đích buổi hội thảo.' },
+    { id: 3, time: '09:00 - 10:30', title: 'Phiên thuyết trình & Chuyên đề chính', speaker: 'Nguyễn Văn A (Diễn giả)', description: 'Chia sẻ chiến lược và giải pháp tối ưu hóa hiệu quả vận hành doanh nghiệp.' },
+    { id: 4, time: '10:30 - 11:15', title: 'Tọa đàm Q&A & Giao lưu kết nối', speaker: 'Hội đồng chuyên gia', description: 'Giải đáp thắc mắc của khách tham dự và trao đổi trực tiếp.' },
+    { id: 5, time: '11:15 - 12:00', title: 'Chốt sự kiện & Tiệc trà Tea Break', speaker: 'Trần Văn Mạnh', description: 'Đăng ký nhận ưu đãi, thưởng thức tiệc trà và kết nối giao thương.' },
+  ]);
+
+  const [scheduleForm, setScheduleForm] = useState({
+    time: '',
+    title: '',
+    speaker: '',
+    description: '',
+  });
 
   // Toast
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -154,6 +217,29 @@ export default function EventDetail({
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // 5 Trường giá cố định (Item 15)
+  const [tempFixedFees, setTempFixedFees] = useState({
+    support_fee: Number(event.support_fee) || 200000,
+    mc_fee: Number(event.mc_fee) || 200000,
+    speaker_fee: Number(event.speaker_fee) || 300000,
+    closer_fee: Number(event.closer_fee) || 200000,
+    tea_break_fee: Number(event.tea_break_fee) || 1250000,
+  });
+  const [isSavingFixedFees, setIsSavingFixedFees] = useState(false);
+
+  // Edit Event Form (Item 15, 18)
+  const [editEventForm, setEditEventForm] = useState({
+    name: event.name || '',
+    event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
+    start_time: event.start_time || '08:30',
+    end_time: event.end_time || '12:00',
+    location: event.location || '',
+    event_type: event.event_type || 'Hội thảo / Seminar',
+    status: event.status || 'Sắp diễn ra',
+    image_url: event.image_url || '/events/event-1.jpg',
+    notes: event.notes || '',
+  });
 
   // Form states
   const [costForm, setCostForm] = useState({
@@ -173,12 +259,12 @@ export default function EventDetail({
     event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
     title: event.name || '',
     location: event.location || 'P. Đại Mỗ',
-    total_attendees: event.expected_guests || 8,
-    food_guests_count: Math.max(1, Math.floor((event.expected_guests || 8) * 0.3)),
+    total_attendees: registrations.length || 8,
+    food_guests_count: Math.max(1, Math.floor((registrations.length || 8) * 0.3)),
     staff_remuneration: (Number(event.mc_fee) || 0) + (Number(event.speaker_fee) || 0) + (Number(event.support_fee) || 0) + (Number(event.closer_fee) || 0) || 4500000,
     tea_break_cost: Number(event.tea_break_fee) || 350000,
     total_cost: 0,
-    status: event.status || 'Kế hoạch',
+    status: event.status || 'Sắp diễn ra',
     updater_name: 'Vũ Thị Cúc',
     notes: '',
   });
@@ -190,7 +276,7 @@ export default function EventDetail({
     guest_email: '',
     company_address: '',
     source: 'Lễ tân nhập',
-    attendance_status: 'Mới đăng ký',
+    attendance_status: 'Đã đăng ký',
     notes: '',
   });
 
@@ -207,7 +293,11 @@ export default function EventDetail({
   const [guestSearch, setGuestSearch] = useState('');
   const [guestStatusFilter, setGuestStatusFilter] = useState('');
 
-  // Calculations
+  // Calculations (Item 19: Expected guests = count of registrations)
+  const totalExpectedGuests = useMemo(() => {
+    return Math.max(registrations.length, event.expected_guests || 0);
+  }, [registrations.length, event.expected_guests]);
+
   const totalStaffCost = useMemo(() => {
     return (
       (Number(event.mc_fee) || 0) +
@@ -222,7 +312,7 @@ export default function EventDetail({
     return sum5 > 0 ? sum5 : Number(event.fee) || 0;
   }, [totalStaffCost, event.tea_break_fee, event.fee]);
 
-  const collected = 0; // Default 0 as per demo image
+  const collected = 0;
   const remaining = totalExpectedCost - collected;
 
   const formatCurrency = (amount: number | string | null | undefined) => {
@@ -246,23 +336,23 @@ export default function EventDetail({
   };
 
   const getStatusBadge = (status: string) => {
-    if (status === 'Đã hoàn thành') {
+    if (status === 'Đã diễn ra' || status === 'Đã hoàn thành') {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-          Đã hoàn thành
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+          Đã diễn ra
         </span>
       );
     }
-    if (status === 'Đang thực hiện') {
+    if (status === 'Đang mở đăng ký' || status === 'Đang thực hiện') {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-          Đang thực hiện
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+          Đang mở đăng ký
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-        {status || 'Kế hoạch'}
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+        {status || 'Sắp diễn ra'}
       </span>
     );
   };
@@ -300,7 +390,87 @@ export default function EventDetail({
     });
   }, [registrations, guestSearch, guestStatusFilter]);
 
-  // Handler: Update 5 fees
+  // Handler: Save Edit Event
+  const handleSaveEditEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editEventForm,
+          mc_fee: event.mc_fee,
+          speaker_fee: event.speaker_fee,
+          support_fee: event.support_fee,
+          closer_fee: event.closer_fee,
+          tea_break_fee: event.tea_break_fee,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Cập nhật sự kiện thất bại');
+
+      setEvent({
+        ...event,
+        name: editEventForm.name,
+        event_date: editEventForm.event_date,
+        start_time: editEventForm.start_time,
+        end_time: editEventForm.end_time,
+        location: editEventForm.location,
+        event_type: editEventForm.event_type,
+        status: editEventForm.status,
+        image_url: editEventForm.image_url,
+        notes: editEventForm.notes,
+      });
+
+      showToast('success', 'Đã cập nhật thông tin sự kiện!');
+      setIsEditEventModalOpen(false);
+    } catch {
+      showToast('error', 'Lỗi khi cập nhật thông tin sự kiện');
+    }
+  };
+
+  // Handler: Save Fixed Fees
+  const handleSaveFixedFees = async () => {
+    setIsSavingFixedFees(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: event.name,
+          event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
+          location: event.location,
+          status: event.status,
+          mc_fee: tempFixedFees.mc_fee,
+          speaker_fee: tempFixedFees.speaker_fee,
+          support_fee: tempFixedFees.support_fee,
+          closer_fee: tempFixedFees.closer_fee,
+          tea_break_fee: tempFixedFees.tea_break_fee,
+          notes: event.notes,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Cập nhật thất bại');
+
+      setEvent({
+        ...event,
+        mc_fee: tempFixedFees.mc_fee,
+        speaker_fee: tempFixedFees.speaker_fee,
+        support_fee: tempFixedFees.support_fee,
+        closer_fee: tempFixedFees.closer_fee,
+        tea_break_fee: tempFixedFees.tea_break_fee,
+      });
+
+      showToast('success', 'Đã lưu 5 trường chi phí thành công!');
+      setIsFixedFeesDrawerOpen(false);
+    } catch {
+      showToast('error', 'Lỗi khi lưu 5 trường chi phí');
+    } finally {
+      setIsSavingFixedFees(false);
+    }
+  };
+
+  // Handler: Update Costs Modal
   const handleUpdateCosts = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -310,35 +480,98 @@ export default function EventDetail({
         body: JSON.stringify({
           name: event.name,
           event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
-          expected_guests: event.expected_guests,
           location: event.location,
-          manager_id: event.manager_id,
           status: event.status,
           mc_fee: costForm.mc_fee,
           speaker_fee: costForm.speaker_fee,
           support_fee: costForm.support_fee,
           closer_fee: costForm.closer_fee,
           tea_break_fee: costForm.tea_break_fee,
-          notes: event.notes,
         }),
       });
+      if (res.ok) {
+        setEvent((prev) => ({ ...prev, ...costForm }));
+        setIsEditCostModalOpen(false);
+        showToast('success', 'Đã cập nhật chi phí thành công');
+      } else {
+        showToast('error', 'Có lỗi xảy ra khi cập nhật chi phí');
+      }
+    } catch {
+      showToast('error', 'Lỗi kết nối máy chủ');
+    }
+  };
 
-      if (!res.ok) throw new Error('Cập nhật chi phí thất bại');
+  // Handler: In-charge Save
+  const handleSaveInCharge = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inChargeForm.full_name) {
+      showToast('error', 'Vui lòng chọn hoặc nhập tên người phụ trách');
+      return;
+    }
+    if (inChargeForm.roles.length === 0) {
+      showToast('error', 'Vui lòng chọn ít nhất một vai trò');
+      return;
+    }
 
-      const data = await res.json();
-      setEvent({
-        ...event,
-        mc_fee: costForm.mc_fee,
-        speaker_fee: costForm.speaker_fee,
-        support_fee: costForm.support_fee,
-        closer_fee: costForm.closer_fee,
-        tea_break_fee: costForm.tea_break_fee,
+    if (editingInCharge) {
+      setInChargePersons(
+        inChargePersons.map((p) =>
+          p.id === editingInCharge.id
+            ? {
+                ...p,
+                full_name: inChargeForm.full_name,
+                position: inChargeForm.position,
+                phone: inChargeForm.phone,
+                email: inChargeForm.email,
+                roles: inChargeForm.roles,
+              }
+            : p
+        )
+      );
+      showToast('success', 'Đã cập nhật thông tin người phụ trách');
+    } else {
+      const newPerson = {
+        id: Date.now(),
+        full_name: inChargeForm.full_name,
+        position: inChargeForm.position,
+        phone: inChargeForm.phone,
+        email: inChargeForm.email,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+        roles: inChargeForm.roles,
+      };
+      setInChargePersons([...inChargePersons, newPerson]);
+      showToast('success', 'Đã thêm người phụ trách vào sự kiện');
+    }
+    setIsAddInChargeModalOpen(false);
+    setEditingInCharge(null);
+  };
+
+  // Handler: In-charge Delete
+  const handleDeleteInCharge = (id: number) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa người phụ trách này?')) return;
+    setInChargePersons(inChargePersons.filter((p) => p.id !== id));
+    showToast('success', 'Đã xóa người phụ trách');
+  };
+
+  // Handler: Change Guest Attendance Status (Item 16: Đã đăng ký -> Check-in -> Check-out)
+  const handleChangeGuestStatus = async (reg: Registration, newStatus: string) => {
+    try {
+      const res = await fetch('/api/admin/le-tan', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: reg.id,
+          attendance_status: newStatus,
+        }),
       });
-
-      showToast('success', 'Đã cập nhật chi phí sự kiện thành công');
-      setIsEditCostModalOpen(false);
-    } catch (err) {
-      showToast('error', 'Có lỗi xảy ra khi cập nhật chi phí');
+      if (res.ok) {
+        setRegistrations(
+          registrations.map((r) => (r.id === reg.id ? { ...r, attendance_status: newStatus } : r))
+        );
+        showToast('success', `Đã chuyển trạng thái sang ${newStatus}`);
+      }
+    } catch {
+      showToast('error', 'Lỗi khi cập nhật trạng thái');
     }
   };
 
@@ -407,7 +640,7 @@ export default function EventDetail({
         guest_email: '',
         company_address: '',
         source: 'Lễ tân nhập',
-        attendance_status: 'Mới đăng ký',
+        attendance_status: 'Đã đăng ký',
         notes: '',
       });
     } catch (err) {
@@ -415,30 +648,7 @@ export default function EventDetail({
     }
   };
 
-  // Handler: Toggle check-in status
-  const handleToggleCheckin = async (reg: Registration) => {
-    const nextStatus = reg.attendance_status === 'Đã check-in' ? 'Mới đăng ký' : 'Đã check-in';
-    try {
-      const res = await fetch('/api/admin/le-tan', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: reg.id,
-          attendance_status: nextStatus,
-        }),
-      });
-      if (res.ok) {
-        setRegistrations(
-          registrations.map((r) => (r.id === reg.id ? { ...r, attendance_status: nextStatus } : r))
-        );
-        showToast('success', `Đã chuyển trạng thái sang ${nextStatus}`);
-      }
-    } catch {
-      showToast('error', 'Lỗi khi cập nhật trạng thái');
-    }
-  };
-
-  // Handler: Toggle food approval for tea break (hop-thoai-6.txt)
+  // Handler: Toggle food approval for tea break
   const handleToggleFood = async (reg: Registration) => {
     const nextVal = reg.is_food_approved === false ? true : false;
     try {
@@ -501,7 +711,7 @@ export default function EventDetail({
     }
   };
 
-  // Handler: Export Excel (CSV format with UTF-8 BOM for full Excel compatibility)
+  // Handler: Export Excel
   const handleExportExcel = () => {
     if (logs.length === 0) {
       showToast('error', 'Không có bản ghi nhật ký nào để xuất');
@@ -540,7 +750,6 @@ export default function EventDetail({
       `"${(l.notes || '').replace(/"/g, '""')}"`,
     ]);
 
-    // Summary row
     const totalAttendees = logs.reduce((sum, l) => sum + (Number(l.total_attendees) || 0), 0);
     const totalFood = logs.reduce((sum, l) => sum + (Number(l.food_guests_count) || 0), 0);
     const totalStaff = logs.reduce((sum, l) => sum + (Number(l.staff_remuneration) || 0), 0);
@@ -649,7 +858,7 @@ export default function EventDetail({
         </div>
       )}
 
-      {/* Breadcrumbs & Action Bar */}
+      {/* Breadcrumbs & Action Bar (Item 15: Added Cập nhật 5 trường cố định) */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Link href="/admin/su-kien" className="hover:text-blue-600 transition-colors">
@@ -668,16 +877,39 @@ export default function EventDetail({
             <span>Quay lại</span>
           </Link>
 
+          {/* Item 15: Button Cập nhật 5 trường cố định */}
           <button
             onClick={() => {
-              setCostForm({
-                mc_fee: Number(event.mc_fee) || 0,
-                speaker_fee: Number(event.speaker_fee) || 0,
-                support_fee: Number(event.support_fee) || 0,
-                closer_fee: Number(event.closer_fee) || 0,
-                tea_break_fee: Number(event.tea_break_fee) || 0,
+              setTempFixedFees({
+                mc_fee: Number(event.mc_fee) || 200000,
+                speaker_fee: Number(event.speaker_fee) || 300000,
+                support_fee: Number(event.support_fee) || 200000,
+                closer_fee: Number(event.closer_fee) || 200000,
+                tea_break_fee: Number(event.tea_break_fee) || 1250000,
               });
-              setIsEditCostModalOpen(true);
+              setIsFixedFeesDrawerOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+          >
+            <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+            <span>Cập nhật 5 trường cố định</span>
+          </button>
+
+          {/* Item 15: Button Chỉnh sửa mở modal sửa sự kiện */}
+          <button
+            onClick={() => {
+              setEditEventForm({
+                name: event.name || '',
+                event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
+                start_time: event.start_time || '08:30',
+                end_time: event.end_time || '12:00',
+                location: event.location || '',
+                event_type: event.event_type || 'Hội thảo / Seminar',
+                status: event.status || 'Sắp diễn ra',
+                image_url: event.image_url || '/events/event-1.jpg',
+                notes: event.notes || '',
+              });
+              setIsEditEventModalOpen(true);
             }}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
           >
@@ -695,7 +927,7 @@ export default function EventDetail({
         </div>
       </div>
 
-      {/* Main Header Card - 4 Blocks (Hình 13 & Mục 4) */}
+      {/* Main Header Card - 4 Blocks */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm mb-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
           {/* KHỐI 1: Ảnh đại diện sự kiện */}
@@ -738,21 +970,18 @@ export default function EventDetail({
             </div>
           </div>
 
-          {/* KHỐI 3: Trạng thái & Người phụ trách */}
+          {/* KHỐI 3: Trạng thái */}
           <div className="md:col-span-4 lg:col-span-3 border-l md:border-slate-100 md:pl-5 space-y-2 text-xs">
             <div className="text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
-              Trạng thái & Phụ trách
+              Trạng thái & Phê duyệt
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-500">Trạng thái:</span>
               <span className="font-semibold text-slate-800">{event.status}</span>
             </div>
-            <div className="flex items-start gap-2">
-              <Users className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="font-semibold text-slate-800">{event.manager_name || 'Nguyễn Văn A'}</div>
-                <div className="text-slate-500 text-[11px]">{event.manager_phone || '0912 345 678'}</div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500">Phê duyệt:</span>
+              <div>{getApprovalBadge(event.approval_status)}</div>
             </div>
             <div className="text-[11px] text-slate-400 pt-1">
               Người tạo: <span className="text-slate-600 font-medium">Vũ Thị Cúc</span>
@@ -770,7 +999,7 @@ export default function EventDetail({
             <div className="grid grid-cols-2 gap-2.5 text-xs pt-1">
               <div>
                 <div className="text-slate-500 text-[11px]">Khách dự kiến:</div>
-                <div className="font-bold text-slate-900">{event.expected_guests || 100} khách</div>
+                <div className="font-bold text-slate-900">{totalExpectedGuests} khách</div>
               </div>
               <div>
                 <div className="text-slate-500 text-[11px]">Chi phí dự kiến:</div>
@@ -789,13 +1018,13 @@ export default function EventDetail({
         </div>
       </div>
 
-      {/* Tabs Navigation Bar */}
+      {/* Tabs Navigation Bar (Item 7.1: Added Lịch trình tab) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-1.5 shadow-sm mb-6 flex flex-wrap items-center gap-1.5">
         <button
           onClick={() => setActiveTab('general')}
-          className={`flex-1 min-w-[140px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 min-w-[120px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
             activeTab === 'general'
-              ? 'bg-slate-100 text-slate-900 shadow-sm'
+              ? 'bg-blue-50 text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
@@ -803,10 +1032,21 @@ export default function EventDetail({
         </button>
 
         <button
+          onClick={() => setActiveTab('schedule')}
+          className={`flex-1 min-w-[120px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
+            activeTab === 'schedule'
+              ? 'bg-blue-50 text-blue-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          Lịch trình
+        </button>
+
+        <button
           onClick={() => setActiveTab('costs')}
-          className={`flex-1 min-w-[140px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 min-w-[120px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
             activeTab === 'costs'
-              ? 'bg-slate-100 text-slate-900 shadow-sm'
+              ? 'bg-blue-50 text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
@@ -815,9 +1055,9 @@ export default function EventDetail({
 
         <button
           onClick={() => setActiveTab('approval')}
-          className={`flex-1 min-w-[140px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 min-w-[120px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
             activeTab === 'approval'
-              ? 'bg-slate-100 text-slate-900 shadow-sm'
+              ? 'bg-blue-50 text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
@@ -826,9 +1066,9 @@ export default function EventDetail({
 
         <button
           onClick={() => setActiveTab('logs')}
-          className={`flex-1 min-w-[140px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 min-w-[120px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
             activeTab === 'logs'
-              ? 'bg-slate-100 text-slate-900 shadow-sm'
+              ? 'bg-blue-50 text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
@@ -837,9 +1077,9 @@ export default function EventDetail({
 
         <button
           onClick={() => setActiveTab('attachments')}
-          className={`flex-1 min-w-[140px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 min-w-[120px] py-2.5 px-4 text-center rounded-xl text-sm font-semibold transition-all ${
             activeTab === 'attachments'
-              ? 'bg-slate-100 text-slate-900 shadow-sm'
+              ? 'bg-blue-50 text-blue-700 shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
@@ -847,17 +1087,11 @@ export default function EventDetail({
         </button>
       </div>
 
-      {/* Tab Contents */}
-
-      {/* TAB 1: THÔNG TIN CHUNG */}
+      {/* TAB 1: THÔNG TIN CHUNG (Item 21: Added DANH SÁCH NGƯỜI PHỤ TRÁCH) */}
       {activeTab === 'general' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-8 animate-in fade-in duration-150">
           {/* General Metadata Section */}
           <div className="space-y-3 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 font-medium min-w-[120px]">Người phụ trách:</span>
-              <span className="text-slate-800 font-semibold">{event.manager_name || '—'}</span>
-            </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-500 font-medium min-w-[120px]">Trạng thái:</span>
               <span>{getStatusBadge(event.status)}</span>
@@ -870,7 +1104,335 @@ export default function EventDetail({
 
           <hr className="border-slate-100" />
 
-          {/* Phân công vai trò ban tổ chức (hop-thoai-6.txt) */}
+          {/* ITEM 21: DANH SÁCH NGƯỜI PHỤ TRÁCH (Hình 34 - 37) */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
+                  DANH SÁCH NGƯỜI PHỤ TRÁCH ({inChargePersons.length})
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Phân công các thành viên phụ trách và vai trò cụ thể trong sự kiện
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingInCharge(null);
+                  setInChargeForm({
+                    user_id: '',
+                    full_name: '',
+                    position: 'Thành viên',
+                    phone: '',
+                    email: '',
+                    roles: ['Diễn giả'],
+                    notes: '',
+                  });
+                  setIsAddInChargeModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Thêm người phụ trách</span>
+              </button>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                    <th className="py-3 px-4 w-12 text-center">STT</th>
+                    <th className="py-3 px-4">Họ và tên</th>
+                    <th className="py-3 px-4">Chức vụ</th>
+                    <th className="py-3 px-4">Số điện thoại</th>
+                    <th className="py-3 px-4">Email</th>
+                    <th className="py-3 px-4">Vai trò trong sự kiện</th>
+                    <th className="py-3 px-4 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {inChargePersons.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Chưa có người phụ trách nào được phân công.
+                      </td>
+                    </tr>
+                  ) : (
+                    inChargePersons.map((p, idx) => (
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3.5 px-4 text-center font-medium text-slate-500">{idx + 1}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={p.avatar} alt={p.full_name} className="w-full h-full object-cover" />
+                            </div>
+                            <span className="font-bold text-slate-900">{p.full_name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-700 font-medium">{p.position}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{p.phone}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{p.email}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.roles.map((r, rIdx) => (
+                              <span
+                                key={rIdx}
+                                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200"
+                              >
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingInCharge(p);
+                                setInChargeForm({
+                                  user_id: '',
+                                  full_name: p.full_name,
+                                  position: p.position,
+                                  phone: p.phone,
+                                  email: p.email,
+                                  roles: p.roles,
+                                  notes: '',
+                                });
+                                setIsAddInChargeModalOpen(true);
+                              }}
+                              className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50"
+                              title="Sửa"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteInCharge(p.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Guest Registration Section (Item 16: Check-in / Check-out status) */}
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
+                  Khách đăng ký & Check-in Suất ăn Tiệc trà ({registrations.length})
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Mặc định tính suất ăn 50.000đ/khách. Bỏ tích chọn người không ăn để chốt đề xuất thanh toán.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
+                  <span>Khách ăn: {registrations.filter((r) => r.is_food_approved !== false).length}/{registrations.length}</span>
+                  <span>•</span>
+                  <span>Tiệc trà: {formatCurrency(registrations.filter((r) => r.is_food_approved !== false).length * 50000)}</span>
+                </div>
+
+                <button
+                  onClick={() => setIsAddGuestModalOpen(true)}
+                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Thêm khách</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Guest Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="relative sm:col-span-2">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={guestSearch}
+                  onChange={(e) => setGuestSearch(e.target.value)}
+                  placeholder="Tìm khách theo tên hoặc số điện thoại..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 placeholder-slate-400"
+                />
+              </div>
+
+              <select
+                value={guestStatusFilter}
+                onChange={(e) => setGuestStatusFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="Đã đăng ký">Đã đăng ký</option>
+                <option value="Check-in">Check-in</option>
+                <option value="Check-out">Check-out</option>
+              </select>
+            </div>
+
+            {/* Guest Table */}
+            <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+                    <th className="py-3 px-4">Tên khách</th>
+                    <th className="py-3 px-4">SĐT</th>
+                    <th className="py-3 px-4">Nguồn</th>
+                    <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
+                    <th className="py-3 px-4">Trạng thái tham dự</th>
+                    <th className="py-3 px-4 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredGuests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        Chưa có khách đăng ký cho sự kiện này
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredGuests.map((guest) => {
+                      const isFood = guest.is_food_approved !== false;
+                      const status = guest.attendance_status || 'Đã đăng ký';
+                      return (
+                        <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-slate-800">
+                            {guest.guest_name}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
+                          <td className="py-3.5 px-4 text-center">
+                            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isFood}
+                                onChange={() => handleToggleFood(guest)}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className={`text-[11px] font-semibold ${isFood ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                {isFood ? 'Ăn tiệc trà' : 'Không ăn'}
+                              </span>
+                            </label>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full font-semibold ${
+                                status === 'Check-in'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : status === 'Check-out'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {status !== 'Check-in' && (
+                                <button
+                                  onClick={() => handleChangeGuestStatus(guest, 'Check-in')}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                                >
+                                  Check-in
+                                </button>
+                              )}
+                              {status === 'Check-in' && (
+                                <button
+                                  onClick={() => handleChangeGuestStatus(guest, 'Check-out')}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                                  title="Khách không ở lại ăn / ra về"
+                                >
+                                  Check-out
+                                </button>
+                              )}
+                              {status === 'Check-out' && (
+                                <button
+                                  onClick={() => handleChangeGuestStatus(guest, 'Đã đăng ký')}
+                                  className="px-2 py-1 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100"
+                                >
+                                  Đặt lại
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: LỊCH TRÌNH (Item 7.1 - Hình 8) */}
+      {activeTab === 'schedule' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6 animate-in fade-in duration-150">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
+                Lịch trình chi tiết sự kiện
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Các mốc thời gian và nội dung diễn ra xuyên suốt sự kiện
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setScheduleForm({ time: '', title: '', speaker: '', description: '' });
+                setIsAddScheduleModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Thêm mốc lịch trình</span>
+            </button>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {scheduleList.map((item) => (
+                <div key={item.id} className="p-4 hover:bg-slate-50/80 transition-colors flex items-start gap-4">
+                  <div className="w-28 shrink-0">
+                    <span className="inline-block px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-100">
+                      {item.time}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5 font-medium">Người phụ trách / Diễn giả: <span className="text-slate-800">{item.speaker}</span></p>
+                    {item.description && <p className="text-xs text-slate-600 mt-1">{item.description}</p>}
+                  </div>
+                  <button
+                    onClick={() => setScheduleList(scheduleList.filter(s => s.id !== item.id))}
+                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 shrink-0"
+                    title="Xóa"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: CHI PHÍ DỰ KIẾN (Item 20: Phân công vai trò chuyển sang đây, đặt trên 5 trường giá cố định) */}
+      {activeTab === 'costs' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-8 animate-in fade-in duration-150">
+          {/* Item 20: Phân công vai trò sự kiện & Thù lao ban tổ chức */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900">
@@ -911,225 +1473,92 @@ export default function EventDetail({
 
           <hr className="border-slate-100" />
 
-          {/* Guest Registration & Tea Break Food Check-in Section (hop-thoai-6.txt) */}
+          {/* Chi tiết 5 trường giá cố định */}
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Khách đăng ký & Check-in Suất ăn Tiệc trà ({registrations.length})
-                </h2>
+                <h2 className="text-base font-bold text-slate-900">Chi tiết 5 trường giá cố định</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Mặc định tính suất ăn 50.000đ/khách. Bỏ tích chọn người không ăn để chốt đề xuất thanh toán.
+                  Bảng giá phân bổ thù lao ban tổ chức và hỗ trợ chi phí tiệc trà
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
-                  <span>Khách ăn: {registrations.filter((r) => r.is_food_approved !== false).length}/{registrations.length}</span>
-                  <span>•</span>
-                  <span>Tiệc trà: {formatCurrency(registrations.filter((r) => r.is_food_approved !== false).length * 50000)}</span>
-                </div>
-
-                <button
-                  onClick={() => setIsAddGuestModalOpen(true)}
-                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Thêm khách</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Guest Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              <div className="relative sm:col-span-2">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={guestSearch}
-                  onChange={(e) => setGuestSearch(e.target.value)}
-                  placeholder="Tìm khách theo tên hoặc số điện thoại..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 placeholder-slate-400"
-                />
-              </div>
-
-              <select
-                value={guestStatusFilter}
-                onChange={(e) => setGuestStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800"
+              <button
+                onClick={() => {
+                  setTempFixedFees({
+                    mc_fee: Number(event.mc_fee) || 200000,
+                    speaker_fee: Number(event.speaker_fee) || 300000,
+                    support_fee: Number(event.support_fee) || 200000,
+                    closer_fee: Number(event.closer_fee) || 200000,
+                    tea_break_fee: Number(event.tea_break_fee) || 1250000,
+                  });
+                  setIsFixedFeesDrawerOpen(true);
+                }}
+                className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="Mới đăng ký">Mới đăng ký</option>
-                <option value="Đã check-in">Đã check-in</option>
-                <option value="Đã tham dự">Đã tham dự</option>
-                <option value="Vắng mặt">Vắng mặt</option>
-              </select>
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Cập nhật chi phí</span>
+              </button>
             </div>
 
-            {/* Guest Table */}
-            <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs text-slate-600 border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
-                    <th className="py-3 px-4">Tên</th>
-                    <th className="py-3 px-4">SĐT</th>
-                    <th className="py-3 px-4">Nguồn</th>
-                    <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
-                    <th className="py-3 px-4">Tình trạng</th>
-                    <th className="py-3 px-4 text-right">Thao tác</th>
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700 border-collapse">
+                <thead className="bg-slate-50 text-slate-500 font-semibold text-xs border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-5">Khoản mục chi phí</th>
+                    <th className="py-3 px-5">Mô tả / Vai trò</th>
+                    <th className="py-3 px-5 text-right">Mức chi phí (VNĐ)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredGuests.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        Chưa có khách đăng ký cho sự kiện này
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredGuests.map((guest) => {
-                      const isFood = guest.is_food_approved !== false;
-                      return (
-                        <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3.5 px-4 font-semibold text-slate-800">
-                            {guest.guest_name}
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
-                          <td className="py-3.5 px-4 text-center">
-                            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={isFood}
-                                onChange={() => handleToggleFood(guest)}
-                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                              />
-                              <span className={`text-[11px] font-semibold ${isFood ? 'text-emerald-700' : 'text-slate-400'}`}>
-                                {isFood ? 'Ăn tiệc trà' : 'Không ăn'}
-                              </span>
-                            </label>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full font-medium ${
-                                guest.attendance_status === 'Đã check-in'
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {guest.attendance_status || 'Mới đăng ký'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              onClick={() => handleToggleCheckin(guest)}
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                                guest.attendance_status === 'Đã check-in'
-                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                              }`}
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{guest.attendance_status === 'Đã check-in' ? 'Hủy check-in' : 'Check-in'}</span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                  <tr>
+                    <td className="py-3.5 px-5 font-semibold text-slate-800">1. Thù lao MC</td>
+                    <td className="py-3.5 px-5 text-slate-500 text-xs">Dẫn chương trình sự kiện</td>
+                    <td className="py-3.5 px-5 text-right font-medium text-slate-900">
+                      {formatCurrency(event.mc_fee)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-5 font-semibold text-slate-800">2. Thù lao Thuyết trình / Diễn giả</td>
+                    <td className="py-3.5 px-5 text-slate-500 text-xs">Diễn giả chia sẻ chuyên đề</td>
+                    <td className="py-3.5 px-5 text-right font-medium text-slate-900">
+                      {formatCurrency(event.speaker_fee)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-5 font-semibold text-slate-800">3. Thù lao Phụng sự</td>
+                    <td className="py-3.5 px-5 text-slate-500 text-xs">Hỗ trợ hậu cần, đón tiếp</td>
+                    <td className="py-3.5 px-5 text-right font-medium text-slate-900">
+                      {formatCurrency(event.support_fee)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-5 font-semibold text-slate-800">4. Thù lao Người chốt</td>
+                    <td className="py-3.5 px-5 text-slate-500 text-xs">Chốt hợp đồng / gói tài trợ</td>
+                    <td className="py-3.5 px-5 text-right font-medium text-slate-900">
+                      {formatCurrency(event.closer_fee)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-3.5 px-5 font-semibold text-slate-800">5. Chi phí Tiệc trà</td>
+                    <td className="py-3.5 px-5 text-slate-500 text-xs">Công ty hỗ trợ (50.000 đ/khách)</td>
+                    <td className="py-3.5 px-5 text-right font-medium text-slate-900">
+                      {formatCurrency(event.tea_break_fee)}
+                    </td>
+                  </tr>
                 </tbody>
+                <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200">
+                  <tr>
+                    <td colSpan={2} className="py-4 px-5 text-slate-900">
+                      TỔNG CHI PHÍ DỰ KIẾN
+                    </td>
+                    <td className="py-4 px-5 text-right text-base text-blue-600">
+                      {formatCurrency(totalExpectedCost)}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: CHI PHÍ DỰ KIẾN */}
-      {activeTab === 'costs' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6 animate-in fade-in duration-150">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Chi tiết 5 trường giá cố định</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Bảng giá phân bổ thù lao ban tổ chức và hỗ trợ chi phí tiệc trà
-              </p>
-            </div>
-
-            <button
-              onClick={() => {
-                setCostForm({
-                  mc_fee: Number(event.mc_fee) || 0,
-                  speaker_fee: Number(event.speaker_fee) || 0,
-                  support_fee: Number(event.support_fee) || 0,
-                  closer_fee: Number(event.closer_fee) || 0,
-                  tea_break_fee: Number(event.tea_break_fee) || 0,
-                });
-                setIsEditCostModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              <span>Cập nhật chi phí</span>
-            </button>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-sm text-slate-700 border-collapse">
-              <thead className="bg-slate-50 text-slate-500 font-semibold text-xs border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-5">Khoản mục chi phí</th>
-                  <th className="py-3 px-5">Mô tả / Vai trò</th>
-                  <th className="py-3 px-5 text-right">Mức chi phí (VNĐ)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr>
-                  <td className="py-3.5 px-5 font-semibold text-slate-800">1. Thù lao MC</td>
-                  <td className="py-3.5 px-5 text-slate-500 text-xs">Dẫn chương trình sự kiện</td>
-                  <td className="py-3.5 px-5 text-right font-medium text-slate-900">
-                    {formatCurrency(event.mc_fee)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-5 font-semibold text-slate-800">2. Thù lao Thuyết trình / Diễn giả</td>
-                  <td className="py-3.5 px-5 text-slate-500 text-xs">Diễn giả chia sẻ chuyên đề</td>
-                  <td className="py-3.5 px-5 text-right font-medium text-slate-900">
-                    {formatCurrency(event.speaker_fee)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-5 font-semibold text-slate-800">3. Thù lao Phụng sự</td>
-                  <td className="py-3.5 px-5 text-slate-500 text-xs">Hỗ trợ hậu cần, đón tiếp</td>
-                  <td className="py-3.5 px-5 text-right font-medium text-slate-900">
-                    {formatCurrency(event.support_fee)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-5 font-semibold text-slate-800">4. Thù lao Người chốt</td>
-                  <td className="py-3.5 px-5 text-slate-500 text-xs">Chốt hợp đồng / gói tài trợ</td>
-                  <td className="py-3.5 px-5 text-right font-medium text-slate-900">
-                    {formatCurrency(event.closer_fee)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-5 font-semibold text-slate-800">5. Chi phí Tiệc trà</td>
-                  <td className="py-3.5 px-5 text-slate-500 text-xs">Công ty hỗ trợ (50.000 đ/khách)</td>
-                  <td className="py-3.5 px-5 text-right font-medium text-slate-900">
-                    {formatCurrency(event.tea_break_fee)}
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200">
-                <tr>
-                  <td colSpan={2} className="py-4 px-5 text-slate-900">
-                    TỔNG CHI PHÍ DỰ KIẾN
-                  </td>
-                  <td className="py-4 px-5 text-right text-base text-blue-600">
-                    {formatCurrency(totalExpectedCost)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
           </div>
         </div>
       )}
@@ -1796,6 +2225,489 @@ export default function EventDetail({
                   className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
                 >
                   Lưu tệp
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: CHỈNH SỬA THÔNG TIN SỰ KIỆN (Item 15, 18: Không có expected_guests và manager_id) */}
+      {isEditEventModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Chỉnh sửa thông tin sự kiện</h3>
+              <button
+                onClick={() => setIsEditEventModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditEvent} className="p-6 overflow-y-auto space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Tên sự kiện <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editEventForm.name}
+                  onChange={(e) => setEditEventForm({ ...editEventForm, name: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Ngày tổ chức <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editEventForm.event_date}
+                    onChange={(e) => setEditEventForm({ ...editEventForm, event_date: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng thái</label>
+                  <select
+                    value={editEventForm.status}
+                    onChange={(e) => setEditEventForm({ ...editEventForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  >
+                    <option value="Sắp diễn ra">Sắp diễn ra</option>
+                    <option value="Đang mở đăng ký">Đang mở đăng ký</option>
+                    <option value="Đã diễn ra">Đã diễn ra</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giờ bắt đầu</label>
+                  <input
+                    type="time"
+                    value={editEventForm.start_time}
+                    onChange={(e) => setEditEventForm({ ...editEventForm, start_time: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giờ kết thúc</label>
+                  <input
+                    type="time"
+                    value={editEventForm.end_time}
+                    onChange={(e) => setEditEventForm({ ...editEventForm, end_time: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Địa điểm</label>
+                <input
+                  type="text"
+                  value={editEventForm.location}
+                  onChange={(e) => setEditEventForm({ ...editEventForm, location: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Hình ảnh sự kiện (URL)</label>
+                <input
+                  type="text"
+                  value={editEventForm.image_url}
+                  onChange={(e) => setEditEventForm({ ...editEventForm, image_url: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi chú</label>
+                <textarea
+                  rows={3}
+                  value={editEventForm.notes}
+                  onChange={(e) => setEditEventForm({ ...editEventForm, notes: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditEventModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER: CẬP NHẬT 5 TRƯỜNG CỐ ĐỊNH (Item 15) */}
+      {isFixedFeesDrawerOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex justify-end animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
+                Cập nhật 5 trường cố định
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsFixedFeesDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-100 text-xs text-blue-900">
+                Cập nhật 5 trường giá cố định cho sự kiện này.
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao phụng sự (VNĐ)</label>
+                  <input
+                    type="number"
+                    step="10000"
+                    value={tempFixedFees.support_fee}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, support_fee: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao MC (VNĐ)</label>
+                  <input
+                    type="number"
+                    step="10000"
+                    value={tempFixedFees.mc_fee}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, mc_fee: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao Thuyết trình / Diễn giả (VNĐ)</label>
+                  <input
+                    type="number"
+                    step="10000"
+                    value={tempFixedFees.speaker_fee}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, speaker_fee: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao Người chốt (VNĐ)</label>
+                  <input
+                    type="number"
+                    step="10000"
+                    value={tempFixedFees.closer_fee}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, closer_fee: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Chi phí Tiệc trà (VNĐ)</label>
+                  <input
+                    type="number"
+                    step="10000"
+                    value={tempFixedFees.tea_break_fee}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, tea_break_fee: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-white">
+              <button
+                type="button"
+                onClick={() => setIsFixedFeesDrawerOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveFixedFees}
+                disabled={isSavingFixedFees}
+                className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm disabled:opacity-50"
+              >
+                {isSavingFixedFees ? 'Đang lưu...' : 'Lưu cập nhật'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: THÊM / SỬA NGƯỜI PHỤ TRÁCH (Item 21 - Hình 35, 36, 37) */}
+      {isAddInChargeModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">
+                {editingInCharge ? 'Chỉnh sửa người phụ trách' : 'Thêm người phụ trách sự kiện'}
+              </h3>
+              <button
+                onClick={() => setIsAddInChargeModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInCharge} className="p-6 overflow-y-auto space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Chọn thành viên <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={inChargeForm.user_id}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const mgr = managers.find(m => String(m.id) === selId);
+                    if (mgr) {
+                      setInChargeForm({
+                        ...inChargeForm,
+                        user_id: selId,
+                        full_name: mgr.full_name,
+                        position: mgr.role || 'Thành viên',
+                      });
+                    } else {
+                      setInChargeForm({ ...inChargeForm, user_id: selId });
+                    }
+                  }}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                >
+                  <option value="">-- Chọn thành viên từ danh sách --</option>
+                  {managers.map(m => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Họ và tên người phụ trách <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={inChargeForm.full_name}
+                  onChange={(e) => setInChargeForm({ ...inChargeForm, full_name: e.target.value })}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Chức vụ</label>
+                  <input
+                    type="text"
+                    value={inChargeForm.position}
+                    onChange={(e) => setInChargeForm({ ...inChargeForm, position: e.target.value })}
+                    placeholder="Trưởng phòng KD..."
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Số điện thoại</label>
+                  <input
+                    type="text"
+                    value={inChargeForm.phone}
+                    onChange={(e) => setInChargeForm({ ...inChargeForm, phone: e.target.value })}
+                    placeholder="0912..."
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={inChargeForm.email}
+                  onChange={(e) => setInChargeForm({ ...inChargeForm, email: e.target.value })}
+                  placeholder="email@example.com"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+              </div>
+
+              {/* Checkbox Multiple Roles (Item 21) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Vai trò trong sự kiện <span className="text-rose-500">*</span> (chọn nhiều vai trò)
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'].map((r) => {
+                    const isChecked = inChargeForm.roles.includes(r);
+                    return (
+                      <label key={r} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setInChargeForm({
+                                ...inChargeForm,
+                                roles: inChargeForm.roles.filter((item) => item !== r),
+                              });
+                            } else {
+                              setInChargeForm({
+                                ...inChargeForm,
+                                roles: [...inChargeForm.roles, r],
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-slate-700 font-medium">{r}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddInChargeModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  Lưu người phụ trách
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: THÊM LỊCH TRÌNH (Item 7.1) */}
+      {isAddScheduleModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Thêm mốc lịch trình</h3>
+              <button
+                onClick={() => setIsAddScheduleModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!scheduleForm.title || !scheduleForm.time) {
+                  showToast('error', 'Vui lòng nhập thời gian và tiêu đề');
+                  return;
+                }
+                setScheduleList([
+                  ...scheduleList,
+                  {
+                    id: Date.now(),
+                    time: scheduleForm.time,
+                    title: scheduleForm.title,
+                    speaker: scheduleForm.speaker || 'Ban tổ chức',
+                    description: scheduleForm.description,
+                  },
+                ]);
+                showToast('success', 'Đã thêm mốc lịch trình');
+                setIsAddScheduleModalOpen(false);
+              }}
+              className="p-6 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Khung thời gian <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={scheduleForm.time}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })}
+                  placeholder="Ví dụ: 08:30 - 09:15"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Tiêu đề nội dung <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={scheduleForm.title}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })}
+                  placeholder="Ví dụ: Khai mạc sự kiện..."
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Người phụ trách / Diễn giả
+                </label>
+                <input
+                  type="text"
+                  value={scheduleForm.speaker}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, speaker: e.target.value })}
+                  placeholder="Ví dụ: MC / Diễn giả Nguyễn Văn A"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Mô tả ngắn</label>
+                <textarea
+                  rows={2}
+                  value={scheduleForm.description}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, description: e.target.value })}
+                  placeholder="Chi tiết hoạt động..."
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddScheduleModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  Lưu mốc
                 </button>
               </div>
             </form>

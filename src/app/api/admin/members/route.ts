@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
         role || 'Khác',
         classification || 'Nhân sự',
         title || 'Thành viên',
-        ref_code ? ref_code.trim() : null,
+        ref_code && ref_code.trim() ? ref_code.trim() : (phone ? `N_${phone.trim()}` : null),
         referrer_id ? parseInt(referrer_id) : null,
         referral_group || 'Khách vãng lai',
         source ? source.trim() : null,

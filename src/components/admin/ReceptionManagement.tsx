@@ -110,16 +110,27 @@ export default function ReceptionManagement({
   const [isLoadingRegs, setIsLoadingRegs] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
 
-  // Form State
-  const [guestCode, setGuestCode] = useState('');
+  // Form State (Item 23: Removed guestCode, guestRole, source)
   const [guestPhone, setGuestPhone] = useState('');
   const [guestName, setGuestName] = useState('');
   const [saleSearch, setSaleSearch] = useState('');
   const [selectedSaleId, setSelectedSaleId] = useState('');
-  const [guestRole, setGuestRole] = useState('MC');
-  const [source, setSource] = useState('Lễ tân nhập');
+  const [selectedSaleName, setSelectedSaleName] = useState('');
+  const [isSaleDropdownOpen, setIsSaleDropdownOpen] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState('Đã đăng ký');
   const [notes, setNotes] = useState('');
+  const saleDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close sale dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (saleDropdownRef.current && !saleDropdownRef.current.contains(e.target as Node)) {
+        setIsSaleDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -156,7 +167,6 @@ export default function ReceptionManagement({
       setIsSyncingSheet(false);
     }
   };
-
 
   // Find currently selected event object
   const currentEvent = useMemo(() => {
@@ -222,8 +232,7 @@ export default function ReceptionManagement({
       (s) =>
         s.full_name?.toLowerCase().includes(query) ||
         s.phone?.includes(query) ||
-        s.ref_code?.toLowerCase().includes(query) ||
-        s.classification?.toLowerCase().includes(query)
+        s.ref_code?.toLowerCase().includes(query)
     );
   }, [sales, saleSearch]);
 
@@ -235,10 +244,7 @@ export default function ReceptionManagement({
       (r) =>
         r.guest_name?.toLowerCase().includes(q) ||
         r.guest_phone?.includes(q) ||
-        r.guest_code?.toLowerCase().includes(q) ||
         r.sale_name?.toLowerCase().includes(q) ||
-        r.guest_role?.toLowerCase().includes(q) ||
-        r.source?.toLowerCase().includes(q) ||
         r.attendance_status?.toLowerCase().includes(q)
     );
   }, [registrations, tableSearch]);
@@ -262,12 +268,11 @@ export default function ReceptionManagement({
     try {
       const payload = {
         event_id: Number(selectedEventId),
-        guest_code: guestCode.trim() || null,
         guest_phone: guestPhone.trim() || null,
         guest_name: guestName.trim(),
         referrer_id: selectedSaleId ? Number(selectedSaleId) : null,
-        guest_role: guestRole,
-        source: source,
+        guest_role: 'Khách mời',
+        source: 'Lễ tân nhập',
         attendance_status: attendanceStatus,
         notes: notes.trim() || null,
       };
@@ -282,7 +287,6 @@ export default function ReceptionManagement({
 
       if (res.ok) {
         showToast('success', 'Thêm khách mời thành công');
-        // Prepend or refresh table
         if (data.registration) {
           setRegistrations((prev) => [data.registration, ...prev]);
         } else {
@@ -290,13 +294,11 @@ export default function ReceptionManagement({
         }
 
         // Reset form inputs (keep selected event)
-        setGuestCode('');
         setGuestPhone('');
         setGuestName('');
         setSelectedSaleId('');
+        setSelectedSaleName('');
         setSaleSearch('');
-        setGuestRole('MC');
-        setSource('Lễ tân nhập');
         setAttendanceStatus('Đã đăng ký');
         setNotes('');
       } else {
@@ -420,7 +422,7 @@ export default function ReceptionManagement({
             Lễ tân — Nhập khách mời
           </h1>
           <p className="text-sm text-slate-500 font-normal">
-            Nhập khách mời trên máy tính — đầy đủ trường theo đặc tả
+            Nhập khách mời trên máy tính — giao diện tinh gọn, tìm kiếm Sale thông minh
           </p>
         </div>
       </div>
@@ -428,7 +430,7 @@ export default function ReceptionManagement({
       {/* Two Column Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Left Column: Entry Form */}
+        {/* Left Column: Entry Form (Item 23: Tinh gọn trường) */}
         <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
           <form onSubmit={handleSubmit} className="space-y-4">
             {formError && (
@@ -476,136 +478,117 @@ export default function ReceptionManagement({
               </div>
             </div>
 
-            {/* Row 1: Guest Code & Phone */}
+            {/* Họ tên khách & SĐT */}
             <div className="grid grid-cols-2 gap-3.5">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Mã khách
+                  Họ tên khách <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={guestCode}
-                  onChange={(e) => setGuestCode(e.target.value)}
-                  placeholder="KH0001"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  required
                   className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  SĐT
+                  Số điện thoại
                 </label>
                 <input
                   type="text"
                   value={guestPhone}
                   onChange={(e) => setGuestPhone(e.target.value)}
-                  placeholder="09xxx"
+                  placeholder="0912..."
                   className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
               </div>
             </div>
 
-            {/* Guest Name */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Họ tên khách <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="Nhập họ tên"
-                required
-                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-              />
-            </div>
-
-            {/* Referrer / Sale */}
-            <div>
+            {/* Item 23: Người mời (Sale) - Clean Popover Search Dropdown */}
+            <div className="relative" ref={saleDropdownRef}>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Người mời (Sale)
               </label>
-              <div className="space-y-2">
-                {/* Search Sale input */}
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={saleSearch}
-                    onChange={(e) => setSaleSearch(e.target.value)}
-                    placeholder="Tìm Sale..."
-                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                  />
-                  {saleSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setSaleSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+              
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={selectedSaleName || saleSearch}
+                  onFocus={() => {
+                    setIsSaleDropdownOpen(true);
+                    if (selectedSaleName) {
+                      setSaleSearch(selectedSaleName);
+                      setSelectedSaleName('');
+                    }
+                  }}
+                  onChange={(e) => {
+                    setSaleSearch(e.target.value);
+                    setSelectedSaleName('');
+                    setIsSaleDropdownOpen(true);
+                  }}
+                  placeholder="Tìm Sale hoặc Khách vãng lai..."
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition cursor-text"
+                />
+                {(selectedSaleName || saleSearch) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSaleId('');
+                      setSelectedSaleName('');
+                      setSaleSearch('');
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Popover list only appears on click / focus */}
+              {isSaleDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-200 z-50 max-h-56 overflow-y-auto p-1 text-xs divide-y divide-slate-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div
+                    onClick={() => {
+                      setSelectedSaleId('');
+                      setSelectedSaleName('Khách vãng lai');
+                      setSaleSearch('');
+                      setIsSaleDropdownOpen(false);
+                    }}
+                    className="p-2.5 hover:bg-blue-50 rounded-lg cursor-pointer font-semibold text-slate-700 hover:text-blue-700 transition-colors"
+                  >
+                    🚶 Khách vãng lai (Không có người mời)
+                  </div>
+                  {filteredSales.length === 0 ? (
+                    <div className="p-3 text-center text-slate-400">Không tìm thấy Sale phù hợp</div>
+                  ) : (
+                    filteredSales.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          setSelectedSaleId(String(s.id));
+                          setSelectedSaleName(`${s.full_name} (${s.phone || s.ref_code || ''})`);
+                          setSaleSearch('');
+                          setIsSaleDropdownOpen(false);
+                        }}
+                        className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center justify-between transition-colors"
+                      >
+                        <div>
+                          <div className="font-semibold text-slate-800">{s.full_name}</div>
+                          <div className="text-[11px] text-slate-400">{s.phone} {s.ref_code ? `• ${s.ref_code}` : ''}</div>
+                        </div>
+                        <span className="text-[10px] font-medium bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                          {s.classification || 'Sale'}
+                        </span>
+                      </div>
+                    ))
                   )}
                 </div>
-
-                {/* Select dropdown */}
-                <div className="relative">
-                  <select
-                    value={selectedSaleId}
-                    onChange={(e) => setSelectedSaleId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition appearance-none cursor-pointer pr-10"
-                  >
-                    <option value="">Chọn Sale hoặc Khách vãng lai</option>
-                    {filteredSales.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name} {s.phone ? `(${s.phone})` : ''} {s.classification ? `— ${s.classification}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 2: Role & Source */}
-            <div className="grid grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Vai trò
-                </label>
-                <div className="relative">
-                  <select
-                    value={guestRole}
-                    onChange={(e) => setGuestRole(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition appearance-none cursor-pointer pr-8"
-                  >
-                    {ROLE_OPTIONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Nguồn
-                </label>
-                <div className="relative">
-                  <select
-                    value={source}
-                    onChange={(e) => setSource(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition appearance-none cursor-pointer pr-8"
-                  >
-                    {SOURCE_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Attendance Status */}
@@ -638,6 +621,7 @@ export default function ReceptionManagement({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
+                placeholder="Ghi chú thêm nếu có..."
                 className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition resize-y"
               />
             </div>
@@ -663,7 +647,7 @@ export default function ReceptionManagement({
           </form>
         </div>
 
-        {/* Right Column: Registered Guest Table */}
+        {/* Right Column: Registered Guest Table (Item 23: Tinh gọn cột) */}
         <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
           {/* Table Header & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-100">
@@ -690,40 +674,35 @@ export default function ReceptionManagement({
 
               {/* Quick search input */}
               <div className="relative w-full sm:w-52">
-
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={tableSearch}
-                onChange={(e) => setTableSearch(e.target.value)}
-                placeholder="Tìm tên, SĐT..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition"
-              />
-              {tableSearch && (
-                <button
-                  onClick={() => setTableSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  placeholder="Tìm tên, SĐT..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition"
+                />
+                {tableSearch && (
+                  <button
+                    onClick={() => setTableSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-
-
-          {/* Table */}
+          {/* Table (Item 23: Removed Mã, Vai trò, Nguồn) */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500 font-semibold">
-                  <th className="pb-3 pr-3 font-medium">Mã</th>
-                  <th className="pb-3 px-3 font-medium">Tên</th>
+                  <th className="pb-3 pr-3 font-medium">STT</th>
+                  <th className="pb-3 px-3 font-medium">Họ và tên khách</th>
                   <th className="pb-3 px-3 font-medium">SĐT</th>
-                  <th className="pb-3 px-3 font-medium">Sale</th>
-                  <th className="pb-3 px-3 font-medium">Vai trò</th>
-                  <th className="pb-3 px-3 font-medium">Nguồn</th>
+                  <th className="pb-3 px-3 font-medium">Người mời (Sale)</th>
                   <th className="pb-3 px-3 font-medium">Tình trạng</th>
                   <th className="pb-3 pl-3 font-medium text-right">Thao tác</th>
                 </tr>
@@ -731,7 +710,7 @@ export default function ReceptionManagement({
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <UserPlus className="w-8 h-8 text-slate-300" />
                         <p className="text-sm">Chưa có khách mời nào được nhập cho sự kiện này</p>
@@ -739,7 +718,7 @@ export default function ReceptionManagement({
                     </td>
                   </tr>
                 ) : (
-                  filteredRegistrations.map((guest) => {
+                  filteredRegistrations.map((guest, idx) => {
                     const isCheckedIn = guest.attendance_status === 'Đã check-in';
                     const isAbsent = guest.attendance_status === 'Vắng mặt';
 
@@ -748,31 +727,21 @@ export default function ReceptionManagement({
                         key={guest.id}
                         className="hover:bg-slate-50/80 transition-colors group"
                       >
-                        <td className="py-3.5 pr-3 text-slate-400 font-mono">
-                          {guest.guest_code || '—'}
+                        <td className="py-3.5 pr-3 text-slate-400 font-medium">
+                          {idx + 1}
                         </td>
-                        <td className="py-3.5 px-3 font-medium text-slate-900">
+                        <td className="py-3.5 px-3 font-bold text-slate-900">
                           {guest.guest_name}
                         </td>
                         <td className="py-3.5 px-3 text-slate-600 font-mono">
                           {guest.guest_phone || '—'}
                         </td>
-                        <td className="py-3.5 px-3 text-slate-600">
-                          {guest.sale_name || '—'}
-                        </td>
-                        <td className="py-3.5 px-3">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
-                            {guest.guest_role || 'MC'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-3">
-                          <span className="text-slate-600 text-xs">
-                            {guest.source || 'Lễ tân nhập'}
-                          </span>
+                        <td className="py-3.5 px-3 text-slate-700 font-medium">
+                          {guest.sale_name || 'Khách vãng lai'}
                         </td>
                         <td className="py-3.5 px-3">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                               isCheckedIn
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                                 : isAbsent
@@ -798,11 +767,11 @@ export default function ReceptionManagement({
                               <UserCheck className="w-4 h-4" />
                             </button>
 
-                            {/* Delete Button */}
+                            {/* Delete button */}
                             <button
                               onClick={() => setDeleteConfirmId(guest.id)}
-                              title="Xóa khách mời"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="Xóa khách"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -816,7 +785,6 @@ export default function ReceptionManagement({
             </table>
           </div>
         </div>
-
       </div>
     </div>
   );

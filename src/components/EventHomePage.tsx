@@ -234,14 +234,18 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           {featuredEvents.slice(0, 8).map((event) => {
             const { day, monthStr } = parseDate(event.event_date);
             const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
+            const isRegisterOpen = event.status === 'Đang mở đăng ký';
 
             return (
               <div
                 key={event.id}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group"
               >
-                {/* Event Image */}
-                <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
+                {/* Event Image with Clickable Link */}
+                <Link
+                  href={`/su-kien/${event.id}`}
+                  className="relative h-44 w-full bg-slate-100 overflow-hidden block cursor-pointer"
+                >
                   {event.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -259,7 +263,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                   <div className="absolute top-2.5 left-2.5">
                     {getStatusBadge(event.status)}
                   </div>
-                </div>
+                </Link>
 
                 {/* Event Card Content */}
                 <div className="p-4 sm:p-5 flex flex-col flex-1">
@@ -274,7 +278,9 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-sm text-gray-900 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
-                        {event.name}
+                        <Link href={`/su-kien/${event.id}`}>
+                          {event.name}
+                        </Link>
                       </h3>
                       <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-1">
                         <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -291,27 +297,29 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                     {event.short_description || event.name}
                   </p>
 
-                  {/* 2 Action Buttons (Image 3/5/11) */}
+                  {/* 2 Action Buttons (Item 1 & 2) */}
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-100">
                     <Link
                       href={`/su-kien/${event.id}`}
                       className="inline-flex items-center justify-center gap-1 py-2 px-2 rounded-xl text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
                     >
                       <FileText className="w-3.5 h-3.5 text-gray-400" />
-                      <span>Chi tiết sự kiện</span>
+                      <span>Chi tiết</span>
                     </Link>
 
-                    {/* NÚT ĐĂNG KÝ THAM DỰ -> KÍCH HOẠT POPUP THEO HOP-THOAI-6 */}
+                    {/* NÚT ĐĂNG KÝ / THAM DỰ */}
                     <button
                       type="button"
                       onClick={() => handleOpenRegister(event)}
                       className={`inline-flex items-center justify-center gap-1 py-2 px-2 rounded-xl text-xs font-semibold text-white shadow-xs transition-all active:scale-95 cursor-pointer ${
                         isEnded
                           ? 'bg-[#4f46e5] hover:bg-[#4338ca]'
+                          : isRegisterOpen
+                          ? 'bg-[#059669] hover:bg-[#047857]'
                           : 'bg-[#2563eb] hover:bg-[#1d4ed8] shadow-blue-500/20'
                       }`}
                     >
-                      <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký tham dự'}</span>
+                      <span>{isEnded ? 'Xem lại sự kiện' : isRegisterOpen ? 'Tham dự' : 'Đăng ký'}</span>
                       <span className="text-[10px]">→</span>
                     </button>
                   </div>
@@ -355,7 +363,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
               {/* Status Filter Tabs */}
               <div className="flex flex-wrap gap-2 py-4 border-b border-gray-100">
-                {['Tất cả', 'Sắp diễn ra', 'Đang diễn ra', 'Đã diễn ra'].map((status) => (
+                {['Tất cả', 'Sắp diễn ra', 'Đang mở đăng ký', 'Đã diễn ra'].map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -378,27 +386,32 @@ export default function EventHomePage({ events }: EventHomePageProps) {
               <div className="divide-y divide-gray-100">
                 {paginatedEvents.map((event) => {
                   const { fullDate } = parseDate(event.event_date);
+                  const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
+                  const isRegisterOpen = event.status === 'Đang mở đăng ký';
 
                   return (
                     <div
                       key={event.id}
                       className="py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-slate-50/60 p-2 rounded-xl transition-colors"
                     >
-                      {/* Thumbnail */}
-                      <div className="w-full sm:w-28 h-20 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative border border-slate-200/80">
+                      {/* Thumbnail with Clickable Link */}
+                      <Link
+                        href={`/su-kien/${event.id}`}
+                        className="w-full sm:w-28 h-20 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative border border-slate-200/80 block group cursor-pointer"
+                      >
                         {event.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={event.image_url}
                             alt={event.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center p-2">
                             <SystemLogo className="h-8 w-auto object-contain" />
                           </div>
                         )}
-                      </div>
+                      </Link>
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
@@ -441,9 +454,15 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                         <button
                           type="button"
                           onClick={() => handleOpenRegister(event)}
-                          className="inline-flex items-center gap-1 px-3.5 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer"
+                          className={`inline-flex items-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
+                            isEnded
+                              ? 'bg-[#4f46e5] hover:bg-[#4338ca]'
+                              : isRegisterOpen
+                              ? 'bg-[#059669] hover:bg-[#047857]'
+                              : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+                          }`}
                         >
-                          <span>Đăng ký</span>
+                          <span>{isEnded ? 'Xem lại sự kiện' : isRegisterOpen ? 'Tham dự' : 'Đăng ký'}</span>
                         </button>
                       </div>
                     </div>

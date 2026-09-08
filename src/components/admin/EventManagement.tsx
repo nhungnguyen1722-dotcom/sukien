@@ -74,7 +74,7 @@ interface EventManagementProps {
   initialManagers: ManagerOption[];
 }
 
-const STATUS_OPTIONS = ['Kế hoạch', 'Đang thực hiện', 'Đã hoàn thành'];
+const STATUS_OPTIONS = ['Sắp diễn ra', 'Đang mở đăng ký', 'Đã diễn ra'];
 
 export default function EventManagement({
   initialEvents,
@@ -106,14 +106,12 @@ export default function EventManagement({
   const [isFixedFeesDrawerOpen, setIsFixedFeesDrawerOpen] = useState(false);
   const [isSavingFixedFees, setIsSavingFixedFees] = useState(false);
 
-  // Form State
+  // Form State - Removed expected_guests and manager_id per Item 18
   const [formData, setFormData] = useState({
     name: '',
     event_date: '',
-    expected_guests: 0,
     location: '',
-    manager_id: '',
-    status: 'Kế hoạch',
+    status: 'Sắp diễn ra',
     mc_fee: 200000,
     speaker_fee: 300000,
     support_fee: 200000,
@@ -245,9 +243,6 @@ export default function EventManagement({
     }
   };
 
-  // Debounce the search/filter triggering if needed, but simple useMemo for client-side filtering is fine too.
-  // Since we have an API, we can either call refreshData on filter change, or just filter client-side.
-  // The provided image shows filters, let's just do client-side filtering for immediate response.
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
       const matchSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -257,16 +252,13 @@ export default function EventManagement({
     });
   }, [events, searchQuery, statusFilter, managerFilter]);
 
-
   const handleOpenAddModal = () => {
     setEditingEvent(null);
     setFormData({
       name: '',
       event_date: '',
-      expected_guests: 0,
       location: '',
-      manager_id: '',
-      status: 'Kế hoạch',
+      status: 'Sắp diễn ra',
       mc_fee: Number(fixedFees.mc_fee) || 200000,
       speaker_fee: Number(fixedFees.speaker_fee) || 300000,
       support_fee: Number(fixedFees.support_fee) || 200000,
@@ -288,10 +280,8 @@ export default function EventManagement({
     setFormData({
       name: event.name || '',
       event_date: dateFormatted,
-      expected_guests: event.expected_guests || 0,
       location: event.location || '',
-      manager_id: event.manager_id ? String(event.manager_id) : '',
-      status: event.status || 'Kế hoạch',
+      status: event.status || 'Sắp diễn ra',
       mc_fee: Number(event.mc_fee) || 0,
       speaker_fee: Number(event.speaker_fee) || 0,
       support_fee: Number(event.support_fee) || 0,
@@ -337,7 +327,7 @@ export default function EventManagement({
 
       showToast('success', editingEvent ? 'Cập nhật sự kiện thành công' : 'Thêm mới sự kiện thành công');
       setIsModalOpen(false);
-      await refreshData(); // Refresh list & stats
+      await refreshData();
     } catch (err: unknown) {
       if (err instanceof Error) {
         setFormError(err.message);
@@ -359,14 +349,18 @@ export default function EventManagement({
   };
 
   const getStatusBadge = (status: string) => {
-    if (status === 'Đã hoàn thành') return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{status}</span>;
-    if (status === 'Đang thực hiện') return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{status}</span>;
-    return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">{status || 'Kế hoạch'}</span>;
+    if (status === 'Đã diễn ra' || status === 'Đã hoàn thành') {
+      return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">Đã diễn ra</span>;
+    }
+    if (status === 'Đang mở đăng ký' || status === 'Đang thực hiện') {
+      return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">Đang mở đăng ký</span>;
+    }
+    return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">{status || 'Sắp diễn ra'}</span>;
   };
   
   const getApprovalBadge = (status: string) => {
-    if (status === 'Đã duyệt') return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{status}</span>;
-    if (status === 'Từ chối') return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700">{status}</span>;
+    if (status === 'Đã duyệt') return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Đã duyệt</span>;
+    if (status === 'Từ chối') return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700">Từ chối</span>;
     return <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">{status || 'Chờ duyệt'}</span>;
   };
 
@@ -478,7 +472,7 @@ export default function EventManagement({
         </div>
       </div>
 
-      {/* Quy tắc chi phí tiệc trà banner (Hình 9 & 10) */}
+      {/* Quy tắc chi phí tiệc trà banner */}
       <div className="mb-6 p-4 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
@@ -504,7 +498,7 @@ export default function EventManagement({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm kiếm..."
+            placeholder="Tìm kiếm sự kiện..."
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 placeholder-slate-400"
           />
         </div>
@@ -513,28 +507,28 @@ export default function EventManagement({
           onChange={(e) => setStatusFilter(e.target.value)}
           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800"
         >
-          <option value="">Trạng thái</option>
+          <option value="">Tất cả trạng thái</option>
           {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
         <select
           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-slate-400"
           disabled
         >
-          <option value="">Thời gian (chưa hỗ trợ)</option>
+          <option value="">Thời gian (Tất cả)</option>
         </select>
         <select
           value={managerFilter}
           onChange={(e) => setManagerFilter(e.target.value)}
           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800"
         >
-          <option value="">Người phụ trách</option>
+          <option value="">Người phụ trách (Tất cả)</option>
           {managers.map(m => (
             <option key={m.id} value={m.id}>{m.full_name}</option>
           ))}
         </select>
       </div>
 
-      {/* Table */}
+      {/* Table (Items 13 & 17: Thumbnail image + link to /admin/su-kien/[id]) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600 border-collapse min-w-[1000px]">
@@ -560,10 +554,28 @@ export default function EventManagement({
               ) : (
                 filteredEvents.map((event) => (
                   <tr key={event.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-4 px-5 font-medium text-slate-800">{event.name}</td>
+                    {/* Item 13 & 17: Thumbnail and clickable name */}
+                    <td className="py-3 px-5">
+                      <Link
+                        href={`/admin/su-kien/${event.id}`}
+                        className="flex items-center gap-3 group"
+                      >
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={event.image_url || '/events/event-1.jpg'}
+                            alt={event.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                        <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                          {event.name}
+                        </span>
+                      </Link>
+                    </td>
                     <td className="py-4 px-5 text-slate-600">{event.event_date ? formatDate(event.event_date) : '—'}</td>
                     <td className="py-4 px-5 text-slate-600">{event.location || '—'}</td>
-                    <td className="py-4 px-5 text-slate-600 text-center">{event.expected_guests || 0}</td>
+                    <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.expected_guests || 0}</td>
                     <td className="py-4 px-5 text-slate-600">{event.manager_name || '—'}</td>
                     <td className="py-4 px-5">{getStatusBadge(event.status)}</td>
                     <td className="py-4 px-5">{getApprovalBadge(event.approval_status)}</td>
@@ -571,7 +583,7 @@ export default function EventManagement({
                       <div className="flex items-center justify-end gap-3">
                         <Link
                           href={`/admin/su-kien/${event.id}`}
-                          className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-colors"
                         >
                           Chi tiết <ChevronRight className="w-3 h-3" />
                         </Link>
@@ -592,7 +604,7 @@ export default function EventManagement({
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL: Tạo / Sửa sự kiện (Items 14, 18: Bỏ khách dự kiến và người phụ trách) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -616,7 +628,7 @@ export default function EventManagement({
                 </div>
               )}
 
-              {/* Hình ảnh sự kiện (Mục 3, Hình 9 & 10) */}
+              {/* Hình ảnh sự kiện */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Hình ảnh sự kiện
@@ -689,7 +701,7 @@ export default function EventManagement({
                     </button>
                   </div>
 
-                  {/* Media Library Accordion / Grid */}
+                  {/* Media Library Grid */}
                   {showMediaLibrary && (
                     <div className="mt-3 p-3 bg-white border border-blue-100 rounded-xl shadow-inner space-y-2 animate-in fade-in duration-150">
                       <div className="flex items-center justify-between pb-1 border-b border-slate-100">
@@ -768,17 +780,18 @@ export default function EventManagement({
                     required
                   />
                 </div>
-                {/* Số lượng khách dự kiến */}
+                {/* Trạng thái (Item 14: 3 trạng thái Sắp diễn ra, Đang mở đăng ký, Đã diễn ra) */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Số lượng khách dự kiến
+                    Trạng thái
                   </label>
-                  <input
-                    type="number"
-                    value={formData.expected_guests}
-                    onChange={(e) => setFormData({ ...formData, expected_guests: parseInt(e.target.value) || 0 })}
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                  />
+                  >
+                    {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
                 </div>
               </div>
 
@@ -793,38 +806,6 @@ export default function EventManagement({
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {/* Người phụ trách */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Người phụ trách
-                  </label>
-                  <select
-                    value={formData.manager_id}
-                    onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                  >
-                    <option value="">Chọn thành viên</option>
-                    {managers.map(m => (
-                      <option key={m.id} value={m.id}>{m.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* Trạng thái */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Trạng thái
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                  >
-                    {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                </div>
               </div>
 
               {/* 5 trường giá cố định (Mục 7: Read-only / Không cho chỉnh sửa) */}
