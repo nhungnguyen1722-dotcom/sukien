@@ -66,6 +66,10 @@ export default function EventRegistrationModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
+  const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{id: number; full_name: string; phone: string}>>([]);
+  const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
+
   // Load saved profile on mount or open
   useEffect(() => {
     if (!isOpen) {
@@ -98,6 +102,35 @@ export default function EventRegistrationModal({
   }, [isOpen]);
 
   if (!isOpen || !event) return null;
+
+  const handleReferrerSearch = async (value: string) => {
+    setReferrer(value);
+    
+    if (value.trim().length < 2) {
+      setReferrerSearchResults([]);
+      setShowReferrerDropdown(false);
+      return;
+    }
+
+    setIsSearchingReferrer(true);
+    try {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(value.trim())}`);
+      const data = await res.json();
+      setReferrerSearchResults(data.results || []);
+      setShowReferrerDropdown(data.results && data.results.length > 0);
+    } catch {
+      setReferrerSearchResults([]);
+      setShowReferrerDropdown(false);
+    } finally {
+      setIsSearchingReferrer(false);
+    }
+  };
+
+  const handleSelectReferrer = (member: {id: number; full_name: string; phone: string}) => {
+    setReferrer(member.full_name);
+    setShowReferrerDropdown(false);
+    setReferrerSearchResults([]);
+  };
 
   // Format date parts
   const eventDateObj = event.event_date ? new Date(event.event_date) : new Date();
@@ -498,10 +531,38 @@ export default function EventRegistrationModal({
                           type="text"
                           required={referrerType === 'co_nguoi_gioi_thieu'}
                           value={referrer}
-                          onChange={(e) => setReferrer(e.target.value)}
-                          placeholder="Nhập đúng tên hoặc SĐT của User thành viên mời"
+                          onChange={(e) => handleReferrerSearch(e.target.value)}
+                          onFocus={() => { if (referrerSearchResults.length > 0) setShowReferrerDropdown(true); }}
+                          onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                          placeholder="Nhập đúng SĐT của User thành viên mời"
                           className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         />
+                        {isSearchingReferrer && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                          </div>
+                        )}
+                        {showReferrerDropdown && referrerSearchResults.length > 0 && (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                            {referrerSearchResults.map((member) => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => handleSelectReferrer(member)}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition-colors text-sm cursor-pointer"
+                              >
+                                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                  <User className="w-3.5 h-3.5 text-blue-600" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-gray-900 text-xs truncate">{member.full_name}</p>
+                                  <p className="text-[11px] text-gray-500">{member.phone}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

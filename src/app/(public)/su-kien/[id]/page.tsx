@@ -37,19 +37,34 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
   }
 
   let event = null;
+  let schedules: Array<{
+    id: number | string;
+    time: string;
+    title: string;
+    speaker: string;
+    description?: string;
+  }> = [];
   try {
-    const result = await pool.query(`
-      SELECT 
-        id, name, code, short_description, detail_description,
-        event_date, start_time::text, end_time::text,
-        location, event_format, fee,
-        registration_deadline, expected_guests,
-        event_type, status, approval_status,
-        image_url, notes,
-        mc_fee, speaker_fee, support_fee, closer_fee, tea_break_fee
-      FROM events 
-      WHERE id = $1
-    `, [eventId]);
+    const [result, schedRes] = await Promise.all([
+      pool.query(`
+        SELECT 
+          id, name, code, short_description, detail_description,
+          event_date, start_time::text, end_time::text,
+          location, event_format, fee,
+          registration_deadline, expected_guests,
+          event_type, status, approval_status,
+          image_url, notes,
+          mc_fee, speaker_fee, support_fee, closer_fee, tea_break_fee
+        FROM events 
+        WHERE id = $1
+      `, [eventId]),
+      pool.query(`
+        SELECT id, time, title, speaker, description, order_num
+        FROM event_schedules
+        WHERE event_id = $1
+        ORDER BY order_num ASC, id ASC
+      `, [eventId]),
+    ]);
     
     if (result.rows.length > 0) {
       event = {
@@ -57,6 +72,7 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
         event_date: result.rows[0].event_date ? new Date(result.rows[0].event_date).toISOString() : null,
       };
     }
+    schedules = schedRes.rows;
   } catch (error) {
     console.error('Failed to fetch event:', error);
   }
@@ -65,5 +81,5 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
     notFound();
   }
 
-  return <PublicEventDetailClient event={event} />;
+  return <PublicEventDetailClient event={event} initialSchedules={schedules} />;
 }

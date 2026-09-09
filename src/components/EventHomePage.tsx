@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   CalendarDays,
@@ -20,6 +20,7 @@ import {
   Quote,
   Shield,
   Layers,
+  Share2,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
@@ -71,6 +72,31 @@ export default function EventHomePage({ events }: EventHomePageProps) {
     setIsRegisterModalOpen(true);
   };
 
+  // Share Menu State
+  const [shareMenuEventId, setShareMenuEventId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShareMenuEventId(null);
+    };
+    if (shareMenuEventId !== null) {
+      window.addEventListener('click', handleClickOutside);
+      return () => window.removeEventListener('click', handleClickOutside);
+    }
+  }, [shareMenuEventId]);
+
+  const handleShareFacebook = (eventId: number, eventName: string) => {
+    const url = `${window.location.origin}/su-kien/${eventId}`;
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
+    setShareMenuEventId(null);
+  };
+
+  const handleShareTwitter = (eventId: number, eventName: string) => {
+    const url = `${window.location.origin}/su-kien/${eventId}`;
+    window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(eventName)}`, '_blank', 'width=600,height=400');
+    setShareMenuEventId(null);
+  };
+
   // Filtered Featured Events
   const featuredEvents = useMemo(() => {
     return events.filter((e) => {
@@ -116,7 +142,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
   // Status Badge Helper
   const getStatusBadge = (status: string) => {
-    if (status === 'Đang mở đăng ký' || status === 'Đang diễn ra') {
+    if (status === 'Đang mở đăng ký' || status === 'Đang diễn ra' || status === 'Đang thực hiện') {
       return (
         <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#059669] text-white shadow-xs">
           {status}
@@ -234,7 +260,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           {featuredEvents.slice(0, 8).map((event) => {
             const { day, monthStr } = parseDate(event.event_date);
             const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-            const isRegisterOpen = event.status === 'Đang mở đăng ký';
+            const isRegisterOpen = event.status === 'Đang mở đăng ký' || event.status === 'Đang thực hiện';
 
             return (
               <div
@@ -262,6 +288,37 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                   {/* Status Tag on Top-Left of Image */}
                   <div className="absolute top-2.5 left-2.5">
                     {getStatusBadge(event.status)}
+                  </div>
+
+                  {/* Share Button */}
+                  <div className="absolute top-2.5 right-2.5 z-10">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareMenuEventId(shareMenuEventId === event.id ? null : event.id); }}
+                      className="w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center transition-all cursor-pointer"
+                    >
+                      <Share2 className="w-4 h-4 text-gray-600" />
+                    </button>
+                    {shareMenuEventId === event.id && (
+                      <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShareFacebook(event.id, event.name); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-[#1877F2] rounded-lg transition-colors cursor-pointer"
+                        >
+                          <span className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-black">f</span>
+                          <span>Chia sẻ lên Facebook</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShareTwitter(event.id, event.name); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-black rounded-lg transition-colors cursor-pointer"
+                        >
+                          <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold">𝕏</span>
+                          <span>Chia sẻ lên X (Twitter)</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </Link>
 
@@ -363,7 +420,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
               {/* Status Filter Tabs */}
               <div className="flex flex-wrap gap-2 py-4 border-b border-gray-100">
-                {['Tất cả', 'Sắp diễn ra', 'Đang mở đăng ký', 'Đã diễn ra'].map((status) => (
+                {['Tất cả', 'Sắp diễn ra', 'Đang mở đăng ký', 'Đang thực hiện', 'Đã diễn ra'].map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -387,7 +444,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 {paginatedEvents.map((event) => {
                   const { fullDate } = parseDate(event.event_date);
                   const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-                  const isRegisterOpen = event.status === 'Đang mở đăng ký';
+                  const isRegisterOpen = event.status === 'Đang mở đăng ký' || event.status === 'Đang thực hiện';
 
                   return (
                     <div
@@ -444,17 +501,59 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
                       {/* Action Button */}
                       <div className="flex sm:flex-col items-center gap-2 flex-shrink-0 self-end sm:self-center">
-                        <Link
-                          href={`/su-kien/${event.id}`}
-                          className="inline-flex items-center gap-1 px-3.5 py-2 border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-gray-700 text-xs font-semibold rounded-xl transition-all"
-                        >
-                          <span>Chi tiết</span>
-                          <span className="text-xs">→</span>
-                        </Link>
+                        <div className="flex items-center gap-2 w-full">
+                          <Link
+                            href={`/su-kien/${event.id}`}
+                            className="flex-1 inline-flex items-center justify-center gap-1 px-3.5 py-2 border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-gray-700 text-xs font-semibold rounded-xl transition-all"
+                          >
+                            <span>Chi tiết</span>
+                            <span className="text-xs">→</span>
+                          </Link>
+                          {/* Share Button */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShareMenuEventId(shareMenuEventId === event.id ? null : event.id);
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 hover:bg-gray-50 text-gray-500 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                              title="Chia sẻ"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
+                            {shareMenuEventId === event.id && (
+                              <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShareFacebook(event.id, event.name);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-[#1877F2] rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <span className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-black">f</span>
+                                  <span>Chia sẻ lên Facebook</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShareTwitter(event.id, event.name);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-black rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold">𝕏</span>
+                                  <span>Chia sẻ lên X (Twitter)</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleOpenRegister(event)}
-                          className={`inline-flex items-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
+                          className={`w-full inline-flex items-center justify-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
                             isEnded
                               ? 'bg-[#4f46e5] hover:bg-[#4338ca]'
                               : isRegisterOpen

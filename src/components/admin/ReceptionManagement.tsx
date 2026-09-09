@@ -84,11 +84,8 @@ const SOURCE_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  'Đã đăng ký',
   'Đã check-in',
-  'Mới đăng ký',
-  'Đã tham dự',
-  'Vắng mặt',
+  'Tham dự',
 ];
 
 export default function ReceptionManagement({
@@ -117,7 +114,7 @@ export default function ReceptionManagement({
   const [selectedSaleId, setSelectedSaleId] = useState('');
   const [selectedSaleName, setSelectedSaleName] = useState('');
   const [isSaleDropdownOpen, setIsSaleDropdownOpen] = useState(false);
-  const [attendanceStatus, setAttendanceStatus] = useState('Đã đăng ký');
+  const [attendanceStatus, setAttendanceStatus] = useState('Đã check-in');
   const [notes, setNotes] = useState('');
   const saleDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -299,7 +296,7 @@ export default function ReceptionManagement({
         setSelectedSaleId('');
         setSelectedSaleName('');
         setSaleSearch('');
-        setAttendanceStatus('Đã đăng ký');
+        setAttendanceStatus('Đã check-in');
         setNotes('');
       } else {
         setFormError(data.error || 'Có lỗi xảy ra khi thêm khách mời');
@@ -314,7 +311,7 @@ export default function ReceptionManagement({
 
   // Quick check-in toggle
   const handleQuickCheckin = async (reg: RegistrationItem) => {
-    const nextStatus = reg.attendance_status === 'Đã check-in' ? 'Đã đăng ký' : 'Đã check-in';
+    const nextStatus = reg.attendance_status === 'Đã check-in' ? 'Tham dự' : 'Đã check-in';
     try {
       const res = await fetch('/api/admin/le-tan', {
         method: 'PATCH',
@@ -720,7 +717,7 @@ export default function ReceptionManagement({
                 ) : (
                   filteredRegistrations.map((guest, idx) => {
                     const isCheckedIn = guest.attendance_status === 'Đã check-in';
-                    const isAbsent = guest.attendance_status === 'Vắng mặt';
+                    const isAttended = guest.attendance_status === 'Tham dự';
 
                     return (
                       <tr
@@ -742,14 +739,12 @@ export default function ReceptionManagement({
                         <td className="py-3.5 px-3">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                              isCheckedIn
+                              isAttended
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                : isAbsent
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200/60'
                                 : 'bg-blue-50 text-blue-700 border border-blue-200/60'
                             }`}
                           >
-                            {guest.attendance_status || 'Đã đăng ký'}
+                            {guest.attendance_status || 'Đã check-in'}
                           </span>
                         </td>
                         <td className="py-3.5 pl-3 text-right">
@@ -757,11 +752,11 @@ export default function ReceptionManagement({
                             {/* Quick Check-in Button */}
                             <button
                               onClick={() => handleQuickCheckin(guest)}
-                              title={isCheckedIn ? 'Hủy check-in' : 'Check-in nhanh'}
+                              title={isCheckedIn ? 'Đổi sang Tham dự' : 'Đổi sang Đã check-in'}
                               className={`p-1.5 rounded-lg transition ${
-                                isCheckedIn
+                                isAttended
                                   ? 'text-emerald-600 hover:bg-emerald-50'
-                                  : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                  : 'text-blue-600 hover:bg-blue-50'
                               }`}
                             >
                               <UserCheck className="w-4 h-4" />

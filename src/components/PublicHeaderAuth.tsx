@@ -51,10 +51,8 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
 
       if (cRole) {
         const lower = cRole.toLowerCase();
-        if (lower.includes('admin') || lower.includes('quản trị')) {
+        if (lower.includes('admin') || lower.includes('quản trị') || lower.includes('quan tri')) {
           setRole('admin');
-        } else if (lower.includes('lễ tân')) {
-          setRole('admin'); // or staff
         } else {
           setRole('member');
         }
@@ -274,15 +272,19 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
           {isDropdownOpen && (
             <div className="absolute right-0 mt-2.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               {/* Header admin row */}
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-50/60 border border-blue-100/60 mb-1">
+              <Link
+                href="/admin"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-50/60 hover:bg-blue-100/60 border border-blue-100/60 mb-1 transition-colors cursor-pointer"
+              >
                 <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold text-slate-900">{userName || 'Admin'}</div>
-                  <div className="text-[11px] text-blue-700 font-medium">Quản trị hệ thống</div>
+                  <div className="text-[11px] text-blue-700 font-medium">Bảng điều khiển Quản trị →</div>
                 </div>
-              </div>
+              </Link>
 
               {/* Menu items */}
               <div className="space-y-0.5 text-xs font-medium text-slate-700">

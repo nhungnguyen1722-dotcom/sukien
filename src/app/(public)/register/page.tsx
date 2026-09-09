@@ -1,77 +1,85 @@
 "use client";
 
 import { useState } from "react";
-import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import { UserPlus, User, Mail, Phone, Lock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("nhungnguyen1722@gmail.com");
-  const [password, setPassword] = useState("••••••••••••");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignUp = async () => {
     try {
       setIsGoogleLoading(true);
       setErrorMsg("");
       await signIn("google");
     } catch (err) {
-      console.error("Google sign in error:", err);
-      setErrorMsg("Đã xảy ra lỗi khi đăng nhập với Google. Vui lòng thử lại.");
+      console.error("Google sign up error:", err);
+      setErrorMsg("Đã xảy ra lỗi khi đăng ký với Google. Vui lòng thử lại.");
       setIsGoogleLoading(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim()) {
+      setErrorMsg("Vui lòng nhập họ và tên.");
+      return;
+    }
+
+    if (!phone.trim() && !email.trim()) {
+      setErrorMsg("Vui lòng nhập số điện thoại hoặc email.");
+      return;
+    }
+
+    if (password && confirmPassword && password !== confirmPassword) {
+      setErrorMsg("Mật khẩu xác nhận không khớp.");
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg("");
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          password,
+        }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        const userRole = (data.role || data.user?.role || "").toLowerCase();
-        const isAdmin = data.isAdmin || userRole.includes("admin") || userRole.includes("quản trị");
-        const isReception = data.isReception || userRole.includes("lễ tân") || userRole.includes("le tan");
-
+        // Requirements (Item 8):
+        // After member registration -> redirect to homepage (/)
         try {
-          localStorage.setItem(
-            "nghieng_auth_role",
-            isAdmin ? "admin" : "member"
-          );
+          localStorage.setItem("nghieng_auth_role", "member");
         } catch {
           // Ignore
         }
 
-        // Requirements (Item 8):
-        // - ONLY Admin accounts -> redirect to /admin
-        // - Lễ tân -> /admin/le-tan
-        // - Regular members -> redirect to homepage (/)
-        if (isAdmin) {
-          router.push(data.redirectTo && data.redirectTo.startsWith("/admin") ? data.redirectTo : "/admin");
-        } else if (isReception) {
-          router.push(data.redirectTo || "/admin/le-tan");
-        } else {
-          router.push("/");
-        }
+        router.push(data.redirectTo || "/");
         router.refresh();
       } else {
-        setErrorMsg(data.error || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+        setErrorMsg(data.error || "Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.");
       }
     } catch (err) {
       console.error(err);
-      setErrorMsg("Lỗi kết nối. Vui lòng thử lại sau.");
+      setErrorMsg("Lỗi kết nối máy chủ. Vui lòng thử lại sau.");
     } finally {
       setIsLoading(false);
     }
@@ -82,13 +90,13 @@ export default function LoginPage() {
       {/* Icon */}
       <div className="mb-4">
         <div className="bg-[#3b5bdb] text-white w-12 h-12 flex items-center justify-center rounded-xl shadow-sm">
-          <LogIn className="w-6 h-6" />
+          <UserPlus className="w-6 h-6" />
         </div>
       </div>
 
       {/* Title */}
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
-      <p className="text-sm text-gray-500 mb-8">Log in to your account</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Đăng ký thành viên</h1>
+      <p className="text-sm text-gray-500 mb-8">Tạo tài khoản để tham gia các sự kiện và trải nghiệm dịch vụ</p>
 
       {/* Card */}
       <div className="w-full max-w-md">
@@ -96,7 +104,7 @@ export default function LoginPage() {
           {/* Google Button */}
           <button
             type="button"
-            onClick={handleGoogleSignIn}
+            onClick={handleGoogleSignUp}
             disabled={isGoogleLoading}
             className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
@@ -122,13 +130,13 @@ export default function LoginPage() {
                 />
               </svg>
             )}
-            {isGoogleLoading ? "Đang kết nối Google..." : "Continue with Google"}
+            {isGoogleLoading ? "Đang kết nối Google..." : "Đăng ký với Google"}
           </button>
 
           {/* Divider */}
           <div className="flex items-center my-5">
             <div className="flex-1 border-t border-gray-200"></div>
-            <span className="px-4 text-xs text-gray-400 uppercase">or</span>
+            <span className="px-4 text-xs text-gray-400 uppercase">hoặc</span>
             <div className="flex-1 border-t border-gray-200"></div>
           </div>
 
@@ -140,54 +148,88 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
+            {/* Full Name */}
             <div>
               <label
-                htmlFor="email"
+                htmlFor="fullName"
                 className="block text-sm font-semibold text-gray-700 mb-1.5"
               >
-                Email
+                Họ và tên <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
                 <input
-                  id="email"
+                  id="fullName"
                   type="text"
-                  placeholder="you@example.com hoặc SĐT"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   required
                 />
               </div>
             </div>
 
+            {/* Phone */}
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-semibold text-gray-700 mb-1.5"
+              >
+                Số điện thoại <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                <input
+                  id="phone"
+                  type="tel"
+                  placeholder="Ví dụ: 0912345678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold text-gray-700 mb-1.5"
+              >
+                Email (tùy chọn)
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
+              </div>
+            </div>
+
             {/* Password */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-semibold text-gray-700"
-                >
-                  Password
-                </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-blue-500 hover:text-blue-600 font-medium"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-semibold text-gray-700 mb-1.5"
+              >
+                Mật khẩu
+              </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
                 <input
                   id="password"
                   type="password"
-                  placeholder="••••••••••••"
+                  placeholder="Nhập mật khẩu hoặc để trống (mặc định là SĐT)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  required
                 />
               </div>
             </div>
@@ -198,19 +240,19 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full bg-[#4263eb] hover:bg-[#3b5bdb] text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-2"
             >
-              {isLoading ? "Đang đăng nhập..." : "Log In"}
+              {isLoading ? "Đang tạo tài khoản..." : "Đăng ký thành viên"}
             </button>
           </form>
         </div>
 
-        {/* Sign up link */}
+        {/* Login link */}
         <p className="text-center text-sm text-gray-500">
-          Don&apos;t have an account?{" "}
+          Đã có tài khoản?{" "}
           <Link
-            href="/register"
+            href="/login"
             className="text-blue-500 hover:text-blue-600 font-medium"
           >
-            Create one
+            Đăng nhập ngay
           </Link>
         </p>
       </div>

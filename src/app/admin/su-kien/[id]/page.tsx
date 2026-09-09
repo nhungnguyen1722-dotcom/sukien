@@ -36,7 +36,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
   }
 
   try {
-    const [eventRes, regRes, logsRes, attachRes, managersRes] = await Promise.all([
+    const [eventRes, regRes, logsRes, attachRes, managersRes, schedulesRes] = await Promise.all([
       pool.query(
         `
         SELECT 
@@ -84,6 +84,10 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         [eventId]
       ),
       pool.query(`SELECT id, full_name, role FROM users ORDER BY full_name ASC`),
+      pool.query(
+        `SELECT id, time, title, speaker, description, order_num FROM event_schedules WHERE event_id = $1 ORDER BY order_num ASC, id ASC`,
+        [eventId]
+      ),
     ]);
 
     if (eventRes.rows.length === 0) {
@@ -118,6 +122,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
     }));
 
     const managers: ManagerOption[] = managersRes.rows;
+    const schedules = schedulesRes.rows;
 
     return (
       <EventDetail
@@ -126,6 +131,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         initialLogs={logs}
         initialAttachments={attachments}
         managers={managers}
+        initialSchedules={schedules}
       />
     );
   } catch (error) {

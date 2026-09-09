@@ -74,7 +74,7 @@ interface EventManagementProps {
   initialManagers: ManagerOption[];
 }
 
-const STATUS_OPTIONS = ['Sắp diễn ra', 'Đang mở đăng ký', 'Đã diễn ra'];
+const STATUS_OPTIONS = ['Sắp diễn ra', 'Đang mở đăng ký', 'Đang thực hiện', 'Đã diễn ra'];
 
 export default function EventManagement({
   initialEvents,
@@ -353,7 +353,7 @@ export default function EventManagement({
       return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">Đã diễn ra</span>;
     }
     if (status === 'Đang mở đăng ký' || status === 'Đang thực hiện') {
-      return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">Đang mở đăng ký</span>;
+      return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">{status}</span>;
     }
     return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">{status || 'Sắp diễn ra'}</span>;
   };

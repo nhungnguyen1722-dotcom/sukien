@@ -26,30 +26,26 @@ export async function POST(request: NextRequest) {
     let user = result.rows[0];
 
     if (!user) {
-      // For demo / ease of login, if not found, find admin
-      const adminRes = await pool.query(
-        `SELECT id, full_name, email, phone, role, status FROM users WHERE role = 'Admin' LIMIT 1`
+      return NextResponse.json(
+        { error: 'Tài khoản không tồn tại hoặc thông tin đăng nhập không chính xác' },
+        { status: 404 }
       );
-      if (adminRes.rows.length > 0) {
-        user = adminRes.rows[0];
-      } else {
-        return NextResponse.json(
-          { error: 'Tài khoản không tồn tại' },
-          { status: 404 }
-        );
-      }
     }
 
-    // Determine redirect destination according to Item 8 & Item 11:
+    // Determine redirect destination according to Item 8:
+    // - ONLY Admin accounts -> /admin
     // - Lễ tân -> /admin/le-tan
-    // - Admin -> /admin
-    // - Member / Vãng lai / Khách mời -> /
-    let redirectTo = '/';
+    // - Member / Vãng lai / Khách mời / All other roles -> /
     const userRole = (user.role || '').trim();
-    if (userRole === 'Lễ tân' || userRole.toLowerCase().includes('lễ tân') || userRole.toLowerCase().includes('le tan')) {
-      redirectTo = '/admin/le-tan';
-    } else if (userRole === 'Admin' || userRole.toLowerCase().includes('admin') || userRole === 'Quản trị viên') {
+    const lowerRole = userRole.toLowerCase();
+    const isAdmin = lowerRole.includes('admin') || lowerRole.includes('quản trị');
+    const isReception = lowerRole.includes('lễ tân') || lowerRole.includes('le tan') || lowerRole.includes('reception');
+
+    let redirectTo = '/';
+    if (isAdmin) {
       redirectTo = '/admin';
+    } else if (isReception) {
+      redirectTo = '/admin/le-tan';
     } else {
       redirectTo = '/';
     }
@@ -57,15 +53,26 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: 'Đăng nhập thành công',
-      user,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+      },
+      role: user.role,
+      isAdmin,
+      isReception,
       redirectTo,
     });
 
-    const cookieRole = (userRole === 'Admin' || userRole === 'Quản trị viên') ? 'Admin' : (userRole === 'Lễ tân' || userRole.toLowerCase().includes('lễ tân')) ? 'Lễ tân' : 'Thành viên';
+    const cookieRole = isAdmin ? 'Admin' : isReception ? 'Lễ tân' : 'Thành viên';
     response.cookies.set('user_role', cookieRole, { path: '/' });
     response.cookies.set('user_name', encodeURIComponent(user.full_name || ''), { path: '/' });
     response.cookies.set('user_email', encodeURIComponent(user.email || ''), { path: '/' });
     response.cookies.set('user_phone', encodeURIComponent(user.phone || ''), { path: '/' });
+    response.cookies.set('user_id', String(user.id), { path: '/' });
     return response;
   } catch (error) {
     console.error('Login error:', error);

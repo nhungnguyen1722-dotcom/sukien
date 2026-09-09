@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
   // Get role from cookie (set during login)
-  const role = req.cookies.get('user_role')?.value?.toLowerCase() || '';
+  const rawRole = req.cookies.get('user_role')?.value || '';
+  const role = decodeURIComponent(rawRole).toLowerCase();
   const url = req.nextUrl.clone();
 
   // Paths that require admin privileges
@@ -24,8 +25,8 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Admin can access everything under /admin
-  if (role.includes('admin')) {
+  // ONLY Admin accounts can access all routes under /admin
+  if (role.includes('admin') || role.includes('quản trị') || role.includes('quan tri')) {
     return NextResponse.next();
   }
 
@@ -39,7 +40,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // All other roles (members, etc.) should not access any admin routes
+  // All other roles (members, etc.) should not access any admin routes -> redirect to home (/)
   url.pathname = '/';
   return NextResponse.redirect(url);
 }

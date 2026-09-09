@@ -23,11 +23,20 @@ import {
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
 
-interface PublicEventDetailClientProps {
-  event: any;
+export interface PublicScheduleItem {
+  id?: number | string;
+  time: string;
+  title: string;
+  speaker?: string | null;
+  description?: string | null;
 }
 
-export default function PublicEventDetailClient({ event }: PublicEventDetailClientProps) {
+interface PublicEventDetailClientProps {
+  event: any;
+  initialSchedules?: PublicScheduleItem[];
+}
+
+export default function PublicEventDetailClient({ event, initialSchedules }: PublicEventDetailClientProps) {
   const [activeTab, setActiveTab] = useState<'intro' | 'content' | 'speakers' | 'target'>('intro');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -70,14 +79,16 @@ export default function PublicEventDetailClient({ event }: PublicEventDetailClie
     setIsShareMenuOpen(false);
   };
 
-  const scheduleItems = [
-    { time: '08:00 - 08:30', title: 'Đón tiếp đại biểu & Check-in' },
-    { time: '08:30 - 09:00', title: 'Khai mạc chương trình & Giới thiệu đại biểu' },
-    { time: '09:00 - 10:00', title: 'Phiên 1: Xu hướng phát triển và cơ hội cho doanh nghiệp' },
-    { time: '10:00 - 10:15', title: 'Giải lao & Networking mở rộng kết nối' },
-    { time: '10:15 - 11:00', title: 'Phiên 2: Chiến lược kết nối & hợp tác thực chiến' },
-    { time: '11:00 - 11:30', title: 'Giao lưu, Q&A và bế mạc sự kiện' },
-  ];
+  const scheduleItems = initialSchedules && initialSchedules.length > 0
+    ? initialSchedules
+    : [
+        { time: '08:00 - 08:30', title: 'Đón tiếp đại biểu & Check-in', speaker: 'Ban Lễ tân' },
+        { time: '08:30 - 09:00', title: 'Khai mạc chương trình & Giới thiệu đại biểu', speaker: 'MC sự kiện' },
+        { time: '09:00 - 10:00', title: 'Phiên 1: Xu hướng phát triển và cơ hội cho doanh nghiệp', speaker: 'Nguyễn Văn A (Diễn giả)' },
+        { time: '10:00 - 10:15', title: 'Giải lao & Networking mở rộng kết nối', speaker: 'Hội đồng chuyên gia' },
+        { time: '10:15 - 11:00', title: 'Phiên 2: Chiến lược kết nối & hợp tác thực chiến', speaker: 'Trần Văn Mạnh' },
+        { time: '11:00 - 11:30', title: 'Giao lưu, Q&A và bế mạc sự kiện', speaker: 'Ban tổ chức' },
+      ];
 
   const targetAudiences = [
     { label: 'Chủ doanh nghiệp', icon: Briefcase },
@@ -261,7 +272,7 @@ export default function PublicEventDetailClient({ event }: PublicEventDetailClie
                 {[
                   { key: 'intro', label: 'Giới thiệu' },
                   { key: 'content', label: 'Nội dung' },
-                  { key: 'speakers', label: 'Hội đồng quản trị' },
+                  { key: 'speakers', label: 'Ban tổ chức' },
                   { key: 'target', label: 'Đối tượng tham dự' },
                 ].map((t) => (
                   <button
@@ -318,11 +329,21 @@ export default function PublicEventDetailClient({ event }: PublicEventDetailClie
                       {scheduleItems.map((item, idx) => (
                         <div key={idx} className="relative flex items-start gap-3">
                           <span className="absolute -left-6 top-1.5 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100" />
-                          <div>
-                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                              {item.time}
-                            </span>
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                                {item.time}
+                              </span>
+                              {item.speaker && (
+                                <span className="text-xs text-slate-500 font-medium">
+                                  • {item.speaker}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">{item.title}</p>
+                            {item.description && (
+                              <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -352,7 +373,7 @@ export default function PublicEventDetailClient({ event }: PublicEventDetailClie
 
               {activeTab === 'speakers' && (
                 <div className="space-y-4">
-                  <h3 className="text-base font-bold text-gray-900 mb-4">Hội đồng quản trị và Ban tổ chức</h3>
+                  <h3 className="text-base font-bold text-gray-900 mb-4">Ban tổ chức</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

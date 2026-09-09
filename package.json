@@ -14,6 +14,7 @@
     "db:migrate:auth": "node migrate_google_auth.js",
     "db:migrate:reception": "node migrate_le_tan.js",
     "db:migrate:logs": "node migrate_event_logs.js",
+    "db:migrate:schedules": "node migrate_event_schedules.js",
     "db:permissions": "node run_permissions_sql.js",
     "db:test": "node test_db.js"
   },
