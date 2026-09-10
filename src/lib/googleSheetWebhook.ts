@@ -22,7 +22,7 @@ export interface GoogleSheetSyncData {
 }
 
 const DEFAULT_WEBHOOK_URL =
-  'https://script.google.com/macros/s/AKfycbyXWBaCWRQKQRBrMpP2Yfe-8kTMRQTISqVLXkbI7d7n2Xi3--HMpeH5zxECl08lp2g-/exec';
+  'https://script.google.com/macros/s/AKfycbzvmiF0vatz5HAPP5mLqtCgAc_lOLPGhsOC8zdMW17YiHrAM1rPlbnOTPTBIqoOWsw/exec';
 
 export async function sendToGoogleSheet(data: GoogleSheetSyncData): Promise<boolean> {
   const webhookUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL || DEFAULT_WEBHOOK_URL;
