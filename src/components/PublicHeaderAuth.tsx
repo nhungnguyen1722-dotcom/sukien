@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   LogIn,
   Bell,
@@ -32,42 +32,56 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
   const [userEmail, setUserEmail] = useState<string>('member@example.com');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   // Sync role and user info from cookies or localStorage
   useEffect(() => {
-    try {
-      // Check document.cookie first
-      const getCookie = (name: string) => {
-        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-        return match ? decodeURIComponent(match[3]) : null;
-      };
+    const syncFromCookies = () => {
+      try {
+        const getCookie = (name: string) => {
+          const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return match ? decodeURIComponent(match[3]) : null;
+        };
 
-      const cRole = getCookie('user_role');
-      const cName = getCookie('user_name');
-      const cEmail = getCookie('user_email');
+        const cRole = getCookie('user_role');
+        const cName = getCookie('user_name');
+        const cEmail = getCookie('user_email');
 
-      if (cName) setUserName(cName);
-      if (cEmail) setUserEmail(cEmail);
+        if (cName) setUserName(cName);
+        if (cEmail) setUserEmail(cEmail);
 
-      if (cRole) {
-        const lower = cRole.toLowerCase();
-        if (lower.includes('admin') || lower.includes('quản trị') || lower.includes('quan tri')) {
-          setRole('admin');
+        if (cRole) {
+          const lower = cRole.toLowerCase();
+          if (lower.includes('admin') || lower.includes('quản trị') || lower.includes('quan tri')) {
+            setRole('admin');
+          } else {
+            setRole('member');
+          }
         } else {
-          setRole('member');
+          const savedRole = localStorage.getItem('nghieng_auth_role') as AuthRole | null;
+          if (savedRole && ['guest', 'member', 'admin'].includes(savedRole)) {
+            setRole(savedRole);
+          } else {
+            setRole('guest');
+          }
         }
-      } else {
-        const savedRole = localStorage.getItem('nghieng_auth_role') as AuthRole | null;
-        if (savedRole && ['guest', 'member', 'admin'].includes(savedRole)) {
-          setRole(savedRole);
-        } else {
-          setRole('guest');
-        }
+      } catch {
+        // Ignore
       }
-    } catch {
-      // Ignore
-    }
-  }, []);
+    };
+
+    syncFromCookies();
+
+    // Listen for custom login/logout events
+    const handleAuthChange = () => syncFromCookies();
+    window.addEventListener('nghieng-auth-change', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('nghieng-auth-change', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
+  }, [pathname]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

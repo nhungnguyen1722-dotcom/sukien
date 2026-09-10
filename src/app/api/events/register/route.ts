@@ -53,6 +53,27 @@ export async function POST(request: NextRequest) {
     }
     const event = eventRes.rows[0];
 
+    // Kiểm tra trùng lặp theo Yêu cầu 4: Cùng Tên VÀ cùng Số điện thoại trong cùng 1 sự kiện
+    const duplicateCheck = await pool.query(
+      `SELECT id FROM event_registrations 
+       WHERE event_id = $1 
+         AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) 
+         AND REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($3, '[^0-9]', '', 'g')
+       LIMIT 1`,
+      [parsedEventId, cleanName, cleanPhone]
+    );
+
+    if (duplicateCheck.rows.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          isDuplicate: true,
+          error: `Bạn đã đăng ký rồi: ${cleanName} - ${cleanPhone} cho sự kiện ${event.name}`,
+        },
+        { status: 400 }
+      );
+    }
+
     // 2. Tìm người giới thiệu (nếu có)
     let referrerId: number | null = null;
     let referrerGroup: string | null = null;
@@ -176,10 +197,10 @@ export async function POST(request: NextRequest) {
 
     const registration = regRes.rows[0];
 
-    // Cập nhật số lượng khách dự kiến cho sự kiện nếu cần
+    // Cập nhật số lượng khách dự kiến cho sự kiện đồng bộ chính xác với số người đăng ký thực tế
     await pool.query(
       `UPDATE events 
-       SET expected_guests = COALESCE(expected_guests, 0) + 1 
+       SET expected_guests = (SELECT COUNT(*)::int FROM event_registrations WHERE event_id = $1) 
        WHERE id = $1`,
       [parsedEventId]
     );

@@ -34,9 +34,11 @@ export interface PublicScheduleItem {
 interface PublicEventDetailClientProps {
   event: any;
   initialSchedules?: PublicScheduleItem[];
+  inChargePersons?: any[];
+  registrationCount?: number;
 }
 
-export default function PublicEventDetailClient({ event, initialSchedules }: PublicEventDetailClientProps) {
+export default function PublicEventDetailClient({ event, initialSchedules, inChargePersons, registrationCount }: PublicEventDetailClientProps) {
   const [activeTab, setActiveTab] = useState<'intro' | 'content' | 'speakers' | 'target'>('intro');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -185,7 +187,7 @@ export default function PublicEventDetailClient({ event, initialSchedules }: Pub
                       <Users className="w-4 h-4" />
                     </div>
                     <span>
-                      <strong className="text-gray-900">{event.expected_guests || 0} người</strong> tham dự dự kiến
+                      <strong className="text-gray-900">{registrationCount ?? event.expected_guests ?? 0} người</strong> tham dự dự kiến
                     </span>
                   </div>
                 </div>
@@ -375,29 +377,36 @@ export default function PublicEventDetailClient({ event, initialSchedules }: Pub
                 <div className="space-y-4">
                   <h3 className="text-base font-bold text-gray-900 mb-4">Ban tổ chức</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/events/speaker-hung.jpg"
-                        alt="Ông Nguyễn Văn Hùng"
-                        className="w-12 h-12 rounded-full object-cover"
-                        onError={(e) => { e.currentTarget.src = '/logo-nghieng.png'; }}
-                      />
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-900">Ông Nguyễn Văn Hùng</h4>
-                        <p className="text-xs text-gray-500">Chuyên gia kinh tế - Giám đốc ABC</p>
+                    {inChargePersons && inChargePersons.length > 0 ? (
+                      inChargePersons.map((person, idx) => (
+                        <div key={person.id || idx} className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                          {person.avatar ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={person.avatar}
+                              alt={person.full_name}
+                              className="w-12 h-12 rounded-full object-cover"
+                              onError={(e) => { e.currentTarget.src = '/logo-nghieng.png'; }}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm">
+                              {person.full_name?.split(' ').map((w: string) => w[0]).join('').slice(-2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900">{person.full_name}</h4>
+                            <p className="text-xs text-gray-500">{person.position || 'Ban tổ chức'}</p>
+                            {person.phone && (
+                              <p className="text-xs text-gray-400 mt-0.5">{person.phone}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 text-center text-sm text-gray-400 py-6">
+                        Thông tin ban tổ chức đang được cập nhật.
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm">
-                        VC
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-900">Bà Vũ Thị Cúc</h4>
-                        <p className="text-xs text-gray-500">Ban tổ chức & Điều phối sự kiện WeLink</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}

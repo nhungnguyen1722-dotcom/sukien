@@ -44,8 +44,10 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
     speaker: string;
     description?: string;
   }> = [];
+  let inChargePersons: Array<any> = [];
+  let registrationCount = 0;
   try {
-    const [result, schedRes] = await Promise.all([
+    const [result, schedRes, inChargeRes, regCountRes] = await Promise.all([
       pool.query(`
         SELECT 
           id, name, code, short_description, detail_description,
@@ -64,6 +66,17 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
         WHERE event_id = $1
         ORDER BY order_num ASC, id ASC
       `, [eventId]),
+      pool.query(`
+        SELECT id, full_name, position, phone, email, avatar, roles, status
+        FROM event_in_charge
+        WHERE event_id = $1 AND status = 'Đã duyệt'
+        ORDER BY id ASC
+      `, [eventId]),
+      pool.query(`
+        SELECT COUNT(*)::int AS count
+        FROM event_registrations
+        WHERE event_id = $1
+      `, [eventId]),
     ]);
     
     if (result.rows.length > 0) {
@@ -73,6 +86,11 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
       };
     }
     schedules = schedRes.rows;
+    inChargePersons = inChargeRes.rows.map((p: any) => ({
+      ...p,
+      roles: Array.isArray(p.roles) ? p.roles : (p.roles ? [p.roles] : []),
+    }));
+    registrationCount = regCountRes.rows[0]?.count || 0;
   } catch (error) {
     console.error('Failed to fetch event:', error);
   }
@@ -81,5 +99,5 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
     notFound();
   }
 
-  return <PublicEventDetailClient event={event} initialSchedules={schedules} />;
+  return <PublicEventDetailClient event={event} initialSchedules={schedules} inChargePersons={inChargePersons} registrationCount={registrationCount} />;
 }

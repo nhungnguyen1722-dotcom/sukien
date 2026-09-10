@@ -54,18 +54,25 @@ export default function LoginPage() {
           // Ignore
         }
 
+        // Dispatch custom event to notify header
+        try {
+          window.dispatchEvent(new Event('nghieng-auth-change'));
+        } catch {
+          // Ignore
+        }
+
         // Requirements (Item 8):
         // - ONLY Admin accounts -> redirect to /admin
         // - Lễ tân -> /admin/le-tan
         // - Regular members -> redirect to homepage (/)
+        // Use window.location.href for full page reload so server reads cookies
         if (isAdmin) {
-          router.push(data.redirectTo && data.redirectTo.startsWith("/admin") ? data.redirectTo : "/admin");
+          window.location.href = data.redirectTo && data.redirectTo.startsWith("/admin") ? data.redirectTo : "/admin";
         } else if (isReception) {
-          router.push(data.redirectTo || "/admin/le-tan");
+          window.location.href = data.redirectTo || "/admin/le-tan";
         } else {
-          router.push("/");
+          window.location.href = "/";
         }
-        router.refresh();
       } else {
         setErrorMsg(data.error || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
       }

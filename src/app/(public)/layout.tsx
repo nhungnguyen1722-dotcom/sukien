@@ -1,14 +1,31 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Search, Bell, LogIn } from "lucide-react";
 import SystemLogo from "@/components/SystemLogo";
 import PublicHeaderNav from "@/components/PublicHeaderNav";
 import PublicHeaderAuth from "@/components/PublicHeaderAuth";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read cookies server-side to determine initial auth state
+  const cookieStore = await cookies();
+  const userRole = cookieStore.get('user_role')?.value || '';
+  const userName = cookieStore.get('user_name')?.value || '';
+  const userEmail = cookieStore.get('user_email')?.value || '';
+
+  let initialRole: 'guest' | 'member' | 'admin' = 'guest';
+  if (userRole) {
+    const lower = userRole.toLowerCase();
+    if (lower.includes('admin') || lower.includes('quản trị') || lower.includes('quan tri')) {
+      initialRole = 'admin';
+    } else {
+      initialRole = 'member';
+    }
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#f8fafc]">
       {/* Header */}
@@ -25,7 +42,7 @@ export default function PublicLayout({
           <PublicHeaderNav />
 
           {/* Công cụ bên phải (3 trạng thái theo Hình 3: image3.png) */}
-          <PublicHeaderAuth />
+          <PublicHeaderAuth initialRole={initialRole} />
         </div>
       </header>
 

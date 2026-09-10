@@ -54,6 +54,7 @@ export interface Event {
   tea_break_fee: string | number;
   notes: string | null;
   image_url?: string | null;
+  registration_count?: number;
 }
 
 export interface Stats {
@@ -74,7 +75,7 @@ interface EventManagementProps {
   initialManagers: ManagerOption[];
 }
 
-const STATUS_OPTIONS = ['Sắp diễn ra', 'Đang mở đăng ký', 'Đang thực hiện', 'Đã diễn ra'];
+const STATUS_OPTIONS = ['Sắp diễn ra', 'Kế hoạch', 'Đang thực hiện', 'Đã diễn ra'];
 
 export default function EventManagement({
   initialEvents,
@@ -352,7 +353,7 @@ export default function EventManagement({
     if (status === 'Đã diễn ra' || status === 'Đã hoàn thành') {
       return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">Đã diễn ra</span>;
     }
-    if (status === 'Đang mở đăng ký' || status === 'Đang thực hiện') {
+    if (status === 'Kế hoạch' || status === 'Đang thực hiện') {
       return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">{status}</span>;
     }
     return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">{status || 'Sắp diễn ra'}</span>;
@@ -575,7 +576,7 @@ export default function EventManagement({
                     </td>
                     <td className="py-4 px-5 text-slate-600">{event.event_date ? formatDate(event.event_date) : '—'}</td>
                     <td className="py-4 px-5 text-slate-600">{event.location || '—'}</td>
-                    <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.expected_guests || 0}</td>
+                    <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.registration_count ?? event.expected_guests ?? 0}</td>
                     <td className="py-4 px-5 text-slate-600">{event.manager_name || '—'}</td>
                     <td className="py-4 px-5">{getStatusBadge(event.status)}</td>
                     <td className="py-4 px-5">{getApprovalBadge(event.approval_status)}</td>
@@ -780,7 +781,7 @@ export default function EventManagement({
                     required
                   />
                 </div>
-                {/* Trạng thái (Item 14: 3 trạng thái Sắp diễn ra, Đang mở đăng ký, Đã diễn ra) */}
+                {/* Trạng thái (Item 14: 4 trạng thái Sắp diễn ra, Kế hoạch, Đang thực hiện, Đã diễn ra) */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Trạng thái

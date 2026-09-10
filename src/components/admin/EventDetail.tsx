@@ -135,6 +135,7 @@ interface EventDetailProps {
   initialAttachments: Attachment[];
   managers: ManagerOption[];
   initialSchedules?: ScheduleItem[];
+  initialInChargePersons?: any[];
 }
 
 export default function EventDetail({
@@ -144,6 +145,7 @@ export default function EventDetail({
   initialAttachments,
   managers,
   initialSchedules,
+  initialInChargePersons,
 }: EventDetailProps) {
   const [event, setEvent] = useState<EventData>(initialEvent);
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations);
@@ -164,36 +166,8 @@ export default function EventDetail({
   const [editingInCharge, setEditingInCharge] = useState<any | null>(null);
   const [isAddScheduleModalOpen, setIsAddScheduleModalOpen] = useState(false);
 
-  // In-charge persons state (Item 21)
-  const [inChargePersons, setInChargePersons] = useState([
-    {
-      id: 1,
-      full_name: 'Nguyễn Văn A',
-      position: 'Trưởng phòng Kinh Doanh',
-      phone: '0912 345 678',
-      email: 'nguyenvana@example.com',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-      roles: ['Diễn giả', 'MC'],
-    },
-    {
-      id: 2,
-      full_name: 'Trần Văn Mạnh',
-      position: 'Chuyên viên Tư vấn',
-      phone: '0987 654 321',
-      email: 'tranvanmanh@example.com',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-      roles: ['Chốt sự kiện'],
-    },
-    {
-      id: 3,
-      full_name: 'Lê Thu Trang',
-      position: 'Nhân viên Lễ tân',
-      phone: '0901 234 567',
-      email: 'lethutrang@example.com',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-      roles: ['Phụng sự', 'Điều phối'],
-    },
-  ]);
+  // In-charge persons state - loaded from DB via props
+  const [inChargePersons, setInChargePersons] = useState<any[]>(initialInChargePersons || []);
 
   // In charge form state
   const [inChargeForm, setInChargeForm] = useState({
@@ -362,7 +336,7 @@ export default function EventDetail({
         </span>
       );
     }
-    if (status === 'Đang mở đăng ký' || status === 'Đang thực hiện') {
+    if (status === 'Kế hoạch' || status === 'Đang thực hiện') {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
           {status}
@@ -518,58 +492,6 @@ export default function EventDetail({
     } catch {
       showToast('error', 'Lỗi kết nối máy chủ');
     }
-  };
-
-  // Handler: In-charge Save
-  const handleSaveInCharge = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inChargeForm.full_name) {
-      showToast('error', 'Vui lòng chọn hoặc nhập tên người phụ trách');
-      return;
-    }
-    if (inChargeForm.roles.length === 0) {
-      showToast('error', 'Vui lòng chọn ít nhất một vai trò');
-      return;
-    }
-
-    if (editingInCharge) {
-      setInChargePersons(
-        inChargePersons.map((p) =>
-          p.id === editingInCharge.id
-            ? {
-                ...p,
-                full_name: inChargeForm.full_name,
-                position: inChargeForm.position,
-                phone: inChargeForm.phone,
-                email: inChargeForm.email,
-                roles: inChargeForm.roles,
-              }
-            : p
-        )
-      );
-      showToast('success', 'Đã cập nhật thông tin người phụ trách');
-    } else {
-      const newPerson = {
-        id: Date.now(),
-        full_name: inChargeForm.full_name,
-        position: inChargeForm.position,
-        phone: inChargeForm.phone,
-        email: inChargeForm.email,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-        roles: inChargeForm.roles,
-      };
-      setInChargePersons([...inChargePersons, newPerson]);
-      showToast('success', 'Đã thêm người phụ trách vào sự kiện');
-    }
-    setIsAddInChargeModalOpen(false);
-    setEditingInCharge(null);
-  };
-
-  // Handler: In-charge Delete
-  const handleDeleteInCharge = (id: number) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa người phụ trách này?')) return;
-    setInChargePersons(inChargePersons.filter((p) => p.id !== id));
-    showToast('success', 'Đã xóa người phụ trách');
   };
 
   // Schedule Handlers (Item 5)
@@ -752,8 +674,11 @@ export default function EventDetail({
         }),
       });
 
-      if (!res.ok) throw new Error('Lỗi khi thêm khách');
       const data = await res.json();
+      if (!res.ok) {
+        showToast('error', data.error || 'Lỗi khi thêm khách');
+        return;
+      }
 
       setRegistrations([data.registration, ...registrations]);
       showToast('success', 'Thêm khách tham dự thành công');
@@ -769,6 +694,118 @@ export default function EventDetail({
       });
     } catch (err) {
       showToast('error', 'Có lỗi xảy ra khi thêm khách');
+    }
+  };
+
+  // Handler: Fetch in-charge persons from API
+  const fetchInChargePersons = async () => {
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/in-charge`);
+      if (res.ok) {
+        const data = await res.json();
+        setInChargePersons(data.inChargePersons || []);
+      }
+    } catch (err) {
+      console.error('Error fetching in-charge persons:', err);
+    }
+  };
+
+  // Handler: Delete in-charge person
+  const handleDeleteInCharge = async (personId: number) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa người phụ trách này?')) return;
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/in-charge?id=${personId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setInChargePersons(inChargePersons.filter((p) => p.id !== personId));
+        showToast('success', 'Đã xóa người phụ trách');
+      } else {
+        showToast('error', 'Lỗi khi xóa người phụ trách');
+      }
+    } catch {
+      showToast('error', 'Lỗi khi xóa người phụ trách');
+    }
+  };
+
+  // Handler: Save in-charge person (add or edit)
+  const handleSaveInCharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inChargeForm.full_name) {
+      showToast('error', 'Vui lòng chọn hoặc nhập tên người phụ trách');
+      return;
+    }
+    if (inChargeForm.roles.length === 0) {
+      showToast('error', 'Vui lòng chọn ít nhất một vai trò');
+      return;
+    }
+    try {
+      if (editingInCharge) {
+        const res = await fetch(`/api/admin/events/${event.id}/in-charge`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingInCharge.id,
+            full_name: inChargeForm.full_name,
+            position: inChargeForm.position,
+            phone: inChargeForm.phone,
+            email: inChargeForm.email,
+            roles: inChargeForm.roles,
+          }),
+        });
+        if (res.ok) {
+          await fetchInChargePersons();
+          showToast('success', 'Đã cập nhật người phụ trách');
+        } else {
+          showToast('error', 'Lỗi khi cập nhật');
+        }
+      } else {
+        const res = await fetch(`/api/admin/events/${event.id}/in-charge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name: inChargeForm.full_name,
+            position: inChargeForm.position,
+            phone: inChargeForm.phone,
+            email: inChargeForm.email,
+            roles: inChargeForm.roles,
+          }),
+        });
+        if (res.ok) {
+          await fetchInChargePersons();
+          showToast('success', 'Đã thêm người phụ trách');
+        } else {
+          showToast('error', 'Lỗi khi thêm người phụ trách');
+        }
+      }
+      setIsAddInChargeModalOpen(false);
+      setEditingInCharge(null);
+    } catch {
+      showToast('error', 'Có lỗi xảy ra');
+    }
+  };
+
+  // Handler: Approve in-charge person
+  const handleApproveInCharge = async (personId: number) => {
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/in-charge`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: personId,
+          status: 'Đã duyệt',
+        }),
+      });
+      if (res.ok) {
+        setInChargePersons(inChargePersons.map(p =>
+          p.id === personId ? { ...p, status: 'Đã duyệt' } : p
+        ));
+        showToast('success', 'Đã duyệt người phụ trách');
+      } else {
+        showToast('error', 'Lỗi khi duyệt');
+      }
+    } catch {
+      showToast('error', 'Lỗi khi duyệt người phụ trách');
     }
   };
 
@@ -1271,13 +1308,14 @@ export default function EventDetail({
                     <th className="py-3 px-4">Số điện thoại</th>
                     <th className="py-3 px-4">Email</th>
                     <th className="py-3 px-4">Vai trò trong sự kiện</th>
+                    <th className="py-3 px-4">Trạng thái</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {inChargePersons.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         Chưa có người phụ trách nào được phân công.
                       </td>
                     </tr>
@@ -1299,7 +1337,7 @@ export default function EventDetail({
                         <td className="py-3.5 px-4 text-slate-600">{p.email}</td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-wrap gap-1.5">
-                            {p.roles.map((r, rIdx) => (
+                            {(Array.isArray(p.roles) ? p.roles : []).map((r: string, rIdx: number) => (
                               <span
                                 key={rIdx}
                                 className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200"
@@ -1309,8 +1347,28 @@ export default function EventDetail({
                             ))}
                           </div>
                         </td>
+                        <td className="py-3.5 px-4">
+                          {p.status === 'Đã duyệt' ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              Đã duyệt
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                              {p.status || 'Chờ duyệt'}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {p.status !== 'Đã duyệt' && (
+                              <button
+                                onClick={() => handleApproveInCharge(p.id)}
+                                className="text-emerald-600 hover:text-emerald-700 p-1.5 rounded hover:bg-emerald-50"
+                                title="Duyệt"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setEditingInCharge(p);
@@ -1320,7 +1378,7 @@ export default function EventDetail({
                                   position: p.position,
                                   phone: p.phone,
                                   email: p.email,
-                                  roles: p.roles,
+                                  roles: Array.isArray(p.roles) ? p.roles : [],
                                   notes: '',
                                 });
                                 setIsAddInChargeModalOpen(true);
@@ -2412,7 +2470,7 @@ export default function EventDetail({
                     className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   >
                     <option value="Sắp diễn ra">Sắp diễn ra</option>
-                    <option value="Đang mở đăng ký">Đang mở đăng ký</option>
+                    <option value="Kế hoạch">Kế hoạch</option>
                     <option value="Đang thực hiện">Đang thực hiện</option>
                     <option value="Đã diễn ra">Đã diễn ra</option>
                   </select>

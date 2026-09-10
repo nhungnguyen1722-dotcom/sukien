@@ -142,7 +142,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
   // Status Badge Helper
   const getStatusBadge = (status: string) => {
-    if (status === 'Đang mở đăng ký' || status === 'Đang diễn ra' || status === 'Đang thực hiện') {
+    if (status === 'Kế hoạch' || status === 'Đang diễn ra' || status === 'Đang thực hiện') {
       return (
         <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#059669] text-white shadow-xs">
           {status}
@@ -260,7 +260,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           {featuredEvents.slice(0, 8).map((event) => {
             const { day, monthStr } = parseDate(event.event_date);
             const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-            const isRegisterOpen = event.status === 'Đang mở đăng ký' || event.status === 'Đang thực hiện';
+            const isRegisterOpen = event.status === 'Kế hoạch' || event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
 
             return (
               <div
@@ -420,7 +420,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
               {/* Status Filter Tabs */}
               <div className="flex flex-wrap gap-2 py-4 border-b border-gray-100">
-                {['Tất cả', 'Sắp diễn ra', 'Đang mở đăng ký', 'Đang thực hiện', 'Đã diễn ra'].map((status) => (
+                {['Tất cả', 'Sắp diễn ra', 'Kế hoạch', 'Đang thực hiện', 'Đã diễn ra'].map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -444,7 +444,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 {paginatedEvents.map((event) => {
                   const { fullDate } = parseDate(event.event_date);
                   const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-                  const isRegisterOpen = event.status === 'Đang mở đăng ký' || event.status === 'Đang thực hiện';
+                  const isRegisterOpen = event.status === 'Kế hoạch' || event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
 
                   return (
                     <div

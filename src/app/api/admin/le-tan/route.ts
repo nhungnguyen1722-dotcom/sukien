@@ -99,6 +99,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Duplicate check: same name + phone for same event
+    if (guest_phone && guest_phone.trim()) {
+      const dupeCheck = await pool.query(
+        `SELECT id FROM event_registrations WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) AND TRIM(guest_phone) = TRIM($3) LIMIT 1`,
+        [parseInt(event_id, 10), guest_name.trim(), guest_phone.trim()]
+      );
+      if (dupeCheck.rows.length > 0) {
+        // Fetch event name for error message
+        const evtRes = await pool.query('SELECT name FROM events WHERE id = $1', [parseInt(event_id, 10)]);
+        const evtName = evtRes.rows[0]?.name || `ID ${event_id}`;
+        return NextResponse.json(
+          { error: `Người đó đã đăng ký rồi: ${guest_name.trim()} - ${guest_phone.trim()} cho sự kiện ${evtName}` },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Duplicate check: same name + phone for same event
+    if (guest_phone && guest_phone.trim()) {
+      const dupeCheck = await pool.query(
+        `SELECT id FROM event_registrations WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) AND TRIM(guest_phone) = TRIM($3) LIMIT 1`,
+        [parseInt(event_id, 10), guest_name.trim(), guest_phone.trim()]
+      );
+      if (dupeCheck.rows.length > 0) {
+        const evtRes = await pool.query('SELECT name FROM events WHERE id = $1', [parseInt(event_id, 10)]);
+        const evtName = evtRes.rows[0]?.name || `ID ${event_id}`;
+        return NextResponse.json(
+          { error: `Người đó đã đăng ký rồi: ${guest_name.trim()} - ${guest_phone.trim()} cho sự kiện ${evtName}` },
+          { status: 409 }
+        );
+      }
+    }
+
     const insertResult = await pool.query(
       `
       INSERT INTO event_registrations (
@@ -163,6 +196,12 @@ export async function POST(request: NextRequest) {
       }).catch((err) => console.error('Google Sheet background sync error:', err));
     });
 
+
+    // Sync expected_guests to actual registration count
+    await pool.query(
+      `UPDATE events SET expected_guests = (SELECT COUNT(*) FROM event_registrations WHERE event_id = $1) WHERE id = $1`,
+      [parseInt(event_id, 10)]
+    );
 
     return NextResponse.json(
       {

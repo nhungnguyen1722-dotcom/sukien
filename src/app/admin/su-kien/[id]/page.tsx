@@ -36,7 +36,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
   }
 
   try {
-    const [eventRes, regRes, logsRes, attachRes, managersRes, schedulesRes] = await Promise.all([
+    const [eventRes, regRes, logsRes, attachRes, managersRes, schedulesRes, inChargeRes] = await Promise.all([
       pool.query(
         `
         SELECT 
@@ -88,6 +88,13 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         `SELECT id, time, title, speaker, description, order_num FROM event_schedules WHERE event_id = $1 ORDER BY order_num ASC, id ASC`,
         [eventId]
       ),
+      pool.query(
+        `SELECT id, event_id, user_id, full_name, position, phone, email, avatar, roles, status, created_at, updated_at
+         FROM event_in_charge
+         WHERE event_id = $1
+         ORDER BY id ASC`,
+        [eventId]
+      ),
     ]);
 
     if (eventRes.rows.length === 0) {
@@ -123,6 +130,11 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
 
     const managers: ManagerOption[] = managersRes.rows;
     const schedules = schedulesRes.rows;
+    const inChargePersons = inChargeRes.rows.map((p: any) => ({
+      ...p,
+      roles: Array.isArray(p.roles) ? p.roles : (p.roles ? [p.roles] : []),
+      created_at: p.created_at ? new Date(p.created_at).toISOString() : null,
+    }));
 
     return (
       <EventDetail
@@ -132,6 +144,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         initialAttachments={attachments}
         managers={managers}
         initialSchedules={schedules}
+        initialInChargePersons={inChargePersons}
       />
     );
   } catch (error) {

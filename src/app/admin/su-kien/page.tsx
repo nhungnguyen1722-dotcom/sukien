@@ -17,7 +17,8 @@ async function getInitialData(): Promise<{
       pool.query(`
         SELECT 
           e.*,
-          m.full_name as manager_name
+          m.full_name as manager_name,
+          (SELECT COUNT(*)::int FROM event_registrations WHERE event_id = e.id) as registration_count
         FROM events e
         LEFT JOIN users m ON e.manager_id = m.id
         ORDER BY e.id DESC
