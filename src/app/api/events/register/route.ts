@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       [parsedEventId]
     );
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: isTodayCheckin
         ? 'Check-in tham dự sự kiện thành công!'
@@ -227,6 +227,17 @@ export async function POST(request: NextRequest) {
         fullName: cleanName,
       }
     });
+
+    // Tự động đăng nhập người dùng khi hoàn tất đăng ký (Mục 10)
+    response.cookies.set('user_role', 'Thành viên', { path: '/' });
+    response.cookies.set('user_name', encodeURIComponent(cleanName), { path: '/' });
+    response.cookies.set('user_email', encodeURIComponent(cleanEmail || ''), { path: '/' });
+    response.cookies.set('user_phone', encodeURIComponent(cleanPhone), { path: '/' });
+    if (userId) {
+      response.cookies.set('user_id', String(userId), { path: '/' });
+    }
+
+    return response;
   } catch (error: any) {
     console.error('Lỗi khi đăng ký sự kiện:', error);
     return NextResponse.json(

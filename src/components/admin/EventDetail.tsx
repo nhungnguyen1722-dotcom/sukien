@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   CalendarDays,
@@ -23,8 +23,8 @@ import {
   Check,
   AlertCircle,
   X,
-  Clock,
   UserCheck,
+  Clock,
   ShieldCheck,
   Building2,
   Phone,
@@ -117,6 +117,8 @@ export interface ManagerOption {
   id: number;
   full_name: string;
   role?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface ScheduleItem {
@@ -286,10 +288,46 @@ export default function EventDetail({
   const [guestSearch, setGuestSearch] = useState('');
   const [guestStatusFilter, setGuestStatusFilter] = useState('');
 
-  // Calculations (Item 19: Expected guests = count of registrations)
+  // User Auth & Role detection
+  const [currentUserRole, setCurrentUserRole] = useState('ADMIN');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [currentUserName, setCurrentUserName] = useState('');
+
+  useEffect(() => {
+    try {
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+        return match ? decodeURIComponent(match[3]) : null;
+      };
+      const cRole = getCookie('user_role');
+      const cId = getCookie('user_id');
+      const cName = getCookie('user_name');
+      if (cRole) setCurrentUserRole(cRole);
+      if (cId) setCurrentUserId(parseInt(cId, 10));
+      if (cName) setCurrentUserName(cName);
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
+
+  // Calculations (Item 1 & 3: Real-time guest count = count of registrations)
   const totalExpectedGuests = useMemo(() => {
-    return Math.max(registrations.length, event.expected_guests || 0);
-  }, [registrations.length, event.expected_guests]);
+    return registrations.length;
+  }, [registrations.length]);
+
+  // Thống kê Suất ăn & Tiệc trà từ cả 2 bảng (Mục 3, Hình 5)
+  const regFoodCount = useMemo(() => {
+    return registrations.filter((r) => r.is_food_approved !== false).length;
+  }, [registrations]);
+
+  const inChargeFoodCount = useMemo(() => {
+    return inChargePersons.filter((p) => p.is_food_approved !== false).length;
+  }, [inChargePersons]);
+
+  const totalFoodGuests = regFoodCount + inChargeFoodCount;
+  const totalTeaBreakFee = totalFoodGuests * 50000;
 
   const totalStaffCost = useMemo(() => {
     return (
@@ -809,6 +847,59 @@ export default function EventDetail({
     }
   };
 
+  // Handler: Toggle food approval for in-charge person (Mục 3)
+  const handleToggleInChargeFood = async (person: any) => {
+    const nextVal = person.is_food_approved === false ? true : false;
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/in-charge`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: person.id,
+          is_food_approved: nextVal,
+        }),
+      });
+      if (res.ok) {
+        setInChargePersons(inChargePersons.map((p) =>
+          p.id === person.id ? { ...p, is_food_approved: nextVal } : p
+        ));
+        showToast('success', nextVal ? 'Đã bật suất ăn tiệc trà' : 'Đã tắt suất ăn tiệc trà');
+      } else {
+        showToast('error', 'Lỗi khi cập nhật suất ăn');
+      }
+    } catch {
+      showToast('error', 'Lỗi khi cập nhật suất ăn');
+    }
+  };
+
+  // Handler: Đăng ký làm người phụ trách cho tài khoản Non-admin (Mục 5)
+  const handleRegisterAsInCharge = async () => {
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/in-charge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          full_name: currentUserName || 'Thành viên',
+          position: currentUserRole || 'Thành viên',
+          phone: '',
+          email: '',
+          roles: [currentUserRole || 'Khác'],
+          status: 'Chờ duyệt',
+          is_food_approved: true,
+        }),
+      });
+      if (res.ok) {
+        await fetchInChargePersons();
+        showToast('success', 'Đã gửi đăng ký làm người phụ trách! Chờ Admin duyệt.');
+      } else {
+        showToast('error', 'Gửi đăng ký thất bại');
+      }
+    } catch {
+      showToast('error', 'Lỗi kết nối khi gửi đăng ký');
+    }
+  };
+
   // Handler: Toggle food approval for tea break
   const handleToggleFood = async (reg: Registration) => {
     const nextVal = reg.is_food_approved === false ? true : false;
@@ -1251,15 +1342,25 @@ export default function EventDetail({
       {/* TAB 1: THÔNG TIN CHUNG (Item 21: Added DANH SÁCH NGƯỜI PHỤ TRÁCH) */}
       {activeTab === 'general' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-8 animate-in fade-in duration-150">
-          {/* General Metadata Section */}
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 font-medium min-w-[120px]">Trạng thái:</span>
-              <span>{getStatusBadge(event.status)}</span>
+          {/* General Metadata Section (Hình 5: Tổng trên 1 dòng) */}
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-sm">
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Trạng thái:</span>
+                <span>{getStatusBadge(event.status)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Ghi chú:</span>
+                <span className="text-slate-700 font-medium">{event.notes || event.name || '—'}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 font-medium min-w-[120px]">Ghi chú:</span>
-              <span className="text-slate-700">{event.notes || event.name || '—'}</span>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2.5 shadow-2xs">
+                <span>Tổng khách ăn: {totalFoodGuests}</span>
+                <span className="text-amber-300">•</span>
+                <span>Tiệc trà: {formatCurrency(totalTeaBreakFee)}</span>
+              </div>
             </div>
           </div>
 
@@ -1277,25 +1378,44 @@ export default function EventDetail({
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  setEditingInCharge(null);
-                  setInChargeForm({
-                    user_id: '',
-                    full_name: '',
-                    position: 'Thành viên',
-                    phone: '',
-                    email: '',
-                    roles: ['Diễn giả'],
-                    notes: '',
-                  });
-                  setIsAddInChargeModalOpen(true);
-                }}
-                className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Thêm người phụ trách</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Hình 3.1: Thẻ tổng số người phụ trách ăn và tiệc trà */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2 shadow-2xs">
+                  <span>Người phụ trách ăn: {inChargeFoodCount}/{inChargePersons.length}</span>
+                  <span className="text-amber-300">•</span>
+                  <span>Tiệc trà: {formatCurrency(inChargeFoodCount * 50000)}</span>
+                </div>
+
+                {isAdmin ? (
+                  <button
+                    onClick={() => {
+                      setEditingInCharge(null);
+                      setInChargeForm({
+                        user_id: '',
+                        full_name: '',
+                        position: 'Thành viên',
+                        phone: '',
+                        email: '',
+                        roles: ['Diễn giả'],
+                        notes: '',
+                      });
+                      setIsAddInChargeModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Thêm người phụ trách</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleRegisterAsInCharge}
+                    className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Đăng ký làm người phụ trách</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
@@ -1305,17 +1425,18 @@ export default function EventDetail({
                     <th className="py-3 px-4 w-12 text-center">STT</th>
                     <th className="py-3 px-4">Họ và tên</th>
                     <th className="py-3 px-4">Chức vụ</th>
-                    <th className="py-3 px-4">Số điện thoại</th>
-                    <th className="py-3 px-4">Email</th>
+                    <th className="py-3 px-4 hidden sm:table-cell">Số điện thoại</th>
+                    <th className="py-3 px-4 hidden sm:table-cell">Email</th>
                     <th className="py-3 px-4">Vai trò trong sự kiện</th>
-                    <th className="py-3 px-4">Trạng thái</th>
+                    <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
+                    <th className="py-3 px-4">Duyệt</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {inChargePersons.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
                         Chưa có người phụ trách nào được phân công.
                       </td>
                     </tr>
@@ -1327,14 +1448,17 @@ export default function EventDetail({
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={p.avatar} alt={p.full_name} className="w-full h-full object-cover" />
+                              <img src={p.avatar || '/events/event-1.jpg'} alt={p.full_name} className="w-full h-full object-cover" />
                             </div>
-                            <span className="font-bold text-slate-900">{p.full_name}</span>
+                            <div>
+                              <span className="font-bold text-slate-900 block">{p.full_name}</span>
+                              <span className="text-[11px] text-slate-400 block sm:hidden font-normal">{p.phone || '—'}</span>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-slate-700 font-medium">{p.position}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{p.phone}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{p.email}</td>
+                        <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{p.phone || '—'}</td>
+                        <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{p.email || '—'}</td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-wrap gap-1.5">
                             {(Array.isArray(p.roles) ? p.roles : []).map((r: string, rIdx: number) => (
@@ -1347,54 +1471,68 @@ export default function EventDetail({
                             ))}
                           </div>
                         </td>
+                        {/* Hình 3.2: Cột Suất ăn chỉ còn checkbox thuần, không có chữ */}
+                        <td className="py-3.5 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={p.is_food_approved !== false}
+                            onChange={() => handleToggleInChargeFood(p)}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                        {/* Cột Duyệt (Mục 5 & Hình 15) */}
                         <td className="py-3.5 px-4">
-                          {p.status === 'Đã duyệt' ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                              Đã duyệt
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                              {p.status || 'Chờ duyệt'}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {p.status === 'Đã duyệt' ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                Đã duyệt
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                                {p.status || 'Chờ duyệt'}
+                              </span>
+                            )}
+                            {isAdmin && p.status !== 'Đã duyệt' && (
+                              <button
+                                onClick={() => handleApproveInCharge(p.id)}
+                                className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
+                                title="Duyệt người phụ trách"
+                              >
+                                Duyệt
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {p.status !== 'Đã duyệt' && (
-                              <button
-                                onClick={() => handleApproveInCharge(p.id)}
-                                className="text-emerald-600 hover:text-emerald-700 p-1.5 rounded hover:bg-emerald-50"
-                                title="Duyệt"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                            )}
                             <button
                               onClick={() => {
                                 setEditingInCharge(p);
                                 setInChargeForm({
-                                  user_id: '',
+                                  user_id: p.user_id ? String(p.user_id) : '',
                                   full_name: p.full_name,
                                   position: p.position,
-                                  phone: p.phone,
-                                  email: p.email,
+                                  phone: p.phone || '',
+                                  email: p.email || '',
                                   roles: Array.isArray(p.roles) ? p.roles : [],
                                   notes: '',
                                 });
                                 setIsAddInChargeModalOpen(true);
                               }}
-                              className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50"
-                              title="Sửa"
+                              className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50 cursor-pointer"
+                              title="Xem / Sửa"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleDeleteInCharge(p.id)}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteInCharge(p.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 cursor-pointer"
+                                title="Xóa"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1421,14 +1559,14 @@ export default function EventDetail({
 
               <div className="flex items-center gap-3">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
-                  <span>Khách ăn: {registrations.filter((r) => r.is_food_approved !== false).length}/{registrations.length}</span>
-                  <span>•</span>
-                  <span>Tiệc trà: {formatCurrency(registrations.filter((r) => r.is_food_approved !== false).length * 50000)}</span>
+                  <span>Khách ăn: {regFoodCount}/{registrations.length}</span>
+                  <span className="text-amber-300">•</span>
+                  <span>Tiệc trà: {formatCurrency(regFoodCount * 50000)}</span>
                 </div>
 
                 <button
                   onClick={() => setIsAddGuestModalOpen(true)}
-                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ Thêm khách</span>
@@ -1456,8 +1594,9 @@ export default function EventDetail({
               >
                 <option value="">Tất cả trạng thái</option>
                 <option value="Đã đăng ký">Đã đăng ký</option>
-                <option value="Check-in">Check-in</option>
-                <option value="Check-out">Check-out</option>
+                <option value="Đã check-in">Đã check-in</option>
+                <option value="Về sớm">Về sớm</option>
+                <option value="Đã hủy">Đã hủy</option>
               </select>
             </div>
 
@@ -1467,8 +1606,8 @@ export default function EventDetail({
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                     <th className="py-3 px-4">Tên khách</th>
-                    <th className="py-3 px-4">SĐT</th>
-                    <th className="py-3 px-4">Nguồn</th>
+                    <th className="py-3 px-4 hidden sm:table-cell">SĐT</th>
+                    <th className="py-3 px-4 hidden sm:table-cell">Nguồn</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Trạng thái tham dự</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
@@ -1487,31 +1626,31 @@ export default function EventDetail({
                       const status = guest.attendance_status || 'Đã đăng ký';
                       return (
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3.5 px-4 font-semibold text-slate-800">
-                            {guest.guest_name}
+                          {/* Mục 16: Tên in đậm + SĐT mờ bên dưới trên mobile */}
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-slate-800 block">{guest.guest_name}</span>
+                            <span className="text-[11px] text-slate-400 block sm:hidden font-normal">{guest.guest_phone || '—'}</span>
                           </td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
+                          <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{guest.source || 'Lễ tân nhập'}</td>
+                          {/* Hình 3.2: Cột Suất ăn chỉ còn checkbox thuần, xóa chữ */}
                           <td className="py-3.5 px-4 text-center">
-                            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={isFood}
-                                onChange={() => handleToggleFood(guest)}
-                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                              />
-                              <span className={`text-[11px] font-semibold ${isFood ? 'text-emerald-700' : 'text-slate-400'}`}>
-                                {isFood ? 'Ăn tiệc trà' : 'Không ăn'}
-                              </span>
-                            </label>
+                            <input
+                              type="checkbox"
+                              checked={isFood}
+                              onChange={() => handleToggleFood(guest)}
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            />
                           </td>
                           <td className="py-3.5 px-4">
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full font-semibold ${
-                                status === 'Check-in'
+                                status === 'Đã check-in' || status === 'Check-in'
                                   ? 'bg-emerald-100 text-emerald-800'
-                                  : status === 'Check-out'
+                                  : status === 'Về sớm' || status === 'Check-out'
                                   ? 'bg-amber-100 text-amber-800'
+                                  : status === 'Đã hủy' || status === 'Hủy'
+                                  ? 'bg-rose-100 text-rose-800'
                                   : 'bg-slate-100 text-slate-700'
                               }`}
                             >
@@ -1520,29 +1659,30 @@ export default function EventDetail({
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {status !== 'Check-in' && (
+                              {status !== 'Check-in' && status !== 'Đã check-in' && (
                                 <button
-                                  onClick={() => handleChangeGuestStatus(guest, 'Check-in')}
-                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                                  onClick={() => handleChangeGuestStatus(guest, 'Đã check-in')}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
                                 >
                                   Check-in
                                 </button>
                               )}
-                              {status === 'Check-in' && (
+                              {status !== 'Về sớm' && status !== 'Check-out' && (
                                 <button
-                                  onClick={() => handleChangeGuestStatus(guest, 'Check-out')}
-                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
-                                  title="Khách không ở lại ăn / ra về"
+                                  onClick={() => handleChangeGuestStatus(guest, 'Về sớm')}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
+                                  title="Khách về sớm"
                                 >
-                                  Check-out
+                                  Về sớm
                                 </button>
                               )}
-                              {status === 'Check-out' && (
+                              {status !== 'Đã hủy' && status !== 'Hủy' && (
                                 <button
-                                  onClick={() => handleChangeGuestStatus(guest, 'Đã đăng ký')}
-                                  className="px-2 py-1 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100"
+                                  onClick={() => handleChangeGuestStatus(guest, 'Đã hủy')}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                  title="Hủy tham dự (giữ lịch sử)"
                                 >
-                                  Đặt lại
+                                  Hủy
                                 </button>
                               )}
                             </div>
@@ -2676,11 +2816,18 @@ export default function EventDetail({
                     const selId = e.target.value;
                     const mgr = managers.find(m => String(m.id) === selId);
                     if (mgr) {
+                      const ALL_ROLES = ['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'];
+                      const matchedRoles = mgr.role
+                        ? ALL_ROLES.filter(r => mgr.role?.toLowerCase().includes(r.toLowerCase()))
+                        : [];
                       setInChargeForm({
                         ...inChargeForm,
                         user_id: selId,
                         full_name: mgr.full_name,
                         position: mgr.role || 'Thành viên',
+                        phone: mgr.phone || '',
+                        email: mgr.email || '',
+                        roles: matchedRoles.length > 0 ? matchedRoles : (inChargeForm.roles.length > 0 ? inChargeForm.roles : ['Diễn giả']),
                       });
                     } else {
                       setInChargeForm({ ...inChargeForm, user_id: selId });

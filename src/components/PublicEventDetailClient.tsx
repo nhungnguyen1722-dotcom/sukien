@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   CalendarDays,
@@ -19,6 +19,7 @@ import {
   Layers,
   GraduationCap,
   Award,
+  X,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
@@ -42,7 +43,26 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const [activeTab, setActiveTab] = useState<'intro' | 'content' | 'speakers' | 'target'>('intro');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id?: string; phone?: string; name?: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+        return match ? decodeURIComponent(match[3]) : null;
+      };
+      const cId = getCookie('user_id');
+      const cPhone = getCookie('user_phone');
+      const cName = getCookie('user_name');
+      if (cId || cPhone) {
+        setCurrentUser({ id: cId || undefined, phone: cPhone || undefined, name: cName || undefined });
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   const eventDateObj = event.event_date ? new Date(event.event_date) : new Date();
   const day = eventDateObj.getDate();
@@ -57,28 +77,53 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
 
   const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
 
+  const getShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    const origin = window.location.origin;
+    const refCode = currentUser?.phone || currentUser?.id || 'nhungnguyen1722@gmail.com';
+    return `${origin}/su-kien/${event.id}?ref=${refCode}`;
+  };
+
   const handleCopyLink = () => {
     try {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(getShareUrl());
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 3000);
-      setIsShareMenuOpen(false);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleCopyRefLink = () => {
+    try {
+      navigator.clipboard.writeText(getShareUrl());
+      setCopiedRef(true);
+      setTimeout(() => setCopiedRef(false), 3000);
     } catch {
       // Ignore
     }
   };
 
   const handleShareFacebook = () => {
-    const url = encodeURIComponent(window.location.href);
+    const url = encodeURIComponent(getShareUrl());
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=400');
-    setIsShareMenuOpen(false);
+  };
+
+  const handleShareZalo = () => {
+    const url = encodeURIComponent(getShareUrl());
+    window.open(`https://zalo.me/share?url=${url}`, '_blank', 'width=600,height=400');
+  };
+
+  const handleShareTelegram = () => {
+    const url = encodeURIComponent(getShareUrl());
+    const text = encodeURIComponent(event.name || 'Sự kiện');
+    window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
   };
 
   const handleShareTwitter = () => {
-    const url = encodeURIComponent(window.location.href);
+    const url = encodeURIComponent(getShareUrl());
     const text = encodeURIComponent(event.name || 'Sự kiện');
     window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
-    setIsShareMenuOpen(false);
   };
 
   const scheduleItems = initialSchedules && initialSchedules.length > 0
@@ -125,7 +170,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
         {/* 3. KHU VỰC THÔNG TIN CHÍNH (CHIA 2 CỘT - IMAGE 6) */}
         <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Cột trái: Ảnh sự kiện lớn + Badge trạng thái */}
+            {/* Cột trái: Ảnh sự kiện lớn + Badge trạng thái + Mobile Share (Mục 12/13) */}
             <div className="lg:col-span-6">
               <div className="relative rounded-2xl overflow-hidden h-72 sm:h-96 w-full bg-slate-100 shadow-md border border-slate-200">
                 {event.image_url ? (
@@ -143,6 +188,15 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                 <span className="absolute top-4 left-4 px-3.5 py-1 rounded-lg text-xs font-bold bg-[#2563eb] text-white shadow-md">
                   {event.status || 'Sắp diễn ra'}
                 </span>
+                {/* Nút share trên ảnh cover trên mobile (Mục 12/13) */}
+                <button
+                  type="button"
+                  onClick={() => setIsShareMenuOpen(true)}
+                  className="absolute top-4 right-4 sm:hidden w-9 h-9 rounded-full bg-white/90 backdrop-blur-xs text-slate-700 hover:text-blue-600 flex items-center justify-center shadow-md active:scale-95 transition-all cursor-pointer"
+                  title="Chia sẻ sự kiện"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -205,16 +259,16 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                   }`}
                 >
                   <Ticket className="w-4 h-4" />
-                  <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký tham dự'}</span>
+                  <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký'}</span>
                 </button>
 
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setIsShareMenuOpen(!isShareMenuOpen)}
+                    onClick={() => setIsShareMenuOpen(true)}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
-                    {copiedLink ? (
+                    {copiedRef || copiedLink ? (
                       <>
                         <Check className="w-4 h-4 text-emerald-600" />
                         <span className="text-emerald-700">Đã sao chép</span>
@@ -226,38 +280,6 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                       </>
                     )}
                   </button>
-
-                  {/* Share Menu Popup (Item 6) */}
-                  {isShareMenuOpen && (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                      <button
-                        type="button"
-                        onClick={handleShareFacebook}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-[#1877F2] rounded-xl transition-colors cursor-pointer text-left"
-                      >
-                        <span className="w-6 h-6 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-xs font-black">f</span>
-                        <span>Chia sẻ lên Facebook</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleShareTwitter}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-black rounded-xl transition-colors cursor-pointer text-left"
-                      >
-                        <span className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">𝕏</span>
-                        <span>Chia sẻ lên X (Twitter)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleCopyLink}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer text-left border-t border-gray-100 mt-1 pt-2"
-                      >
-                        <Copy className="w-4 h-4 text-gray-500" />
-                        <span>Sao chép liên kết</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -393,11 +415,23 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                               {person.full_name?.split(' ').map((w: string) => w[0]).join('').slice(-2).toUpperCase()}
                             </div>
                           )}
-                          <div>
-                            <h4 className="text-sm font-bold text-gray-900">{person.full_name}</h4>
-                            <p className="text-xs text-gray-500">{person.position || 'Ban tổ chức'}</p>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-gray-900 truncate">{person.full_name}</h4>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(Array.isArray(person.roles) && person.roles.length > 0
+                                ? person.roles
+                                : [person.position || 'Ban tổ chức']
+                              ).map((r: string, rIdx: number) => (
+                                <span
+                                  key={rIdx}
+                                  className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200"
+                                >
+                                  {r}
+                                </span>
+                              ))}
+                            </div>
                             {person.phone && (
-                              <p className="text-xs text-gray-400 mt-0.5">{person.phone}</p>
+                              <p className="text-xs text-gray-400 mt-1">{person.phone}</p>
                             )}
                           </div>
                         </div>
@@ -534,6 +568,113 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
           </button>
         </div>
       </main>
+
+      {/* 2-ROW SHARE POPUP (Item 12 & 13) */}
+      {isShareMenuOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-base">Chia sẻ sự kiện</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShareMenuOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Hàng 1: Mạng xã hội */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+                Hàng 1: Mạng xã hội
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareFacebook}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-blue-50 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#1877F2] text-white flex items-center justify-center font-bold text-base shadow-sm group-hover:scale-105 transition-transform">
+                    f
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">Facebook</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareZalo}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-blue-50 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#0068FF] text-white flex items-center justify-center font-bold text-xs shadow-sm group-hover:scale-105 transition-transform">
+                    Zalo
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">Zalo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareTelegram}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-sky-50 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#229ED9] text-white flex items-center justify-center font-bold text-xs shadow-sm group-hover:scale-105 transition-transform">
+                    ✈
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">Telegram</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareTwitter}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-100 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
+                    𝕏
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">X</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hàng 2: Liên kết chia sẻ mời bạn bè */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-semibold text-slate-800">
+                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Liên kết sự kiện:'}
+                </p>
+                <span className="text-[10px] text-blue-600 font-medium">
+                  {currentUser ? 'Đã gắn mã giới thiệu' : 'Link mặc định Ban tổ chức'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== 'undefined' ? getShareUrl() : ''}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 select-all truncate"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyRefLink}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                >
+                  {copiedRef ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-white" />
+                      <span>Đã chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Sao chép</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POPUP ĐĂNG KÝ SỰ KIỆN KHI BẤM NÚT TRÊN TRANG CHI TIẾT */}
       <EventRegistrationModal

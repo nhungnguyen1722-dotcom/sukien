@@ -55,6 +55,7 @@ export interface Event {
   notes: string | null;
   image_url?: string | null;
   registration_count?: number;
+  in_charge_user_ids?: number[];
 }
 
 export interface Stats {
@@ -75,7 +76,7 @@ interface EventManagementProps {
   initialManagers: ManagerOption[];
 }
 
-const STATUS_OPTIONS = ['Sắp diễn ra', 'Kế hoạch', 'Đang thực hiện', 'Đã diễn ra'];
+const STATUS_OPTIONS = ['Đang thực hiện', 'Sắp diễn ra', 'Đã diễn ra'];
 
 export default function EventManagement({
   initialEvents,
@@ -90,6 +91,7 @@ export default function EventManagement({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [managerFilter, setManagerFilter] = useState('');
+  const [timeFilter, setTimeFilter] = useState('');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -245,13 +247,55 @@ export default function EventManagement({
   };
 
   const filteredEvents = useMemo(() => {
-    return events.filter(e => {
+    const list = events.filter(e => {
       const matchSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchStatus = statusFilter ? e.status === statusFilter : true;
-      const matchManager = managerFilter ? String(e.manager_id) === managerFilter : true;
-      return matchSearch && matchStatus && matchManager;
+      const matchManager = managerFilter
+        ? (String(e.manager_id) === managerFilter || e.in_charge_user_ids?.includes(Number(managerFilter)))
+        : true;
+
+      let matchTime = true;
+      if (timeFilter && e.event_date) {
+        const evDate = new Date(e.event_date);
+        const today = new Date();
+        const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+        if (timeFilter === 'today') {
+          matchTime = evDate >= startOfToday && evDate <= endOfToday;
+        } else if (timeFilter === 'this_week') {
+          const dayOfWeek = today.getDay();
+          const diffToMonday = (dayOfWeek + 6) % 7;
+          const monday = new Date(startOfToday);
+          monday.setDate(monday.getDate() - diffToMonday);
+          const sunday = new Date(monday);
+          sunday.setDate(sunday.getDate() + 6);
+          sunday.setHours(23, 59, 59, 999);
+          matchTime = evDate >= monday && evDate <= sunday;
+        } else if (timeFilter === 'this_month') {
+          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+          const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          matchTime = evDate >= firstDay && evDate <= lastDay;
+        }
+      }
+
+      return matchSearch && matchStatus && matchManager && matchTime;
     });
-  }, [events, searchQuery, statusFilter, managerFilter]);
+
+    return list.sort((a, b) => {
+      const getPriority = (st: string) => {
+        if (st === 'Đang thực hiện' || st === 'Đang diễn ra') return 1;
+        if (st === 'Sắp diễn ra') return 2;
+        return 3;
+      };
+      const pA = getPriority(a.status);
+      const pB = getPriority(b.status);
+      if (pA !== pB) return pA - pB;
+      const tA = a.event_date ? new Date(a.event_date).getTime() : 0;
+      const tB = b.event_date ? new Date(b.event_date).getTime() : 0;
+      return tA - tB;
+    });
+  }, [events, searchQuery, statusFilter, managerFilter, timeFilter]);
 
   const handleOpenAddModal = () => {
     setEditingEvent(null);
@@ -350,11 +394,11 @@ export default function EventManagement({
   };
 
   const getStatusBadge = (status: string) => {
+    if (status === 'Đang thực hiện' || status === 'Đang diễn ra') {
+      return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">{status}</span>;
+    }
     if (status === 'Đã diễn ra' || status === 'Đã hoàn thành') {
       return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">Đã diễn ra</span>;
-    }
-    if (status === 'Kế hoạch' || status === 'Đang thực hiện') {
-      return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">{status}</span>;
     }
     return <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">{status || 'Sắp diễn ra'}</span>;
   };
@@ -512,10 +556,14 @@ export default function EventManagement({
           {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
         <select
-          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-slate-400"
-          disabled
+          value={timeFilter}
+          onChange={(e) => setTimeFilter(e.target.value)}
+          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800"
         >
           <option value="">Thời gian (Tất cả)</option>
+          <option value="today">Hôm nay</option>
+          <option value="this_week">Tuần này</option>
+          <option value="this_month">Tháng này</option>
         </select>
         <select
           value={managerFilter}
@@ -576,7 +624,7 @@ export default function EventManagement({
                     </td>
                     <td className="py-4 px-5 text-slate-600">{event.event_date ? formatDate(event.event_date) : '—'}</td>
                     <td className="py-4 px-5 text-slate-600">{event.location || '—'}</td>
-                    <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.registration_count ?? event.expected_guests ?? 0}</td>
+                    <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.registration_count ?? 0}</td>
                     <td className="py-4 px-5 text-slate-600">{event.manager_name || '—'}</td>
                     <td className="py-4 px-5">{getStatusBadge(event.status)}</td>
                     <td className="py-4 px-5">{getApprovalBadge(event.approval_status)}</td>

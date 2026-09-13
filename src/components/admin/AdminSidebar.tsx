@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -14,6 +14,8 @@ import {
   FileSpreadsheet,
   Settings,
   LogOut,
+  Menu,
+  X,
 } from 'lucide-react';
 import SystemLogo from '@/components/SystemLogo';
 
@@ -21,7 +23,7 @@ const menuItems = [
   { label: 'Tổng quan', href: '/admin', icon: LayoutDashboard },
   { label: 'Sự kiện', href: '/admin/su-kien', icon: CalendarDays },
   { label: 'Thành viên', href: '/admin/thanh-vien', icon: Users },
-  { label: 'Người mời', href: '/admin/nguoi-moi', icon: UserPlus },
+  { label: 'Danh sách khách hàng', href: '/admin/nguoi-moi', icon: UserPlus },
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
   { label: 'Nhật ký hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
@@ -42,6 +44,7 @@ export default function AdminSidebar({
   const router = useRouter();
   const [currentRole, setCurrentRole] = useState(defaultAdminRole);
   const [currentName, setCurrentName] = useState(defaultAdminName);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -58,11 +61,29 @@ export default function AdminSidebar({
     }
   }, []);
 
-  const isReception = currentRole.toLowerCase().includes('lễ tân') || currentRole.toLowerCase().includes('reception');
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
 
-  const visibleMenuItems = isReception
-    ? menuItems.filter((item) => item.href === '/admin/le-tan')
-    : menuItems;
+  const roleLower = (currentRole || '').toLowerCase();
+  const isAdmin = roleLower === 'admin' || roleLower.includes('quản trị');
+  const isReception = roleLower.includes('lễ tân') || roleLower.includes('reception');
+
+  // Phân quyền menu (Mục 9)
+  const visibleMenuItems = useMemo(() => {
+    if (isAdmin) {
+      return menuItems;
+    }
+    if (isReception) {
+      return menuItems.filter((item) => item.href === '/admin/le-tan');
+    }
+    // Các vai trò phi-admin: MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện...
+    // Chỉ thấy: Sự kiện, Mời bạn bè, và Danh sách khách hàng
+    return menuItems.filter((item) =>
+      ['/admin/su-kien', '/admin/moi-ban-be', '/admin/nguoi-moi'].includes(item.href)
+    );
+  }, [isAdmin, isReception]);
 
   const handleLogout = () => {
     try {
@@ -80,15 +101,46 @@ export default function AdminSidebar({
   };
 
   return (
-    <aside className="w-[260px] min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none">
-      {/* Brand Header */}
-      <div className="flex items-center justify-center px-4 py-4 border-b border-slate-800/60">
-        <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center w-full group">
-          <div className="bg-white px-4 py-2.5 rounded-2xl shadow-md flex items-center justify-center w-full max-w-[210px] hover:shadow-lg transition-all">
-            <SystemLogo className="h-10 w-auto max-h-10 object-contain transition-transform group-hover:scale-105 duration-200" />
-          </div>
-        </Link>
-      </div>
+    <>
+      {/* Nút Toggle mở Left Sidebar trên Mobile (Mục 15) */}
+      <button
+        type="button"
+        onClick={() => setIsMobileOpen(true)}
+        className="fixed top-3.5 left-4 z-40 md:hidden p-2 rounded-xl bg-slate-900 text-white shadow-lg border border-slate-700 hover:bg-slate-800 transition-all cursor-pointer active:scale-95"
+        title="Mở menu quản trị"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      {/* Backdrop trên Mobile khi mở Sidebar */}
+      {isMobileOpen && (
+        <div
+          onClick={() => setIsMobileOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-150"
+        />
+      )}
+
+      <aside
+        className={`w-[260px] min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none transition-transform duration-200 ease-in-out ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800/60">
+          <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center flex-1 group">
+            <div className="bg-white px-4 py-2 rounded-2xl shadow-md flex items-center justify-center w-full max-w-[190px] hover:shadow-lg transition-all">
+              <SystemLogo className="h-9 w-auto max-h-9 object-contain transition-transform group-hover:scale-105 duration-200" />
+            </div>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setIsMobileOpen(false)}
+            className="md:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors ml-2 cursor-pointer"
+            title="Đóng menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
       {/* Navigation List */}
       <nav className="flex-1 px-4 mt-2 overflow-y-auto">
@@ -157,5 +209,6 @@ export default function AdminSidebar({
         </div>
       </div>
     </aside>
+    </>
   );
 }

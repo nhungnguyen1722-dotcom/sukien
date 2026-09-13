@@ -21,6 +21,9 @@ import {
   Shield,
   Layers,
   Share2,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
@@ -72,40 +75,110 @@ export default function EventHomePage({ events }: EventHomePageProps) {
     setIsRegisterModalOpen(true);
   };
 
-  // Share Menu State
-  const [shareMenuEventId, setShareMenuEventId] = useState<number | null>(null);
+  // Share Modal & Referral State (Item 12 & 13)
+  const [selectedShareEvent, setSelectedShareEvent] = useState<EventData | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; phone: string; email: string } | null>(null);
+  const [copiedRef, setCopiedRef] = useState(false);
 
   useEffect(() => {
-    const handleClickOutside = () => {
-      setShareMenuEventId(null);
-    };
-    if (shareMenuEventId !== null) {
-      window.addEventListener('click', handleClickOutside);
-      return () => window.removeEventListener('click', handleClickOutside);
+    if (typeof document !== 'undefined') {
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? decodeURIComponent(match[2]) : '';
+      };
+      const id = getCookie('user_id');
+      const name = getCookie('user_name');
+      const phone = getCookie('user_phone');
+      const email = getCookie('user_email');
+      if (id || name || phone || email) {
+        setCurrentUser({ id, name, phone, email });
+      }
     }
-  }, [shareMenuEventId]);
+  }, []);
 
-  const handleShareFacebook = (eventId: number, eventName: string) => {
-    const url = `${window.location.origin}/su-kien/${eventId}`;
+  const getShareUrl = (ev?: EventData | null) => {
+    const target = ev || selectedShareEvent;
+    if (!target || typeof window === 'undefined') return '';
+    const base = `${window.location.origin}/su-kien/${target.id}`;
+    if (currentUser) {
+      const ref = currentUser.phone || currentUser.id || 'admin';
+      return `${base}?ref=${encodeURIComponent(ref)}`;
+    }
+    return `${base}?ref=nhungnguyen1722@gmail.com`;
+  };
+
+  const handleCopyRefLink = async () => {
+    const url = getShareUrl();
+    if (!url) return;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedRef(true);
+      setTimeout(() => setCopiedRef(false), 2000);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleShareFacebook = () => {
+    const url = getShareUrl();
+    if (!url) return;
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
-    setShareMenuEventId(null);
   };
 
-  const handleShareTwitter = (eventId: number, eventName: string) => {
-    const url = `${window.location.origin}/su-kien/${eventId}`;
-    window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(eventName)}`, '_blank', 'width=600,height=400');
-    setShareMenuEventId(null);
+  const handleShareTwitter = () => {
+    const url = getShareUrl();
+    if (!url) return;
+    const text = selectedShareEvent ? selectedShareEvent.name : '';
+    window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank', 'width=600,height=400');
   };
 
-  // Filtered Featured Events
+  const handleShareZalo = () => {
+    const url = getShareUrl();
+    if (!url) return;
+    window.open(`https://zalo.me/share?url=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
+  };
+
+  const handleShareTelegram = () => {
+    const url = getShareUrl();
+    if (!url) return;
+    const text = selectedShareEvent ? selectedShareEvent.name : '';
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank', 'width=600,height=400');
+  };
+
+  // Filtered Featured Events - Default Sort: Đang diễn ra -> Sắp diễn ra -> Đã diễn ra (Item 2 & 20)
   const featuredEvents = useMemo(() => {
-    return events.filter((e) => {
+    let list = events.filter((e) => {
       const matchSearch =
         e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (e.location && e.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (e.short_description && e.short_description.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchSearch;
     });
+
+    const getStatusPriority = (s: string) => {
+      if (s === 'Đang diễn ra' || s === 'Đang thực hiện') return 1;
+      if (s === 'Sắp diễn ra' || s === 'Kế hoạch') return 2;
+      if (s === 'Đã diễn ra' || s === 'Đã hoàn thành') return 3;
+      return 4;
+    };
+
+    list.sort((a, b) => {
+      const pA = getStatusPriority(a.status);
+      const pB = getStatusPriority(b.status);
+      if (pA !== pB) return pA - pB;
+      return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+    });
+
+    return list;
   }, [events, searchQuery]);
 
   // Filtered List Events for "Tất cả sự kiện"
@@ -178,8 +251,8 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
   return (
     <div className="w-full bg-[#f8fafc] text-gray-900 pb-16">
-      {/* KHU VỰC 1: BANNER GIỚI THIỆU & TÌM KIẾM SỰ KIỆN (IMAGE 3 & 5) */}
-      <section className="relative bg-gradient-to-r from-[#0b1b3d] via-[#102a5c] to-[#1e3a8a] text-white py-14 sm:py-20 px-4 sm:px-6 overflow-hidden">
+      {/* KHU VỰC 1: BANNER GIỚI THIỆU & TÌM KIẾM SỰ KIỆN (IMAGE 3 & 5 & 11) */}
+      <section className="relative bg-gradient-to-r from-[#0b1b3d] via-[#102a5c] to-[#1e3a8a] text-white py-8 sm:py-14 lg:py-20 px-4 sm:px-6 overflow-hidden">
         {/* Subtle Background Pattern / Image */}
         <div className="absolute inset-0 opacity-20 mix-blend-luminosity pointer-events-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -192,19 +265,19 @@ export default function EventHomePage({ events }: EventHomePageProps) {
         <div className="absolute inset-0 bg-radial from-transparent to-[#0b1b3d]/90 pointer-events-none" />
 
         <div className="relative max-w-5xl mx-auto flex flex-col items-start z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-blue-200 mb-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-blue-200 mb-2 sm:mb-3">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>Hệ thống sự kiện & kết nối doanh nghiệp</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-3 text-white leading-tight">
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-2 sm:mb-3 text-white leading-tight">
             Kết nối – Chia sẻ – Phát triển
           </h1>
-          <p className="text-blue-100 text-sm sm:text-base max-w-2xl mb-8 leading-relaxed font-normal">
+          <p className="text-blue-100 text-xs sm:text-base max-w-2xl mb-4 sm:mb-8 leading-relaxed font-normal">
             Tham gia các sự kiện để mở rộng mối quan hệ, học hỏi kiến thức và cùng nhau phát triển bền vững.
           </p>
 
-          {/* Search Box */}
+          {/* Search Box (Compact on mobile <= 991px) */}
           <div className="w-full max-w-2xl relative shadow-2xl rounded-2xl overflow-hidden">
             <div className="relative flex items-center">
               <input
@@ -215,16 +288,16 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                   setCurrentPage(1);
                 }}
                 placeholder="Tìm kiếm sự kiện, chủ đề, diễn giả..."
-                className="w-full pl-12 pr-12 py-3.5 sm:py-4 bg-white text-gray-900 placeholder-gray-400 text-sm sm:text-base rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/30 shadow-lg border-0"
+                className="w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-2.5 sm:py-4 bg-white text-gray-900 placeholder-gray-400 text-xs sm:text-base rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/30 shadow-lg border-0"
               />
-              <div className="absolute left-4 text-gray-400 pointer-events-none">
-                <Search className="w-5 h-5" />
+              <div className="absolute left-3.5 sm:left-4 text-gray-400 pointer-events-none">
+                <Search className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-4 text-gray-400 hover:text-gray-600 text-xs bg-gray-100 px-2 py-1 rounded-md"
+                  className="absolute right-3.5 sm:right-4 text-gray-400 hover:text-gray-600 text-xs bg-gray-100 px-2 py-1 rounded-md"
                 >
                   Xóa
                 </button>
@@ -234,8 +307,8 @@ export default function EventHomePage({ events }: EventHomePageProps) {
         </div>
       </section>
 
-      {/* KHU VỰC 2: SỰ KIỆN NỔI BẬT (GRID 4 CỘT - IMAGE 3 & 5) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-12">
+      {/* KHU VỰC 2: SỰ KIỆN NỔI BẬT - ẨN TRÊN MOBILE <= 991px (MỤC 11, HÌNH 12) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-12 hidden min-[992px]:block">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-blue-100 text-[#2563eb] flex items-center justify-center">
@@ -260,7 +333,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           {featuredEvents.slice(0, 8).map((event) => {
             const { day, monthStr } = parseDate(event.event_date);
             const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-            const isRegisterOpen = event.status === 'Kế hoạch' || event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
+            const isRegisterOpen = event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
 
             return (
               <div
@@ -290,35 +363,20 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                     {getStatusBadge(event.status)}
                   </div>
 
-                  {/* Share Button */}
+                  {/* Share Button (Item 12) */}
                   <div className="absolute top-2.5 right-2.5 z-10">
                     <button
                       type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareMenuEventId(shareMenuEventId === event.id ? null : event.id); }}
-                      className="w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center transition-all cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedShareEvent(event);
+                      }}
+                      className="w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center transition-all cursor-pointer hover:scale-105"
+                      title="Chia sẻ sự kiện"
                     >
                       <Share2 className="w-4 h-4 text-gray-600" />
                     </button>
-                    {shareMenuEventId === event.id && (
-                      <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShareFacebook(event.id, event.name); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-[#1877F2] rounded-lg transition-colors cursor-pointer"
-                        >
-                          <span className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-black">f</span>
-                          <span>Chia sẻ lên Facebook</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleShareTwitter(event.id, event.name); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-black rounded-lg transition-colors cursor-pointer"
-                        >
-                          <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold">𝕏</span>
-                          <span>Chia sẻ lên X (Twitter)</span>
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </Link>
 
@@ -354,7 +412,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                     {event.short_description || event.name}
                   </p>
 
-                  {/* 2 Action Buttons (Item 1 & 2) */}
+                  {/* 2 Action Buttons */}
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-100">
                     <Link
                       href={`/su-kien/${event.id}`}
@@ -364,7 +422,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                       <span>Chi tiết</span>
                     </Link>
 
-                    {/* NÚT ĐĂNG KÝ / THAM DỰ */}
+                    {/* NÚT ĐĂNG KÝ (Đổi từ Tham dự -> Đăng ký) */}
                     <button
                       type="button"
                       onClick={() => handleOpenRegister(event)}
@@ -376,7 +434,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                           : 'bg-[#2563eb] hover:bg-[#1d4ed8] shadow-blue-500/20'
                       }`}
                     >
-                      <span>{isEnded ? 'Xem lại sự kiện' : isRegisterOpen ? 'Tham dự' : 'Đăng ký'}</span>
+                      <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký'}</span>
                       <span className="text-[10px]">→</span>
                     </button>
                   </div>
@@ -399,18 +457,19 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           {/* KHU VỰC 3 (BÊN TRÁI): TẤT CẢ SỰ KIỆN (LIST VIEW) */}
           <div className="lg:col-span-8 flex flex-col">
             <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
-                <h2 className="text-xl font-bold text-gray-900 tracking-tight">
+              {/* Header: Sắp xếp + Tiêu đề trên 1 dòng (Mục 11, Hình 13) */}
+              <div className="flex items-center justify-between gap-3 pb-4 border-b border-gray-100">
+                <h2 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight">
                   Tất cả sự kiện
                 </h2>
 
                 {/* Sort Dropdown */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 font-medium">Sắp xếp:</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="text-[11px] sm:text-xs text-gray-500 font-medium whitespace-nowrap">Sắp xếp:</span>
                   <select
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value as any)}
-                    className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-2 sm:px-2.5 py-1 sm:py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="newest">Mới nhất</option>
                     <option value="oldest">Cũ nhất</option>
@@ -418,9 +477,9 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 </div>
               </div>
 
-              {/* Status Filter Tabs */}
+              {/* Status Filter Tabs - Bỏ Kế hoạch (Mục 11, Hình 13) */}
               <div className="flex flex-wrap gap-2 py-4 border-b border-gray-100">
-                {['Tất cả', 'Sắp diễn ra', 'Kế hoạch', 'Đang thực hiện', 'Đã diễn ra'].map((status) => (
+                {['Tất cả', 'Sắp diễn ra', 'Đang thực hiện', 'Đã diễn ra'].map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -444,7 +503,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 {paginatedEvents.map((event) => {
                   const { fullDate } = parseDate(event.event_date);
                   const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-                  const isRegisterOpen = event.status === 'Kế hoạch' || event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
+                  const isRegisterOpen = event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
 
                   return (
                     <div
@@ -509,46 +568,18 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                             <span>Chi tiết</span>
                             <span className="text-xs">→</span>
                           </Link>
-                          {/* Share Button */}
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShareMenuEventId(shareMenuEventId === event.id ? null : event.id);
-                              }}
-                              className="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 hover:bg-gray-50 text-gray-500 text-xs font-semibold rounded-xl transition-all cursor-pointer"
-                              title="Chia sẻ"
-                            >
-                              <Share2 className="w-3.5 h-3.5" />
-                            </button>
-                            {shareMenuEventId === event.id && (
-                              <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleShareFacebook(event.id, event.name);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-[#1877F2] rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <span className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-black">f</span>
-                                  <span>Chia sẻ lên Facebook</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleShareTwitter(event.id, event.name);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:text-black rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold">𝕏</span>
-                                  <span>Chia sẻ lên X (Twitter)</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          {/* Share Button (Item 12) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedShareEvent(event);
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-blue-600 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                            title="Chia sẻ sự kiện"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                         <button
                           type="button"
@@ -561,7 +592,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                               : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
                           }`}
                         >
-                          <span>{isEnded ? 'Xem lại sự kiện' : isRegisterOpen ? 'Tham dự' : 'Đăng ký'}</span>
+                          <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký'}</span>
                         </button>
                       </div>
                     </div>
@@ -708,6 +739,113 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           </div>
         </div>
       </section>
+
+      {/* 2-ROW SHARE MODAL POPUP (MỤC 12 & 13) */}
+      {selectedShareEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-base">Chia sẻ sự kiện</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedShareEvent(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Hàng 1: Mạng xã hội */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+                Hàng 1: Mạng xã hội
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareFacebook}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-blue-50 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#1877F2] text-white flex items-center justify-center font-bold text-base shadow-sm group-hover:scale-105 transition-transform">
+                    f
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">Facebook</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareZalo}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-blue-50 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#0068FF] text-white flex items-center justify-center font-bold text-xs shadow-sm group-hover:scale-105 transition-transform">
+                    Zalo
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">Zalo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareTelegram}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-sky-50 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#229ED9] text-white flex items-center justify-center font-bold text-xs shadow-sm group-hover:scale-105 transition-transform">
+                    ✈
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">Telegram</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareTwitter}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-100 transition-colors group cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
+                    𝕏
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-700">X</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hàng 2: Liên kết chia sẻ mời bạn bè */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-semibold text-slate-800">
+                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Liên kết sự kiện:'}
+                </p>
+                <span className="text-[10px] text-blue-600 font-medium">
+                  {currentUser ? 'Đã gắn mã giới thiệu' : 'Link mặc định Ban tổ chức'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getShareUrl()}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 select-all truncate"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyRefLink}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                >
+                  {copiedRef ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-white" />
+                      <span>Đã chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Sao chép</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POPUP ĐĂNG KÝ THAM DỰ SỰ KIỆN CHUẨN 100% THEO HÌNH 12 & HOP-THOAI-6.TXT */}
       <EventRegistrationModal

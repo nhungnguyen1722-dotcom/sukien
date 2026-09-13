@@ -83,13 +83,13 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
       `,
         [eventId]
       ),
-      pool.query(`SELECT id, full_name, role FROM users ORDER BY full_name ASC`),
+      pool.query(`SELECT id, full_name, phone, email, role FROM users ORDER BY full_name ASC`),
       pool.query(
         `SELECT id, time, title, speaker, description, order_num FROM event_schedules WHERE event_id = $1 ORDER BY order_num ASC, id ASC`,
         [eventId]
       ),
       pool.query(
-        `SELECT id, event_id, user_id, full_name, position, phone, email, avatar, roles, status, created_at, updated_at
+        `SELECT id, event_id, user_id, full_name, position, phone, email, avatar, roles, status, is_food_approved, created_at, updated_at
          FROM event_in_charge
          WHERE event_id = $1
          ORDER BY id ASC`,

@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import pool from '@/lib/db';
 import InviteManagement, {
   Invitation,
@@ -12,9 +13,14 @@ async function getInitialInviteData(): Promise<{
   invitations: Invitation[];
   stats: InviteStats;
   currentUser: CurrentUser;
+  upcomingEvents: { id: number; name: string; event_date: string | null; status: string }[];
 }> {
   try {
-    const [invitesRes, statsRes, userRes] = await Promise.all([
+    const cookieStore = await cookies();
+    const cookieUserId = cookieStore.get('user_id')?.value;
+    const cookiePhone = cookieStore.get('user_phone')?.value;
+
+    const [invitesRes, statsRes, userRes, eventsRes] = await Promise.all([
       pool.query(`
         SELECT 
           i.id,
@@ -41,12 +47,23 @@ async function getInitialInviteData(): Promise<{
           COALESCE(SUM(CASE WHEN status = 'Đã tham gia' THEN COALESCE(reward_points, 1) ELSE 0 END), 0)::int AS total_rewards
         FROM invitations
       `),
+      pool.query(
+        cookieUserId
+          ? `SELECT id, full_name, email, COALESCE(ref_code, 'N_0000000001') AS ref_code FROM users WHERE id = $1 LIMIT 1`
+          : cookiePhone
+          ? `SELECT id, full_name, email, COALESCE(ref_code, 'N_0000000001') AS ref_code FROM users WHERE phone = $1 LIMIT 1`
+          : `SELECT id, full_name, email, COALESCE(ref_code, 'N_0000000001') AS ref_code 
+             FROM users 
+             WHERE ref_code = 'REF_CUC12' OR role = 'Admin' OR id = 1
+             ORDER BY (CASE WHEN ref_code = 'REF_CUC12' THEN 1 ELSE 2 END) ASC, id ASC
+             LIMIT 1`,
+        cookieUserId ? [parseInt(cookieUserId, 10)] : cookiePhone ? [cookiePhone] : []
+      ),
       pool.query(`
-        SELECT id, full_name, email, COALESCE(ref_code, 'REF_CUC12') AS ref_code 
-        FROM users 
-        WHERE ref_code = 'REF_CUC12' OR role = 'Admin'
-        ORDER BY (CASE WHEN ref_code = 'REF_CUC12' THEN 1 ELSE 2 END) ASC, id ASC
-        LIMIT 1
+        SELECT id, name, event_date, status
+        FROM events
+        WHERE status IN ('Sắp diễn ra', 'Đang thực hiện', 'Đang diễn ra')
+        ORDER BY (CASE WHEN status = 'Sắp diễn ra' THEN 1 ELSE 2 END), event_date ASC
       `),
     ]);
 
@@ -62,7 +79,7 @@ async function getInitialInviteData(): Promise<{
       id: 1,
       full_name: 'Nhung Nguyễn',
       email: 'nhungnguyen1722@gmail.com',
-      ref_code: 'REF_CUC12',
+      ref_code: 'N_0000000001',
     };
 
     return {
@@ -82,8 +99,14 @@ async function getInitialInviteData(): Promise<{
         id: adminUser.id,
         full_name: adminUser.full_name,
         email: adminUser.email,
-        ref_code: adminUser.ref_code || 'REF_CUC12',
+        ref_code: adminUser.ref_code || 'N_0000000001',
       },
+      upcomingEvents: eventsRes.rows.map((ev) => ({
+        id: ev.id,
+        name: ev.name,
+        event_date: ev.event_date ? new Date(ev.event_date).toISOString() : null,
+        status: ev.status,
+      })),
     };
   } catch (error) {
     console.error('Failed to load initial invite data:', error);
@@ -99,20 +122,22 @@ async function getInitialInviteData(): Promise<{
       currentUser: {
         id: 1,
         full_name: 'Nhung Nguyễn',
-        ref_code: 'REF_CUC12',
+        ref_code: 'N_0000000001',
       },
+      upcomingEvents: [],
     };
   }
 }
 
 export default async function MoiBanBePage() {
-  const { invitations, stats, currentUser } = await getInitialInviteData();
+  const { invitations, stats, currentUser, upcomingEvents } = await getInitialInviteData();
 
   return (
     <InviteManagement
       initialInvitations={invitations}
       initialStats={stats}
       currentUser={currentUser}
+      upcomingEvents={upcomingEvents}
     />
   );
 }

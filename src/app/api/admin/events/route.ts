@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     let query = `
       SELECT 
         e.*,
-        m.full_name as manager_name
+        COALESCE((SELECT COUNT(*)::int FROM event_registrations r WHERE r.event_id = e.id), 0) AS registration_count,
+        m.full_name as manager_name,
+        ARRAY(SELECT eic.user_id FROM event_in_charge eic WHERE eic.event_id = e.id AND eic.user_id IS NOT NULL) AS in_charge_user_ids
       FROM events e
       LEFT JOIN users m ON e.manager_id = m.id
       WHERE 1=1
@@ -31,19 +33,26 @@ export async function GET(request: NextRequest) {
     }
 
     if (manager_id) {
-      params.push(manager_id);
-      query += ` AND e.manager_id = $${params.length}`;
+      params.push(parseInt(manager_id, 10));
+      query += ` AND (e.manager_id = $${params.length} OR EXISTS (SELECT 1 FROM event_in_charge eic WHERE eic.event_id = e.id AND eic.user_id = $${params.length}))`;
     }
 
-    query += ' ORDER BY e.id DESC';
+    query += ` ORDER BY 
+      CASE 
+        WHEN e.status IN ('Đang thực hiện', 'Đang diễn ra') THEN 1 
+        WHEN e.status = 'Sắp diễn ra' THEN 2 
+        ELSE 3 
+      END ASC, 
+      e.event_date ASC, 
+      e.id DESC`;
 
     const [eventsRes, statsRes, managersRes] = await Promise.all([
       pool.query(query, params),
       pool.query(`
         SELECT 
           COUNT(*)::int AS total_events,
-          COUNT(CASE WHEN status = 'Kế hoạch' THEN 1 END)::int AS upcoming_events,
-          COALESCE(SUM(expected_guests), 0)::int AS total_guests,
+          COUNT(CASE WHEN status = 'Sắp diễn ra' THEN 1 END)::int AS upcoming_events,
+          (SELECT COUNT(*)::int FROM event_registrations)::int AS total_guests,
           COALESCE(SUM(COALESCE(mc_fee, 0) + COALESCE(speaker_fee, 0) + COALESCE(support_fee, 0) + COALESCE(closer_fee, 0) + COALESCE(tea_break_fee, 0)), 0)::numeric AS total_cost
         FROM events
       `),
@@ -124,7 +133,7 @@ export async function POST(request: NextRequest) {
         expected_guests ? parseInt(expected_guests) : 0,
         location ? location.trim() : null,
         manager_id ? parseInt(manager_id) : null,
-        status || 'Kế hoạch',
+        status || 'Sắp diễn ra',
         mc_fee ? parseFloat(mc_fee) : 0,
         speaker_fee ? parseFloat(speaker_fee) : 0,
         support_fee ? parseFloat(support_fee) : 0,

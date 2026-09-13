@@ -91,6 +91,9 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
       roles: Array.isArray(p.roles) ? p.roles : (p.roles ? [p.roles] : []),
     }));
     registrationCount = regCountRes.rows[0]?.count || 0;
+    if (event) {
+      event.expected_guests = registrationCount;
+    }
   } catch (error) {
     console.error('Failed to fetch event:', error);
   }

@@ -26,6 +26,10 @@ import {
   AlertTriangle,
   X,
   ChevronRight,
+  Share2,
+  Copy,
+  Gift,
+  Search,
 } from 'lucide-react';
 
 export default function UserAccountSettings() {
@@ -38,8 +42,10 @@ export default function UserAccountSettings() {
     initialRoleParam === 'admin' ? 'admin' : 'member'
   );
 
-  // Active sidebar nav
-  const [activeMenu, setActiveMenu] = useState('settings');
+  // Active sidebar nav: 'profile' | 'settings' | 'invites'
+  const [activeMenu, setActiveMenu] = useState(
+    initialTabParam === 'moi-ban-be' || initialTabParam === 'invites' ? 'invites' : 'settings'
+  );
 
   // Member Form States
   const [memberInfo, setMemberInfo] = useState({
@@ -60,6 +66,19 @@ export default function UserAccountSettings() {
     joinedDate: '01/01/2024',
     role: 'Quản trị viên (Admin)',
   });
+
+  // Mời bạn bè / Lời mời State (Mục 9 - Hình 9.3)
+  const [userInvitations, setUserInvitations] = useState<any[]>([]);
+  const [inviteStats, setInviteStats] = useState({
+    totalInvites: 0,
+    joinedCount: 0,
+    pendingCount: 0,
+    totalRewards: 0,
+  });
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('');
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [referralCode, setReferralCode] = useState('N_0000000001');
+  const [baseUrl, setBaseUrl] = useState('http://localhost:3000');
 
   // Member Notification Toggles
   const [memberNotifications, setMemberNotifications] = useState({
@@ -107,6 +126,57 @@ export default function UserAccountSettings() {
     else if (initialRoleParam === 'member') setActiveRole('member');
 
     if (initialTabParam === 'security') setIsPasswordModalOpen(true);
+    if (initialTabParam === 'moi-ban-be' || initialTabParam === 'invites') setActiveMenu('invites');
+
+    if (typeof window !== 'undefined') {
+      setBaseUrl(window.location.origin);
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? decodeURIComponent(match[2]) : '';
+      };
+      const phone = getCookie('user_phone');
+      const id = getCookie('user_id');
+      const name = getCookie('user_name');
+      const email = getCookie('user_email');
+      const role = getCookie('user_role');
+
+      if (phone) setReferralCode(phone);
+      else if (id) setReferralCode(id);
+
+      if (name) {
+        setMemberInfo((prev) => ({
+          ...prev,
+          fullName: name,
+          email: email || prev.email,
+          phone: phone || prev.phone,
+          role: role || prev.role,
+        }));
+        setAdminInfo((prev) => ({
+          ...prev,
+          fullName: name,
+          email: email || prev.email,
+          phone: phone || prev.phone,
+        }));
+      }
+    }
+
+    // Fetch user invitations
+    fetch('/api/admin/invitations')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.invitations)) {
+          setUserInvitations(data.invitations);
+          if (data.stats) {
+            setInviteStats({
+              totalInvites: data.stats.totalInvites || 0,
+              joinedCount: data.stats.joinedCount || 0,
+              pendingCount: data.stats.pendingCount || 0,
+              totalRewards: data.stats.totalRewards || 0,
+            });
+          }
+        }
+      })
+      .catch(() => {});
   }, [initialRoleParam, initialTabParam]);
 
   const handleOpenEdit = () => {
@@ -261,6 +331,17 @@ export default function UserAccountSettings() {
                 <span>Cài đặt tài khoản</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => setActiveMenu('invites')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                  activeMenu === 'invites' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <Share2 className="w-4 h-4 text-blue-600" />
+                <span>Mời bạn bè</span>
+              </button>
+
               {activeRole === 'admin' && (
                 <>
                   <Link
@@ -331,22 +412,184 @@ export default function UserAccountSettings() {
         {/* NỘI DUNG CHÍNH (COL 5-12)                                    */}
         {/* ============================================================ */}
         <div className="lg:col-span-8 xl:col-span-9 space-y-6">
-          {/* Main Title Block */}
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">
-              {activeRole === 'member' ? 'Cài đặt tài khoản' : 'Cài đặt tài khoản'}
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              {activeRole === 'member'
-                ? 'Quản lý thông tin cá nhân và tùy chỉnh tài khoản của bạn.'
-                : 'Quản lý thông tin cá nhân, bảo mật và quyền hạn hệ thống.'}
-            </p>
-          </div>
+          {activeMenu === 'invites' ? (
+            <div className="space-y-6">
+              {/* Header Title Block */}
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Mời bạn bè & Quản lý lời mời</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Chia sẻ đường dẫn để giới thiệu thành viên mới và nhận điểm thưởng cho mỗi lượt tham gia thành công.
+                </p>
+              </div>
 
-          {/* ============================================================ */}
-          {/* VIEW 1: SETTING TÀI KHOẢN THÀNH VIÊN (NGƯỜI DÙNG THƯỜNG)      */}
-          {/* ============================================================ */}
-          {activeRole === 'member' && (
+              {/* Banner / Card link mời */}
+              <div className="bg-gradient-to-r from-[#0b1b3d] via-[#102a5c] to-[#1e3a8a] text-white p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-200 border border-blue-400/20 uppercase tracking-wider mb-2">
+                      Chương trình giới thiệu
+                    </span>
+                    <h3 className="text-lg font-bold text-white">Đường dẫn mời của bạn</h3>
+                    <p className="text-xs text-blue-100/80 mt-1 max-w-xl">
+                      Mỗi khi có bạn bè đăng ký tham gia sự kiện qua đường dẫn này, hệ thống sẽ tự động ghi nhận bạn là người giới thiệu.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 self-start sm:self-center bg-white/10 px-4 py-2.5 rounded-2xl border border-white/15">
+                    <Gift className="w-5 h-5 text-amber-300" />
+                    <div>
+                      <div className="text-xl font-black text-white leading-none">+{inviteStats.totalRewards}</div>
+                      <div className="text-[10px] text-blue-200 mt-0.5">Điểm đã nhận</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${baseUrl}/qr-checkin?ref=${encodeURIComponent(referralCode)}`}
+                      className="flex-1 bg-white/10 border border-white/20 text-white text-xs px-3.5 py-2.5 rounded-xl outline-none select-all font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const link = `${baseUrl}/qr-checkin?ref=${encodeURIComponent(referralCode)}`;
+                        try {
+                          if (navigator.clipboard) await navigator.clipboard.writeText(link);
+                          setInviteCopied(true);
+                          showToast('Đã sao chép liên kết mời!');
+                          setTimeout(() => setInviteCopied(false), 2000);
+                        } catch {
+                          showToast('Vui lòng sao chép thủ công');
+                        }
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer flex-shrink-0"
+                    >
+                      {inviteCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{inviteCopied ? 'Đã chép' : 'Sao chép'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Stat Cards (Hình 9.3) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-xs text-slate-500 font-medium">Tổng số lời mời</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-1">{inviteStats.totalInvites}</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-xs text-emerald-600 font-medium">Đã tham gia</span>
+                  <div className="text-2xl font-bold text-emerald-700 mt-1">{inviteStats.joinedCount}</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-xs text-amber-600 font-medium">Đang chờ</span>
+                  <div className="text-2xl font-bold text-amber-700 mt-1">{inviteStats.pendingCount}</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-xs text-purple-600 font-medium">Điểm thưởng</span>
+                  <div className="text-2xl font-bold text-purple-700 mt-1">{inviteStats.totalRewards}</div>
+                </div>
+              </div>
+
+              {/* Bảng Danh sách lời mời (Hình 9.3) */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">Danh sách lời mời (Mời bạn bè)</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Danh sách thành viên đăng ký qua liên kết của bạn</p>
+                  </div>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm thành viên..."
+                      value={inviteSearchQuery}
+                      onChange={(e) => setInviteSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-100">
+                      <tr>
+                        <th className="py-3 px-4">Họ và tên</th>
+                        <th className="py-3 px-4">Email / Số điện thoại</th>
+                        <th className="py-3 px-4">Thời gian</th>
+                        <th className="py-3 px-4">Trạng thái</th>
+                        <th className="py-3 px-4 text-right">Điểm thưởng</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {userInvitations
+                        .filter((inv) => {
+                          if (!inviteSearchQuery.trim()) return true;
+                          const q = inviteSearchQuery.toLowerCase();
+                          return (
+                            (inv.invitee_name && inv.invitee_name.toLowerCase().includes(q)) ||
+                            (inv.invitee_email && inv.invitee_email.toLowerCase().includes(q)) ||
+                            (inv.invitee_phone && inv.invitee_phone.toLowerCase().includes(q))
+                          );
+                        })
+                        .map((inv) => (
+                          <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3 px-4 font-bold text-slate-800">{inv.invitee_name || 'Khách đăng ký'}</td>
+                            <td className="py-3 px-4 text-slate-600">
+                              <div>{inv.invitee_email}</div>
+                              {inv.invitee_phone && <div className="text-[11px] text-slate-400">{inv.invitee_phone}</div>}
+                            </td>
+                            <td className="py-3 px-4 text-slate-500">
+                              {inv.created_at ? new Date(inv.created_at).toLocaleDateString('vi-VN') : '—'}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  inv.status === 'Đã tham gia'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : inv.status === 'Từ chối'
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}
+                              >
+                                {inv.status || 'Đang chờ'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right font-bold text-slate-700">+{inv.reward_points || 1} điểm</td>
+                          </tr>
+                        ))}
+                      {userInvitations.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400">
+                            Chưa có lời mời nào. Hãy chia sẻ đường dẫn để bắt đầu!
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Main Title Block */}
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {activeRole === 'member' ? 'Cài đặt tài khoản' : 'Cài đặt tài khoản'}
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {activeRole === 'member'
+                    ? 'Quản lý thông tin cá nhân và tùy chỉnh tài khoản của bạn.'
+                    : 'Quản lý thông tin cá nhân, bảo mật và quyền hạn hệ thống.'}
+                </p>
+              </div>
+
+              {/* ============================================================ */}
+              {/* VIEW 1: SETTING TÀI KHOẢN THÀNH VIÊN (NGƯỜI DÙNG THƯỜNG)      */}
+              {/* ============================================================ */}
+              {activeRole === 'member' && (
             <div className="space-y-6">
               {/* CARD 1: THÔNG TIN CÁ NHÂN */}
               <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs space-y-6">
@@ -818,6 +1061,8 @@ export default function UserAccountSettings() {
                 </button>
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       </div>

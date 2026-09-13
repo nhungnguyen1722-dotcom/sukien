@@ -18,16 +18,24 @@ async function getInitialData(): Promise<{
         SELECT 
           e.*,
           m.full_name as manager_name,
-          (SELECT COUNT(*)::int FROM event_registrations WHERE event_id = e.id) as registration_count
+          COALESCE((SELECT COUNT(*)::int FROM event_registrations WHERE event_id = e.id), 0) as registration_count,
+          ARRAY(SELECT eic.user_id FROM event_in_charge eic WHERE eic.event_id = e.id AND eic.user_id IS NOT NULL) AS in_charge_user_ids
         FROM events e
         LEFT JOIN users m ON e.manager_id = m.id
-        ORDER BY e.id DESC
+        ORDER BY 
+          CASE 
+            WHEN e.status IN ('Đang thực hiện', 'Đang diễn ra') THEN 1 
+            WHEN e.status = 'Sắp diễn ra' THEN 2 
+            ELSE 3 
+          END ASC, 
+          e.event_date ASC, 
+          e.id DESC
       `),
       pool.query(`
         SELECT 
           COUNT(*)::int AS total_events,
-          COUNT(CASE WHEN status = 'Kế hoạch' THEN 1 END)::int AS upcoming_events,
-          COALESCE(SUM(expected_guests), 0)::int AS total_guests,
+          COUNT(CASE WHEN status = 'Sắp diễn ra' THEN 1 END)::int AS upcoming_events,
+          (SELECT COUNT(*)::int FROM event_registrations)::int AS total_guests,
           COALESCE(SUM(COALESCE(mc_fee, 0) + COALESCE(speaker_fee, 0) + COALESCE(support_fee, 0) + COALESCE(closer_fee, 0) + COALESCE(tea_break_fee, 0)), 0)::numeric AS total_cost
         FROM events
       `),

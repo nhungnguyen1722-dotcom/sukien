@@ -76,7 +76,7 @@ export async function GET(
         ORDER BY id DESC
       `, [eventId]),
       pool.query(`
-        SELECT id, full_name, role
+        SELECT id, full_name, phone, email, role
         FROM users
         ORDER BY full_name ASC
       `),
@@ -91,6 +91,7 @@ export async function GET(
     return NextResponse.json({
       event: {
         ...event,
+        expected_guests: regRes.rows.length,
         event_date: event.event_date ? new Date(event.event_date).toISOString() : null,
         approved_at: event.approved_at ? new Date(event.approved_at).toISOString() : null,
         created_at: event.created_at ? new Date(event.created_at).toISOString() : null,
@@ -181,7 +182,7 @@ export async function PUT(
         expected_guests !== undefined ? parseInt(expected_guests, 10) : 0,
         location ? location.trim() : null,
         manager_id ? parseInt(manager_id, 10) : null,
-        status || 'Kế hoạch',
+        status || 'Sắp diễn ra',
         mc_fee !== undefined ? parseFloat(mc_fee) : 0,
         speaker_fee !== undefined ? parseFloat(speaker_fee) : 0,
         support_fee !== undefined ? parseFloat(support_fee) : 0,

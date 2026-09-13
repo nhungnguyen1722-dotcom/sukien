@@ -79,6 +79,14 @@ export default function EventRegistrationModal({
     }
 
     try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const refParam = params.get('ref');
+        if (refParam) {
+          setReferrer(refParam);
+          setReferrerType('co_nguoi_gioi_thieu');
+        }
+      }
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -87,11 +95,13 @@ export default function EventRegistrationModal({
           setFullName(parsed.fullName || '');
           setEmail(parsed.email || '');
           setCompany(parsed.company || '');
-          if (parsed.referrer && parsed.referrer !== 'Khách vãng lai') {
-            setReferrer(parsed.referrer);
-            setReferrerType('co_nguoi_gioi_thieu');
-          } else {
-            setReferrerType('vang_lai');
+          if (!referrer) {
+            if (parsed.referrer && parsed.referrer !== 'Khách vãng lai') {
+              setReferrer(parsed.referrer);
+              setReferrerType('co_nguoi_gioi_thieu');
+            } else {
+              setReferrerType('vang_lai');
+            }
           }
           setHasSavedProfile(true);
         }
@@ -198,6 +208,21 @@ export default function EventRegistrationModal({
             referrer: finalReferrer,
           })
         );
+      } catch {
+        // Ignore
+      }
+      try {
+        if (data.user) {
+          document.cookie = `user_role=Thành viên; path=/; max-age=2592000`;
+          document.cookie = `user_name=${encodeURIComponent(data.user.fullName || fullName)}; path=/; max-age=2592000`;
+          document.cookie = `user_phone=${encodeURIComponent(data.user.phone || phone)}; path=/; max-age=2592000`;
+          if (data.user.id) {
+            document.cookie = `user_id=${data.user.id}; path=/; max-age=2592000`;
+          }
+          if (email) {
+            document.cookie = `user_email=${encodeURIComponent(email)}; path=/; max-age=2592000`;
+          }
+        }
       } catch {
         // Ignore
       }

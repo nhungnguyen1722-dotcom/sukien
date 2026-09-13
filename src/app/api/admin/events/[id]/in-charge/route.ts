@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: RouteProps) {
     }
 
     const res = await pool.query(
-      `SELECT id, event_id, user_id, full_name, position, phone, email, avatar, roles, status, created_at
+      `SELECT id, event_id, user_id, full_name, position, phone, email, avatar, roles, status, is_food_approved, created_at
        FROM event_in_charge
        WHERE event_id = $1
        ORDER BY id ASC`,
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
       avatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
       roles = ['Diễn giả'],
       status = 'Chờ duyệt', // Mặc định thành viên đăng ký là Chờ duyệt, admin có thể gửi 'Đã duyệt'
+      is_food_approved = true,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -58,8 +59,8 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
 
     const res = await pool.query(
       `INSERT INTO event_in_charge (
-        event_id, user_id, full_name, position, phone, email, avatar, roles, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        event_id, user_id, full_name, position, phone, email, avatar, roles, status, is_food_approved, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING *`,
       [
         eventId,
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
         avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
         Array.isArray(roles) ? roles : [roles],
         status,
+        Boolean(is_food_approved),
       ]
     );
 
@@ -87,7 +89,8 @@ export async function PATCH(request: NextRequest, { params }: RouteProps) {
     const { id } = await params;
     const eventId = parseInt(id, 10);
     const body = await request.json();
-    const { personId, status, full_name, position, phone, email, roles } = body;
+    const { status, full_name, position, phone, email, roles, is_food_approved } = body;
+    const personId = body.personId || body.id;
 
     if (!personId) {
       return NextResponse.json({ error: 'Thiếu mã người phụ trách' }, { status: 400 });
@@ -99,6 +102,10 @@ export async function PATCH(request: NextRequest, { params }: RouteProps) {
     if (status) {
       values.push(status);
       updates.push(`status = $${values.length}`);
+    }
+    if (is_food_approved !== undefined) {
+      values.push(Boolean(is_food_approved));
+      updates.push(`is_food_approved = $${values.length}`);
     }
     if (full_name) {
       values.push(full_name.trim());
@@ -149,7 +156,7 @@ export async function DELETE(request: NextRequest, { params }: RouteProps) {
     const { id } = await params;
     const eventId = parseInt(id, 10);
     const { searchParams } = new URL(request.url);
-    const personId = searchParams.get('personId');
+    const personId = searchParams.get('personId') || searchParams.get('id');
 
     if (!personId) {
       return NextResponse.json({ error: 'Thiếu mã người phụ trách' }, { status: 400 });

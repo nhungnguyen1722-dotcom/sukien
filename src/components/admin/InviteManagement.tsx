@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -53,16 +53,25 @@ export interface CurrentUser {
   email?: string | null;
 }
 
+export interface UpcomingEvent {
+  id: number;
+  name: string;
+  event_date?: string | null;
+  status?: string;
+}
+
 interface InviteManagementProps {
   initialInvitations: Invitation[];
   initialStats: InviteStats;
   currentUser?: CurrentUser;
+  upcomingEvents?: UpcomingEvent[];
 }
 
 export default function InviteManagement({
   initialInvitations,
   initialStats,
-  currentUser = { id: 1, full_name: 'Nhung Nguyễn', ref_code: 'REF_CUC12' },
+  currentUser = { id: 1, full_name: 'Nhung Nguyễn', ref_code: 'N_0000000001' },
+  upcomingEvents = [],
 }: InviteManagementProps) {
   const [invitations, setInvitations] = useState<Invitation[]>(initialInvitations);
   const [stats, setStats] = useState<InviteStats>(initialStats);
@@ -70,6 +79,45 @@ export default function InviteManagement({
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'Đã tham gia' | 'Đang chờ' | 'Từ chối'>('all');
+
+  // Event Selection for referral link (Item 10)
+  const [eventsList, setEventsList] = useState<UpcomingEvent[]>(upcomingEvents);
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [eventInputVal, setEventInputVal] = useState<string>('');
+
+  // Fetch upcoming events if none provided via props
+  useEffect(() => {
+    if (eventsList.length === 0) {
+      fetch('/api/admin/events')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.events)) {
+            const up = data.events.filter(
+              (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang thực hiện'
+            );
+            setEventsList(up);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [eventsList.length]);
+
+  const handleSelectEvent = (val: string) => {
+    setEventInputVal(val);
+    const idMatch = val.match(/^(\d+)/);
+    if (idMatch) {
+      setSelectedEventId(parseInt(idMatch[1], 10));
+    } else {
+      const found = eventsList.find(
+        (ev) => ev.name.toLowerCase() === val.trim().toLowerCase()
+      );
+      if (found) {
+        setSelectedEventId(found.id);
+      } else {
+        setSelectedEventId(null);
+      }
+    }
+  };
 
   // Form states for sending invite
   const [inviteName, setInviteName] = useState('');
@@ -97,8 +145,10 @@ export default function InviteManagement({
     }
   }, []);
 
-  const refCode = currentUser.ref_code || 'REF_CUC12';
-  const referralUrl = `${baseUrl}/qr-checkin?ref=${refCode}`;
+  const refCode = currentUser.ref_code || 'N_0000000001';
+  const referralUrl = selectedEventId
+    ? `${baseUrl}/qr-checkin?ref=${encodeURIComponent(refCode)}&event=${selectedEventId}`
+    : `${baseUrl}/qr-checkin?ref=${encodeURIComponent(refCode)}`;
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
@@ -473,6 +523,50 @@ export default function InviteManagement({
             <h2 className="text-base font-bold text-slate-900 mb-3">
               Đường dẫn mời của bạn
             </h2>
+
+            {/* Dropdown chọn sự kiện Sắp diễn ra (Mục 10 - Hình 10) */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Chọn sự kiện áp dụng (Sắp diễn ra):
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="upcoming-events-list"
+                  placeholder="Gõ tìm kiếm hoặc chọn sự kiện..."
+                  value={eventInputVal}
+                  onChange={(e) => handleSelectEvent(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs md:text-sm px-3.5 py-2.5 rounded-xl outline-none focus:border-blue-500 transition placeholder:text-slate-400 pr-16"
+                />
+                <datalist id="upcoming-events-list">
+                  {eventsList.map((ev) => (
+                    <option key={ev.id} value={`${ev.id} - ${ev.name}`} />
+                  ))}
+                </datalist>
+                {selectedEventId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEventId(null);
+                      setEventInputVal('');
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-500 hover:text-rose-600 bg-slate-200/70 hover:bg-rose-50 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Bỏ chọn
+                  </button>
+                )}
+              </div>
+              {selectedEventId && (
+                <p className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>Đã kèm mã sự kiện #{selectedEventId} vào đường dẫn mời bên dưới</span>
+                </p>
+              )}
+            </div>
+
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Đường dẫn mời hoàn chỉnh:
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -483,7 +577,7 @@ export default function InviteManagement({
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="bg-[#2563eb] hover:bg-[#1d4ed8] active:scale-95 text-white font-medium text-xs md:text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm flex-shrink-0"
+                className="bg-[#2563eb] hover:bg-[#1d4ed8] active:scale-95 text-white font-medium text-xs md:text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm flex-shrink-0 cursor-pointer"
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 <span>{copied ? 'Đã chép' : 'Sao chép'}</span>

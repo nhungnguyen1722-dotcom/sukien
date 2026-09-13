@@ -61,12 +61,27 @@ interface MemberManagementProps {
   initialReferrers: ReferrerOption[];
 }
 
+const COMPETENCY_OPTIONS = [
+  'MC',
+  'Diễn giả',
+  'Chốt sự kiện',
+  'Phụng sự',
+  'Điều phối',
+  'Hỗ trợ',
+  'Khách mời',
+  'Kinh doanh',
+  'Khác',
+];
+
 const ROLE_OPTIONS = [
   'Khác',
   'MC',
+  'Diễn giả',
   'Thuyết trình',
   'Chốt sự kiện',
   'Phụng sự',
+  'Điều phối',
+  'Hỗ trợ',
   'Kinh doanh',
   'Team Leader',
   'Kế toán',
@@ -475,7 +490,7 @@ export default function MemberManagement({
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-medium text-xs">
                 <th className="py-4 px-5">Họ và tên</th>
                 <th className="py-4 px-5">SĐT</th>
-                <th className="py-4 px-5">Vai trò</th>
+                <th className="py-4 px-5">Năng lực thực hiện</th>
                 <th className="py-4 px-5">Chức danh</th>
                 <th className="py-4 px-5">Số lần làm khách</th>
                 <th className="py-4 px-5">Nhóm người mới</th>
@@ -506,9 +521,20 @@ export default function MemberManagement({
                       {member.phone || '—'}
                     </td>
 
-                    {/* Vai trò */}
+                    {/* Năng lực thực hiện (Mục 4) */}
                     <td className="py-4 px-5 text-slate-700">
-                      {member.role || '—'}
+                      <div className="flex flex-wrap gap-1">
+                        {member.role
+                          ? member.role.split(',').map((s) => s.trim()).filter(Boolean).map((r, rIdx) => (
+                              <span
+                                key={rIdx}
+                                className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200"
+                              >
+                                {r}
+                              </span>
+                            ))
+                          : '—'}
+                      </div>
                     </td>
 
                     {/* Chức danh */}
@@ -660,22 +686,44 @@ export default function MemberManagement({
                 />
               </div>
 
-              {/* 5. Vai trò */}
-              <div>
+              {/* 5. Năng lực thực hiện (Mục 4) */}
+              <div className="col-span-1 sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Vai trò
+                  Năng lực thực hiện <span className="text-slate-400 font-normal">(Chọn một hoặc nhiều năng lực / vai trò)</span>
                 </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 shadow-2xs cursor-pointer"
-                >
-                  {ROLE_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {COMPETENCY_OPTIONS.map((opt) => {
+                    const currentList = formData.role
+                      ? formData.role.split(',').map((s) => s.trim()).filter(Boolean)
+                      : [];
+                    const isChecked = currentList.includes(opt);
+                    return (
+                      <label
+                        key={opt}
+                        className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 font-medium hover:text-blue-600"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            let updatedList = [...currentList];
+                            if (isChecked) {
+                              updatedList = updatedList.filter((item) => item !== opt);
+                            } else {
+                              updatedList.push(opt);
+                            }
+                            setFormData({
+                              ...formData,
+                              role: updatedList.length > 0 ? updatedList.join(', ') : 'Khác',
+                            });
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* 6. Chức danh */}
