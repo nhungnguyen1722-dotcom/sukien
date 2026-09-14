@@ -40,7 +40,7 @@ async function getInitialData(): Promise<{
           COALESCE(SUM(COALESCE(mc_fee, 0) + COALESCE(speaker_fee, 0) + COALESCE(support_fee, 0) + COALESCE(closer_fee, 0) + COALESCE(tea_break_fee, 0)), 0)::numeric AS total_cost
         FROM events
       `),
-      pool.query(`SELECT id, full_name FROM users ORDER BY full_name ASC`),
+      pool.query(`SELECT id, full_name, role FROM users ORDER BY full_name ASC`),
     ]);
 
     const statsRow = statsRes.rows[0] || {

@@ -68,6 +68,7 @@ export interface Stats {
 export interface ManagerOption {
   id: number;
   full_name: string;
+  role?: string;
 }
 
 interface EventManagementProps {
@@ -338,13 +339,11 @@ export default function EventManagement({
       notes: '',
       image_url: '/events/event-1.jpg',
     });
-    setFormInCharges([
-      { full_name: 'Nguyễn Văn A', role: 'MC' },
-      { full_name: 'Nguyễn Văn B', role: 'Nhân sự' },
-    ]);
+    setFormInCharges([]);
     setContentHtml('');
     setNewInChargeName('');
     setSelectedInChargeUserId('');
+    setNewInChargeRole('');
     setFormError('');
     setIsModalOpen(true);
   };
@@ -369,6 +368,24 @@ export default function EventManagement({
       image_url: event.image_url || '/events/event-1.jpg',
     });
     setContentHtml((event as any).content || (event as any).detail_description || '');
+    setFormInCharges([]);
+    setNewInChargeName('');
+    setSelectedInChargeUserId('');
+    setNewInChargeRole('');
+    fetch(`/api/admin/events/${event.id}/in-charge`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.inChargePersons && Array.isArray(data.inChargePersons)) {
+          setFormInCharges(
+            data.inChargePersons.map((p: any) => ({
+              user_id: p.user_id,
+              full_name: p.full_name,
+              role: Array.isArray(p.roles) ? p.roles[0] : (p.roles || p.position || 'Thành viên'),
+            }))
+          );
+        }
+      })
+      .catch(() => {});
     setFormError('');
     setIsModalOpen(true);
   };
@@ -1028,7 +1045,7 @@ export default function EventManagement({
                   </div>
                 )}
 
-                {/* Form thêm Người phụ trách */}
+                {/* Form thêm Người phụ trách (Mục 2.2) */}
                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-1">
                   <select
                     value={selectedInChargeUserId}
@@ -1036,56 +1053,69 @@ export default function EventManagement({
                       const uid = e.target.value;
                       setSelectedInChargeUserId(uid);
                       const m = managers.find((mgr) => String(mgr.id) === uid);
-                      if (m) setNewInChargeName(m.full_name);
+                      if (m) {
+                        setNewInChargeName(m.full_name);
+                        setNewInChargeRole(m.role || 'Khác');
+                      } else {
+                        setNewInChargeName('');
+                        setNewInChargeRole('');
+                      }
                     }}
-                    className="flex-1 min-w-[150px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 min-w-[200px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Chọn thành viên phụ trách --</option>
                     {managers.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.full_name}
+                        {m.full_name} {m.role ? `(${m.role})` : ''}
                       </option>
                     ))}
                   </select>
 
-                  <input
-                    type="text"
-                    placeholder="Hoặc nhập tên người phụ trách..."
-                    value={newInChargeName}
-                    onChange={(e) => setNewInChargeName(e.target.value)}
-                    className="flex-1 min-w-[150px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-
                   <select
                     value={newInChargeRole}
-                    onChange={(e) => setNewInChargeRole(e.target.value)}
-                    className="w-36 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled
+                    className="w-44 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 cursor-not-allowed"
+                    title="Vai trò được hiển thị theo tài khoản thành viên, không thể thay đổi ở tạo sự kiện"
                   >
+                    <option value="">-- Vai trò --</option>
                     <option value="MC">MC</option>
                     <option value="Nhân sự">Nhân sự</option>
                     <option value="Diễn giả">Diễn giả</option>
+                    <option value="Thuyết trình">Thuyết trình</option>
                     <option value="Phụng sự">Phụng sự</option>
                     <option value="Chốt sự kiện">Chốt sự kiện</option>
                     <option value="Nhân viên">Nhân viên</option>
+                    <option value="Kinh doanh">Kinh doanh</option>
+                    <option value="Lễ tân">Lễ tân</option>
                     <option value="Khác">Khác</option>
+                    {newInChargeRole && ![
+                      'MC', 'Nhân sự', 'Diễn giả', 'Thuyết trình', 'Phụng sự', 'Chốt sự kiện', 'Nhân viên', 'Kinh doanh', 'Lễ tân', 'Khác'
+                    ].includes(newInChargeRole) && (
+                      <option value={newInChargeRole}>{newInChargeRole}</option>
+                    )}
                   </select>
 
                   <button
                     type="button"
                     onClick={() => {
                       if (!newInChargeName.trim()) return;
+                      if (selectedInChargeUserId && formInCharges.some((ic) => String(ic.user_id) === String(selectedInChargeUserId))) {
+                        return;
+                      }
                       setFormInCharges([
                         ...formInCharges,
                         {
                           user_id: selectedInChargeUserId ? parseInt(selectedInChargeUserId, 10) : undefined,
                           full_name: newInChargeName.trim(),
-                          role: newInChargeRole,
+                          role: newInChargeRole || 'Thành viên',
                         },
                       ]);
                       setNewInChargeName('');
                       setSelectedInChargeUserId('');
+                      setNewInChargeRole('');
                     }}
-                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                    disabled={!selectedInChargeUserId}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Thêm</span>
