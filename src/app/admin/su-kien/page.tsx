@@ -18,7 +18,8 @@ async function getInitialData(): Promise<{
         SELECT 
           e.*,
           m.full_name as manager_name,
-          COALESCE((SELECT COUNT(*)::int FROM event_registrations WHERE event_id = e.id), 0) as registration_count,
+          (COALESCE((SELECT COUNT(*)::int FROM event_registrations r WHERE r.event_id = e.id), 0) + 
+           COALESCE((SELECT COUNT(*)::int FROM event_in_charge eic WHERE eic.event_id = e.id), 0)) AS registration_count,
           ARRAY(SELECT eic.user_id FROM event_in_charge eic WHERE eic.event_id = e.id AND eic.user_id IS NOT NULL) AS in_charge_user_ids
         FROM events e
         LEFT JOIN users m ON e.manager_id = m.id
@@ -35,7 +36,7 @@ async function getInitialData(): Promise<{
         SELECT 
           COUNT(*)::int AS total_events,
           COUNT(CASE WHEN status = 'Sắp diễn ra' THEN 1 END)::int AS upcoming_events,
-          (SELECT COUNT(*)::int FROM event_registrations)::int AS total_guests,
+          ((SELECT COUNT(*)::int FROM event_registrations) + (SELECT COUNT(*)::int FROM event_in_charge))::int AS total_guests,
           COALESCE(SUM(COALESCE(mc_fee, 0) + COALESCE(speaker_fee, 0) + COALESCE(support_fee, 0) + COALESCE(closer_fee, 0) + COALESCE(tea_break_fee, 0)), 0)::numeric AS total_cost
         FROM events
       `),

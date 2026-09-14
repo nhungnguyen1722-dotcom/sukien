@@ -69,7 +69,7 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
       pool.query(`
         SELECT id, full_name, position, phone, email, avatar, roles, status
         FROM event_in_charge
-        WHERE event_id = $1 AND status = 'Đã duyệt'
+        WHERE event_id = $1
         ORDER BY id ASC
       `, [eventId]),
       pool.query(`

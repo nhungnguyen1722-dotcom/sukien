@@ -14,7 +14,7 @@ async function getDashboardStats(): Promise<DashboardStats> {
       pool.query(
         `SELECT COUNT(*)::int AS count FROM events WHERE event_date >= '2026-09-01' AND (status = 'Kế hoạch' OR status = 'Sắp diễn ra')`
       ),
-      pool.query(`SELECT COUNT(*)::int AS count FROM event_registrations`),
+      pool.query(`SELECT ((SELECT COUNT(*)::int FROM event_registrations) + (SELECT COUNT(*)::int FROM event_in_charge))::int AS count`),
       pool.query(
         `SELECT COALESCE(SUM(fee), 0)::numeric AS total FROM events`
       ),
