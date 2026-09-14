@@ -32,22 +32,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine redirect destination according to Item 8:
-    // - ONLY Admin accounts -> /admin
+    // Phân quyền chuyển hướng & lưu cookie:
     // - Lễ tân -> /admin/le-tan
-    // - Member / Vãng lai / Khách mời / All other roles -> /
+    // - Admin & các tài khoản Mục 1 (MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện...) -> /admin
     const userRole = (user.role || '').trim();
     const lowerRole = userRole.toLowerCase();
     const isAdmin = lowerRole.includes('admin') || lowerRole.includes('quản trị');
     const isReception = lowerRole.includes('lễ tân') || lowerRole.includes('le tan') || lowerRole.includes('reception');
 
-    let redirectTo = '/';
-    if (isAdmin) {
-      redirectTo = '/admin';
-    } else if (isReception) {
+    let redirectTo = '/admin';
+    if (isReception) {
       redirectTo = '/admin/le-tan';
-    } else {
-      redirectTo = '/';
     }
 
     const response = NextResponse.json({
@@ -67,12 +62,17 @@ export async function POST(request: NextRequest) {
       redirectTo,
     });
 
-    const cookieRole = isAdmin ? 'Admin' : isReception ? 'Lễ tân' : 'Thành viên';
-    response.cookies.set('user_role', cookieRole, { path: '/' });
-    response.cookies.set('user_name', encodeURIComponent(user.full_name || ''), { path: '/' });
-    response.cookies.set('user_email', encodeURIComponent(user.email || ''), { path: '/' });
-    response.cookies.set('user_phone', encodeURIComponent(user.phone || ''), { path: '/' });
-    response.cookies.set('user_id', String(user.id), { path: '/' });
+    const cookieRole = user.role || (isAdmin ? 'Admin' : isReception ? 'Lễ tân' : 'Thành viên');
+    const cookieOptions = {
+      path: '/',
+      maxAge: 365 * 24 * 60 * 60, // Lưu cookie persistent 1 năm
+      sameSite: 'lax' as const,
+    };
+    response.cookies.set('user_role', cookieRole, cookieOptions);
+    response.cookies.set('user_name', encodeURIComponent(user.full_name || ''), cookieOptions);
+    response.cookies.set('user_email', encodeURIComponent(user.email || ''), cookieOptions);
+    response.cookies.set('user_phone', encodeURIComponent(user.phone || ''), cookieOptions);
+    response.cookies.set('user_id', String(user.id), cookieOptions);
     return response;
   } catch (error) {
     console.error('Login error:', error);

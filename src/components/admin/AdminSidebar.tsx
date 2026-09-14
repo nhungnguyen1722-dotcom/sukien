@@ -47,6 +47,8 @@ export default function AdminSidebar({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
+    if (defaultAdminRole) setCurrentRole(defaultAdminRole);
+    if (defaultAdminName) setCurrentName(defaultAdminName);
     try {
       const getCookie = (name: string) => {
         const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
@@ -59,7 +61,7 @@ export default function AdminSidebar({
     } catch {
       // Ignore
     }
-  }, []);
+  }, [defaultAdminRole, defaultAdminName]);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -194,7 +196,7 @@ export default function AdminSidebar({
               </span>
             </div>
             <p className="text-slate-400 text-xs truncate">
-              {isReception ? 'Nhân viên lễ tân' : 'Quản trị viên'}
+              {isReception ? 'Nhân viên lễ tân' : isAdmin ? 'Quản trị viên' : currentRole}
             </p>
           </div>
 

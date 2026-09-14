@@ -41,14 +41,15 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        const userRole = (data.role || data.user?.role || "").toLowerCase();
+        const rawRole = data.role || data.user?.role || "";
+        const userRole = rawRole.toLowerCase();
         const isAdmin = data.isAdmin || userRole.includes("admin") || userRole.includes("quản trị");
         const isReception = data.isReception || userRole.includes("lễ tân") || userRole.includes("le tan");
 
         try {
           localStorage.setItem(
             "nghieng_auth_role",
-            isAdmin ? "admin" : "member"
+            rawRole || (isAdmin ? "Admin" : isReception ? "Lễ tân" : "Thành viên")
           );
         } catch {
           // Ignore
@@ -61,17 +62,13 @@ export default function LoginPage() {
           // Ignore
         }
 
-        // Requirements (Item 8):
-        // - ONLY Admin accounts -> redirect to /admin
+        // Chuyển hướng theo phân quyền:
         // - Lễ tân -> /admin/le-tan
-        // - Regular members -> redirect to homepage (/)
-        // Use window.location.href for full page reload so server reads cookies
-        if (isAdmin) {
-          window.location.href = data.redirectTo && data.redirectTo.startsWith("/admin") ? data.redirectTo : "/admin";
-        } else if (isReception) {
+        // - Admin & các tài khoản Mục 1 (MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện...) -> /admin
+        if (isReception) {
           window.location.href = data.redirectTo || "/admin/le-tan";
         } else {
-          window.location.href = "/";
+          window.location.href = data.redirectTo && data.redirectTo.startsWith("/admin") ? data.redirectTo : "/admin";
         }
       } else {
         setErrorMsg(data.error || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");

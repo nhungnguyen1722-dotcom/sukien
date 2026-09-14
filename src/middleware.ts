@@ -19,29 +19,43 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // If user is not logged in (no role), redirect to home
+  // If user is not logged in (no role), redirect to login
   if (!role) {
-    url.pathname = '/';
+    url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // ONLY Admin accounts can access all routes under /admin
-  if (role.includes('admin') || role.includes('quản trị') || role.includes('quan tri')) {
+  // 1. Admin accounts have full access to all /admin/* routes
+  if (role === 'admin' || role.includes('admin') || role.includes('quản trị') || role.includes('quan tri')) {
     return NextResponse.next();
   }
 
-  // Reception (Lễ tân) can only access /admin/le-tan
+  // 2. Reception (Lễ tân) can only access /admin/le-tan
   if (role.includes('lễ tân') || role.includes('le tan') || role.includes('reception')) {
     if (url.pathname.startsWith('/admin/le-tan')) {
       return NextResponse.next();
     }
-    // otherwise redirect to home
-    url.pathname = '/';
+    url.pathname = '/admin/le-tan';
     return NextResponse.redirect(url);
   }
 
-  // All other roles (members, etc.) should not access any admin routes -> redirect to home (/)
-  url.pathname = '/';
+  // 3. Non-admin roles (MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện, Thành viên, ...)
+  // Tài liệu Mục 1: Các tài khoản thuộc các nhóm: MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện
+  // được phép truy cập và xem các chức năng: Trang tổng quát, Admin Sự kiện, Chi tiết sự kiện, Mời bạn bè, Trang Danh sách khách hàng.
+  const isAllowedForNonAdmin =
+    url.pathname === '/admin' ||
+    url.pathname === '/admin/' ||
+    url.pathname.startsWith('/admin/su-kien') ||
+    url.pathname.startsWith('/admin/nguoi-moi') ||
+    url.pathname.startsWith('/admin/moi-ban-be');
+
+  if (isAllowedForNonAdmin) {
+    return NextResponse.next();
+  }
+
+  // If non-admin tries to access other restricted admin routes (e.g., /admin/tai-khoan, /admin/thanh-vien, /admin/thiet-lap, /admin/nhat-ky-hop-dong),
+  // redirect them to /admin so they stay within their permitted views
+  url.pathname = '/admin';
   return NextResponse.redirect(url);
 }
 

@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import pool from '@/lib/db';
 
@@ -22,11 +23,15 @@ export default async function AdminLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const adminName = await getAdminName();
+  const cookieStore = await cookies();
+  const rawRole = cookieStore.get('user_role')?.value;
+  const rawName = cookieStore.get('user_name')?.value;
+  const currentRole = rawRole ? decodeURIComponent(rawRole) : undefined;
+  const currentName = rawName ? decodeURIComponent(rawName) : await getAdminName();
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc]">
-      <AdminSidebar adminName={adminName} />
+      <AdminSidebar adminName={currentName} adminRole={currentRole} />
       <main className="flex-1 ml-0 md:ml-[260px] pt-12 md:pt-0 overflow-y-auto min-h-screen">
         {children}
       </main>
