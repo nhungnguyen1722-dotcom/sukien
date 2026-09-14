@@ -312,10 +312,10 @@ export default function EventDetail({
 
   const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
 
-  // Calculations (Item 1 & 3: Real-time guest count = count of registrations)
+  // Thống kê tổng số khách mời: Khách đăng ký & check-in + Danh sách người phụ trách (Mục 7)
   const totalExpectedGuests = useMemo(() => {
-    return registrations.length;
-  }, [registrations.length]);
+    return registrations.length + inChargePersons.length;
+  }, [registrations.length, inChargePersons.length]);
 
   // Thống kê Suất ăn & Tiệc trà từ cả 2 bảng (Mục 3, Hình 5)
   const regFoodCount = useMemo(() => {
@@ -1129,45 +1129,49 @@ export default function EventDetail({
             <span>Quay lại</span>
           </Link>
 
-          {/* Item 15: Button Cập nhật 5 trường cố định */}
-          <button
-            onClick={() => {
-              setTempFixedFees({
-                mc_fee: Number(event.mc_fee) || 200000,
-                speaker_fee: Number(event.speaker_fee) || 300000,
-                support_fee: Number(event.support_fee) || 200000,
-                closer_fee: Number(event.closer_fee) || 200000,
-                tea_break_fee: Number(event.tea_break_fee) || 1250000,
-              });
-              setIsFixedFeesDrawerOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-          >
-            <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-            <span>Cập nhật 5 trường cố định</span>
-          </button>
+          {isAdmin && (
+            <>
+              {/* Item 15: Button Cập nhật 5 trường cố định */}
+              <button
+                onClick={() => {
+                  setTempFixedFees({
+                    mc_fee: Number(event.mc_fee) || 200000,
+                    speaker_fee: Number(event.speaker_fee) || 300000,
+                    support_fee: Number(event.support_fee) || 200000,
+                    closer_fee: Number(event.closer_fee) || 200000,
+                    tea_break_fee: Number(event.tea_break_fee) || 1250000,
+                  });
+                  setIsFixedFeesDrawerOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+              >
+                <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                <span>Cập nhật 5 trường cố định</span>
+              </button>
 
-          {/* Item 15: Button Chỉnh sửa mở modal sửa sự kiện */}
-          <button
-            onClick={() => {
-              setEditEventForm({
-                name: event.name || '',
-                event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
-                start_time: event.start_time || '08:30',
-                end_time: event.end_time || '12:00',
-                location: event.location || '',
-                event_type: event.event_type || 'Hội thảo / Seminar',
-                status: event.status || 'Sắp diễn ra',
-                image_url: event.image_url || '/events/event-1.jpg',
-                notes: event.notes || '',
-              });
-              setIsEditEventModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            <span>Chỉnh sửa</span>
-          </button>
+              {/* Item 15: Button Chỉnh sửa mở modal sửa sự kiện */}
+              <button
+                onClick={() => {
+                  setEditEventForm({
+                    name: event.name || '',
+                    event_date: event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : '',
+                    start_time: event.start_time || '08:30',
+                    end_time: event.end_time || '12:00',
+                    location: event.location || '',
+                    event_type: event.event_type || 'Hội thảo / Seminar',
+                    status: event.status || 'Sắp diễn ra',
+                    image_url: event.image_url || '/events/event-1.jpg',
+                    notes: event.notes || '',
+                  });
+                  setIsEditEventModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Chỉnh sửa</span>
+              </button>
+            </>
+          )}
 
           <Link
             href={`/su-kien/${event.id}`}
@@ -1564,13 +1568,15 @@ export default function EventDetail({
                   <span>Tiệc trà: {formatCurrency(regFoodCount * 50000)}</span>
                 </div>
 
-                <button
-                  onClick={() => setIsAddGuestModalOpen(true)}
-                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Thêm khách</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsAddGuestModalOpen(true)}
+                    className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Thêm khách</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1813,22 +1819,24 @@ export default function EventDetail({
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  setTempFixedFees({
-                    mc_fee: Number(event.mc_fee) || 200000,
-                    speaker_fee: Number(event.speaker_fee) || 300000,
-                    support_fee: Number(event.support_fee) || 200000,
-                    closer_fee: Number(event.closer_fee) || 200000,
-                    tea_break_fee: Number(event.tea_break_fee) || 1250000,
-                  });
-                  setIsFixedFeesDrawerOpen(true);
-                }}
-                className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                <span>Cập nhật chi phí</span>
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setTempFixedFees({
+                      mc_fee: Number(event.mc_fee) || 200000,
+                      speaker_fee: Number(event.speaker_fee) || 300000,
+                      support_fee: Number(event.support_fee) || 200000,
+                      closer_fee: Number(event.closer_fee) || 200000,
+                      tea_break_fee: Number(event.tea_break_fee) || 1250000,
+                    });
+                    setIsFixedFeesDrawerOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Cập nhật chi phí</span>
+                </button>
+              )}
             </div>
 
             <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -2161,7 +2169,7 @@ export default function EventDetail({
       {/* MODAL: CHỈNH SỬA 5 TRƯỜNG GIÁ */}
       {isEditCostModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Cập nhật 5 trường chi phí</h3>
               <button
@@ -2246,7 +2254,7 @@ export default function EventDetail({
       {/* MODAL: THÊM NHẬT KÝ SỰ KIỆN */}
       {isAddLogModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Thêm bản ghi nhật ký sự kiện</h3>
               <button
@@ -2391,7 +2399,7 @@ export default function EventDetail({
       {/* MODAL: THÊM KHÁCH MỜI */}
       {isAddGuestModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Thêm khách tham dự</h3>
               <button
@@ -2479,7 +2487,7 @@ export default function EventDetail({
       {/* MODAL: THÊM TỆP ĐÍNH KÈM */}
       {isAddAttachModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Thêm tệp đính kèm</h3>
               <button
@@ -2564,7 +2572,7 @@ export default function EventDetail({
       {/* MODAL: CHỈNH SỬA THÔNG TIN SỰ KIỆN (Item 15, 18: Không có expected_guests và manager_id) */}
       {isEditEventModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Chỉnh sửa thông tin sự kiện</h3>
               <button
@@ -2792,7 +2800,7 @@ export default function EventDetail({
       {/* MODAL: THÊM / SỬA NGƯỜI PHỤ TRÁCH (Item 21 - Hình 35, 36, 37) */}
       {isAddInChargeModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">
                 {editingInCharge ? 'Chỉnh sửa người phụ trách' : 'Thêm người phụ trách sự kiện'}
@@ -2948,7 +2956,7 @@ export default function EventDetail({
       {/* MODAL: THÊM / SỬA LỊCH TRÌNH (Item 5) */}
       {isAddScheduleModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">
                 {editingSchedule ? 'Chỉnh sửa mốc lịch trình' : 'Thêm mốc lịch trình'}

@@ -8,23 +8,24 @@ export const revalidate = 0;
 interface PageProps {
   searchParams: Promise<{
     ref?: string;
+    event?: string;
   }>;
 }
 
 export default async function QRCheckinPage({ searchParams }: PageProps) {
-  const { ref } = await searchParams;
-  const refCode = ref?.trim() || 'REF_CUC12';
+  const { ref, event: eventParam } = await searchParams;
+  const refCode = ref?.trim() || 'N_0000000001';
 
   // 1. Resolve inviter info
   let inviter = {
-    name: 'Vũ Thị Cúc',
+    name: 'Ban tổ chức NGHIÊNG',
     refCode: refCode,
     id: null as number | null,
   };
 
   try {
     const userRes = await pool.query(
-      `SELECT id, full_name, ref_code, phone FROM users WHERE ref_code = $1 OR phone = $1 LIMIT 1`,
+      `SELECT id, full_name, ref_code, phone FROM users WHERE ref_code = $1 OR phone = $1 OR CAST(id AS TEXT) = $1 OR email ILIKE $1 LIMIT 1`,
       [refCode]
     );
 
@@ -86,5 +87,5 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
     console.error('Failed to fetch events for qr-checkin:', error);
   }
 
-  return <QRCheckinClient events={events} inviter={inviter} />;
+  return <QRCheckinClient events={events} inviter={inviter} selectedEventId={eventParam} />;
 }

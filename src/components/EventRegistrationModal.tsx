@@ -213,14 +213,14 @@ export default function EventRegistrationModal({
       }
       try {
         if (data.user) {
-          document.cookie = `user_role=Thành viên; path=/; max-age=2592000`;
-          document.cookie = `user_name=${encodeURIComponent(data.user.fullName || fullName)}; path=/; max-age=2592000`;
-          document.cookie = `user_phone=${encodeURIComponent(data.user.phone || phone)}; path=/; max-age=2592000`;
+          document.cookie = `user_role=Thành viên; path=/; max-age=31536000; SameSite=Lax`;
+          document.cookie = `user_name=${encodeURIComponent(data.user.fullName || fullName)}; path=/; max-age=31536000; SameSite=Lax`;
+          document.cookie = `user_phone=${encodeURIComponent(data.user.phone || phone)}; path=/; max-age=31536000; SameSite=Lax`;
           if (data.user.id) {
-            document.cookie = `user_id=${data.user.id}; path=/; max-age=2592000`;
+            document.cookie = `user_id=${data.user.id}; path=/; max-age=31536000; SameSite=Lax`;
           }
           if (email) {
-            document.cookie = `user_email=${encodeURIComponent(email)}; path=/; max-age=2592000`;
+            document.cookie = `user_email=${encodeURIComponent(email)}; path=/; max-age=31536000; SameSite=Lax`;
           }
         }
       } catch {

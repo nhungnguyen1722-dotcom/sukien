@@ -129,10 +129,36 @@ export default function EventManagement({
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Phân quyền (Mục 1 & Mục 2.1)
+  const [isAdmin, setIsAdmin] = useState(true);
+
+  useEffect(() => {
+    try {
+      const match = document.cookie.match(new RegExp('(^|;\\s*)user_role=([^;]*)'));
+      const role = match ? decodeURIComponent(match[2]) : null;
+      if (role) {
+        const rLower = role.toLowerCase();
+        setIsAdmin(rLower === 'admin' || rLower.includes('quản trị'));
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
+
   // Image upload & Media library state
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Bổ sung Người phụ trách & Vai trò và Content Editor (Mục 2.2)
+  const [formInCharges, setFormInCharges] = useState<Array<{ user_id?: number; full_name: string; role: string }>>([
+    { full_name: 'Nguyễn Văn A', role: 'MC' },
+    { full_name: 'Nguyễn Văn B', role: 'Nhân sự' },
+  ]);
+  const [selectedInChargeUserId, setSelectedInChargeUserId] = useState<string>('');
+  const [newInChargeName, setNewInChargeName] = useState<string>('');
+  const [newInChargeRole, setNewInChargeRole] = useState<string>('MC');
+  const [contentHtml, setContentHtml] = useState<string>('');
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -312,6 +338,13 @@ export default function EventManagement({
       notes: '',
       image_url: '/events/event-1.jpg',
     });
+    setFormInCharges([
+      { full_name: 'Nguyễn Văn A', role: 'MC' },
+      { full_name: 'Nguyễn Văn B', role: 'Nhân sự' },
+    ]);
+    setContentHtml('');
+    setNewInChargeName('');
+    setSelectedInChargeUserId('');
     setFormError('');
     setIsModalOpen(true);
   };
@@ -335,6 +368,7 @@ export default function EventManagement({
       notes: event.notes || '',
       image_url: event.image_url || '/events/event-1.jpg',
     });
+    setContentHtml((event as any).content || (event as any).detail_description || '');
     setFormError('');
     setIsModalOpen(true);
   };
@@ -362,7 +396,11 @@ export default function EventManagement({
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          content: contentHtml,
+          in_charges: formInCharges,
+        }),
       });
 
       const resData = await res.json();
@@ -452,25 +490,29 @@ export default function EventManagement({
             <span>{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Sheet'}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setTempFixedFees(fixedFees);
-              setIsFixedFeesDrawerOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
-          >
-            <Settings2 className="w-4 h-4 text-blue-600" />
-            <span>Cập nhật giá 5 trường cố định</span>
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempFixedFees(fixedFees);
+                  setIsFixedFeesDrawerOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
+              >
+                <Settings2 className="w-4 h-4 text-blue-600" />
+                <span>Cập nhật giá 5 trường cố định</span>
+              </button>
 
-          <button
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo sự kiện mới</span>
-          </button>
+              <button
+                onClick={handleOpenAddModal}
+                className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tạo sự kiện mới</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -636,13 +678,15 @@ export default function EventManagement({
                         >
                           Chi tiết <ChevronRight className="w-3 h-3" />
                         </Link>
-                        <button
-                          onClick={() => handleOpenEditModal(event)}
-                          className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50"
-                          title="Sửa"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleOpenEditModal(event)}
+                            className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50"
+                            title="Sửa"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -656,7 +700,7 @@ export default function EventManagement({
       {/* MODAL: Tạo / Sửa sự kiện (Items 14, 18: Bỏ khách dự kiến và người phụ trách) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h2 className="text-lg font-bold text-slate-900">
                 {editingEvent ? 'Sửa sự kiện' : 'Tạo sự kiện mới'}
@@ -930,6 +974,213 @@ export default function EventManagement({
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 resize-none"
                 />
+              </div>
+
+              {/* Bổ sung Người phụ trách và Vai trò (Mục 2.2) */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Người phụ trách & Vai trò (Mục 2.2)
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Khai báo một hoặc nhiều người phụ trách và vai trò tương ứng (MC, Nhân sự, Diễn giả, Phụng sự, Chốt sự kiện...)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Danh sách người phụ trách đã thêm */}
+                {formInCharges.length > 0 && (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                        <tr>
+                          <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                          <th className="py-2.5 px-3">Người phụ trách</th>
+                          <th className="py-2.5 px-3">Vai trò</th>
+                          <th className="py-2.5 px-3 w-16 text-center">Xóa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {formInCharges.map((ic, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/80">
+                            <td className="py-2 px-3 text-center text-slate-400 font-medium">{idx + 1}</td>
+                            <td className="py-2 px-3 font-semibold text-slate-800">{ic.full_name}</td>
+                            <td className="py-2 px-3">
+                              <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                {ic.role}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setFormInCharges(formInCharges.filter((_, i) => i !== idx))}
+                                className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 cursor-pointer"
+                                title="Xóa"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Form thêm Người phụ trách */}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-1">
+                  <select
+                    value={selectedInChargeUserId}
+                    onChange={(e) => {
+                      const uid = e.target.value;
+                      setSelectedInChargeUserId(uid);
+                      const m = managers.find((mgr) => String(mgr.id) === uid);
+                      if (m) setNewInChargeName(m.full_name);
+                    }}
+                    className="flex-1 min-w-[150px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Chọn thành viên phụ trách --</option>
+                    {managers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.full_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="Hoặc nhập tên người phụ trách..."
+                    value={newInChargeName}
+                    onChange={(e) => setNewInChargeName(e.target.value)}
+                    className="flex-1 min-w-[150px] px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <select
+                    value={newInChargeRole}
+                    onChange={(e) => setNewInChargeRole(e.target.value)}
+                    className="w-36 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="MC">MC</option>
+                    <option value="Nhân sự">Nhân sự</option>
+                    <option value="Diễn giả">Diễn giả</option>
+                    <option value="Phụng sự">Phụng sự</option>
+                    <option value="Chốt sự kiện">Chốt sự kiện</option>
+                    <option value="Nhân viên">Nhân viên</option>
+                    <option value="Khác">Khác</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newInChargeName.trim()) return;
+                      setFormInCharges([
+                        ...formInCharges,
+                        {
+                          user_id: selectedInChargeUserId ? parseInt(selectedInChargeUserId, 10) : undefined,
+                          full_name: newInChargeName.trim(),
+                          role: newInChargeRole,
+                        },
+                      ]);
+                      setNewInChargeName('');
+                      setSelectedInChargeUserId('');
+                    }}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Content Editor gồm Text và Ảnh (Mục 2.2) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Nội dung giới thiệu chi tiết (Content Editor - Mục 2.2)
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Nhập text & chèn ảnh. Nội dung này sẽ xuất hiện tại Tab Giới thiệu trên mục Lịch trình dự kiến.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                  {/* Toolbar */}
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 border-b border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = prompt('Nhập URL hình ảnh:');
+                        if (url) {
+                          setContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Chèn ảnh từ liên kết URL"
+                    >
+                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Chèn ảnh URL</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = async (e: any) => {
+                          const file = e.target?.files?.[0];
+                          if (!file) return;
+                          const uploadData = new FormData();
+                          uploadData.append('file', file);
+                          try {
+                            const res = await fetch('/api/admin/upload', { method: 'POST', body: uploadData });
+                            const d = await res.json();
+                            if (d.url) {
+                              setContentHtml((prev) => `${prev}\n<img src="${d.url}" alt="${file.name}" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+                            }
+                          } catch {
+                            alert('Lỗi khi tải ảnh');
+                          }
+                        };
+                        input.click();
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Tải ảnh từ máy và chèn vào nội dung"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Tải ảnh từ máy</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setContentHtml((prev) => `${prev}\n<h4 class="font-bold text-slate-900 mt-3 mb-1">Tiêu đề đoạn</h4>\n`)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-bold text-slate-700 cursor-pointer shadow-2xs"
+                      title="Tiêu đề đoạn"
+                    >
+                      Tiêu đề H4
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setContentHtml((prev) => `${prev}\n<p class="text-slate-600 leading-relaxed my-2">Nội dung chi tiết đoạn văn bản...</p>\n`)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-medium text-slate-700 cursor-pointer shadow-2xs"
+                      title="Đoạn văn"
+                    >
+                      Đoạn văn
+                    </button>
+                  </div>
+
+                  <textarea
+                    rows={6}
+                    value={contentHtml}
+                    onChange={(e) => setContentHtml(e.target.value)}
+                    placeholder="Nhập nội dung bài viết và chèn hình ảnh tại đây..."
+                    className="w-full p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans leading-relaxed"
+                  />
+                </div>
               </div>
 
               {/* Footer Actions */}

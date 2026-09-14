@@ -197,6 +197,25 @@ export async function POST(request: NextRequest) {
 
     const registration = regRes.rows[0];
 
+    // Ghi nhận lời mời vào bảng invitations nếu có người giới thiệu (Mục 6 & 13)
+    if (referrerId) {
+      try {
+        const invCheck = await pool.query(
+          `SELECT id FROM invitations WHERE inviter_id = $1 AND (invitee_phone = $2 OR (invitee_email IS NOT NULL AND invitee_email = $3)) LIMIT 1`,
+          [referrerId, cleanPhone, cleanEmail]
+        );
+        if (invCheck.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO invitations (inviter_id, invitee_name, invitee_email, invitee_phone, status, reward_points, created_at)
+             VALUES ($1, $2, $3, $4, 'Thành công', 10, CURRENT_TIMESTAMP)`,
+            [referrerId, cleanName, cleanEmail || `${cleanPhone}@guest.local`, cleanPhone]
+          );
+        }
+      } catch (err) {
+        console.error('Error recording invitation:', err);
+      }
+    }
+
     // Cập nhật số lượng khách dự kiến cho sự kiện đồng bộ chính xác với số người đăng ký thực tế
     await pool.query(
       `UPDATE events 
@@ -228,13 +247,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Tự động đăng nhập người dùng khi hoàn tất đăng ký (Mục 10)
-    response.cookies.set('user_role', 'Thành viên', { path: '/' });
-    response.cookies.set('user_name', encodeURIComponent(cleanName), { path: '/' });
-    response.cookies.set('user_email', encodeURIComponent(cleanEmail || ''), { path: '/' });
-    response.cookies.set('user_phone', encodeURIComponent(cleanPhone), { path: '/' });
+    // Tự động đăng nhập người dùng & Lưu cookie persistent (1 năm) trên thiết bị PC & Mobile (Mục 13)
+    const cookieOptions = {
+      path: '/',
+      maxAge: 365 * 24 * 60 * 60, // Persistent 1 năm
+      sameSite: 'lax' as const,
+    };
+    const finalRole = existingUserRes.rows.length > 0 && existingUserRes.rows[0].role
+      ? existingUserRes.rows[0].role
+      : 'Thành viên';
+    response.cookies.set('user_role', finalRole, cookieOptions);
+    response.cookies.set('user_name', encodeURIComponent(cleanName), cookieOptions);
+    response.cookies.set('user_email', encodeURIComponent(cleanEmail || ''), cookieOptions);
+    response.cookies.set('user_phone', encodeURIComponent(cleanPhone), cookieOptions);
     if (userId) {
-      response.cookies.set('user_id', String(userId), { path: '/' });
+      response.cookies.set('user_id', String(userId), cookieOptions);
     }
 
     return response;

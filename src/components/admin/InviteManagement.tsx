@@ -911,7 +911,7 @@ export default function InviteManagement({
       {/* Detail & Edit Modal */}
       {selectedInvite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-100">
+          <div className="bg-white rounded-2xl shadow-xl w-full md:w-[1014px] md:max-w-[1014px] overflow-hidden border border-slate-100">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
               <div className="flex items-center gap-2">

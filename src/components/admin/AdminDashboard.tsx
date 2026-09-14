@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   TrendingUp,
@@ -59,6 +60,21 @@ export default function AdminDashboard({
   upcomingEvents,
   activity,
 }: AdminDashboardProps) {
+  const [isAdmin, setIsAdmin] = useState(true);
+
+  useEffect(() => {
+    try {
+      const match = document.cookie.match(new RegExp('(^|;\\s*)user_role=([^;]*)'));
+      const role = match ? decodeURIComponent(match[2]) : null;
+      if (role) {
+        const rLower = role.toLowerCase();
+        setIsAdmin(rLower === 'admin' || rLower.includes('quản trị'));
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
+
   return (
     <div className="p-8 max-w-[1400px]">
       {/* Title & Subtitle */}
@@ -69,8 +85,8 @@ export default function AdminDashboard({
         </p>
       </div>
 
-      {/* Top 4 Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Top Stat Cards - 4 cards for admin, 3 cards for non-admin (Mục 4: Non-admin không được xem Tổng chi phí dự kiến) */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6 mb-8`}>
         {/* Card 1: Tổng sự kiện */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-4">
@@ -98,16 +114,18 @@ export default function AdminDashboard({
           <p className="text-3xl font-bold text-gray-900">{stats.totalGuests}</p>
         </div>
 
-        {/* Card 4: Tổng chi phí dự kiến */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-4">
-            <Wallet className="w-5 h-5 text-amber-600" />
+        {/* Card 4: Tổng chi phí dự kiến (Chỉ Admin mới thấy) */}
+        {isAdmin && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-4">
+              <Wallet className="w-5 h-5 text-amber-600" />
+            </div>
+            <p className="text-xs text-gray-500 font-medium mb-2">Tổng chi phí dự kiến</p>
+            <p className="text-3xl font-bold text-gray-900 tracking-tight">
+              {formatCurrency(stats.totalExpectedCost)}
+            </p>
           </div>
-          <p className="text-xs text-gray-500 font-medium mb-2">Tổng chi phí dự kiến</p>
-          <p className="text-3xl font-bold text-gray-900 tracking-tight">
-            {formatCurrency(stats.totalExpectedCost)}
-          </p>
-        </div>
+        )}
       </div>
 
       {/* Main Section: Sự kiện sắp tới & Hoạt động */}

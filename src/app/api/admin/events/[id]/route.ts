@@ -40,7 +40,7 @@ export async function GET(
       return NextResponse.json({ error: 'Không tìm thấy sự kiện' }, { status: 404 });
     }
 
-    const [eventRes, regRes, logsRes, attachRes, managersRes] = await Promise.all([
+    const [eventRes, regRes, logsRes, attachRes, managersRes, inChargeCountRes] = await Promise.all([
       pool.query(`
         SELECT 
           e.*,
@@ -80,6 +80,7 @@ export async function GET(
         FROM users
         ORDER BY full_name ASC
       `),
+      pool.query(`SELECT COUNT(*)::int AS count FROM event_in_charge WHERE event_id = $1`, [eventId]),
     ]);
 
     if (eventRes.rows.length === 0) {
@@ -87,11 +88,12 @@ export async function GET(
     }
 
     const event = eventRes.rows[0];
+    const totalGuestsUnified = regRes.rows.length + (inChargeCountRes.rows[0]?.count || 0);
 
     return NextResponse.json({
       event: {
         ...event,
-        expected_guests: regRes.rows.length,
+        expected_guests: totalGuestsUnified,
         event_date: event.event_date ? new Date(event.event_date).toISOString() : null,
         approved_at: event.approved_at ? new Date(event.approved_at).toISOString() : null,
         created_at: event.created_at ? new Date(event.created_at).toISOString() : null,
@@ -148,6 +150,7 @@ export async function PUT(
       tea_break_fee,
       notes,
       image_url,
+      content,
     } = body;
 
     if (!name || !name.trim()) {
@@ -173,8 +176,10 @@ export async function PUT(
         tea_break_fee = $11,
         notes = $12,
         image_url = COALESCE($13, image_url),
+        content = COALESCE($14, content),
+        detail_description = COALESCE($14, detail_description),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+      WHERE id = $15
       RETURNING *`,
       [
         name.trim(),
@@ -190,6 +195,7 @@ export async function PUT(
         tea_break_fee !== undefined ? parseFloat(tea_break_fee) : 0,
         notes !== undefined ? notes?.trim() : null,
         image_url || null,
+        content !== undefined ? content : null,
         eventId,
       ]
     );

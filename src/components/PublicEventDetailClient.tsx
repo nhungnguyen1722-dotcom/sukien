@@ -347,6 +347,19 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                     </ul>
                   </div>
 
+                  {/* Nội dung chi tiết / Content Editor hiển thị trên Lịch trình dự kiến (Mục 2.2) */}
+                  {((event as any).content || event.detail_description) && (
+                    <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-100">
+                      <h3 className="text-base font-bold text-gray-900 mb-3">Nội dung chi tiết</h3>
+                      <div
+                        className="text-gray-700 leading-relaxed text-sm space-y-3 font-normal [&_img]:rounded-xl [&_img]:shadow-sm [&_img]:my-3 [&_img]:max-h-96 [&_img]:w-full [&_img]:object-cover [&_h4]:font-bold [&_h4]:text-gray-900 [&_h4]:text-base [&_h4]:mt-4 [&_h4]:mb-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1"
+                        dangerouslySetInnerHTML={{
+                          __html: (event as any).content || event.detail_description || '',
+                        }}
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <h3 className="text-base font-bold text-gray-900 mb-4">Lịch trình dự kiến</h3>
                     <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-blue-200">
@@ -587,10 +600,47 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
               </button>
             </div>
 
-            {/* Hàng 1: Mạng xã hội */}
+            {/* Hàng 1: Liên kết chia sẻ mời bạn bè (Link cá nhân) - Đưa lên trên theo Mục 9.1 */}
             <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-semibold text-slate-800">
+                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Liên kết sự kiện:'}
+                </p>
+                <span className="text-[10px] text-blue-600 font-medium">
+                  {currentUser ? 'Đã gắn ID cá nhân' : 'Mặc định Admin nhungnguyen1722@gmail.com'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== 'undefined' ? getShareUrl() : ''}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 select-all truncate font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyRefLink}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                >
+                  {copiedRef ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-white" />
+                      <span>Đã chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Sao chép</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Hàng 2: Mạng xã hội */}
+            <div className="pt-3 border-t border-slate-100">
               <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
-                Hàng 1: Mạng xã hội
+                Chia sẻ qua Mạng xã hội
               </p>
               <div className="grid grid-cols-4 gap-2">
                 <button
@@ -632,43 +682,6 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                     𝕏
                   </div>
                   <span className="text-[11px] font-medium text-slate-700">X</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Hàng 2: Liên kết chia sẻ mời bạn bè */}
-            <div className="pt-3 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-xs font-semibold text-slate-800">
-                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Liên kết sự kiện:'}
-                </p>
-                <span className="text-[10px] text-blue-600 font-medium">
-                  {currentUser ? 'Đã gắn mã giới thiệu' : 'Link mặc định Ban tổ chức'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={typeof window !== 'undefined' ? getShareUrl() : ''}
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 select-all truncate"
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyRefLink}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
-                >
-                  {copiedRef ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-white" />
-                      <span>Đã chép</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Sao chép</span>
-                    </>
-                  )}
                 </button>
               </div>
             </div>

@@ -79,9 +79,9 @@ export default function AdminSidebar({
       return menuItems.filter((item) => item.href === '/admin/le-tan');
     }
     // Các vai trò phi-admin: MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện...
-    // Chỉ thấy: Sự kiện, Mời bạn bè, và Danh sách khách hàng
+    // Được xem: Trang tổng quát, Sự kiện, Mời bạn bè, và Danh sách khách hàng (Mục 1)
     return menuItems.filter((item) =>
-      ['/admin/su-kien', '/admin/moi-ban-be', '/admin/nguoi-moi'].includes(item.href)
+      ['/admin', '/admin/su-kien', '/admin/moi-ban-be', '/admin/nguoi-moi'].includes(item.href)
     );
   }, [isAdmin, isReception]);
 

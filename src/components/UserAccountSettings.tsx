@@ -80,6 +80,11 @@ export default function UserAccountSettings() {
   const [referralCode, setReferralCode] = useState('N_0000000001');
   const [baseUrl, setBaseUrl] = useState('http://localhost:3000');
 
+  // Chọn bài viết/Sự kiện trong chức năng Mời bạn bè (Mục 8)
+  const [eventsList, setEventsList] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [eventInputVal, setEventInputVal] = useState<string>('');
+
   // Member Notification Toggles
   const [memberNotifications, setMemberNotifications] = useState({
     newEvent: true,
@@ -177,7 +182,41 @@ export default function UserAccountSettings() {
         }
       })
       .catch(() => {});
+
+    // Fetch danh sách sự kiện để chọn khi mời bạn bè (Mục 8)
+    fetch('/api/admin/events')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.events)) {
+          setEventsList(data.events);
+          const firstUpcoming = data.events.find(
+            (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang thực hiện'
+          ) || data.events[0];
+          if (firstUpcoming) {
+            setSelectedEventId(firstUpcoming.id);
+            setEventInputVal(`${firstUpcoming.id} - ${firstUpcoming.name}`);
+          }
+        }
+      })
+      .catch(() => {});
   }, [initialRoleParam, initialTabParam]);
+
+  const handleSelectEvent = (val: string) => {
+    setEventInputVal(val);
+    const idMatch = val.match(/^(\d+)/);
+    if (idMatch) {
+      setSelectedEventId(parseInt(idMatch[1], 10));
+    } else {
+      const found = eventsList.find(
+        (ev) => ev.name.toLowerCase() === val.trim().toLowerCase()
+      );
+      if (found) {
+        setSelectedEventId(found.id);
+      } else {
+        setSelectedEventId(null);
+      }
+    }
+  };
 
   const handleOpenEdit = () => {
     if (activeRole === 'member') {
@@ -443,32 +482,78 @@ export default function UserAccountSettings() {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1 flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${baseUrl}/qr-checkin?ref=${encodeURIComponent(referralCode)}`}
-                      className="flex-1 bg-white/10 border border-white/20 text-white text-xs px-3.5 py-2.5 rounded-xl outline-none select-all font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const link = `${baseUrl}/qr-checkin?ref=${encodeURIComponent(referralCode)}`;
-                        try {
-                          if (navigator.clipboard) await navigator.clipboard.writeText(link);
-                          setInviteCopied(true);
-                          showToast('Đã sao chép liên kết mời!');
-                          setTimeout(() => setInviteCopied(false), 2000);
-                        } catch {
-                          showToast('Vui lòng sao chép thủ công');
-                        }
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer flex-shrink-0"
-                    >
-                      {inviteCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      <span>{inviteCopied ? 'Đã chép' : 'Sao chép'}</span>
-                    </button>
+                {/* Dropdown chọn sự kiện muốn mời (Mục 8 - Hình 2) */}
+                <div className="pt-3 border-t border-white/10 space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-100 mb-1.5">
+                      Lựa chọn bài viết / sự kiện muốn mời bạn bè (Mục 8):
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        list="user-events-list"
+                        placeholder="Chọn hoặc gõ tìm sự kiện muốn mời..."
+                        value={eventInputVal}
+                        onChange={(e) => handleSelectEvent(e.target.value)}
+                        className="w-full bg-white/10 border border-white/20 text-white text-xs px-3.5 py-2.5 rounded-xl outline-none placeholder:text-blue-200/60 focus:border-white/50 pr-16"
+                      />
+                      <datalist id="user-events-list">
+                        {eventsList.map((ev) => (
+                          <option key={ev.id} value={`${ev.id} - ${ev.name}`} />
+                        ))}
+                      </datalist>
+                      {selectedEventId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEventId(null);
+                            setEventInputVal('');
+                          }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-white/70 hover:text-rose-300 bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded transition cursor-pointer"
+                        >
+                          Bỏ chọn
+                        </button>
+                      )}
+                    </div>
+                    {selectedEventId && (
+                      <p className="text-[11px] text-emerald-300 mt-1 flex items-center gap-1 font-medium">
+                        <Check className="w-3 h-3 text-emerald-300" />
+                        <span>Đã gắn mã sự kiện #{selectedEventId} vào link & QR mời bên dưới</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${baseUrl}/qr-checkin?ref=${encodeURIComponent(referralCode)}${
+                          selectedEventId ? `&event=${selectedEventId}` : ''
+                        }`}
+                        className="flex-1 bg-white/10 border border-white/20 text-white text-xs px-3.5 py-2.5 rounded-xl outline-none select-all font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const link = `${baseUrl}/qr-checkin?ref=${encodeURIComponent(referralCode)}${
+                            selectedEventId ? `&event=${selectedEventId}` : ''
+                          }`;
+                          try {
+                            if (navigator.clipboard) await navigator.clipboard.writeText(link);
+                            setInviteCopied(true);
+                            showToast('Đã sao chép liên kết mời kèm sự kiện!');
+                            setTimeout(() => setInviteCopied(false), 2000);
+                          } catch {
+                            showToast('Vui lòng sao chép thủ công');
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer flex-shrink-0"
+                      >
+                        {inviteCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span>{inviteCopied ? 'Đã chép' : 'Sao chép'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

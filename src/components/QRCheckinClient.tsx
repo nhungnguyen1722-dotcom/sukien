@@ -13,19 +13,25 @@ interface InviterInfo {
 interface QRCheckinClientProps {
   events: EventData[];
   inviter: InviterInfo;
+  selectedEventId?: string;
 }
 
-export default function QRCheckinClient({ events, inviter }: QRCheckinClientProps) {
+export default function QRCheckinClient({ events, inviter, selectedEventId }: QRCheckinClientProps) {
   const [isModalOpen, setIsModalOpen] = useState(true);
 
-  const defaultEvent = events.length > 0 ? events[0] : {
+  // Chọn đúng sự kiện được truyền qua URL query param ?event=... (Mục 8)
+  const matchedEvent = selectedEventId
+    ? events.find((e) => String(e.id) === String(selectedEventId))
+    : null;
+
+  const defaultEvent = matchedEvent || (events.length > 0 ? events[0] : {
     id: 1,
     name: 'Hội thảo Kết nối Doanh nghiệp 2024',
     event_date: '2026-05-30',
     start_time: '08:30',
     end_time: '11:30',
     location: 'Trung tâm Hội nghị Quốc gia, 57 Phạm Hùng, Hà Nội',
-  };
+  });
 
   return (
     <>

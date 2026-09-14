@@ -50,7 +50,7 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
     const [result, schedRes, inChargeRes, regCountRes] = await Promise.all([
       pool.query(`
         SELECT 
-          id, name, code, short_description, detail_description,
+          id, name, code, short_description, detail_description, content,
           event_date, start_time::text, end_time::text,
           location, event_format, fee,
           registration_deadline, expected_guests,
@@ -90,7 +90,9 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
       ...p,
       roles: Array.isArray(p.roles) ? p.roles : (p.roles ? [p.roles] : []),
     }));
-    registrationCount = regCountRes.rows[0]?.count || 0;
+    // Thống kê số khách mời đồng bộ: Khách đăng ký & check-in + Người phụ trách (Mục 7)
+    const rawRegCount = regCountRes.rows[0]?.count || 0;
+    registrationCount = rawRegCount + inChargePersons.length;
     if (event) {
       event.expected_guests = registrationCount;
     }

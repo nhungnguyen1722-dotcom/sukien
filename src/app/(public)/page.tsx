@@ -14,7 +14,8 @@ async function getEvents(): Promise<EventData[]> {
         start_time::text, 
         end_time::text, 
         location, 
-        expected_guests, 
+        ((SELECT COUNT(*)::int FROM event_registrations r WHERE r.event_id = events.id) +
+         (SELECT COUNT(*)::int FROM event_in_charge eic WHERE eic.event_id = events.id)) AS expected_guests, 
         status, 
         approval_status, 
         image_url,

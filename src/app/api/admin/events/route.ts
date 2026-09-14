@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     let query = `
       SELECT 
         e.*,
-        COALESCE((SELECT COUNT(*)::int FROM event_registrations r WHERE r.event_id = e.id), 0) AS registration_count,
+        (COALESCE((SELECT COUNT(*)::int FROM event_registrations r WHERE r.event_id = e.id), 0) + 
+         COALESCE((SELECT COUNT(*)::int FROM event_in_charge eic WHERE eic.event_id = e.id), 0)) AS registration_count,
+        COALESCE((SELECT COUNT(*)::int FROM event_in_charge eic WHERE eic.event_id = e.id), 0) AS in_charge_count,
         m.full_name as manager_name,
         ARRAY(SELECT eic.user_id FROM event_in_charge eic WHERE eic.event_id = e.id AND eic.user_id IS NOT NULL) AS in_charge_user_ids
       FROM events e
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           COUNT(*)::int AS total_events,
           COUNT(CASE WHEN status = 'Sắp diễn ra' THEN 1 END)::int AS upcoming_events,
-          (SELECT COUNT(*)::int FROM event_registrations)::int AS total_guests,
+          ((SELECT COUNT(*)::int FROM event_registrations) + (SELECT COUNT(*)::int FROM event_in_charge))::int AS total_guests,
           COALESCE(SUM(COALESCE(mc_fee, 0) + COALESCE(speaker_fee, 0) + COALESCE(support_fee, 0) + COALESCE(closer_fee, 0) + COALESCE(tea_break_fee, 0)), 0)::numeric AS total_cost
         FROM events
       `),
@@ -99,6 +101,8 @@ export async function POST(request: NextRequest) {
       tea_break_fee,
       notes,
       image_url,
+      content,
+      in_charges,
     } = body;
 
     if (!name || !name.trim()) {
@@ -108,6 +112,8 @@ export async function POST(request: NextRequest) {
     if (!event_date) {
       return Response.json({ error: 'Ngày tổ chức là bắt buộc' }, { status: 400 });
     }
+
+    const inChargeList = Array.isArray(in_charges) ? in_charges : [];
 
     const result = await pool.query(
       `INSERT INTO events (
@@ -124,13 +130,15 @@ export async function POST(request: NextRequest) {
         tea_break_fee,
         notes,
         image_url,
+        content,
+        detail_description,
         approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Chờ duyệt')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, 'Chờ duyệt')
       RETURNING *`,
       [
         name.trim(),
         event_date,
-        expected_guests ? parseInt(expected_guests) : 0,
+        expected_guests ? parseInt(expected_guests) : inChargeList.length,
         location ? location.trim() : null,
         manager_id ? parseInt(manager_id) : null,
         status || 'Sắp diễn ra',
@@ -141,10 +149,27 @@ export async function POST(request: NextRequest) {
         tea_break_fee ? parseFloat(tea_break_fee) : 0,
         notes ? notes.trim() : null,
         image_url ? image_url.trim() : '/events/event-1.jpg',
+        content ? content.trim() : null,
       ]
     );
 
-    return Response.json({ event: result.rows[0] }, { status: 201 });
+    const newEvent = result.rows[0];
+
+    // Bổ sung Người phụ trách và Vai trò (Mục 2.2)
+    if (inChargeList.length > 0) {
+      for (const ic of inChargeList) {
+        if (!ic || !ic.full_name) continue;
+        const roleArr = Array.isArray(ic.roles) ? ic.roles : [ic.role || 'Nhân sự'];
+        await pool.query(
+          `INSERT INTO event_in_charge (
+            event_id, user_id, full_name, roles, status, is_food_approved
+          ) VALUES ($1, $2, $3, $4, 'Đã duyệt', true)`,
+          [newEvent.id, ic.user_id || null, ic.full_name.trim(), roleArr]
+        );
+      }
+    }
+
+    return Response.json({ event: newEvent }, { status: 201 });
   } catch (error) {
     console.error('Failed to create event:', error);
     return Response.json({ error: 'Có lỗi xảy ra khi tạo sự kiện mới' }, { status: 500 });

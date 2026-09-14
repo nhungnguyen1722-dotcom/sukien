@@ -192,12 +192,73 @@ export default function ContractManagement({
     }
   };
 
-  // Budget breakdown calculations
-  const totalContractVal = stats.totalValue || 0;
-  const breakdownProSale = Math.round(totalContractVal * 0.06);
-  const breakdownReferral = Math.round(totalContractVal * 0.01);
-  const breakdownSupport = Math.round(totalContractVal * 0.005);
-  const breakdownFund = Math.round(totalContractVal * 0.005);
+  // User Auth & Role detection
+  const [currentUserRole, setCurrentUserRole] = useState('ADMIN');
+  useEffect(() => {
+    try {
+      const match = document.cookie.match(new RegExp('(^|;\\s*)user_role=([^;]*)'));
+      if (match) setCurrentUserRole(decodeURIComponent(match[2]));
+    } catch {}
+  }, []);
+  const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
+
+  // Budget breakdown calculations & custom rates/prices (Item 11)
+  const [allocationRates, setAllocationRates] = useState({
+    proSaleRate: 6,
+    referralRate: 1,
+    supportRate: 0.5,
+    fundRate: 0.5,
+  });
+  const [customPrices, setCustomPrices] = useState<{
+    proSalePrice?: number;
+    referralPrice?: number;
+    supportPrice?: number;
+    fundPrice?: number;
+  }>({});
+  const [isEditAllocationModalOpen, setIsEditAllocationModalOpen] = useState(false);
+  const [allocationEditForm, setAllocationEditForm] = useState({
+    proSaleRate: 6,
+    referralRate: 1,
+    supportRate: 0.5,
+    fundRate: 0.5,
+    proSalePrice: '',
+    referralPrice: '',
+    supportPrice: '',
+    fundPrice: '',
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('nghieng_contract_allocation');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.rates) setAllocationRates(parsed.rates);
+        if (parsed.prices) setCustomPrices(parsed.prices);
+      }
+    } catch {}
+  }, []);
+
+  const totalContractVal = Number(stats.totalValue) || 0;
+  const breakdownProSale = customPrices.proSalePrice !== undefined
+    ? customPrices.proSalePrice
+    : Math.round(totalContractVal * (allocationRates.proSaleRate / 100));
+  const breakdownReferral = customPrices.referralPrice !== undefined
+    ? customPrices.referralPrice
+    : Math.round(totalContractVal * (allocationRates.referralRate / 100));
+  const breakdownSupport = customPrices.supportPrice !== undefined
+    ? customPrices.supportPrice
+    : Math.round(totalContractVal * (allocationRates.supportRate / 100));
+  const breakdownFund = customPrices.fundPrice !== undefined
+    ? customPrices.fundPrice
+    : Math.round(totalContractVal * (allocationRates.fundRate / 100));
+  const totalRatePercent = Number(
+    (
+      allocationRates.proSaleRate +
+      allocationRates.referralRate +
+      allocationRates.supportRate +
+      allocationRates.fundRate
+    ).toFixed(2)
+  );
   const breakdownTotal = breakdownProSale + breakdownReferral + breakdownSupport + breakdownFund;
 
   const handleOpenAddModal = () => {
@@ -716,7 +777,7 @@ export default function ContractManagement({
           </div>
         </div>
 
-        {/* Khung Phân tích phân bổ ngân sách hợp đồng (15%) (Khớp 100% Hình 13) */}
+        {/* Khung Phân tích phân bổ ngân sách hợp đồng (15%) (Khớp 100% Hình 13 & Mục 11) */}
         <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div className="flex items-center gap-2">
@@ -725,9 +786,33 @@ export default function ContractManagement({
               </h3>
               <Info className="w-4 h-4 text-slate-400 cursor-help" />
             </div>
-            <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-              Tự động tính
-            </span>
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllocationEditForm({
+                      proSaleRate: allocationRates.proSaleRate,
+                      referralRate: allocationRates.referralRate,
+                      supportRate: allocationRates.supportRate,
+                      fundRate: allocationRates.fundRate,
+                      proSalePrice: customPrices.proSalePrice !== undefined ? String(customPrices.proSalePrice) : '',
+                      referralPrice: customPrices.referralPrice !== undefined ? String(customPrices.referralPrice) : '',
+                      supportPrice: customPrices.supportPrice !== undefined ? String(customPrices.supportPrice) : '',
+                      fundPrice: customPrices.fundPrice !== undefined ? String(customPrices.fundPrice) : '',
+                    });
+                    setIsEditAllocationModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Cập nhật</span>
+                </button>
+              )}
+              <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                Tự động tính
+              </span>
+            </div>
           </div>
 
           <div className="p-4">
@@ -751,7 +836,7 @@ export default function ContractManagement({
                   </td>
                   <td className="py-2.5 text-center">
                     <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[11px]">
-                      6%
+                      {allocationRates.proSaleRate}%
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-bold text-slate-900">
@@ -772,7 +857,7 @@ export default function ContractManagement({
                   </td>
                   <td className="py-2.5 text-center">
                     <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[11px]">
-                      1%
+                      {allocationRates.referralRate}%
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-bold text-slate-900">
@@ -783,7 +868,7 @@ export default function ContractManagement({
                   </td>
                 </tr>
 
-                {/* 3. Tri ân hỗ trợ sale */}
+                {/* 3. Tri ấn hỗ trợ sale */}
                 <tr>
                   <td className="py-2.5 font-medium text-slate-800 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
@@ -793,7 +878,7 @@ export default function ContractManagement({
                   </td>
                   <td className="py-2.5 text-center">
                     <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[11px]">
-                      0,5%
+                      {allocationRates.supportRate}%
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-bold text-slate-900">
@@ -814,7 +899,7 @@ export default function ContractManagement({
                   </td>
                   <td className="py-2.5 text-center">
                     <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[11px]">
-                      0,5%
+                      {allocationRates.fundRate}%
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-bold text-slate-900">
@@ -830,7 +915,7 @@ export default function ContractManagement({
                   <td className="py-2.5 text-slate-900">Tổng cộng</td>
                   <td className="py-2.5 text-center">
                     <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[11px]">
-                      8%
+                      {totalRatePercent}%
                     </span>
                   </td>
                   <td className="py-2.5 text-right text-blue-700 text-sm">
@@ -847,11 +932,238 @@ export default function ContractManagement({
       </div>
 
       {/* ============================================================ */}
+      {/* MODAL: CẬP NHẬT TỶ LỆ VÀ GIÁ PHÂN BỔ NGÂN SÁCH (Item 11)     */}
+      {/* ============================================================ */}
+      {isEditAllocationModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Cập nhật Tỷ lệ và Giá phân bổ ngân sách hợp đồng (15%)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tùy chỉnh tỷ lệ phần trăm (%) và giá tiền cố định. Dữ liệu hiện có không bị thay đổi.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsEditAllocationModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const newRates = {
+                  proSaleRate: Number(allocationEditForm.proSaleRate) || 0,
+                  referralRate: Number(allocationEditForm.referralRate) || 0,
+                  supportRate: Number(allocationEditForm.supportRate) || 0,
+                  fundRate: Number(allocationEditForm.fundRate) || 0,
+                };
+                const newPrices: { [k: string]: number } = {};
+                if (allocationEditForm.proSalePrice !== '') newPrices.proSalePrice = Number(allocationEditForm.proSalePrice);
+                if (allocationEditForm.referralPrice !== '') newPrices.referralPrice = Number(allocationEditForm.referralPrice);
+                if (allocationEditForm.supportPrice !== '') newPrices.supportPrice = Number(allocationEditForm.supportPrice);
+                if (allocationEditForm.fundPrice !== '') newPrices.fundPrice = Number(allocationEditForm.fundPrice);
+
+                setAllocationRates(newRates);
+                setCustomPrices(newPrices);
+                try {
+                  localStorage.setItem(
+                    'nghieng_contract_allocation',
+                    JSON.stringify({ rates: newRates, prices: newPrices })
+                  );
+                } catch {}
+                setIsEditAllocationModalOpen(false);
+                showToast('success', 'Cập nhật tỷ lệ và giá phân bổ ngân sách thành công');
+              }}
+              className="p-6 overflow-y-auto space-y-6 flex-1"
+            >
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-900 flex items-center justify-between">
+                <div>
+                  <span className="font-bold">Tổng giá trị hợp đồng hiện hành: </span>
+                  <span className="font-black text-blue-700">{formatCurrency(totalContractVal)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllocationEditForm({
+                      ...allocationEditForm,
+                      proSalePrice: '',
+                      referralPrice: '',
+                      supportPrice: '',
+                      fundPrice: '',
+                    });
+                  }}
+                  className="px-3 py-1.5 bg-white border border-blue-300 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg text-xs transition-all cursor-pointer"
+                >
+                  Tự động tính theo tỷ lệ %
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Sale trực tiếp - Pro sale */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
+                    <User className="w-4 h-4 text-blue-600" />
+                    <span>1. Sale trực tiếp - Pro sale</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={allocationEditForm.proSaleRate}
+                        onChange={(e) =>
+                          setAllocationEditForm({ ...allocationEditForm, proSaleRate: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-blue-700"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
+                      <input
+                        type="number"
+                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.proSaleRate / 100))}`}
+                        value={allocationEditForm.proSalePrice}
+                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, proSalePrice: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Tri ân kết nối sale trực tiếp */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
+                    <Share2 className="w-4 h-4 text-emerald-600" />
+                    <span>2. Tri ân kết nối sale trực tiếp</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={allocationEditForm.referralRate}
+                        onChange={(e) =>
+                          setAllocationEditForm({ ...allocationEditForm, referralRate: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-emerald-700"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
+                      <input
+                        type="number"
+                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.referralRate / 100))}`}
+                        value={allocationEditForm.referralPrice}
+                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, referralPrice: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Tri ân hỗ trợ sale */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
+                    <Handshake className="w-4 h-4 text-amber-600" />
+                    <span>3. Tri ân hỗ trợ sale</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={allocationEditForm.supportRate}
+                        onChange={(e) =>
+                          setAllocationEditForm({ ...allocationEditForm, supportRate: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-amber-700"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
+                      <input
+                        type="number"
+                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.supportRate / 100))}`}
+                        value={allocationEditForm.supportPrice}
+                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, supportPrice: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Quỹ Sự kiện & Chốt hợp đồng */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
+                    <PiggyBank className="w-4 h-4 text-purple-600" />
+                    <span>4. Quỹ Sự kiện & Chốt hợp đồng</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={allocationEditForm.fundRate}
+                        onChange={(e) =>
+                          setAllocationEditForm({ ...allocationEditForm, fundRate: parseFloat(e.target.value) || 0 })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-purple-700"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
+                      <input
+                        type="number"
+                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.fundRate / 100))}`}
+                        value={allocationEditForm.fundPrice}
+                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, fundPrice: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditAllocationModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all cursor-pointer"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
       {/* MODAL: THÊM MỚI / CHỈNH SỬA HỢP ĐỒNG                          */}
       {/* ============================================================ */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900">
                 {editingContract ? 'Sửa thông tin hợp đồng' : 'Thêm mới hợp đồng'}
@@ -1141,7 +1453,7 @@ export default function ContractManagement({
       {/* ============================================================ */}
       {viewingContract && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <span className="text-xs text-blue-600 font-bold uppercase tracking-wider block">
