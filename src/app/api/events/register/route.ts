@@ -79,21 +79,32 @@ export async function POST(request: NextRequest) {
     let referrerGroup: string | null = null;
     if (referrer && String(referrer).trim()) {
       const refStr = String(referrer).trim();
-      const refNum = parseInt(refStr, 10);
-      if (!isNaN(refNum)) {
-        const refCheck = await pool.query('SELECT id, full_name FROM users WHERE id = $1', [refNum]);
-        if (refCheck.rows.length > 0) {
-          referrerId = refCheck.rows[0].id;
-        } else {
-          referrerGroup = refStr;
-        }
+      const codeMatch = refStr.match(/N_[0-9A-Za-z_-]+/);
+      const extractedCode = codeMatch ? codeMatch[0] : null;
+
+      const refSearch = await pool.query(
+        `SELECT id, full_name, ref_code FROM users 
+         WHERE ref_code = $1 
+            OR ($2::text IS NOT NULL AND ref_code = $2)
+            OR phone = $1 
+            OR full_name ILIKE $1 
+            OR email ILIKE $1 
+         LIMIT 1`,
+        [refStr, extractedCode]
+      );
+      if (refSearch.rows.length > 0) {
+        referrerId = refSearch.rows[0].id;
+        referrerGroup = refSearch.rows[0].full_name;
       } else {
-        const refSearch = await pool.query(
-          'SELECT id FROM users WHERE full_name ILIKE $1 OR phone = $2 LIMIT 1',
-          [refStr, refStr]
-        );
-        if (refSearch.rows.length > 0) {
-          referrerId = refSearch.rows[0].id;
+        const refNum = parseInt(refStr, 10);
+        if (!isNaN(refNum)) {
+          const refCheck = await pool.query('SELECT id, full_name FROM users WHERE id = $1', [refNum]);
+          if (refCheck.rows.length > 0) {
+            referrerId = refCheck.rows[0].id;
+            referrerGroup = refCheck.rows[0].full_name;
+          } else {
+            referrerGroup = refStr;
+          }
         } else {
           referrerGroup = refStr;
         }
@@ -104,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Tự động kiểm tra hoặc tạo tài khoản cho khách bằng số điện thoại (username = SĐT, password = SĐT)
     let userId: number | null = null;
     const existingUserRes = await pool.query(
-      'SELECT id, full_name, phone, role FROM users WHERE phone = $1 LIMIT 1',
+      'SELECT id, full_name, phone, role, ref_code FROM users WHERE phone = $1 LIMIT 1',
       [cleanPhone]
     );
 
@@ -123,6 +134,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Tạo mới tài khoản với SĐT và mật khẩu là SĐT
+      const generatedRefCode = cleanPhone ? `N_${cleanPhone}` : `N_${Date.now()}`;
       const newUserRes = await pool.query(
         `INSERT INTO users (
           full_name,
@@ -134,9 +146,10 @@ export async function POST(request: NextRequest) {
           referrer_id,
           referral_group,
           status,
-          join_date
-        ) VALUES ($1, $2, $3, $4, 'Khách mời', 'Khách mời', $5, $6, 'Đang hoạt động', CURRENT_DATE)
-        RETURNING id`,
+          join_date,
+          ref_code
+        ) VALUES ($1, $2, $3, $4, 'Khách mời', 'Khách mời', $5, $6, 'Đang hoạt động', CURRENT_DATE, $7)
+        RETURNING id, ref_code`,
         [
           cleanName,
           cleanPhone,
@@ -144,6 +157,7 @@ export async function POST(request: NextRequest) {
           cleanPhone, // Mật khẩu mặc định bằng SĐT
           referrerId,
           referrerGroup,
+          generatedRefCode,
         ]
       );
       if (newUserRes.rows.length > 0) {
@@ -263,6 +277,10 @@ export async function POST(request: NextRequest) {
     if (userId) {
       response.cookies.set('user_id', String(userId), cookieOptions);
     }
+    const finalRefCode = existingUserRes.rows.length > 0 && existingUserRes.rows[0].ref_code
+      ? existingUserRes.rows[0].ref_code
+      : (cleanPhone ? `N_${cleanPhone}` : `N_${Date.now()}`);
+    response.cookies.set('user_ref_code', finalRefCode, cookieOptions);
 
     return response;
   } catch (error: any) {

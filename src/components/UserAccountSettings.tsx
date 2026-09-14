@@ -145,8 +145,14 @@ export default function UserAccountSettings() {
       const email = getCookie('user_email');
       const role = getCookie('user_role');
 
-      if (phone) setReferralCode(phone);
-      else if (id) setReferralCode(id);
+      let refCode = getCookie('user_ref_code');
+      if (!refCode && typeof window !== 'undefined') {
+        refCode = localStorage.getItem('nghieng_user_ref_code') || '';
+      }
+      if (!refCode && id) {
+        refCode = 'N_' + String(id).padStart(10, '0');
+      }
+      setReferralCode(refCode || 'N_0000000001');
 
       if (name) {
         setMemberInfo((prev) => ({

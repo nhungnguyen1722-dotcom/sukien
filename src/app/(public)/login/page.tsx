@@ -51,6 +51,9 @@ export default function LoginPage() {
             "nghieng_auth_role",
             rawRole || (isAdmin ? "Admin" : isReception ? "Lễ tân" : "Thành viên")
           );
+          if (data.ref_code) {
+            localStorage.setItem("nghieng_user_ref_code", data.ref_code);
+          }
         } catch {
           // Ignore
         }

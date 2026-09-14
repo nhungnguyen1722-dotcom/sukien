@@ -45,7 +45,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id?: string; phone?: string; name?: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id?: string; phone?: string; name?: string; ref_code?: string } | null>(null);
 
   useEffect(() => {
     try {
@@ -56,8 +56,20 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
       const cId = getCookie('user_id');
       const cPhone = getCookie('user_phone');
       const cName = getCookie('user_name');
-      if (cId || cPhone) {
-        setCurrentUser({ id: cId || undefined, phone: cPhone || undefined, name: cName || undefined });
+      let cRef = getCookie('user_ref_code');
+      if (!cRef && typeof window !== 'undefined') {
+        cRef = localStorage.getItem('nghieng_user_ref_code');
+      }
+      if (!cRef && cId) {
+        cRef = 'N_' + String(cId).padStart(10, '0');
+      }
+      if (cId || cPhone || cRef) {
+        setCurrentUser({
+          id: cId || undefined,
+          phone: cPhone || undefined,
+          name: cName || undefined,
+          ref_code: cRef || 'N_0000000001',
+        });
       }
     } catch {
       // Ignore
@@ -80,8 +92,10 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const getShareUrl = () => {
     if (typeof window === 'undefined') return '';
     const origin = window.location.origin;
-    const refCode = currentUser?.phone || currentUser?.id || 'nhungnguyen1722@gmail.com';
-    return `${origin}/su-kien/${event.id}?ref=${refCode}`;
+    // Khi đã đăng nhập: lấy ref_code của tài khoản (ví dụ N_0000000002)
+    // Khi chưa đăng nhập: ID mặc định của nhungnguyen1722@gmail.com là N_0000000001
+    const refCode = currentUser?.ref_code || 'N_0000000001';
+    return `${origin}/qr-checkin?ref=${encodeURIComponent(refCode)}&event=${event.id}`;
   };
 
   const handleCopyLink = () => {

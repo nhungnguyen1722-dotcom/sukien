@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     // Check user in database by email, phone, or full_name
     const result = await pool.query(
-      `SELECT id, full_name, email, phone, role, status FROM users 
+      `SELECT id, full_name, email, phone, role, status, ref_code FROM users 
        WHERE LOWER(email) = LOWER($1) 
           OR phone = $1 
           OR LOWER(full_name) = LOWER($1)
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const lowerRole = userRole.toLowerCase();
     const isAdmin = lowerRole.includes('admin') || lowerRole.includes('quản trị');
     const isReception = lowerRole.includes('lễ tân') || lowerRole.includes('le tan') || lowerRole.includes('reception');
+    const userRefCode = user.ref_code || (user.id ? 'N_' + String(user.id).padStart(10, '0') : 'N_0000000001');
 
     let redirectTo = '/admin';
     if (isReception) {
@@ -55,8 +56,10 @@ export async function POST(request: NextRequest) {
         phone: user.phone,
         role: user.role,
         status: user.status,
+        ref_code: userRefCode,
       },
       role: user.role,
+      ref_code: userRefCode,
       isAdmin,
       isReception,
       redirectTo,
@@ -73,6 +76,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set('user_email', encodeURIComponent(user.email || ''), cookieOptions);
     response.cookies.set('user_phone', encodeURIComponent(user.phone || ''), cookieOptions);
     response.cookies.set('user_id', String(user.id), cookieOptions);
+    response.cookies.set('user_ref_code', userRefCode, cookieOptions);
     return response;
   } catch (error) {
     console.error('Login error:', error);

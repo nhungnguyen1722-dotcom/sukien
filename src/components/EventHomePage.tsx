@@ -77,7 +77,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
   // Share Modal & Referral State (Item 12 & 13)
   const [selectedShareEvent, setSelectedShareEvent] = useState<EventData | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; phone: string; email: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; phone: string; email: string; ref_code: string } | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
 
   useEffect(() => {
@@ -90,8 +90,15 @@ export default function EventHomePage({ events }: EventHomePageProps) {
       const name = getCookie('user_name');
       const phone = getCookie('user_phone');
       const email = getCookie('user_email');
-      if (id || name || phone || email) {
-        setCurrentUser({ id, name, phone, email });
+      let refCode = getCookie('user_ref_code');
+      if (!refCode && typeof window !== 'undefined') {
+        refCode = localStorage.getItem('nghieng_user_ref_code') || '';
+      }
+      if (!refCode && id) {
+        refCode = 'N_' + String(id).padStart(10, '0');
+      }
+      if (id || name || phone || email || refCode) {
+        setCurrentUser({ id, name, phone, email, ref_code: refCode || 'N_0000000001' });
       }
     }
   }, []);
@@ -99,12 +106,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
   const getShareUrl = (ev?: EventData | null) => {
     const target = ev || selectedShareEvent;
     if (!target || typeof window === 'undefined') return '';
-    const base = `${window.location.origin}/su-kien/${target.id}`;
-    if (currentUser) {
-      const ref = currentUser.phone || currentUser.id || 'admin';
-      return `${base}?ref=${encodeURIComponent(ref)}`;
-    }
-    return `${base}?ref=nhungnguyen1722@gmail.com`;
+    const origin = window.location.origin;
+    // Khi đã đăng nhập: lấy ref_code của tài khoản (ví dụ N_0000000002)
+    // Khi chưa đăng nhập: ID mặc định của nhungnguyen1722@gmail.com là N_0000000001
+    const refCode = currentUser?.ref_code || 'N_0000000001';
+    return `${origin}/qr-checkin?ref=${encodeURIComponent(refCode)}&event=${target.id}`;
   };
 
   const handleCopyRefLink = async () => {
