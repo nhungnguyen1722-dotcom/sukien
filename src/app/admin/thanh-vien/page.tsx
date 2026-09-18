@@ -38,7 +38,8 @@ async function getInitialData(): Promise<{
           u.notes,
           u.created_at,
           u.updated_at,
-          r.full_name AS referrer_name
+          r.full_name AS referrer_name,
+          r.phone AS referrer_phone
         FROM users u
         LEFT JOIN users r ON u.referrer_id = r.id
         ORDER BY u.id ASC

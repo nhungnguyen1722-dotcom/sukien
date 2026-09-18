@@ -422,7 +422,7 @@ export default function ContractManagement({
   };
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50 text-slate-900">
+    <div className="p-[15px] sm:p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50 text-slate-900">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-200">
@@ -444,80 +444,80 @@ export default function ContractManagement({
       )}
 
       {/* Breadcrumb & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-2">
             <span>Trang chủ</span>
             <span>&gt;</span>
             <span className="text-slate-800 font-semibold">Nhật ký hợp đồng</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Nhật ký hợp đồng</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Nhật ký hợp đồng</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Quản lý hợp đồng, doanh số chốt và phân bổ hoa hồng
           </p>
         </div>
 
         <button
           onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+          className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" />
           <span>Thêm hợp đồng</span>
         </button>
       </div>
 
-      {/* 4 Stat Cards (Khớp Hình 13) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+      {/* 4 Stat Cards (Hình 12: 2 cột 2 dòng trên mobile, font-size 13px, padding 15px) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-6 sm:mb-8">
         {/* 1. Tổng hợp đồng */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <FileText className="w-6 h-6" />
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-xs font-medium text-slate-500 block">Tổng hợp đồng</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-2xl font-bold text-slate-900">{stats.totalContracts}</span>
-              <span className="text-xs text-slate-400">hợp đồng</span>
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 block leading-tight truncate">Tổng hợp đồng</span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-[13px] sm:text-2xl font-bold text-slate-900">{stats.totalContracts}</span>
+              <span className="text-[11px] sm:text-xs text-slate-400">hợp đồng</span>
             </div>
           </div>
         </div>
 
         {/* 2. Tổng giá trị hợp đồng */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <Coins className="w-6 h-6" />
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <Coins className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-xs font-medium text-slate-500 block">Tổng giá trị hợp đồng</span>
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 block leading-tight truncate">Tổng giá trị HĐ</span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-2xl font-bold text-slate-900">{formatCurrency(stats.totalValue)}</span>
+              <span className="text-[13px] sm:text-2xl font-bold text-slate-900 truncate">{formatCurrency(stats.totalValue)}</span>
             </div>
           </div>
         </div>
 
         {/* 3. Tổng hoa hồng */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <HandCoins className="w-6 h-6" />
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <HandCoins className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-xs font-medium text-slate-500 block">Tổng hoa hồng</span>
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 block leading-tight truncate">Tổng hoa hồng</span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-2xl font-bold text-slate-900">{formatCurrency(stats.totalCommission)}</span>
+              <span className="text-[13px] sm:text-2xl font-bold text-slate-900 truncate">{formatCurrency(stats.totalCommission)}</span>
             </div>
           </div>
         </div>
 
         {/* 4. Đã duyệt */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-6 h-6" />
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <span className="text-xs font-medium text-slate-500 block">Đã duyệt</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-2xl font-bold text-slate-900">{stats.approvedContracts}</span>
-              <span className="text-xs text-slate-400">hợp đồng</span>
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 block leading-tight truncate">Đã duyệt</span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-[13px] sm:text-2xl font-bold text-slate-900">{stats.approvedContracts}</span>
+              <span className="text-[11px] sm:text-xs text-slate-400">hợp đồng</span>
             </div>
           </div>
         </div>

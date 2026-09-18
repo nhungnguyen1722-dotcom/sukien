@@ -29,7 +29,9 @@ import {
   Building2,
   Phone,
   Paperclip,
+  Share2,
 } from 'lucide-react';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export interface EventData {
   id: number;
@@ -292,25 +294,68 @@ export default function EventDetail({
   const [currentUserRole, setCurrentUserRole] = useState('ADMIN');
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [currentUserName, setCurrentUserName] = useState('');
+  const [currentUserPhone, setCurrentUserPhone] = useState('');
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
+  const [currentUserRefCode, setCurrentUserRefCode] = useState('N_0000000001');
+
+  // Search dropdown for member in In-Charge modal (Mục 9.3, Hình 10.2)
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
+
+  const filteredMembers = useMemo(() => {
+    if (!memberSearchQuery.trim()) return managers;
+    const q = memberSearchQuery.toLowerCase();
+    return managers.filter(
+      (m) =>
+        (m.full_name && m.full_name.toLowerCase().includes(q)) ||
+        (m.phone && m.phone.includes(q)) ||
+        (m.role && m.role.toLowerCase().includes(q))
+    );
+  }, [managers, memberSearchQuery]);
 
   useEffect(() => {
     try {
       const getCookie = (name: string) => {
         const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-        return match ? decodeURIComponent(match[3]) : null;
+        return match ? safeDecodeURI(match[3]) : null;
       };
       const cRole = getCookie('user_role');
       const cId = getCookie('user_id');
       const cName = getCookie('user_name');
+      const cPhone = getCookie('user_phone');
+      const cEmail = getCookie('user_email');
+      const cRef = getCookie('ref_code') || getCookie('user_ref');
       if (cRole) setCurrentUserRole(cRole);
-      if (cId) setCurrentUserId(parseInt(cId, 10));
+      if (cId) {
+        setCurrentUserId(parseInt(cId, 10));
+        if (!cRef) {
+          setCurrentUserRefCode('N_' + String(cId).padStart(10, '0'));
+        }
+      }
       if (cName) setCurrentUserName(cName);
+      if (cPhone) setCurrentUserPhone(cPhone);
+      if (cEmail) setCurrentUserEmail(cEmail);
+      if (cRef) setCurrentUserRefCode(cRef);
     } catch {
       // Ignore
     }
   }, []);
 
   const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
+
+  // Kiểm tra tài khoản hiện tại đã đăng ký làm người phụ trách chưa (Item 3)
+  const myInChargePerson = useMemo(() => {
+    if (isAdmin) return null;
+    return inChargePersons.find((p) => {
+      const pName = safeDecodeURI(p.full_name).toLowerCase();
+      const curName = safeDecodeURI(currentUserName).toLowerCase();
+      const isIdMatch = Boolean(currentUserId && p.user_id && Number(p.user_id) === Number(currentUserId));
+      const isNameMatch = Boolean(curName && pName && curName === pName);
+      return isIdMatch || isNameMatch;
+    }) || null;
+  }, [isAdmin, inChargePersons, currentUserId, currentUserName]);
+
+  const isAlreadyRegisteredInCharge = Boolean(myInChargePerson);
 
   // Thống kê tổng số khách mời: Khách đăng ký & check-in + Danh sách người phụ trách (Mục 7)
   const totalExpectedGuests = useMemo(() => {
@@ -1089,7 +1134,7 @@ export default function EventDetail({
   };
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-[#f8fafc]">
+    <div className="px-[15px] py-4 sm:p-8 max-w-[1600px] mx-auto min-h-screen bg-[#f8fafc]">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-200">
@@ -1120,13 +1165,13 @@ export default function EventDetail({
           <span className="text-slate-800 font-medium">Chi tiết sự kiện</span>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <Link
             href="/admin/su-kien"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại</span>
+            <span className="hidden sm:inline">Quay lại</span>
           </Link>
 
           {isAdmin && (
@@ -1143,10 +1188,11 @@ export default function EventDetail({
                   });
                   setIsFixedFeesDrawerOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
               >
                 <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                <span>Cập nhật 5 trường cố định</span>
+                <span className="hidden sm:inline">Cập nhật 5 trường cố định</span>
+                <span className="sm:hidden">Cập nhật</span>
               </button>
 
               {/* Item 15: Button Chỉnh sửa mở modal sửa sự kiện */}
@@ -1165,7 +1211,7 @@ export default function EventDetail({
                   });
                   setIsEditEventModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
               >
                 <Pencil className="w-3.5 h-3.5" />
                 <span>Chỉnh sửa</span>
@@ -1176,7 +1222,7 @@ export default function EventDetail({
           <Link
             href={`/su-kien/${event.id}`}
             target="_blank"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
           >
             <span>Trang Public ↗</span>
           </Link>
@@ -1184,7 +1230,7 @@ export default function EventDetail({
       </div>
 
       {/* Main Header Card - 4 Blocks */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm mb-6">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-sm mb-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
           {/* KHỐI 1: Ảnh đại diện sự kiện */}
           <div className="md:col-span-3 lg:col-span-2">
@@ -1195,9 +1241,31 @@ export default function EventDetail({
                 alt={event.name}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-2 left-2">
+              <div className="absolute top-2 left-2 flex items-center gap-1.5">
                 {getStatusBadge(event.status)}
+                {event.approval_status === 'Đã duyệt' && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white shadow-xs">
+                    Đã duyệt
+                  </span>
+                )}
               </div>
+              {/* Mobile Share QR link button at right side of image (Hình 9.5) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                  const refCode = currentUserRefCode || 'N_0000000001';
+                  const shareUrl = `${origin}/qr-checkin?ref=${refCode}&event=${event.id}`;
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(shareUrl);
+                    showToast('success', `Đã sao chép link mời: ${shareUrl}`);
+                  }
+                }}
+                className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-blue-600 rounded-lg shadow-sm border border-slate-200 backdrop-blur-xs transition-all active:scale-95 cursor-pointer"
+                title="Chia sẻ link QR mời bạn bè"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
@@ -1226,23 +1294,18 @@ export default function EventDetail({
             </div>
           </div>
 
-          {/* KHỐI 3: Trạng thái */}
+          {/* KHỐI 3: Trạng thái & Phê duyệt (Mục 9.1 Hình 9.5 & 9.6) */}
           <div className="md:col-span-4 lg:col-span-3 border-l md:border-slate-100 md:pl-5 space-y-2 text-xs">
             <div className="text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
               Trạng thái & Phê duyệt
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Trạng thái:</span>
-              <span className="font-semibold text-slate-800">{event.status}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Phê duyệt:</span>
-              <div>{getApprovalBadge(event.approval_status)}</div>
-            </div>
-            <div className="text-[11px] text-slate-400 pt-1">
-              Người tạo: <span className="text-slate-600 font-medium">Vũ Thị Cúc</span>
-              <br />
-              Vào lúc: {formatDateTime(event.created_at) || '18/05/2024 10:30'}
+            <div className="text-[11px] text-slate-500 pt-1 space-y-1">
+              <div>
+                Người tạo: <span className="text-slate-800 font-semibold">Nhung Nguyễn</span> <span className="text-slate-500">(nhungnguyen1722@gmail.com)</span>
+              </div>
+              <div>
+                Vào lúc: <span className="text-slate-700">{formatDateTime(event.created_at) || '18/05/2024 10:30'}</span>
+              </div>
             </div>
           </div>
 
@@ -1360,11 +1423,13 @@ export default function EventDetail({
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2.5 shadow-2xs">
-                <span>Tổng khách ăn: {totalFoodGuests}</span>
-                <span className="text-amber-300">•</span>
-                <span>Tiệc trà: {formatCurrency(totalTeaBreakFee)}</span>
-              </div>
+              {isAdmin && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2.5 shadow-2xs">
+                  <span>Tổng khách ăn: {totalFoodGuests}</span>
+                  <span className="text-amber-300">•</span>
+                  <span>Tiệc trà: {formatCurrency(totalTeaBreakFee)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1383,12 +1448,14 @@ export default function EventDetail({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {/* Hình 3.1: Thẻ tổng số người phụ trách ăn và tiệc trà */}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2 shadow-2xs">
-                  <span>Người phụ trách ăn: {inChargeFoodCount}/{inChargePersons.length}</span>
-                  <span className="text-amber-300">•</span>
-                  <span>Tiệc trà: {formatCurrency(inChargeFoodCount * 50000)}</span>
-                </div>
+                {/* Hình 9.8: Ẩn với tài khoản thường, chỉ hiện với Admin */}
+                {isAdmin && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2 shadow-2xs">
+                    <span>Người phụ trách ăn: {inChargeFoodCount}/{inChargePersons.length}</span>
+                    <span className="text-amber-300">•</span>
+                    <span>Tiệc trà: {formatCurrency(inChargeFoodCount * 50000)}</span>
+                  </div>
+                )}
 
                 {isAdmin ? (
                   <button
@@ -1403,6 +1470,8 @@ export default function EventDetail({
                         roles: ['Diễn giả'],
                         notes: '',
                       });
+                      setMemberSearchQuery('');
+                      setIsMemberDropdownOpen(false);
                       setIsAddInChargeModalOpen(true);
                     }}
                     className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
@@ -1410,6 +1479,23 @@ export default function EventDetail({
                     <Plus className="w-3.5 h-3.5" />
                     <span>+ Thêm người phụ trách</span>
                   </button>
+                ) : isAlreadyRegisteredInCharge ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Đã đăng ký</span>
+                    </span>
+                    {myInChargePerson && (
+                      <button
+                        onClick={() => handleDeleteInCharge(myInChargePerson.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+                        title="Hủy đăng ký"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hủy / Xóa đăng ký</span>
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <button
                     onClick={handleRegisterAsInCharge}
@@ -1422,15 +1508,16 @@ export default function EventDetail({
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            {/* Desktop Table View */}
+            <div className="hidden sm:block border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full text-left text-xs text-slate-600 border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                     <th className="py-3 px-4 w-12 text-center">STT</th>
                     <th className="py-3 px-4">Họ và tên</th>
                     <th className="py-3 px-4">Chức vụ</th>
-                    <th className="py-3 px-4 hidden sm:table-cell">Số điện thoại</th>
-                    <th className="py-3 px-4 hidden sm:table-cell">Email</th>
+                    <th className="py-3 px-4">Số điện thoại</th>
+                    <th className="py-3 px-4">Email</th>
                     <th className="py-3 px-4">Vai trò trong sự kiện</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Duyệt</th>
@@ -1452,17 +1539,16 @@ export default function EventDetail({
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={p.avatar || '/events/event-1.jpg'} alt={p.full_name} className="w-full h-full object-cover" />
+                              <img src={p.avatar || '/events/event-1.jpg'} alt={safeDecodeURI(p.full_name)} className="w-full h-full object-cover" />
                             </div>
                             <div>
-                              <span className="font-bold text-slate-900 block">{p.full_name}</span>
-                              <span className="text-[11px] text-slate-400 block sm:hidden font-normal">{p.phone || '—'}</span>
+                              <span className="font-bold text-slate-900 block">{safeDecodeURI(p.full_name)}</span>
                             </div>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-slate-700 font-medium">{p.position}</td>
-                        <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{p.phone || '—'}</td>
-                        <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{p.email || '—'}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{p.phone || '—'}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{p.email || '—'}</td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-wrap gap-1.5">
                             {(Array.isArray(p.roles) ? p.roles : []).map((r: string, rIdx: number) => (
@@ -1475,7 +1561,6 @@ export default function EventDetail({
                             ))}
                           </div>
                         </td>
-                        {/* Hình 3.2: Cột Suất ăn chỉ còn checkbox thuần, không có chữ */}
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
@@ -1484,7 +1569,6 @@ export default function EventDetail({
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
                         </td>
-                        {/* Cột Duyệt (Mục 5 & Hình 15) */}
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
                             {p.status === 'Đã duyệt' ? (
@@ -1514,11 +1598,11 @@ export default function EventDetail({
                                 setEditingInCharge(p);
                                 setInChargeForm({
                                   user_id: p.user_id ? String(p.user_id) : '',
-                                  full_name: p.full_name,
+                                  full_name: safeDecodeURI(p.full_name),
                                   position: p.position,
                                   phone: p.phone || '',
                                   email: p.email || '',
-                                  roles: Array.isArray(p.roles) ? p.roles : [],
+                                  roles: Array.isArray(p.roles) ? p.roles : [p.roles || 'Diễn giả'],
                                   notes: '',
                                 });
                                 setIsAddInChargeModalOpen(true);
@@ -1528,7 +1612,7 @@ export default function EventDetail({
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            {isAdmin && (
+                            {(isAdmin || (myInChargePerson && myInChargePerson.id === p.id)) && (
                               <button
                                 onClick={() => handleDeleteInCharge(p.id)}
                                 className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 cursor-pointer"
@@ -1544,6 +1628,102 @@ export default function EventDetail({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card Layout (Mục 9.1 Hình 9.3) */}
+            <div className="sm:hidden space-y-3">
+              {inChargePersons.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                  Chưa có người phụ trách nào được phân công.
+                </div>
+              ) : (
+                inChargePersons.map((p, idx) => (
+                  <div key={p.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.avatar || '/events/event-1.jpg'} alt={safeDecodeURI(p.full_name)} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 text-sm block">{safeDecodeURI(p.full_name)}</span>
+                          <span className="text-xs text-slate-500 font-medium">{p.position || 'Thành viên'}</span>
+                          {p.phone && <span className="text-[11px] text-slate-400 block font-normal">{p.phone}</span>}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setEditingInCharge(p);
+                            setInChargeForm({
+                              user_id: p.user_id ? String(p.user_id) : '',
+                              full_name: safeDecodeURI(p.full_name),
+                              position: p.position,
+                              phone: p.phone || '',
+                              email: p.email || '',
+                              roles: Array.isArray(p.roles) ? p.roles : [p.roles || 'Diễn giả'],
+                              notes: '',
+                            });
+                            setIsAddInChargeModalOpen(true);
+                          }}
+                          className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 cursor-pointer"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        {(isAdmin || (myInChargePerson && myInChargePerson.id === p.id)) && (
+                          <button
+                            onClick={() => handleDeleteInCharge(p.id)}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-500" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                      <div className="flex flex-wrap gap-1">
+                        {(Array.isArray(p.roles) ? p.roles : []).map((r: string, rIdx: number) => (
+                          <span key={rIdx} className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] text-slate-600 font-medium">
+                          <span>Ăn trà (50k):</span>
+                          <input
+                            type="checkbox"
+                            checked={p.is_food_approved !== false}
+                            onChange={() => handleToggleInChargeFood(p)}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </label>
+
+                        {p.status === 'Đã duyệt' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            Đã duyệt
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                            {p.status || 'Chờ duyệt'}
+                          </span>
+                        )}
+                        {isAdmin && p.status !== 'Đã duyệt' && (
+                          <button
+                            onClick={() => handleApproveInCharge(p.id)}
+                            className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
+                          >
+                            Duyệt
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -1562,11 +1742,13 @@ export default function EventDetail({
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
-                  <span>Khách ăn: {regFoodCount}/{registrations.length}</span>
-                  <span className="text-amber-300">•</span>
-                  <span>Tiệc trà: {formatCurrency(regFoodCount * 50000)}</span>
-                </div>
+                {isAdmin && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
+                    <span>Khách ăn: {regFoodCount}/{registrations.length}</span>
+                    <span className="text-amber-300">•</span>
+                    <span>Tiệc trà: {formatCurrency(regFoodCount * 50000)}</span>
+                  </div>
+                )}
 
                 {isAdmin && (
                   <button
@@ -1606,14 +1788,14 @@ export default function EventDetail({
               </select>
             </div>
 
-            {/* Guest Table */}
-            <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+            {/* Desktop Table View */}
+            <div className="hidden sm:block border border-slate-100 rounded-xl overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs text-slate-600 border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                     <th className="py-3 px-4">Tên khách</th>
-                    <th className="py-3 px-4 hidden sm:table-cell">SĐT</th>
-                    <th className="py-3 px-4 hidden sm:table-cell">Nguồn</th>
+                    <th className="py-3 px-4">SĐT</th>
+                    <th className="py-3 px-4">Nguồn</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Trạng thái tham dự</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
@@ -1632,14 +1814,11 @@ export default function EventDetail({
                       const status = guest.attendance_status || 'Đã đăng ký';
                       return (
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
-                          {/* Mục 16: Tên in đậm + SĐT mờ bên dưới trên mobile */}
                           <td className="py-3.5 px-4">
-                            <span className="font-bold text-slate-800 block">{guest.guest_name}</span>
-                            <span className="text-[11px] text-slate-400 block sm:hidden font-normal">{guest.guest_phone || '—'}</span>
+                            <span className="font-bold text-slate-800 block">{safeDecodeURI(guest.guest_name)}</span>
                           </td>
-                          <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{guest.guest_phone || '—'}</td>
-                          <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{guest.source || 'Lễ tân nhập'}</td>
-                          {/* Hình 3.2: Cột Suất ăn chỉ còn checkbox thuần, xóa chữ */}
+                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
                           <td className="py-3.5 px-4 text-center">
                             <input
                               type="checkbox"
@@ -1699,6 +1878,84 @@ export default function EventDetail({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card Layout (Mục 9.1 Hình 9.4) */}
+            <div className="sm:hidden space-y-3">
+              {filteredGuests.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                  Chưa có khách đăng ký cho sự kiện này
+                </div>
+              ) : (
+                filteredGuests.map((guest) => {
+                  const isFood = guest.is_food_approved !== false;
+                  const status = guest.attendance_status || 'Đã đăng ký';
+                  return (
+                    <div key={guest.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="font-bold text-slate-800 block text-sm">{safeDecodeURI(guest.guest_name)}</span>
+                          <span className="text-xs text-slate-500 block">{guest.guest_phone || '—'}</span>
+                          <span className="text-[11px] text-slate-400 block">Nguồn: {guest.source || 'Lễ tân nhập'}</span>
+                        </div>
+
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            status === 'Đã check-in' || status === 'Check-in'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : status === 'Về sớm' || status === 'Check-out'
+                              ? 'bg-amber-100 text-amber-800'
+                              : status === 'Đã hủy' || status === 'Hủy'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {status}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] text-slate-600 font-medium">
+                          <span>Ăn trà (50k):</span>
+                          <input
+                            type="checkbox"
+                            checked={isFood}
+                            onChange={() => handleToggleFood(guest)}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <div className="flex items-center gap-1.5">
+                          {status !== 'Check-in' && status !== 'Đã check-in' && (
+                            <button
+                              onClick={() => handleChangeGuestStatus(guest, 'Đã check-in')}
+                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                            >
+                              Check-in
+                            </button>
+                          )}
+                          {status !== 'Về sớm' && status !== 'Check-out' && (
+                            <button
+                              onClick={() => handleChangeGuestStatus(guest, 'Về sớm')}
+                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
+                            >
+                              Về sớm
+                            </button>
+                          )}
+                          {status !== 'Đã hủy' && status !== 'Hủy' && (
+                            <button
+                              onClick={() => handleChangeGuestStatus(guest, 'Đã hủy')}
+                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                            >
+                              Hủy
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -2814,41 +3071,66 @@ export default function EventDetail({
             </div>
 
             <form onSubmit={handleSaveInCharge} className="p-6 overflow-y-auto space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Chọn thành viên <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={inChargeForm.user_id}
-                  onChange={(e) => {
-                    const selId = e.target.value;
-                    const mgr = managers.find(m => String(m.id) === selId);
-                    if (mgr) {
-                      const ALL_ROLES = ['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'];
-                      const matchedRoles = mgr.role
-                        ? ALL_ROLES.filter(r => mgr.role?.toLowerCase().includes(r.toLowerCase()))
-                        : [];
-                      setInChargeForm({
-                        ...inChargeForm,
-                        user_id: selId,
-                        full_name: mgr.full_name,
-                        position: mgr.role || 'Thành viên',
-                        phone: mgr.phone || '',
-                        email: mgr.email || '',
-                        roles: matchedRoles.length > 0 ? matchedRoles : (inChargeForm.roles.length > 0 ? inChargeForm.roles : ['Diễn giả']),
-                      });
-                    } else {
-                      setInChargeForm({ ...inChargeForm, user_id: selId });
-                    }
-                  }}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
-                >
-                  <option value="">-- Chọn thành viên từ danh sách --</option>
-                  {managers.map(m => (
-                    <option key={m.id} value={m.id}>{m.full_name}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Only show 'Chọn thành viên' when Adding, NOT when Editing (Mục 9.2 & 9.3) */}
+              {!editingInCharge && (
+                <div className="relative">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Chọn thành viên <span className="text-rose-500">*</span> (Tìm kiếm gợi ý)
+                  </label>
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={memberSearchQuery}
+                      onChange={(e) => {
+                        setMemberSearchQuery(e.target.value);
+                        setIsMemberDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsMemberDropdownOpen(true)}
+                      placeholder="Gõ để tìm kiếm thành viên theo tên, SĐT..."
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    />
+                  </div>
+                  {isMemberDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto z-30 divide-y divide-slate-100">
+                      {filteredMembers.length === 0 ? (
+                        <div className="p-3 text-xs text-slate-400 text-center">Không tìm thấy thành viên</div>
+                      ) : (
+                        filteredMembers.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              const ALL_ROLES = ['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'];
+                              const matchedRoles = m.role
+                                ? ALL_ROLES.filter((r) => m.role?.toLowerCase().includes(r.toLowerCase()))
+                                : [];
+                              setInChargeForm({
+                                ...inChargeForm,
+                                user_id: String(m.id),
+                                full_name: safeDecodeURI(m.full_name),
+                                position: m.role || 'Thành viên',
+                                phone: m.phone || '',
+                                email: m.email || '',
+                                roles: matchedRoles.length > 0 ? [matchedRoles[0]] : ['Diễn giả'],
+                              });
+                              setMemberSearchQuery(safeDecodeURI(m.full_name));
+                              setIsMemberDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                          >
+                            <div>
+                              <span className="font-semibold text-slate-800 block">{safeDecodeURI(m.full_name)}</span>
+                              <span className="text-[11px] text-slate-400">{m.phone || '—'}</span>
+                            </div>
+                            <span className="text-xs text-blue-600 font-medium">{m.role || 'Thành viên'}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -2859,7 +3141,11 @@ export default function EventDetail({
                   value={inChargeForm.full_name}
                   onChange={(e) => setInChargeForm({ ...inChargeForm, full_name: e.target.value })}
                   placeholder="Ví dụ: Nguyễn Văn A"
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  readOnly={Boolean(editingInCharge)}
+                  disabled={Boolean(editingInCharge)}
+                  className={`w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 ${
+                    editingInCharge ? 'bg-slate-100 cursor-not-allowed text-slate-600' : 'bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+                  }`}
                   required
                 />
               </div>
@@ -2872,7 +3158,11 @@ export default function EventDetail({
                     value={inChargeForm.position}
                     onChange={(e) => setInChargeForm({ ...inChargeForm, position: e.target.value })}
                     placeholder="Trưởng phòng KD..."
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    readOnly={Boolean(editingInCharge)}
+                    disabled={Boolean(editingInCharge)}
+                    className={`w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 ${
+                      editingInCharge ? 'bg-slate-100 cursor-not-allowed text-slate-600' : 'bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+                    }`}
                   />
                 </div>
                 <div>
@@ -2882,7 +3172,11 @@ export default function EventDetail({
                     value={inChargeForm.phone}
                     onChange={(e) => setInChargeForm({ ...inChargeForm, phone: e.target.value })}
                     placeholder="0912..."
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    readOnly={Boolean(editingInCharge)}
+                    disabled={Boolean(editingInCharge)}
+                    className={`w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 ${
+                      editingInCharge ? 'bg-slate-100 cursor-not-allowed text-slate-600' : 'bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+                    }`}
                   />
                 </div>
               </div>
@@ -2894,37 +3188,35 @@ export default function EventDetail({
                   value={inChargeForm.email}
                   onChange={(e) => setInChargeForm({ ...inChargeForm, email: e.target.value })}
                   placeholder="email@example.com"
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  readOnly={Boolean(editingInCharge)}
+                  disabled={Boolean(editingInCharge)}
+                  className={`w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 ${
+                    editingInCharge ? 'bg-slate-100 cursor-not-allowed text-slate-600' : 'bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+                  }`}
                 />
               </div>
 
-              {/* Checkbox Multiple Roles (Item 21) */}
+              {/* Radio Button Role Selection (Mục 9.2, 9.3 - Hình 10.1, 10.3) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
-                  Vai trò trong sự kiện <span className="text-rose-500">*</span> (chọn nhiều vai trò)
+                  Vai trò trong sự kiện <span className="text-rose-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   {['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'].map((r) => {
-                    const isChecked = inChargeForm.roles.includes(r);
+                    const isSelected = inChargeForm.roles.includes(r);
                     return (
-                      <label key={r} className="flex items-center gap-2 cursor-pointer select-none">
+                      <label key={r} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100/70 cursor-pointer select-none">
                         <input
-                          type="checkbox"
-                          checked={isChecked}
+                          type="radio"
+                          name="in_charge_role"
+                          checked={isSelected}
                           onChange={() => {
-                            if (isChecked) {
-                              setInChargeForm({
-                                ...inChargeForm,
-                                roles: inChargeForm.roles.filter((item) => item !== r),
-                              });
-                            } else {
-                              setInChargeForm({
-                                ...inChargeForm,
-                                roles: [...inChargeForm.roles, r],
-                              });
-                            }
+                            setInChargeForm({
+                              ...inChargeForm,
+                              roles: [r],
+                            });
                           }}
-                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="text-xs text-slate-700 font-medium">{r}</span>
                       </label>

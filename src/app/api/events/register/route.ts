@@ -172,8 +172,11 @@ export async function POST(request: NextRequest) {
     // Trạng thái: nếu là sự kiện đang diễn ra hôm nay thì chuyển sang check-in tham dự
     const attendanceStatus = isTodayCheckin ? 'Đã check-in' : 'Đã đăng ký';
 
-    // 5. Lưu vào event_registrations
-    // Theo hop-thoai-6: Mặc định ăn hết (is_food_approved = true)
+    // 5. Lưu vào event_registrations (Mục 10 - Checkbox Suất ăn tiệc trà)
+    const isFoodApproved = body.has_tea_break !== undefined
+      ? Boolean(body.has_tea_break)
+      : (body.is_food_approved !== undefined ? Boolean(body.is_food_approved) : true);
+
     const regRes = await pool.query(
       `INSERT INTO event_registrations (
         event_id,
@@ -191,7 +194,7 @@ export async function POST(request: NextRequest) {
         notes,
         registered_at,
         checkin_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, 'Trang chủ Web', $11, CURRENT_TIMESTAMP, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Trang chủ Web', $12, CURRENT_TIMESTAMP, $13)
       RETURNING *`,
       [
         parsedEventId,
@@ -204,6 +207,7 @@ export async function POST(request: NextRequest) {
         referrerId,
         referrerGroup,
         attendanceStatus,
+        isFoodApproved,
         cleanNotes,
         isTodayCheckin ? new Date() : null,
       ]

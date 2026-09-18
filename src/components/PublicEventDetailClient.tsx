@@ -200,7 +200,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                   </div>
                 )}
                 <span className="absolute top-4 left-4 px-3.5 py-1 rounded-lg text-xs font-bold bg-[#2563eb] text-white shadow-md">
-                  {event.status || 'Sắp diễn ra'}
+                  {event.status === 'Đang thực hiện' ? 'Đang diễn ra' : (event.status || 'Sắp diễn ra')}
                 </span>
                 {/* Nút share trên ảnh cover trên mobile (Mục 12/13) */}
                 <button
@@ -634,19 +634,39 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                 <button
                   type="button"
                   onClick={handleCopyRefLink}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                  title="Sao chép liên kết"
                 >
                   {copiedRef ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-white" />
-                      <span>Đã chép</span>
+                      <span className="hidden sm:inline">Đã chép</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Sao chép</span>
+                      <span className="hidden sm:inline">Sao chép</span>
                     </>
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shareUrl = getShareUrl();
+                    if (navigator.share) {
+                      navigator.share({
+                        title: event.name || 'Sự kiện Nghiêng Complex',
+                        url: shareUrl,
+                      }).catch(() => {});
+                    } else {
+                      window.open(shareUrl, '_blank');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-3 sm:px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                  title="Chia sẻ link QR mời"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Chia sẻ</span>
                 </button>
               </div>
             </div>

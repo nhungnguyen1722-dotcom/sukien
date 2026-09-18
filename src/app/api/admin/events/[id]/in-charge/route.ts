@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     }
 
     const body = await request.json();
-    const {
+    let {
       user_id,
       full_name,
       position = 'Thành viên',
@@ -49,12 +49,62 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
       email,
       avatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
       roles = ['Diễn giả'],
-      status = 'Chờ duyệt', // Mặc định thành viên đăng ký là Chờ duyệt, admin có thể gửi 'Đã duyệt'
+      status = 'Chờ duyệt',
       is_food_approved = true,
     } = body;
 
     if (!full_name || !full_name.trim()) {
       return NextResponse.json({ error: 'Vui lòng nhập họ và tên' }, { status: 400 });
+    }
+
+    // Decode URL-encoded name if any
+    const safeName = decodeURIComponent(full_name.trim());
+    let cleanName = safeName;
+    try {
+      while (cleanName.includes('%')) {
+        const next = decodeURIComponent(cleanName);
+        if (next === cleanName) break;
+        cleanName = next;
+      }
+    } catch {
+      // Ignore
+    }
+
+    const cleanPhone = phone?.trim() || null;
+    const cleanEmail = email?.trim() || null;
+    const parsedUserId = user_id ? parseInt(user_id, 10) : null;
+
+    // Item 3: Không được đăng ký lần 2, lần 3 trở lên
+    const conds: string[] = [];
+    const checkParams: (string | number)[] = [eventId];
+
+    if (parsedUserId) {
+      checkParams.push(parsedUserId);
+      conds.push(`user_id = $${checkParams.length}`);
+    }
+    if (cleanPhone) {
+      checkParams.push(cleanPhone);
+      conds.push(`TRIM(phone) = $${checkParams.length}`);
+    }
+    if (cleanName) {
+      checkParams.push(cleanName.toLowerCase());
+      conds.push(`LOWER(TRIM(full_name)) = $${checkParams.length}`);
+    }
+
+    if (conds.length > 0) {
+      const dupeQuery = `
+        SELECT id, full_name, status 
+        FROM event_in_charge 
+        WHERE event_id = $1 AND (${conds.join(' OR ')}) 
+        LIMIT 1
+      `;
+      const dupeCheck = await pool.query(dupeQuery, checkParams);
+      if (dupeCheck.rows.length > 0) {
+        return NextResponse.json(
+          { error: `Tài khoản "${dupeCheck.rows[0].full_name}" đã đăng ký làm người phụ trách cho sự kiện này rồi! Không được đăng ký lần 2, lần 3.` },
+          { status: 409 }
+        );
+      }
     }
 
     const res = await pool.query(
@@ -64,11 +114,11 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
       RETURNING *`,
       [
         eventId,
-        user_id ? parseInt(user_id, 10) : null,
-        full_name.trim(),
+        parsedUserId,
+        cleanName.trim(),
         position.trim(),
-        phone?.trim() || null,
-        email?.trim() || null,
+        cleanPhone,
+        cleanEmail,
         avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
         Array.isArray(roles) ? roles : [roles],
         status,

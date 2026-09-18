@@ -29,6 +29,7 @@ export interface Member {
   ref_code?: string | null;
   referrer_id?: number | null;
   referrer_name?: string | null;
+  referrer_phone?: string | null;
   referral_group?: string | null;
   source?: string | null;
   join_date?: string | null;
@@ -390,22 +391,23 @@ export default function MemberManagement({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Nút Đồng bộ Google Sheet (Mục 10 - Hình 13) */}
+          {/* Nút Đồng bộ Google Sheet (Mục 5 - Hình 5.4: Mobile đổi thành 'Đồng bộ') */}
           <button
             type="button"
             onClick={handleSyncSheet}
             disabled={isSyncingSheet}
-            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             title="Đồng bộ danh sách thành viên sang Google Sheet"
           >
             <span className={`w-2 h-2 rounded-full bg-emerald-500 ${isSyncingSheet ? 'animate-ping' : ''}`} />
-            <span>{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
+            <span className="sm:hidden">Đồng bộ</span>
+            <span className="hidden sm:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
           </button>
 
           {/* Nút Thêm mới */}
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm mới</span>
@@ -413,15 +415,15 @@ export default function MemberManagement({
         </div>
       </div>
 
-      {/* 4 Thẻ Thống kê (Stat Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+      {/* 4 Thẻ Thống kê (Stat Cards) - 2x2 trên mobile (Hình 5.4) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-8">
         {/* Card 1: Tổng số thành viên */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#2563eb]">
-              <Users className="w-5 h-5" />
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#2563eb]">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Tổng số thành viên</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500">Tổng số thành viên</span>
           </div>
           <div className="text-2xl font-bold text-slate-900 pl-1">{stats.totalMembers}</div>
         </div>
@@ -489,11 +491,10 @@ export default function MemberManagement({
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-medium text-xs">
                 <th className="py-4 px-5">Họ và tên</th>
-                <th className="py-4 px-5">SĐT</th>
+                <th className="py-4 px-5">Người mới</th>
                 <th className="py-4 px-5">Năng lực thực hiện</th>
                 <th className="py-4 px-5">Chức danh</th>
                 <th className="py-4 px-5">Số lần làm khách</th>
-                <th className="py-4 px-5">Nhóm người mới</th>
                 <th className="py-4 px-5">Trạng thái</th>
                 <th className="py-4 px-5 text-right">Thao tác</th>
               </tr>
@@ -501,7 +502,7 @@ export default function MemberManagement({
             <tbody className="divide-y divide-slate-100">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
                     {searchQuery ? 'Không tìm thấy thành viên phù hợp với từ khóa' : 'Chưa có thành viên nào trong danh sách'}
                   </td>
                 </tr>
@@ -511,14 +512,27 @@ export default function MemberManagement({
                     key={member.id}
                     className="hover:bg-slate-50/70 transition-colors group"
                   >
-                    {/* Họ và tên */}
+                    {/* Họ và tên (kèm số điện thoại nhỏ phía dưới theo Hình 5.1) */}
                     <td className="py-4 px-5 font-medium text-slate-800">
-                      {member.full_name}
+                      <div className="font-medium text-slate-900">{member.full_name}</div>
+                      {member.phone && (
+                        <div className="text-xs text-slate-400 font-normal mt-0.5">{member.phone}</div>
+                      )}
                     </td>
 
-                    {/* SĐT */}
-                    <td className="py-4 px-5 text-slate-600 font-normal">
-                      {member.phone || '—'}
+                    {/* Người mới (di chuyển sang cạnh Họ và tên theo Hình 5, format theo Hình 5.2 & 5.3) */}
+                    <td className="py-4 px-5 text-slate-600">
+                      {member.referral_group === 'Chọn người mời trong hệ thống' ? (
+                        member.referrer_name ? (
+                          <span>
+                            {member.referrer_name} {member.referrer_phone ? `(${member.referrer_phone})` : ''}
+                          </span>
+                        ) : (
+                          'Chọn người mời trong hệ thống'
+                        )
+                      ) : (
+                        member.referral_group || '—'
+                      )}
                     </td>
 
                     {/* Năng lực thực hiện (Mục 4) */}
@@ -545,11 +559,6 @@ export default function MemberManagement({
                     {/* Số lần làm khách */}
                     <td className="py-4 px-5 text-slate-600">
                       {member.guest_count && member.guest_count > 0 ? member.guest_count : '—'}
-                    </td>
-
-                    {/* Nhóm người mới */}
-                    <td className="py-4 px-5 text-slate-600">
-                      {member.referral_group || '—'}
                     </td>
 
                     {/* Trạng thái */}
@@ -615,8 +624,8 @@ export default function MemberManagement({
               </button>
             </div>
 
-            {/* Form Content - Scrollable */}
-            <form onSubmit={handleSubmit} className="overflow-y-auto px-6 py-5 space-y-4 flex-1">
+            {/* Form Content - Scrollable 2 cột trên PC (Mục 7 - Hình 7.1) */}
+            <form onSubmit={handleSubmit} className="overflow-y-auto px-6 py-5 flex-1 space-y-4">
               {formError && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -624,20 +633,21 @@ export default function MemberManagement({
                 </div>
               )}
 
-              {/* 1. Họ và tên * */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Họ và tên <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 shadow-2xs"
-                  placeholder=""
-                  required
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Họ và tên * */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Họ và tên <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 shadow-2xs"
+                    placeholder=""
+                    required
+                  />
+                </div>
 
               {/* 2. Số điện thoại * */}
               <div>
@@ -897,8 +907,9 @@ export default function MemberManagement({
                   ))}
                 </select>
               </div>
+            </div>
 
-              {/* Nút thao tác dưới Modal */}
+            {/* Nút thao tác dưới Modal */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"

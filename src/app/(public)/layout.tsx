@@ -4,6 +4,7 @@ import { Search, Bell, LogIn } from "lucide-react";
 import SystemLogo from "@/components/SystemLogo";
 import PublicHeaderNav from "@/components/PublicHeaderNav";
 import PublicHeaderAuth from "@/components/PublicHeaderAuth";
+import { safeDecodeURI } from "@/lib/authUtils";
 
 export default async function PublicLayout({
   children,
@@ -12,9 +13,9 @@ export default async function PublicLayout({
 }>) {
   // Read cookies server-side to determine initial auth state
   const cookieStore = await cookies();
-  const userRole = cookieStore.get('user_role')?.value || '';
-  const userName = cookieStore.get('user_name')?.value || '';
-  const userEmail = cookieStore.get('user_email')?.value || '';
+  const userRole = safeDecodeURI(cookieStore.get('user_role')?.value || '');
+  const userName = safeDecodeURI(cookieStore.get('user_name')?.value || '');
+  const userEmail = safeDecodeURI(cookieStore.get('user_email')?.value || '');
 
   let initialRole: 'guest' | 'member' | 'admin' = 'guest';
   if (userRole) {

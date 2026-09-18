@@ -19,6 +19,8 @@ import {
   Check,
 } from 'lucide-react';
 
+import { safeDecodeURI } from '@/lib/authUtils';
+
 export type AuthRole = 'guest' | 'member' | 'admin';
 
 interface PublicHeaderAuthProps {
@@ -40,7 +42,7 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
       try {
         const getCookie = (name: string) => {
           const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-          return match ? decodeURIComponent(match[3]) : null;
+          return match ? safeDecodeURI(match[3]) : null;
         };
 
         const cRole = getCookie('user_role');

@@ -59,6 +59,7 @@ export default function EventRegistrationModal({
   const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('vang_lai');
   const [referrer, setReferrer] = useState('');
   const [notes, setNotes] = useState('');
+  const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [agreeTerms, setAgreeTerms] = useState(true);
 
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
@@ -187,6 +188,7 @@ export default function EventRegistrationModal({
           company,
           referrer: finalReferrer,
           notes,
+          has_tea_break: hasTeaBreak,
           isTodayCheckin: isToday,
         }),
       });
@@ -608,6 +610,20 @@ export default function EventRegistrationModal({
                       placeholder="Nhập ghi chú (nếu có)"
                       className="w-full p-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     />
+                  </div>
+
+                  {/* Checkbox Suất ăn trưa tiệc trà (Mục 10 - Hình 13.2 & 13.3) */}
+                  <div className="flex items-center gap-2.5 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl">
+                    <input
+                      type="checkbox"
+                      id="teaBreakCheckbox"
+                      checked={hasTeaBreak}
+                      onChange={(e) => setHasTeaBreak(e.target.checked)}
+                      className="w-4 h-4 rounded border-amber-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="teaBreakCheckbox" className="text-xs text-amber-950 font-semibold cursor-pointer select-none">
+                      Đăng ký dự Suất ăn trưa tiệc trà (50.000đ/suất)
+                    </label>
                   </div>
 
                   {/* Checkbox Terms */}

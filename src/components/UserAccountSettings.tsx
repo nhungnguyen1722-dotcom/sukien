@@ -196,7 +196,7 @@ export default function UserAccountSettings() {
         if (data && Array.isArray(data.events)) {
           setEventsList(data.events);
           const firstUpcoming = data.events.find(
-            (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang thực hiện'
+            (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang diễn ra'
           ) || data.events[0];
           if (firstUpcoming) {
             setSelectedEventId(firstUpcoming.id);

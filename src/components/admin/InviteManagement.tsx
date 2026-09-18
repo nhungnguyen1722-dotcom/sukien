@@ -22,6 +22,10 @@ import {
   BellRing,
   Award,
   Sparkles,
+  Calendar,
+  MapPin,
+  RotateCw,
+  Download,
 } from 'lucide-react';
 
 export interface Invitation {
@@ -57,6 +61,9 @@ export interface UpcomingEvent {
   id: number;
   name: string;
   event_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  location?: string | null;
   status?: string;
 }
 
@@ -93,7 +100,7 @@ export default function InviteManagement({
         .then((data) => {
           if (data && Array.isArray(data.events)) {
             const up = data.events.filter(
-              (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang thực hiện'
+              (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang diễn ra'
             );
             setEventsList(up);
           }
@@ -118,6 +125,11 @@ export default function InviteManagement({
       }
     }
   };
+
+  const selectedEvent = useMemo(() => {
+    if (!selectedEventId) return null;
+    return eventsList.find((ev) => ev.id === selectedEventId) || null;
+  }, [eventsList, selectedEventId]);
 
   // Form states for sending invite
   const [inviteName, setInviteName] = useState('');
@@ -150,6 +162,7 @@ export default function InviteManagement({
     ? `${baseUrl}/qr-checkin?ref=${encodeURIComponent(refCode)}&event=${selectedEventId}`
     : `${baseUrl}/qr-checkin?ref=${encodeURIComponent(refCode)}`;
 
+  // Show Toast helper
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => {
@@ -157,44 +170,32 @@ export default function InviteManagement({
     }, 3500);
   };
 
-  const handleCopyLink = async () => {
-    try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(referralUrl);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = referralUrl;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
+  // Copy Link Action
+  const handleCopyLink = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(referralUrl);
       setCopied(true);
       showToast('Đã sao chép đường dẫn mời vào bộ nhớ tạm!');
-      setTimeout(() => setCopied(false), 2500);
-    } catch (err) {
-      console.error(err);
-      showToast('Không thể tự động sao chép, vui lòng copy thủ công', 'error');
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
+  // Social Share Action
   const handleShare = (platform: 'facebook' | 'zalo' | 'telegram' | 'email' | 'native') => {
-    const text = encodeURIComponent(`Tham gia sự kiện cùng mình trên WeLink để nhận quà tặng hấp dẫn! Đăng ký ngay tại: ${referralUrl}`);
-    const url = encodeURIComponent(referralUrl);
-
+    const text = `Tham gia sự kiện cùng mình tại NGHIÊNG COMPLEX: ${referralUrl}`;
     if (platform === 'facebook') {
-      window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=400');
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralUrl)}`, '_blank');
     } else if (platform === 'zalo') {
-      window.open(`https://zalo.me/share?url=${url}&title=${text}`, '_blank', 'width=600,height=400');
+      window.open(`https://chat.zalo.me/?url=${encodeURIComponent(referralUrl)}`, '_blank');
     } else if (platform === 'telegram') {
-      window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank', 'width=600,height=400');
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(referralUrl)}&text=${encodeURIComponent(text)}`, '_blank');
     } else if (platform === 'email') {
-      window.location.href = `mailto:?subject=${encodeURIComponent('Lời mời tham gia sự kiện WeLink')}&body=${text}`;
+      window.location.href = `mailto:?subject=${encodeURIComponent('[NGHIENG Complex] Thư mời tham gia sự kiện')}&body=${encodeURIComponent(text)}`;
     } else if (platform === 'native') {
-      if (navigator.share) {
+      if (typeof navigator !== 'undefined' && navigator.share) {
         navigator.share({
-          title: 'Lời mời tham gia sự kiện WeLink',
-          text: 'Tham gia sự kiện cùng mình trên WeLink để nhận quà tặng hấp dẫn!',
+          title: 'NGHIÊNG COMPLEX - Mời tham gia sự kiện',
+          text: text,
           url: referralUrl,
         }).catch(() => {});
       } else {
@@ -228,6 +229,11 @@ export default function InviteManagement({
           invitee_email: inviteEmail.trim().toLowerCase(),
           status: 'Đang chờ',
           reward_points: 0,
+          event_id: selectedEventId,
+          event_name: selectedEvent ? selectedEvent.name : 'Sự kiện Nghiêng Complex',
+          event_time: selectedEvent ? `${formatDateDisplay(selectedEvent.event_date ?? null)} (${selectedEvent.start_time || '08:30'} - ${selectedEvent.end_time || '11:30'})` : '30/05/2026 (Thứ năm) - 08:30 - 11:30',
+          event_location: selectedEvent?.location || 'Trung tâm Hội nghị Quốc gia, Hà Nội',
+          invite_link: referralUrl,
         }),
       });
 
@@ -641,6 +647,49 @@ export default function InviteManagement({
               </button>
             </div>
           </div>
+
+          {/* QR Code Card (Hình 4.4 và Hình 4.5) */}
+          <div className="mt-5 p-4 rounded-2xl border border-blue-100 bg-[#f8faff] flex flex-col sm:flex-row items-center gap-4">
+            <div className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-xs shrink-0 flex items-center justify-center">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(referralUrl)}`}
+                alt="QR Code Sự kiện"
+                className="w-28 h-28 object-contain"
+              />
+            </div>
+            <div className="flex-1 text-center sm:text-left space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Mã QR tham gia sự kiện
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    showToast('Đã làm mới mã QR thành công!');
+                  }}
+                  className="text-[11px] font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  <span>Tạo mã QR mới</span>
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Quét mã QR để đăng ký tham gia sự kiện
+              </p>
+              <div className="pt-1.5">
+                <a
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(referralUrl)}`}
+                  download={`QR_Event_${selectedEventId || 'Referral'}.png`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold px-3.5 py-2 rounded-xl shadow-xs transition-all active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải mã QR</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Card: Gửi lời mời qua email */}
@@ -685,6 +734,62 @@ export default function InviteManagement({
               <span>{isSubmitting ? 'Đang gửi...' : 'Gửi lời mời'}</span>
             </button>
           </form>
+
+          {/* Hộp xem trước nội dung email (Hình 4.2 và Hình 4.3) */}
+          <div className="mt-4 p-4 rounded-xl border border-blue-100 bg-blue-50/40 text-xs text-slate-700 space-y-3">
+            <div className="flex items-center gap-2 font-bold text-blue-900 border-b border-blue-100/80 pb-2">
+              <Mail className="w-4 h-4 text-blue-600" />
+              <span>Xem trước nội dung email sẽ gửi cho khách hàng</span>
+            </div>
+
+            <div className="space-y-1 text-slate-600">
+              <p><strong className="text-slate-800">Từ:</strong> Nghiêng Complex &lt;sukien@nghieng.com&gt;</p>
+              <p><strong className="text-slate-800">Chủ đề:</strong> [NGHIENG Complex] Thư mời tham gia sự kiện</p>
+            </div>
+
+            <div className="pt-1">
+              <p className="font-medium text-slate-800">Kính gửi {inviteName.trim() || 'Anh/Chị'},</p>
+              <p className="mt-1 text-slate-600">Bạn được mời tham gia sự kiện do Nghiêng Complex tổ chức.</p>
+            </div>
+
+            {/* Thông tin sự kiện */}
+            <div className="p-3.5 bg-white rounded-xl border border-blue-100/80 space-y-2 shadow-xs">
+              <div className="font-bold text-slate-900 mb-1">Thông tin sự kiện:</div>
+              <div className="flex items-start gap-2">
+                <Calendar className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+                <span><strong className="text-slate-700">Tên sự kiện:</strong> {selectedEvent ? selectedEvent.name : 'Hội thảo Kết nối Doanh nghiệp 2026'}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Clock className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+                <span><strong className="text-slate-700">Thời gian:</strong> {selectedEvent ? `${formatDateDisplay(selectedEvent.event_date ?? null)} (${selectedEvent.start_time || '08:30'} - ${selectedEvent.end_time || '11:30'})` : '30/05/2026 (Thứ năm) – 08:30 - 11:30'}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+                <span><strong className="text-slate-700">Địa điểm:</strong> {selectedEvent?.location || 'Trung tâm Hội nghị Quốc gia, Hà Nội'}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Users className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+                <span><strong className="text-slate-700">Người mời:</strong> {currentUser.full_name || 'Nhung Nguyễn'}</span>
+              </div>
+            </div>
+
+            <p className="text-slate-600">Vui lòng nhấn vào liên kết bên dưới để xem thông tin và đăng ký tham dự sự kiện.</p>
+            <div>
+              <a
+                href={referralUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm"
+              >
+                Tham gia sự kiện
+              </a>
+            </div>
+
+            <div className="pt-2 text-slate-500 text-[11px] leading-relaxed border-t border-blue-100/60">
+              <p>Trân trọng,</p>
+              <p className="font-semibold text-slate-700">Tập đoàn Nghiêng Complex</p>
+            </div>
+          </div>
         </div>
       </div>
 

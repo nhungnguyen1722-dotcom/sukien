@@ -56,6 +56,7 @@ export default async function NguoiMoiPage() {
             i.created_at,
             u.full_name AS inviter_name,
             u.role AS inviter_role,
+            u.phone AS inviter_phone,
             u.ref_code AS inviter_ref_code
           FROM invitations i
           LEFT JOIN users u ON i.inviter_id = u.id
@@ -66,10 +67,12 @@ export default async function NguoiMoiPage() {
             u.id, 
             u.full_name, 
             u.role,
+            u.phone,
+            u.ref_code,
             COUNT(i.id)::int AS count
           FROM users u
           INNER JOIN invitations i ON i.inviter_id = u.id
-          GROUP BY u.id, u.full_name, u.role
+          GROUP BY u.id, u.full_name, u.role, u.phone, u.ref_code
           ORDER BY u.full_name ASC
         `),
       ]);

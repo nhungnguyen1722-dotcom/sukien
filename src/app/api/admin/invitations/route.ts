@@ -153,13 +153,46 @@ export async function POST(request: NextRequest) {
       [newInvite.inviter_id]
     );
     const inviter = inviterRes.rows[0] || {};
+    const inviterName = inviter.full_name || 'Nhung Nguyễn';
+    const inviterRefCode = inviter.ref_code || 'N_0000000001';
+
+    // Send Real Email via Gmail SMTP (Item 4.2)
+    const {
+      event_id,
+      event_name = 'Sự kiện Nghiêng Complex',
+      event_time = '08:30 - 12:00',
+      event_location = 'Trung tâm Hội nghị Quốc gia, Hà Nội',
+      invite_link,
+    } = body;
+
+    const host = request.nextUrl.origin || 'http://localhost:3000';
+    const finalInviteLink =
+      invite_link ||
+      (event_id
+        ? `${host}/qr-checkin?ref=${encodeURIComponent(inviterRefCode)}&event=${event_id}`
+        : `${host}/qr-checkin?ref=${encodeURIComponent(inviterRefCode)}`);
+
+    try {
+      const { sendInvitationEmail } = await import('@/lib/email');
+      await sendInvitationEmail({
+        toEmail: newInvite.invitee_email,
+        guestName: newInvite.invitee_name || 'Quý khách',
+        eventName: event_name,
+        eventTime: event_time,
+        eventLocation: event_location,
+        inviterName: inviterName,
+        inviteLink: finalInviteLink,
+      });
+    } catch (emailErr) {
+      console.error('Failed to send invitation email via SMTP:', emailErr);
+    }
 
     return NextResponse.json(
       {
         invitation: {
           ...newInvite,
-          inviter_name: inviter.full_name || 'Admin',
-          inviter_ref_code: inviter.ref_code || 'REF_CUC12',
+          inviter_name: inviterName,
+          inviter_ref_code: inviterRefCode,
           created_at: newInvite.created_at
             ? new Date(newInvite.created_at).toISOString()
             : null,
@@ -167,7 +200,7 @@ export async function POST(request: NextRequest) {
             ? new Date(newInvite.updated_at).toISOString()
             : null,
         },
-        message: 'Gửi lời mời thành công!',
+        message: 'Gửi lời mời và email thành công!',
       },
       { status: 201 }
     );

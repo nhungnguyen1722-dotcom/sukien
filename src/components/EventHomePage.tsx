@@ -196,7 +196,9 @@ export default function EventHomePage({ events }: EventHomePageProps) {
         (e.short_description && e.short_description.toLowerCase().includes(searchQuery.toLowerCase()));
 
       let matchStatus = true;
-      if (selectedStatus !== 'Tất cả') {
+      if (selectedStatus === 'Đang diễn ra') {
+        matchStatus = e.status === 'Đang diễn ra' || e.status === 'Đang thực hiện';
+      } else if (selectedStatus !== 'Tất cả') {
         matchStatus = e.status === selectedStatus;
       }
 
@@ -221,14 +223,15 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
   // Status Badge Helper
   const getStatusBadge = (status: string) => {
-    if (status === 'Kế hoạch' || status === 'Đang diễn ra' || status === 'Đang thực hiện') {
+    const displayStatus = status === 'Đang thực hiện' ? 'Đang diễn ra' : status;
+    if (displayStatus === 'Kế hoạch' || displayStatus === 'Đang diễn ra') {
       return (
         <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#059669] text-white shadow-xs">
-          {status}
+          {displayStatus}
         </span>
       );
     }
-    if (status === 'Đã diễn ra' || status === 'Đã hoàn thành') {
+    if (displayStatus === 'Đã diễn ra' || displayStatus === 'Đã hoàn thành') {
       return (
         <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#4f46e5] text-white shadow-xs">
           Đã diễn ra
@@ -237,7 +240,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
     }
     return (
       <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#2563eb] text-white shadow-xs">
-        {status || 'Sắp diễn ra'}
+        {displayStatus || 'Sắp diễn ra'}
       </span>
     );
   };
@@ -339,7 +342,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
           {featuredEvents.slice(0, 8).map((event) => {
             const { day, monthStr } = parseDate(event.event_date);
             const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-            const isRegisterOpen = event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
+            const isRegisterOpen = event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện' || event.status === 'Đang diễn ra';
 
             return (
               <div
@@ -403,12 +406,15 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                           {event.name}
                         </Link>
                       </h3>
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-1">
-                        <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                        <span>{event.start_time ? `${event.start_time.slice(0, 5)} - ${event.end_time?.slice(0, 5) || '11:30'}` : '08:30 - 11:30'}</span>
-                        <span className="mx-1">•</span>
-                        <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                        <span className="truncate">{event.location?.split(',')[0] || 'Hà Nội'}</span>
+                      <div className="flex flex-col gap-0.5 text-[11px] text-gray-500 mt-1">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span>{event.start_time ? `${event.start_time.slice(0, 5)} - ${event.end_time?.slice(0, 5) || '11:30'}` : '08:30 - 11:30'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <span className="truncate">{event.location?.split(',')[0] || 'Hà Nội'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -458,11 +464,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
       </section>
 
       {/* KHU VỰC 3 & 4: TẤT CẢ SỰ KIỆN (LIST VIEW) & SIDEBAR CỘNG ĐỒNG (IMAGE 3 & 5) */}
-      <section id="tat-ca-su-kien" className="max-w-7xl mx-auto px-4 sm:px-6">
+      <section id="tat-ca-su-kien" className="max-w-7xl mx-auto px-[15px] sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* KHU VỰC 3 (BÊN TRÁI): TẤT CẢ SỰ KIỆN (LIST VIEW) */}
           <div className="lg:col-span-8 flex flex-col">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-100 p-[15px] sm:p-6 shadow-sm">
               {/* Header: Sắp xếp + Tiêu đề trên 1 dòng (Mục 11, Hình 13) */}
               <div className="flex items-center justify-between gap-3 pb-4 border-b border-gray-100">
                 <h2 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight">
@@ -483,9 +489,9 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 </div>
               </div>
 
-              {/* Status Filter Tabs - Bỏ Kế hoạch (Mục 11, Hình 13) */}
+              {/* Status Filter Tabs - Đang diễn ra */}
               <div className="flex flex-wrap gap-2 py-4 border-b border-gray-100">
-                {['Tất cả', 'Sắp diễn ra', 'Đang thực hiện', 'Đã diễn ra'].map((status) => (
+                {['Tất cả', 'Sắp diễn ra', 'Đang diễn ra', 'Đã diễn ra'].map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -509,15 +515,15 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 {paginatedEvents.map((event) => {
                   const { fullDate } = parseDate(event.event_date);
                   const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
-                  const isRegisterOpen = event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện';
+                  const isRegisterOpen = event.status === 'Sắp diễn ra' || event.status === 'Đang thực hiện' || event.status === 'Đang diễn ra';
 
                   return (
                     <div
                       key={event.id}
-                      className="py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-slate-50/60 p-2 rounded-xl transition-colors"
+                      className="py-4 sm:py-5 flex flex-col lg:flex-row lg:items-center gap-4 hover:bg-slate-50/60 p-2 rounded-xl transition-colors"
                     >
-                      {/* Thumbnail with Clickable Link */}
-                      <div className="w-full sm:w-28 h-48 sm:h-20 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative border border-slate-200/80 block group">
+                      {/* Thumbnail Container */}
+                      <div className="w-full lg:w-32 h-52 lg:h-24 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative border border-slate-200/80 block group">
                         <Link
                           href={`/su-kien/${event.id}`}
                           className="w-full h-full block cursor-pointer"
@@ -530,18 +536,18 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center p-2">
-                              <SystemLogo className="h-8 w-auto object-contain" />
+                            <div className="w-full h-full flex items-center justify-center p-2 bg-slate-50">
+                              <SystemLogo className="h-10 w-auto object-contain" />
                             </div>
                           )}
                         </Link>
 
-                        {/* Status Tag on Top-Left of Image for Mobile */}
-                        <div className="absolute top-2.5 left-2.5 sm:hidden">
+                        {/* Status Tag on Top-Left of Image */}
+                        <div className="absolute top-2.5 left-2.5 z-10">
                           {getStatusBadge(event.status)}
                         </div>
 
-                        {/* Nút Share ở góc trên bên phải của ảnh (Mục 10.1) */}
+                        {/* Share Button on Top-Right of Image */}
                         <div className="absolute top-2.5 right-2.5 z-10">
                           <button
                             type="button"
@@ -556,11 +562,34 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                             <Share2 className="w-4 h-4 text-gray-600" />
                           </button>
                         </div>
+
+                        {/* Dark Gradient Overlay with Text inside Image on Mobile (<= 991px) */}
+                        <div className="lg:hidden absolute inset-x-0 bottom-0 p-3 pt-8 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col justify-end text-white pointer-events-none">
+                          <h4 className="font-bold text-sm text-white leading-snug line-clamp-2 drop-shadow-sm">
+                            {event.name}
+                          </h4>
+                          <p className="text-[11px] text-white/80 line-clamp-1 mt-0.5">
+                            {event.short_description || event.name}
+                          </p>
+                          <div className="flex flex-col gap-0.5 text-[10px] text-white/90 mt-1.5 font-medium">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3 h-3 text-white/70" />
+                              <span>{fullDate}</span>
+                              <span className="text-white/40">•</span>
+                              <Clock className="w-3 h-3 text-white/70" />
+                              <span>{event.start_time ? `${event.start_time.slice(0, 5)} - ${event.end_time?.slice(0, 5) || '11:30'}` : '08:30 - 11:30'}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-white/70 flex-shrink-0" />
+                              <span className="truncate">{event.location?.split(',')[0] || 'Hà Nội'}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="hidden sm:flex items-center gap-2 mb-1">
+                      {/* Desktop Info (Hidden on mobile since it is inside the image) */}
+                      <div className="hidden lg:flex flex-1 min-w-0 flex-col">
+                        <div className="flex items-center gap-2 mb-1">
                           {getStatusBadge(event.status)}
                         </div>
                         <h4 className="font-bold text-sm text-gray-900 leading-snug line-clamp-1 hover:text-blue-600 transition-colors">
@@ -571,12 +600,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                         <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">
                           {event.short_description || event.name}
                         </p>
-                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500 mt-2">
+                        <div className="flex flex-col gap-0.5 text-[11px] text-gray-500 mt-2">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-gray-400" />
                             <span>{fullDate}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
+                            <span className="mx-1">•</span>
                             <Clock className="w-3 h-3 text-gray-400" />
                             <span>{event.start_time ? `${event.start_time.slice(0, 5)} - ${event.end_time?.slice(0, 5) || '11:30'}` : '08:30 - 11:30'}</span>
                           </div>
@@ -587,21 +615,19 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                         </div>
                       </div>
 
-                      {/* Action Button */}
-                      <div className="flex sm:flex-col items-center gap-2 flex-shrink-0 w-full sm:w-auto">
-                        <div className="flex items-center gap-2 w-full">
-                          <Link
-                            href={`/su-kien/${event.id}`}
-                            className="flex-1 inline-flex items-center justify-center gap-1 px-3.5 py-2 border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-gray-700 text-xs font-semibold rounded-xl transition-all"
-                          >
-                            <span>Chi tiết</span>
-                            <span className="text-xs">→</span>
-                          </Link>
-                        </div>
+                      {/* Action Buttons: 2 buttons side by side */}
+                      <div className="flex items-center gap-2 flex-shrink-0 w-full lg:w-auto">
+                        <Link
+                          href={`/su-kien/${event.id}`}
+                          className="flex-1 lg:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-gray-700 text-xs font-semibold rounded-xl transition-all"
+                        >
+                          <span>Chi tiết</span>
+                          <span className="text-xs">→</span>
+                        </Link>
                         <button
                           type="button"
                           onClick={() => handleOpenRegister(event)}
-                          className={`w-full inline-flex items-center justify-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
+                          className={`flex-1 lg:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
                             isEnded
                               ? 'bg-[#4f46e5] hover:bg-[#4338ca]'
                               : isRegisterOpen
@@ -795,19 +821,39 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                 <button
                   type="button"
                   onClick={handleCopyRefLink}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                  title="Sao chép liên kết"
                 >
                   {copiedRef ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-white" />
-                      <span>Đã chép</span>
+                      <span className="hidden sm:inline">Đã chép</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Sao chép</span>
+                      <span className="hidden sm:inline">Sao chép</span>
                     </>
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shareUrl = getShareUrl();
+                    if (navigator.share) {
+                      navigator.share({
+                        title: selectedShareEvent?.name || 'Sự kiện Nghiêng Complex',
+                        url: shareUrl,
+                      }).catch(() => {});
+                    } else {
+                      window.open(shareUrl, '_blank');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-3 sm:px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors flex-shrink-0 cursor-pointer"
+                  title="Chia sẻ link QR mời"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Chia sẻ</span>
                 </button>
               </div>
             </div>

@@ -16,8 +16,14 @@ import {
   LogOut,
   Menu,
   X,
+  GraduationCap,
+  Receipt,
+  Sparkles,
+  ChevronDown,
+  Trophy,
 } from 'lucide-react';
 import SystemLogo from '@/components/SystemLogo';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 const menuItems = [
   { label: 'Tổng quan', href: '/admin', icon: LayoutDashboard },
@@ -27,8 +33,17 @@ const menuItems = [
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
   { label: 'Nhật ký hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
+  { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
+  { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },
   { label: 'Tài khoản & Phân quyền', href: '/admin/tai-khoan', icon: ShieldCheck },
   { label: 'Thiết lập', href: '/admin/thiet-lap', icon: Settings },
+];
+
+const luckyWheelSubItems = [
+  { label: 'Danh sách vòng quay', href: '/admin/vong-quay' },
+  { label: 'Quay vòng trúng thưởng', href: '/admin/vong-quay/quay' },
+  { label: 'Lịch sử quay thưởng', href: '/admin/vong-quay/lich-su' },
+  { label: 'Hướng dẫn', href: '/admin/vong-quay/huong-dan' },
 ];
 
 interface AdminSidebarProps {
@@ -46,13 +61,22 @@ export default function AdminSidebar({
   const [currentName, setCurrentName] = useState(defaultAdminName);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  const isWheelRoute = pathname?.startsWith('/admin/vong-quay');
+  const [isWheelMenuOpen, setIsWheelMenuOpen] = useState(isWheelRoute);
+
   useEffect(() => {
-    if (defaultAdminRole) setCurrentRole(defaultAdminRole);
-    if (defaultAdminName) setCurrentName(defaultAdminName);
+    if (isWheelRoute) {
+      setIsWheelMenuOpen(true);
+    }
+  }, [isWheelRoute]);
+
+  useEffect(() => {
+    if (defaultAdminRole) setCurrentRole(safeDecodeURI(defaultAdminRole));
+    if (defaultAdminName) setCurrentName(safeDecodeURI(defaultAdminName));
     try {
       const getCookie = (name: string) => {
         const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-        return match ? decodeURIComponent(match[3]) : null;
+        return match ? safeDecodeURI(match[3]) : null;
       };
       const cRole = getCookie('user_role');
       const cName = getCookie('user_name');
@@ -72,16 +96,20 @@ export default function AdminSidebar({
   const isAdmin = roleLower === 'admin' || roleLower.includes('quản trị');
   const isReception = roleLower.includes('lễ tân') || roleLower.includes('reception');
 
-  // Phân quyền menu (Mục 9)
+  // Phân quyền menu (Mục 6 - Hình 6)
   const visibleMenuItems = useMemo(() => {
     if (isAdmin) {
       return menuItems;
     }
     if (isReception) {
-      return menuItems.filter((item) => item.href === '/admin/le-tan');
+      // Tài liệu Mục 6 & Hình 6:
+      // Được xem: Tổng quan, Sự kiện, Danh sách khách hàng, Lễ tân, Mời bạn bè
+      return menuItems.filter((item) =>
+        ['/admin', '/admin/su-kien', '/admin/nguoi-moi', '/admin/le-tan', '/admin/moi-ban-be'].includes(item.href)
+      );
     }
     // Các vai trò phi-admin: MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện...
-    // Được xem: Trang tổng quát, Sự kiện, Mời bạn bè, và Danh sách khách hàng (Mục 1)
+    // Được xem: Trang tổng quát, Sự kiện, Mời bạn bè, và Danh sách khách hàng (KHÔNG được xem Lễ tân)
     return menuItems.filter((item) =>
       ['/admin', '/admin/su-kien', '/admin/moi-ban-be', '/admin/nguoi-moi'].includes(item.href)
     );
@@ -155,19 +183,77 @@ export default function AdminSidebar({
             const Icon = item.icon;
 
             return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-[14px] font-medium transition-all ${
-                    isActive
-                      ? 'bg-[#2563eb] text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              </li>
+              <React.Fragment key={item.href}>
+                <li>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-[14px] font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#2563eb] text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+
+                {/* Vòng quay sự kiện - Chỉ có tài khoản Admin mới nhìn thấy (Mục 16.1) */}
+                {isAdmin && item.href === '/admin/nhat-ky-thu-chi' && (
+                  <li className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsWheelMenuOpen(!isWheelMenuOpen)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
+                        isWheelRoute
+                          ? 'bg-slate-800 text-amber-400 font-semibold shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <Sparkles
+                          className={`w-5 h-5 flex-shrink-0 ${
+                            isWheelRoute ? 'text-amber-400' : 'text-slate-400'
+                          }`}
+                        />
+                        <span>Vòng quay sự kiện</span>
+                      </div>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isWheelMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'
+                        }`}
+                      />
+                    </button>
+
+                    {isWheelMenuOpen && (
+                      <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {luckyWheelSubItems.map((sub) => {
+                          const isSubActive = pathname === sub.href;
+                          return (
+                            <li key={sub.href}>
+                              <Link
+                                href={sub.href}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                  isSubActive
+                                    ? 'bg-[#2563eb] text-white shadow-xs'
+                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                                }`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    isSubActive ? 'bg-white' : 'bg-slate-500'
+                                  }`}
+                                />
+                                <span>{sub.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                )}
+              </React.Fragment>
             );
           })}
         </ul>
@@ -181,18 +267,11 @@ export default function AdminSidebar({
             {currentName ? currentName.trim().charAt(0).toUpperCase() : 'N'}
           </div>
 
-          {/* Name & Role */}
+          {/* Name & Role (Đã xóa khung đỏ theo Hình 2.2 Mục 2) */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-white text-sm font-semibold truncate max-w-[90px]">
+            <div className="flex items-center">
+              <span className="text-white text-sm font-semibold truncate max-w-[140px]" title={currentName}>
                 {currentName}
-              </span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wide uppercase border ${
-                isReception
-                  ? 'bg-amber-950/70 text-amber-400 border-amber-500/20'
-                  : 'bg-[#831843]/70 text-[#f472b6] border-[#ec4899]/20'
-              }`}>
-                {isReception ? 'LỄ TÂN' : currentRole}
               </span>
             </div>
             <p className="text-slate-400 text-xs truncate">

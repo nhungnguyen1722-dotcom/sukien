@@ -30,18 +30,27 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Reception (Lễ tân) can only access /admin/le-tan
+  // 2. Reception (Lễ tân) - Tài liệu Mục 6:
+  // Được xem các trang: Trang tổng quát, Admin Sự kiện, Chi tiết sự kiện, Mời bạn bè, Danh sách khách hàng, và Lễ tân
   if (role.includes('lễ tân') || role.includes('le tan') || role.includes('reception')) {
-    if (url.pathname.startsWith('/admin/le-tan')) {
+    const isAllowedForReception =
+      url.pathname === '/admin' ||
+      url.pathname === '/admin/' ||
+      url.pathname.startsWith('/admin/su-kien') ||
+      url.pathname.startsWith('/admin/nguoi-moi') ||
+      url.pathname.startsWith('/admin/moi-ban-be') ||
+      url.pathname.startsWith('/admin/le-tan');
+
+    if (isAllowedForReception) {
       return NextResponse.next();
     }
     url.pathname = '/admin/le-tan';
     return NextResponse.redirect(url);
   }
 
-  // 3. Non-admin roles (MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện, Thành viên, ...)
-  // Tài liệu Mục 1: Các tài khoản thuộc các nhóm: MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện
-  // được phép truy cập và xem các chức năng: Trang tổng quát, Admin Sự kiện, Chi tiết sự kiện, Mời bạn bè, Trang Danh sách khách hàng.
+  // 3. Non-admin roles (MC, Nhân sự, Nhân viên, Diễn giả, Khác, Phụng sự, Chốt sự kiện, ...)
+  // Tài liệu Mục 6: Các tài khoản này KHÔNG được xem /admin/le-tan
+  // được phép truy cập: Trang tổng quát, Admin Sự kiện, Chi tiết sự kiện, Mời bạn bè, Trang Danh sách khách hàng.
   const isAllowedForNonAdmin =
     url.pathname === '/admin' ||
     url.pathname === '/admin/' ||
@@ -53,8 +62,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // If non-admin tries to access other restricted admin routes (e.g., /admin/tai-khoan, /admin/thanh-vien, /admin/thiet-lap, /admin/nhat-ky-hop-dong),
-  // redirect them to /admin so they stay within their permitted views
+  // If non-admin tries to access restricted routes (or /admin/le-tan), redirect to /admin
   url.pathname = '/admin';
   return NextResponse.redirect(url);
 }

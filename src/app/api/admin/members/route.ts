@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
         u.notes,
         u.created_at,
         u.updated_at,
-        r.full_name AS referrer_name
+        r.full_name AS referrer_name,
+        r.phone AS referrer_phone
       FROM users u
       LEFT JOIN users r ON u.referrer_id = r.id
       WHERE 1=1

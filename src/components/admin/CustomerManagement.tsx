@@ -18,6 +18,8 @@ import {
   Phone,
   Mail,
   Calendar,
+  Plus,
+  Minus,
 } from 'lucide-react';
 
 export interface CustomerInvite {
@@ -27,10 +29,11 @@ export interface CustomerInvite {
   invitee_email: string;
   invitee_phone?: string | null;
   status: string;
-  reward_points: number;
+  reward_points?: number;
   created_at: string | null;
   inviter_name?: string | null;
   inviter_role?: string | null;
+  inviter_phone?: string | null;
   inviter_ref_code?: string | null;
 }
 
@@ -38,6 +41,8 @@ export interface InviterGroup {
   id: number;
   full_name: string;
   role?: string | null;
+  phone?: string | null;
+  ref_code?: string | null;
   count: number;
 }
 
@@ -64,9 +69,8 @@ export default function CustomerManagement({
   const [selectedInviter, setSelectedInviter] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grouped' | 'table'>(isAdmin ? 'grouped' : 'table');
-  const [expandedInviters, setExpandedInviters] = useState<Record<string, boolean>>({
-    all: true,
-  });
+  // Closed by default (Mục 12 - Hình 11.1)
+  const [expandedInviters, setExpandedInviters] = useState<Record<string, boolean>>({});
 
   const toggleInviterExpand = (key: string) => {
     setExpandedInviters((prev) => ({
@@ -97,7 +101,7 @@ export default function CustomerManagement({
 
   // Grouped by inviter for Admin hierarchical view
   const groupedCustomers = useMemo(() => {
-    const groups: Record<string, { inviter: { id: number; name: string; role?: string }; items: CustomerInvite[] }> = {};
+    const groups: Record<string, { inviter: { id: number; name: string; role?: string; phone?: string | null; ref_code?: string | null }; items: CustomerInvite[] }> = {};
 
     filteredCustomers.forEach((c) => {
       const key = c.inviter_id ? String(c.inviter_id) : 'unknown';
@@ -107,6 +111,8 @@ export default function CustomerManagement({
             id: c.inviter_id,
             name: c.inviter_name || 'Hệ thống / Admin',
             role: c.inviter_role || 'Admin',
+            phone: c.inviter_phone || null,
+            ref_code: c.inviter_ref_code || null,
           },
           items: [],
         };
@@ -122,8 +128,7 @@ export default function CustomerManagement({
     const total = filteredCustomers.length;
     const joined = filteredCustomers.filter((c) => c.status === 'Đã tham gia').length;
     const pending = filteredCustomers.filter((c) => c.status === 'Đang chờ').length;
-    const rewards = filteredCustomers.reduce((acc, c) => acc + (c.reward_points || (c.status === 'Đã tham gia' ? 1 : 0)), 0);
-    return { total, joined, pending, rewards };
+    return { total, joined, pending };
   }, [filteredCustomers]);
 
   return (
@@ -157,8 +162,8 @@ export default function CustomerManagement({
           </div>
         </div>
 
-        {/* 4 Metrics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-white/10">
+        {/* 3 Metrics Cards - Bỏ Điểm thưởng (Hình 11) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/10">
           <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/10">
             <div className="text-xs text-blue-200">Tổng khách hàng</div>
             <div className="text-2xl font-bold text-white mt-1">{stats.total}</div>
@@ -170,10 +175,6 @@ export default function CustomerManagement({
           <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/10">
             <div className="text-xs text-amber-300">Đang chờ</div>
             <div className="text-2xl font-bold text-amber-400 mt-1">{stats.pending}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/10">
-            <div className="text-xs text-pink-300">Điểm thưởng</div>
-            <div className="text-2xl font-bold text-pink-400 mt-1">{stats.rewards}</div>
           </div>
         </div>
       </div>
@@ -262,23 +263,35 @@ export default function CustomerManagement({
 
       {/* Main Content Area: Hierarchical (Admin) or Flat Table */}
       {isAdmin && viewMode === 'grouped' ? (
-        /* HIERARCHICAL GROUPED VIEW (Mục 9 - Danh sách phân cấp) */
+        /* HIERARCHICAL GROUPED VIEW (Mục 12 - Danh sách phân cấp) */
         <div className="space-y-4">
           {Object.entries(groupedCustomers).map(([inviterKey, group]) => {
-            const isExpanded = expandedInviters[inviterKey] !== false;
+            const isExpanded = !!expandedInviters[inviterKey];
 
             return (
               <div
                 key={inviterKey}
                 className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all"
               >
-                {/* Group Header: Người mời */}
+                {/* Group Header: Người mời (Hình 11.1) */}
                 <div
                   onClick={() => toggleInviterExpand(inviterKey)}
                   className="p-4 sm:p-5 bg-slate-50/70 hover:bg-slate-100/70 flex items-center justify-between cursor-pointer select-none transition border-b border-slate-200/60"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                    {/* Dấu cộng/trừ ở đầu dòng (Hình 11.1) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleInviterExpand(inviterKey);
+                      }}
+                      className="w-6 h-6 rounded-md bg-white border border-slate-300 hover:bg-slate-100 text-blue-600 flex items-center justify-center font-bold text-sm shadow-2xs transition cursor-pointer flex-shrink-0"
+                    >
+                      {isExpanded ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    </button>
+
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
                       {group.inviter.name.charAt(0)}
                     </div>
                     <div>
@@ -290,9 +303,12 @@ export default function CustomerManagement({
                           {group.inviter.role || 'Thành viên'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Đã giới thiệu {group.items.length} khách hàng
-                      </p>
+                      {/* Bổ sung thêm số điện thoại và ID vào dưới tên mỗi người (Hình 11.1) */}
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal mt-0.5">
+                        {group.inviter.phone && <span>SĐT: {group.inviter.phone}</span>}
+                        {group.inviter.phone && <span>•</span>}
+                        <span>ID: {group.inviter.ref_code || `N_${String(group.inviter.id).padStart(10, '0')}`}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -300,26 +316,19 @@ export default function CustomerManagement({
                     <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
                       {group.items.length} khách
                     </span>
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    )}
                   </div>
                 </div>
 
-                {/* Sub-table: Danh sách khách được mời */}
+                {/* Sub-table: Danh sách khách được mời (Hình 11 & 11.2) */}
                 {isExpanded && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-white text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-100">
                         <tr>
                           <th className="py-2.5 px-4 font-semibold">Tên khách hàng</th>
-                          <th className="py-2.5 px-4 font-semibold hidden sm:table-cell">Email</th>
-                          <th className="py-2.5 px-4 font-semibold hidden md:table-cell">Số điện thoại</th>
+                          <th className="py-2.5 px-4 font-semibold">Email</th>
                           <th className="py-2.5 px-4 font-semibold">Thời gian</th>
                           <th className="py-2.5 px-4 font-semibold">Trạng thái</th>
-                          <th className="py-2.5 px-4 font-semibold text-right">Điểm thưởng</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -327,10 +336,14 @@ export default function CustomerManagement({
                           <tr key={cust.id} className="hover:bg-slate-50/50 transition">
                             <td className="py-3 px-4">
                               <div className="font-bold text-slate-900">{cust.invitee_name || 'Khách vãng lai'}</div>
-                              <div className="text-[11px] text-slate-400 sm:hidden">{cust.invitee_phone || cust.invitee_email}</div>
+                              {/* SĐT và ID dưới tên mỗi người (Hình 11.2) */}
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal mt-0.5">
+                                {cust.invitee_phone && <span>SĐT: {cust.invitee_phone}</span>}
+                                {cust.invitee_phone && <span>•</span>}
+                                <span>ID: {`KH_${String(cust.id).padStart(6, '0')}`}</span>
+                              </div>
                             </td>
-                            <td className="py-3 px-4 text-slate-600 hidden sm:table-cell">{cust.invitee_email}</td>
-                            <td className="py-3 px-4 text-slate-600 hidden md:table-cell font-mono">{cust.invitee_phone || '—'}</td>
+                            <td className="py-3 px-4 text-slate-600 font-mono">{cust.invitee_email}</td>
                             <td className="py-3 px-4 text-slate-500">
                               {cust.created_at ? new Date(cust.created_at).toLocaleDateString('vi-VN') : '—'}
                             </td>
@@ -346,9 +359,6 @@ export default function CustomerManagement({
                               >
                                 {cust.status || 'Đang chờ'}
                               </span>
-                            </td>
-                            <td className="py-3 px-4 text-right font-bold text-slate-700">
-                              +{cust.reward_points || 1} điểm
                             </td>
                           </tr>
                         ))}
@@ -374,12 +384,10 @@ export default function CustomerManagement({
               <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200/80">
                 <tr>
                   <th className="py-3.5 px-4 font-semibold">Tên khách hàng</th>
-                  <th className="py-3.5 px-4 font-semibold hidden sm:table-cell">Email</th>
-                  <th className="py-3.5 px-4 font-semibold hidden md:table-cell">Số điện thoại</th>
+                  <th className="py-3.5 px-4 font-semibold">Email</th>
                   {isAdmin && <th className="py-3.5 px-4 font-semibold">Người mời</th>}
                   <th className="py-3.5 px-4 font-semibold">Thời gian</th>
                   <th className="py-3.5 px-4 font-semibold">Trạng thái</th>
-                  <th className="py-3.5 px-4 font-semibold text-right">Điểm</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -388,12 +396,13 @@ export default function CustomerManagement({
                     <tr key={cust.id} className="hover:bg-slate-50/60 transition">
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{cust.invitee_name || 'Khách đăng ký'}</div>
-                        <div className="text-[11px] text-slate-400 sm:hidden">
-                          {cust.invitee_phone || cust.invitee_email}
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal mt-0.5">
+                          {cust.invitee_phone && <span>SĐT: {cust.invitee_phone}</span>}
+                          {cust.invitee_phone && <span>•</span>}
+                          <span>ID: {`KH_${String(cust.id).padStart(6, '0')}`}</span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600 hidden sm:table-cell">{cust.invitee_email}</td>
-                      <td className="py-3.5 px-4 text-slate-600 hidden md:table-cell font-mono">{cust.invitee_phone || '—'}</td>
+                      <td className="py-3.5 px-4 text-slate-600 font-mono">{cust.invitee_email}</td>
                       {isAdmin && (
                         <td className="py-3.5 px-4">
                           <span className="font-semibold text-slate-800">{cust.inviter_name || 'Admin'}</span>
@@ -416,14 +425,11 @@ export default function CustomerManagement({
                           {cust.status || 'Đang chờ'}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-slate-700">
-                        +{cust.reward_points || 1}
-                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-slate-400">
+                    <td colSpan={isAdmin ? 5 : 4} className="py-12 text-center text-slate-400">
                       Không có khách hàng nào trong danh sách.
                     </td>
                   </tr>

@@ -27,10 +27,12 @@ export default function QRCheckinClient({ events, inviter, selectedEventId }: QR
   const defaultEvent = matchedEvent || (events.length > 0 ? events[0] : {
     id: 1,
     name: 'Hội thảo Kết nối Doanh nghiệp 2024',
+    code: 'EVT20240530-001',
     event_date: '2026-05-30',
     start_time: '08:30',
     end_time: '11:30',
     location: 'Trung tâm Hội nghị Quốc gia, 57 Phạm Hùng, Hà Nội',
+    image_url: '/images/event-default.jpg',
   });
 
   return (

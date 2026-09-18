@@ -99,34 +99,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Duplicate check: same name + phone for same event
+    // Duplicate check: Kiểm tra trùng SĐT và trùng cả tên + SĐT cho sự kiện
     if (guest_phone && guest_phone.trim()) {
-      const dupeCheck = await pool.query(
-        `SELECT id FROM event_registrations WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) AND TRIM(guest_phone) = TRIM($3) LIMIT 1`,
-        [parseInt(event_id, 10), guest_name.trim(), guest_phone.trim()]
+      const cleanPhone = guest_phone.trim();
+      const cleanName = guest_name.trim();
+
+      // 1. Kiểm tra cả số điện thoại và cả tên trùng
+      const exactDupe = await pool.query(
+        `SELECT id, guest_name FROM event_registrations 
+         WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) AND TRIM(guest_phone) = TRIM($3) 
+         LIMIT 1`,
+        [parseInt(event_id, 10), cleanName, cleanPhone]
       );
-      if (dupeCheck.rows.length > 0) {
-        // Fetch event name for error message
-        const evtRes = await pool.query('SELECT name FROM events WHERE id = $1', [parseInt(event_id, 10)]);
-        const evtName = evtRes.rows[0]?.name || `ID ${event_id}`;
+      if (exactDupe.rows.length > 0) {
         return NextResponse.json(
-          { error: `Người đó đã đăng ký rồi: ${guest_name.trim()} - ${guest_phone.trim()} cho sự kiện ${evtName}` },
+          { error: `Cả số điện thoại và cả tên của người sau (${cleanName} - ${cleanPhone}) trùng với người trước thì không cho cập nhật dữ liệu.` },
           { status: 409 }
         );
       }
-    }
 
-    // Duplicate check: same name + phone for same event
-    if (guest_phone && guest_phone.trim()) {
-      const dupeCheck = await pool.query(
-        `SELECT id FROM event_registrations WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) AND TRIM(guest_phone) = TRIM($3) LIMIT 1`,
-        [parseInt(event_id, 10), guest_name.trim(), guest_phone.trim()]
+      // 2. Kiểm tra số điện thoại trùng
+      const phoneDupe = await pool.query(
+        `SELECT id, guest_name FROM event_registrations 
+         WHERE event_id = $1 AND TRIM(guest_phone) = TRIM($2) 
+         LIMIT 1`,
+        [parseInt(event_id, 10), cleanPhone]
       );
-      if (dupeCheck.rows.length > 0) {
-        const evtRes = await pool.query('SELECT name FROM events WHERE id = $1', [parseInt(event_id, 10)]);
-        const evtName = evtRes.rows[0]?.name || `ID ${event_id}`;
+      if (phoneDupe.rows.length > 0) {
         return NextResponse.json(
-          { error: `Người đó đã đăng ký rồi: ${guest_name.trim()} - ${guest_phone.trim()} cho sự kiện ${evtName}` },
+          { error: `Có số điện thoại ${cleanPhone} của người sau trùng với "${phoneDupe.rows[0].guest_name}" thì không cho cập nhật dữ liệu.` },
           { status: 409 }
         );
       }
@@ -227,14 +228,59 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, attendance_status, guest_role, notes, is_food_approved } = body;
+    const { id, attendance_status, guest_role, notes, is_food_approved, guest_name, guest_phone } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Thiếu ID khách mời' }, { status: 400 });
     }
 
+    if (guest_phone && guest_phone.trim()) {
+      const cleanPhone = guest_phone.trim();
+      const currentRec = await pool.query('SELECT event_id, guest_name FROM event_registrations WHERE id = $1', [id]);
+      if (currentRec.rows.length > 0) {
+        const evId = currentRec.rows[0].event_id;
+        const targetName = (guest_name ? guest_name.trim() : currentRec.rows[0].guest_name) || '';
+        
+        // Check exact match
+        const exactDupe = await pool.query(
+          `SELECT id FROM event_registrations 
+           WHERE event_id = $1 AND id != $2 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($3)) AND TRIM(guest_phone) = TRIM($4) LIMIT 1`,
+          [evId, id, targetName, cleanPhone]
+        );
+        if (exactDupe.rows.length > 0) {
+          return NextResponse.json(
+            { error: `Cả số điện thoại và tên của người sau trùng với người trước thì không cho cập nhật dữ liệu.` },
+            { status: 409 }
+          );
+        }
+
+        // Check phone match
+        const phoneDupe = await pool.query(
+          `SELECT id, guest_name FROM event_registrations 
+           WHERE event_id = $1 AND id != $2 AND TRIM(guest_phone) = TRIM($3) LIMIT 1`,
+          [evId, id, cleanPhone]
+        );
+        if (phoneDupe.rows.length > 0) {
+          return NextResponse.json(
+            { error: `Có số điện thoại ${cleanPhone} của người sau trùng với "${phoneDupe.rows[0].guest_name}" thì không cho cập nhật dữ liệu.` },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     const updates: string[] = [];
     const params: (string | number | boolean)[] = [id];
+
+    if (guest_name !== undefined) {
+      params.push(guest_name.trim());
+      updates.push(`guest_name = $${params.length}`);
+    }
+
+    if (guest_phone !== undefined) {
+      params.push(guest_phone.trim());
+      updates.push(`guest_phone = $${params.length}`);
+    }
 
     if (attendance_status !== undefined) {
       params.push(attendance_status);

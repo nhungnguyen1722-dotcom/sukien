@@ -77,7 +77,7 @@ interface EventManagementProps {
   initialManagers: ManagerOption[];
 }
 
-const STATUS_OPTIONS = ['Đang thực hiện', 'Sắp diễn ra', 'Đã diễn ra'];
+const STATUS_OPTIONS = ['Đang diễn ra', 'Sắp diễn ra', 'Đã diễn ra'];
 
 export default function EventManagement({
   initialEvents,
@@ -88,6 +88,9 @@ export default function EventManagement({
   const [stats, setStats] = useState<Stats>(initialStats);
   const [managers, setManagers] = useState<ManagerOption[]>(initialManagers);
   
+  // Tabs (Mục 8)
+  const [activeTab, setActiveTab] = useState<'Tất cả' | 'Sắp diễn ra' | 'Đang diễn ra' | 'Đã diễn ra'>('Tất cả');
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -273,6 +276,15 @@ export default function EventManagement({
     }
   };
 
+  const tabCounts = useMemo(() => {
+    return {
+      all: events.length,
+      upcoming: events.filter(e => e.status === 'Sắp diễn ra').length,
+      ongoing: events.filter(e => e.status === 'Đang diễn ra').length,
+      past: events.filter(e => e.status === 'Đã diễn ra' || e.status === 'Đã hoàn thành').length,
+    };
+  }, [events]);
+
   const filteredEvents = useMemo(() => {
     const list = events.filter(e => {
       const matchSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -280,6 +292,11 @@ export default function EventManagement({
       const matchManager = managerFilter
         ? (String(e.manager_id) === managerFilter || e.in_charge_user_ids?.includes(Number(managerFilter)))
         : true;
+      const matchTab = activeTab === 'Tất cả'
+        ? true
+        : activeTab === 'Đã diễn ra'
+          ? (e.status === 'Đã diễn ra' || e.status === 'Đã hoàn thành')
+          : e.status === activeTab;
 
       let matchTime = true;
       if (timeFilter && e.event_date) {
@@ -306,12 +323,12 @@ export default function EventManagement({
         }
       }
 
-      return matchSearch && matchStatus && matchManager && matchTime;
+      return matchSearch && matchStatus && matchManager && matchTime && matchTab;
     });
 
     return list.sort((a, b) => {
       const getPriority = (st: string) => {
-        if (st === 'Đang thực hiện' || st === 'Đang diễn ra') return 1;
+        if (st === 'Đang diễn ra' || st === 'Đang thực hiện') return 1;
         if (st === 'Sắp diễn ra') return 2;
         return 3;
       };
@@ -322,7 +339,7 @@ export default function EventManagement({
       const tB = b.event_date ? new Date(b.event_date).getTime() : 0;
       return tA - tB;
     });
-  }, [events, searchQuery, statusFilter, managerFilter, timeFilter]);
+  }, [events, searchQuery, statusFilter, managerFilter, timeFilter, activeTab]);
 
   const handleOpenAddModal = () => {
     setEditingEvent(null);
@@ -495,16 +512,17 @@ export default function EventManagement({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={handleSyncSheet}
             disabled={isSyncingSheet}
-            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             title="Đồng bộ danh sách sự kiện sang Google Sheet"
           >
             <FileSpreadsheet className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-            <span>{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Sheet'}</span>
+            <span className="hidden sm:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Sheet'}</span>
+            <span className="sm:hidden">{isSyncingSheet ? 'Đang...' : 'Đồng bộ'}</span>
           </button>
 
           {isAdmin && (
@@ -515,64 +533,66 @@ export default function EventManagement({
                   setTempFixedFees(fixedFees);
                   setIsFixedFeesDrawerOpen(true);
                 }}
-                className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
               >
                 <Settings2 className="w-4 h-4 text-blue-600" />
-                <span>Cập nhật giá 5 trường cố định</span>
+                <span className="hidden sm:inline">Cập nhật giá 5 trường cố định</span>
+                <span className="sm:hidden">Cập nhật</span>
               </button>
 
               <button
                 onClick={handleOpenAddModal}
-                className="inline-flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4" />
-                <span>Tạo sự kiện mới</span>
+                <span className="hidden sm:inline">Tạo sự kiện mới</span>
+                <span className="sm:hidden font-bold text-base">+</span>
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <CalendarDays className="w-5 h-5" />
+      {/* Stats Cards (Mobile 2x2 grid, smaller font) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-8">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+              <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <span className="text-xs font-medium text-slate-500">Tổng sự kiện</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.totalEvents}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.totalEvents}</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <TrendingUp className="w-5 h-5" />
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <span className="text-xs font-medium text-slate-500">Sắp diễn ra</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.upcomingEvents}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.upcomingEvents}</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-              <Users className="w-5 h-5" />
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <span className="text-xs font-medium text-slate-500">Tổng khách</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.totalGuests}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.totalGuests}</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Wallet className="w-5 h-5" />
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+              <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <span className="text-xs font-medium text-slate-500">Tổng chi phí</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{formatCurrency(stats.totalCost)}</div>
+          <div className="text-sm sm:text-2xl font-bold text-slate-900 pl-1 truncate" title={formatCurrency(stats.totalCost)}>{formatCurrency(stats.totalCost)}</div>
         </div>
       </div>
 
@@ -592,6 +612,36 @@ export default function EventManagement({
         <span className="text-blue-600 font-semibold cursor-pointer hover:underline text-xs shrink-0 ml-4 hidden sm:inline">
           Xem chi tiết quy tắc →
         </span>
+      </div>
+
+      {/* 4 Tabs (Mục 8: Tất cả, Sắp diễn ra, Đang diễn ra, Đã diễn ra) */}
+      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 overflow-x-auto pb-1">
+        {[
+          { key: 'Tất cả', label: 'Tất cả', count: tabCounts.all },
+          { key: 'Sắp diễn ra', label: 'Sắp diễn ra', count: tabCounts.upcoming },
+          { key: 'Đang diễn ra', label: 'Đang diễn ra', count: tabCounts.ongoing },
+          { key: 'Đã diễn ra', label: 'Đã diễn ra', count: tabCounts.past },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key as any)}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+              activeTab === tab.key
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {tab.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -644,7 +694,7 @@ export default function EventManagement({
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-medium text-xs">
                 <th className="py-4 px-5">Tên sự kiện</th>
                 <th className="py-4 px-5">Ngày</th>
-                <th className="py-4 px-5">Địa điểm</th>
+                <th className="py-4 px-5 max-w-[170px]">Địa điểm</th>
                 <th className="py-4 px-5 text-center">Khách dự kiến</th>
                 <th className="py-4 px-5">Người phụ trách</th>
                 <th className="py-4 px-5">Trạng thái</th>
@@ -682,7 +732,7 @@ export default function EventManagement({
                       </Link>
                     </td>
                     <td className="py-4 px-5 text-slate-600">{event.event_date ? formatDate(event.event_date) : '—'}</td>
-                    <td className="py-4 px-5 text-slate-600">{event.location || '—'}</td>
+                    <td className="py-4 px-5 text-slate-600 max-w-[170px] truncate" title={event.location || ''}>{event.location || '—'}</td>
                     <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.registration_count ?? 0}</td>
                     <td className="py-4 px-5 text-slate-600">{event.manager_name || '—'}</td>
                     <td className="py-4 px-5">{getStatusBadge(event.status)}</td>
