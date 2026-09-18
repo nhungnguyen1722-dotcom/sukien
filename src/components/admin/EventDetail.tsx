@@ -1950,7 +1950,7 @@ export default function EventDetail({
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                     <th className="py-3 px-4">Tên khách</th>
-                    <th className="py-3 px-4">SĐT</th>
+                    <th className="py-3 px-4">Người giới thiệu</th>
                     <th className="py-3 px-4">Nguồn</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Trạng thái tham dự</th>
@@ -1972,20 +1972,30 @@ export default function EventDetail({
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4">
                             <span className="font-bold text-slate-800 block">{safeDecodeURI(guest.guest_name)}</span>
-                            {(guest.referrer_name || guest.referrer_group) && (
-                              <span className="text-[11px] text-blue-600 block mt-0.5">
-                                Người mời: {guest.referrer_name || guest.referrer_group}
-                              </span>
+                            {guest.guest_phone && (
+                              <span className="text-[11px] text-slate-500 block mt-0.5">{guest.guest_phone}</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4">
+                            {(guest.referrer_name || guest.referrer_group) ? (
+                              <div>
+                                <span className="font-medium text-slate-800 block">{guest.referrer_name || guest.referrer_group}</span>
+                                {guest.referrer_phone && (
+                                  <span className="text-[11px] text-slate-500 block mt-0.5">{guest.referrer_phone}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Trang chủ Web'}</td>
                           <td className="py-3.5 px-4 text-center">
                             <input
                               type="checkbox"
-                              checked={isFood}
+                              checked={status === 'Đã hủy' || status === 'Hủy' ? false : isFood}
                               onChange={() => handleToggleFood(guest)}
-                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              disabled={status === 'Đã hủy' || status === 'Hủy'}
+                              className={`w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 ${status === 'Đã hủy' || status === 'Hủy' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             />
                           </td>
                           <td className="py-3.5 px-4">
@@ -2084,13 +2094,14 @@ export default function EventDetail({
                       </div>
 
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-                        <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] text-slate-600 font-medium">
+                        <label className={`flex items-center gap-1.5 select-none text-[11px] text-slate-600 font-medium ${status === 'Đã hủy' || status === 'Hủy' ? 'opacity-50' : 'cursor-pointer'}`}>
                           <span>Ăn trà (50k):</span>
                           <input
                             type="checkbox"
-                            checked={isFood}
+                            checked={status === 'Đã hủy' || status === 'Hủy' ? false : isFood}
                             onChange={() => handleToggleFood(guest)}
-                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            disabled={status === 'Đã hủy' || status === 'Hủy'}
+                            className={`w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 ${status === 'Đã hủy' || status === 'Hủy' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                           />
                         </label>
 
