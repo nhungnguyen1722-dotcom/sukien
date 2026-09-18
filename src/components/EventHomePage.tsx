@@ -81,26 +81,40 @@ export default function EventHomePage({ events }: EventHomePageProps) {
   const [copiedRef, setCopiedRef] = useState(false);
 
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      const getCookie = (name: string) => {
-        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-        return match ? decodeURIComponent(match[2]) : '';
-      };
-      const id = getCookie('user_id');
-      const name = getCookie('user_name');
-      const phone = getCookie('user_phone');
-      const email = getCookie('user_email');
-      let refCode = getCookie('user_ref_code');
-      if (!refCode && typeof window !== 'undefined') {
-        refCode = localStorage.getItem('nghieng_user_ref_code') || '';
+    const syncCurrentUser = () => {
+      if (typeof document !== 'undefined') {
+        const getCookie = (name: string) => {
+          const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+          return match ? decodeURIComponent(match[2]) : '';
+        };
+        const id = getCookie('user_id');
+        const name = getCookie('user_name');
+        const phone = getCookie('user_phone');
+        const email = getCookie('user_email');
+        let refCode = getCookie('user_ref_code');
+        if (!refCode && typeof window !== 'undefined') {
+          refCode = localStorage.getItem('nghieng_user_ref_code') || '';
+        }
+        if (!refCode && id) {
+          refCode = 'N_' + String(id).padStart(10, '0');
+        }
+        if (id || name || phone || email || refCode) {
+          setCurrentUser({ id, name, phone, email, ref_code: refCode || 'N_0000000001' });
+        } else {
+          setCurrentUser(null);
+        }
       }
-      if (!refCode && id) {
-        refCode = 'N_' + String(id).padStart(10, '0');
-      }
-      if (id || name || phone || email || refCode) {
-        setCurrentUser({ id, name, phone, email, ref_code: refCode || 'N_0000000001' });
-      }
-    }
+    };
+
+    syncCurrentUser();
+
+    window.addEventListener('nghieng-auth-change', syncCurrentUser);
+    window.addEventListener('storage', syncCurrentUser);
+
+    return () => {
+      window.removeEventListener('nghieng-auth-change', syncCurrentUser);
+      window.removeEventListener('storage', syncCurrentUser);
+    };
   }, []);
 
   const getShareUrl = (ev?: EventData | null) => {

@@ -472,13 +472,19 @@ export default function EventDetail({
     return registrations.length + inChargePersons.length;
   }, [registrations.length, inChargePersons.length]);
 
+  // Helper xác định chính xác trạng thái suất ăn tiệc trà
+  const isGuestFoodApproved = (val: any) => {
+    if (val === false || val === 'false' || val === 0 || val === '0') return false;
+    return true;
+  };
+
   // Thống kê Suất ăn & Tiệc trà từ cả 2 bảng (Mục 3, Hình 5)
   const regFoodCount = useMemo(() => {
-    return registrations.filter((r) => r.is_food_approved !== false).length;
+    return registrations.filter((r) => isGuestFoodApproved(r.is_food_approved)).length;
   }, [registrations]);
 
   const inChargeFoodCount = useMemo(() => {
-    return inChargePersons.filter((p) => p.is_food_approved !== false).length;
+    return inChargePersons.filter((p) => isGuestFoodApproved(p.is_food_approved)).length;
   }, [inChargePersons]);
 
   const totalFoodGuests = regFoodCount + inChargeFoodCount;
@@ -1014,7 +1020,8 @@ export default function EventDetail({
 
   // Handler: Toggle food approval for in-charge person (Mục 3)
   const handleToggleInChargeFood = async (person: any) => {
-    const nextVal = person.is_food_approved === false ? true : false;
+    const currentVal = isGuestFoodApproved(person.is_food_approved);
+    const nextVal = !currentVal;
     try {
       const res = await fetch(`/api/admin/events/${event.id}/in-charge`, {
         method: 'PATCH',
@@ -1067,7 +1074,8 @@ export default function EventDetail({
 
   // Handler: Toggle food approval for tea break
   const handleToggleFood = async (reg: Registration) => {
-    const nextVal = reg.is_food_approved === false ? true : false;
+    const currentVal = isGuestFoodApproved(reg.is_food_approved);
+    const nextVal = !currentVal;
     try {
       const res = await fetch('/api/admin/le-tan', {
         method: 'PATCH',
@@ -1708,7 +1716,7 @@ export default function EventDetail({
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
-                            checked={p.is_food_approved !== false}
+                            checked={isGuestFoodApproved(p.is_food_approved)}
                             onChange={() => handleToggleInChargeFood(p)}
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
@@ -1844,7 +1852,7 @@ export default function EventDetail({
                           <span>Ăn trà (50k):</span>
                           <input
                             type="checkbox"
-                            checked={p.is_food_approved !== false}
+                            checked={isGuestFoodApproved(p.is_food_approved)}
                             onChange={() => handleToggleInChargeFood(p)}
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                           />
@@ -1942,7 +1950,7 @@ export default function EventDetail({
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                     <th className="py-3 px-4">Tên khách</th>
-                    <th className="py-3 px-4">Người mời</th>
+                    <th className="py-3 px-4">SĐT</th>
                     <th className="py-3 px-4">Nguồn</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Trạng thái tham dự</th>
@@ -1958,29 +1966,20 @@ export default function EventDetail({
                     </tr>
                   ) : (
                     filteredGuests.map((guest) => {
-                      const isFood = guest.is_food_approved !== false;
+                      const isFood = isGuestFoodApproved(guest.is_food_approved);
                       const status = guest.attendance_status || 'Đã đăng ký';
                       return (
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4">
                             <span className="font-bold text-slate-800 block">{safeDecodeURI(guest.guest_name)}</span>
-                            {guest.guest_phone && (
-                              <span className="text-[11px] text-slate-400 block mt-0.5">{guest.guest_phone}</span>
+                            {(guest.referrer_name || guest.referrer_group) && (
+                              <span className="text-[11px] text-blue-600 block mt-0.5">
+                                Người mời: {guest.referrer_name || guest.referrer_group}
+                              </span>
                             )}
                           </td>
-                          <td className="py-3.5 px-4">
-                            {(guest.referrer_name || guest.referrer_group) ? (
-                              <div>
-                                <span className="font-medium text-slate-800 block">{guest.referrer_name || guest.referrer_group}</span>
-                                {guest.referrer_phone && (
-                                  <span className="text-[11px] text-slate-400 block mt-0.5">{guest.referrer_phone}</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Trang chủ Web'}</td>
                           <td className="py-3.5 px-4 text-center">
                             <input
                               type="checkbox"
@@ -2050,7 +2049,7 @@ export default function EventDetail({
                 </div>
               ) : (
                 filteredGuests.map((guest) => {
-                  const isFood = guest.is_food_approved !== false;
+                  const isFood = isGuestFoodApproved(guest.is_food_approved);
                   const status = guest.attendance_status || 'Đã đăng ký';
                   return (
                     <div key={guest.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5">

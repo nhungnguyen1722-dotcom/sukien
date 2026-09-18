@@ -48,9 +48,26 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
         const cRole = getCookie('user_role');
         const cName = getCookie('user_name');
         const cEmail = getCookie('user_email');
+        const cPhone = getCookie('user_phone');
+        const savedName = localStorage.getItem('nghieng_user_name');
+        const savedPhone = localStorage.getItem('nghieng_user_phone');
+        const savedEmail = localStorage.getItem('nghieng_user_email');
 
-        if (cName) setUserName(cName);
-        if (cEmail) setUserEmail(cEmail);
+        if (cName) {
+          setUserName(cName);
+        } else if (savedName) {
+          setUserName(savedName);
+        }
+
+        if (cEmail) {
+          setUserEmail(cEmail);
+        } else if (savedEmail) {
+          setUserEmail(savedEmail);
+        } else if (cPhone) {
+          setUserEmail(cPhone);
+        } else if (savedPhone) {
+          setUserEmail(savedPhone);
+        }
 
         if (cRole) {
           const lower = cRole.toLowerCase();
@@ -60,9 +77,18 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
             setRole('member');
           }
         } else {
-          const savedRole = localStorage.getItem('nghieng_auth_role') as AuthRole | null;
-          if (savedRole && ['guest', 'member', 'admin'].includes(savedRole)) {
-            setRole(savedRole);
+          const savedRole = localStorage.getItem('nghieng_auth_role');
+          if (savedRole) {
+            const lower = savedRole.toLowerCase();
+            if (lower.includes('admin') || lower.includes('quản trị') || lower.includes('quan tri')) {
+              setRole('admin');
+            } else if (lower.includes('thành viên') || lower.includes('member') || lower.includes('khách')) {
+              setRole('member');
+            } else if (['guest', 'member', 'admin'].includes(savedRole as AuthRole)) {
+              setRole(savedRole as AuthRole);
+            } else {
+              setRole('guest');
+            }
           } else {
             setRole('guest');
           }

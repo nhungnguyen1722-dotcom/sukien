@@ -141,11 +141,56 @@ export default function QRCheckinModal({
         // Ignore
       }
 
+      // Tự động chuyển sang trạng thái đăng nhập cho khách hàng sau khi đăng ký thành công
+      try {
+        const role = data.role || data.user?.role || 'Thành viên';
+        const uName = data.user?.fullName || fullName.trim();
+        const uPhone = data.user?.phone || cleanPhone;
+        const uEmail = data.user?.email || '';
+        const uId = data.user?.id ? String(data.user.id) : '';
+        const uRefCode = data.ref_code || data.user?.ref_code || (cleanPhone ? `N_${cleanPhone}` : 'N_0000000001');
+        const maxAge = 31536000;
+
+        document.cookie = `user_role=${encodeURIComponent(role)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `user_name=${encodeURIComponent(uName)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `user_phone=${encodeURIComponent(uPhone)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        if (uEmail) {
+          document.cookie = `user_email=${encodeURIComponent(uEmail)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        }
+        if (uId) {
+          document.cookie = `user_id=${uId}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        }
+        document.cookie = `user_ref_code=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `ref_code=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `user_ref=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+
+        localStorage.setItem('nghieng_auth_role', role);
+        localStorage.setItem('nghieng_user_name', uName);
+        localStorage.setItem('nghieng_user_phone', uPhone);
+        if (uEmail) localStorage.setItem('nghieng_user_email', uEmail);
+        if (uId) localStorage.setItem('nghieng_user_id', uId);
+        localStorage.setItem('nghieng_user_ref_code', uRefCode);
+        localStorage.setItem('ref_code', uRefCode);
+
+        // Dispatch sự kiện để PublicHeaderAuth và EventHomePage cập nhật tức thì
+        window.dispatchEvent(new Event('nghieng-auth-change'));
+        window.dispatchEvent(new Event('storage'));
+      } catch {
+        // Ignore
+      }
+
       setRegistrationResult(data);
     } catch (err: any) {
       setErrorMsg(err.message || 'Có lỗi xảy ra khi gửi thông tin');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    onClose();
+    if (registrationResult) {
+      router.refresh();
     }
   };
 
@@ -171,7 +216,7 @@ export default function QRCheckinModal({
       <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleCloseModal}
           type="button"
           className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors shadow-xs"
         >
@@ -553,7 +598,7 @@ export default function QRCheckinModal({
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleCloseModal}
                 className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm shadow-blue-500/20 cursor-pointer"
               >
                 Đóng
