@@ -480,11 +480,17 @@ export default function EventDetail({
 
   // Thống kê Suất ăn & Tiệc trà từ cả 2 bảng (Mục 3, Hình 5)
   const regFoodCount = useMemo(() => {
-    return registrations.filter((r) => isGuestFoodApproved(r.is_food_approved)).length;
+    return registrations.filter((r) => {
+      const isCanceled = r.attendance_status === 'Đã hủy' || r.attendance_status === 'Hủy';
+      return !isCanceled && isGuestFoodApproved(r.is_food_approved);
+    }).length;
   }, [registrations]);
 
   const inChargeFoodCount = useMemo(() => {
-    return inChargePersons.filter((p) => isGuestFoodApproved(p.is_food_approved)).length;
+    return inChargePersons.filter((p) => {
+      const isCanceled = p.status === 'Đã hủy' || p.status === 'Hủy';
+      return !isCanceled && isGuestFoodApproved(p.is_food_approved);
+    }).length;
   }, [inChargePersons]);
 
   const totalFoodGuests = regFoodCount + inChargeFoodCount;
@@ -806,18 +812,37 @@ export default function EventDetail({
 
   // Handler: Change Guest Attendance Status (Item 16: Đã đăng ký -> Check-in -> Check-out)
   const handleChangeGuestStatus = async (reg: Registration, newStatus: string) => {
+    const isCanceled = newStatus === 'Đã hủy' || newStatus === 'Hủy';
+    const wasCanceled = reg.attendance_status === 'Đã hủy' || reg.attendance_status === 'Hủy';
+    const isReactivating = wasCanceled && !isCanceled;
+
     try {
+      const payload: any = {
+        id: reg.id,
+        attendance_status: newStatus,
+      };
+      if (isCanceled) {
+        payload.is_food_approved = false;
+      } else if (isReactivating) {
+        payload.is_food_approved = true;
+      }
+
       const res = await fetch('/api/admin/le-tan', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: reg.id,
-          attendance_status: newStatus,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setRegistrations(
-          registrations.map((r) => (r.id === reg.id ? { ...r, attendance_status: newStatus } : r))
+          registrations.map((r) =>
+            r.id === reg.id
+              ? {
+                  ...r,
+                  attendance_status: newStatus,
+                  ...(isCanceled ? { is_food_approved: false } : isReactivating ? { is_food_approved: true } : {}),
+                }
+              : r
+          )
         );
         showToast('success', `Đã chuyển trạng thái sang ${newStatus}`);
       }
@@ -1074,6 +1099,10 @@ export default function EventDetail({
 
   // Handler: Toggle food approval for tea break
   const handleToggleFood = async (reg: Registration) => {
+    if (reg.attendance_status === 'Đã hủy' || reg.attendance_status === 'Hủy') {
+      showToast('error', 'Khách đã hủy tham dự không thể chọn suất ăn');
+      return;
+    }
     const currentVal = isGuestFoodApproved(reg.is_food_approved);
     const nextVal = !currentVal;
     try {

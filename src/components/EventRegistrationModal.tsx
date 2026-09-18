@@ -67,6 +67,11 @@ export default function EventRegistrationModal({
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    isDuplicate: boolean;
+    duplicateType?: string;
+    registration?: any;
+  } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
   const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{id: number; full_name: string; phone: string}>>([]);
@@ -78,6 +83,7 @@ export default function EventRegistrationModal({
     if (!isOpen) {
       setRegistrationResult(null);
       setErrorMsg('');
+      setDuplicateInfo(null);
       return;
     }
 
@@ -196,6 +202,7 @@ export default function EventRegistrationModal({
 
     setIsSubmitting(true);
     setErrorMsg('');
+    setDuplicateInfo(null);
 
     const finalReferrer = referrerType === 'vang_lai' ? 'Khách vãng lai' : referrer.trim();
 
@@ -218,6 +225,13 @@ export default function EventRegistrationModal({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
+        if (data.isDuplicate) {
+          setDuplicateInfo({
+            isDuplicate: true,
+            duplicateType: data.duplicateType,
+            registration: data.registration,
+          });
+        }
         throw new Error(data.error || 'Đăng ký thất bại. Vui lòng thử lại.');
       }
 
@@ -497,9 +511,25 @@ export default function EventRegistrationModal({
                 )}
 
                 {errorMsg && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-center gap-2 text-xs text-red-700">
-                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    <span>{errorMsg}</span>
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 space-y-2 text-xs text-red-700">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                      <span className="font-medium leading-relaxed">{errorMsg}</span>
+                    </div>
+                    {duplicateInfo?.duplicateType === 'SAME_NAME_SAME_PHONE' && duplicateInfo.registration && (
+                      <div className="pl-6 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRegistrationResult(duplicateInfo.registration);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+                        >
+                          <Ticket className="w-3.5 h-3.5" />
+                          <span>Xem lại vé QR đã đăng ký</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

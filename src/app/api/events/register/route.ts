@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanPhone = phone.trim().replace(/\s+/g, '');
-    const cleanName = fullName.trim();
+    const cleanName = fullName.trim().replace(/\s+/g, ' ');
     const cleanEmail = email?.trim() || null;
     const cleanCompany = company?.trim() || null;
     const cleanNotes = notes?.trim() || null;
@@ -53,25 +53,75 @@ export async function POST(request: NextRequest) {
     }
     const event = eventRes.rows[0];
 
-    // Kiểm tra trùng lặp theo Yêu cầu 4: Cùng Tên VÀ cùng Số điện thoại trong cùng 1 sự kiện
-    const duplicateCheck = await pool.query(
-      `SELECT id FROM event_registrations 
+    // Kiểm tra trùng lặp người đăng ký trong cùng 1 sự kiện:
+    // 1) Khác tên, trùng Số Điện thoại người trước -> KHÔNG được đăng ký tiếp tục trong sự kiện đó
+    // 2) Trùng cả tên, trùng cả Số Điện thoại người trước -> KHÔNG được đăng ký tiếp tục trong sự kiện đó
+    const duplicatePhoneCheck = await pool.query(
+      `SELECT 
+         id, 
+         guest_code, 
+         guest_name, 
+         guest_phone, 
+         guest_email, 
+         attendance_status, 
+         is_food_approved 
+       FROM event_registrations 
        WHERE event_id = $1 
-         AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) 
-         AND REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($3, '[^0-9]', '', 'g')
+         AND (
+           REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($2, '[^0-9]', '', 'g')
+           OR (
+             LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g')) >= 9 
+             AND LENGTH(REGEXP_REPLACE($2, '[^0-9]', '', 'g')) >= 9 
+             AND RIGHT(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g'), 9) = RIGHT(REGEXP_REPLACE($2, '[^0-9]', '', 'g'), 9)
+           )
+         )
+       ORDER BY 
+         CASE WHEN LOWER(TRIM(guest_name)) = LOWER(TRIM($3)) THEN 0 ELSE 1 END ASC,
+         id ASC
        LIMIT 1`,
-      [parsedEventId, cleanName, cleanPhone]
+      [parsedEventId, cleanPhone, cleanName]
     );
 
-    if (duplicateCheck.rows.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          isDuplicate: true,
-          error: `Bạn đã đăng ký rồi: ${cleanName} - ${cleanPhone} cho sự kiện ${event.name}`,
-        },
-        { status: 400 }
-      );
+    if (duplicatePhoneCheck.rows.length > 0) {
+      const existingReg = duplicatePhoneCheck.rows[0];
+      const existingGuestName = (existingReg.guest_name || '').trim();
+      const isSameName = existingGuestName.toLowerCase() === cleanName.toLowerCase();
+
+      if (isSameName) {
+        // Trường hợp 2: Người đăng ký lần 2 trở đi trùng cả tên, trùng cả điện thoại
+        return NextResponse.json(
+          {
+            success: false,
+            isDuplicate: true,
+            duplicateType: 'SAME_NAME_SAME_PHONE',
+            error: `Bạn đã đăng ký sự kiện này rồi (${cleanName} - ${cleanPhone}). Trong 1 sự kiện, mỗi người chỉ được đăng ký 1 lần.`,
+            registration: {
+              id: existingReg.id,
+              guestCode: existingReg.guest_code,
+              guestName: existingReg.guest_name,
+              guestPhone: existingReg.guest_phone,
+              guestEmail: existingReg.guest_email,
+              attendanceStatus: existingReg.attendance_status,
+              isFoodApproved: existingReg.is_food_approved,
+              eventName: event.name,
+              eventDate: event.event_date,
+              eventLocation: event.location,
+            },
+          },
+          { status: 400 }
+        );
+      } else {
+        // Trường hợp 1: Người đăng ký lần 2 trở đi khác tên, trùng Số Điện thoại người trước
+        return NextResponse.json(
+          {
+            success: false,
+            isDuplicate: true,
+            duplicateType: 'DIFFERENT_NAME_SAME_PHONE',
+            error: `Số điện thoại ${cleanPhone} đã được đăng ký bởi khách hàng "${existingGuestName}" trong sự kiện "${event.name}". Trong 1 sự kiện, mỗi số điện thoại chỉ được đăng ký 1 lần.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // 2. Tìm người giới thiệu (nếu có)

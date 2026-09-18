@@ -107,7 +107,15 @@ export async function POST(request: NextRequest) {
       // 1. Kiểm tra cả số điện thoại và cả tên trùng
       const exactDupe = await pool.query(
         `SELECT id, guest_name FROM event_registrations 
-         WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) AND TRIM(guest_phone) = TRIM($3) 
+         WHERE event_id = $1 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($2)) 
+           AND (
+             REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($3, '[^0-9]', '', 'g')
+             OR (
+               LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g')) >= 9 
+               AND LENGTH(REGEXP_REPLACE($3, '[^0-9]', '', 'g')) >= 9 
+               AND RIGHT(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g'), 9) = RIGHT(REGEXP_REPLACE($3, '[^0-9]', '', 'g'), 9)
+             )
+           )
          LIMIT 1`,
         [parseInt(event_id, 10), cleanName, cleanPhone]
       );
@@ -121,7 +129,15 @@ export async function POST(request: NextRequest) {
       // 2. Kiểm tra số điện thoại trùng
       const phoneDupe = await pool.query(
         `SELECT id, guest_name FROM event_registrations 
-         WHERE event_id = $1 AND TRIM(guest_phone) = TRIM($2) 
+         WHERE event_id = $1 
+           AND (
+             REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($2, '[^0-9]', '', 'g')
+             OR (
+               LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g')) >= 9 
+               AND LENGTH(REGEXP_REPLACE($2, '[^0-9]', '', 'g')) >= 9 
+               AND RIGHT(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g'), 9) = RIGHT(REGEXP_REPLACE($2, '[^0-9]', '', 'g'), 9)
+             )
+           )
          LIMIT 1`,
         [parseInt(event_id, 10), cleanPhone]
       );
@@ -244,7 +260,16 @@ export async function PATCH(request: NextRequest) {
         // Check exact match
         const exactDupe = await pool.query(
           `SELECT id FROM event_registrations 
-           WHERE event_id = $1 AND id != $2 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($3)) AND TRIM(guest_phone) = TRIM($4) LIMIT 1`,
+           WHERE event_id = $1 AND id != $2 AND LOWER(TRIM(guest_name)) = LOWER(TRIM($3)) 
+             AND (
+               REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($4, '[^0-9]', '', 'g')
+               OR (
+                 LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g')) >= 9 
+                 AND LENGTH(REGEXP_REPLACE($4, '[^0-9]', '', 'g')) >= 9 
+                 AND RIGHT(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g'), 9) = RIGHT(REGEXP_REPLACE($4, '[^0-9]', '', 'g'), 9)
+               )
+             )
+           LIMIT 1`,
           [evId, id, targetName, cleanPhone]
         );
         if (exactDupe.rows.length > 0) {
@@ -257,7 +282,16 @@ export async function PATCH(request: NextRequest) {
         // Check phone match
         const phoneDupe = await pool.query(
           `SELECT id, guest_name FROM event_registrations 
-           WHERE event_id = $1 AND id != $2 AND TRIM(guest_phone) = TRIM($3) LIMIT 1`,
+           WHERE event_id = $1 AND id != $2 
+             AND (
+               REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($3, '[^0-9]', '', 'g')
+               OR (
+                 LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g')) >= 9 
+                 AND LENGTH(REGEXP_REPLACE($3, '[^0-9]', '', 'g')) >= 9 
+                 AND RIGHT(REGEXP_REPLACE(guest_phone, '[^0-9]', '', 'g'), 9) = RIGHT(REGEXP_REPLACE($3, '[^0-9]', '', 'g'), 9)
+               )
+             )
+           LIMIT 1`,
           [evId, id, cleanPhone]
         );
         if (phoneDupe.rows.length > 0) {
@@ -287,6 +321,10 @@ export async function PATCH(request: NextRequest) {
       updates.push(`attendance_status = $${params.length}`);
       if (attendance_status === 'Đã check-in') {
         updates.push(`checkin_at = CURRENT_TIMESTAMP`);
+      }
+      if ((attendance_status === 'Đã hủy' || attendance_status === 'Hủy') && is_food_approved === undefined) {
+        params.push(false);
+        updates.push(`is_food_approved = $${params.length}`);
       }
     }
 

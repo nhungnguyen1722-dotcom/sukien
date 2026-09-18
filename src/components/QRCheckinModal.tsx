@@ -60,6 +60,11 @@ export default function QRCheckinModal({
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    isDuplicate: boolean;
+    duplicateType?: string;
+    registration?: any;
+  } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
   // Auto-fill from localStorage if previously registered
@@ -67,6 +72,7 @@ export default function QRCheckinModal({
     if (!isOpen) {
       setRegistrationResult(null);
       setErrorMsg('');
+      setDuplicateInfo(null);
       return;
     }
 
@@ -92,6 +98,7 @@ export default function QRCheckinModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setDuplicateInfo(null);
 
     if (!fullName.trim()) {
       setErrorMsg('Vui lòng nhập họ và tên của bạn');
@@ -122,6 +129,13 @@ export default function QRCheckinModal({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
+        if (data.isDuplicate) {
+          setDuplicateInfo({
+            isDuplicate: true,
+            duplicateType: data.duplicateType,
+            registration: data.registration,
+          });
+        }
         throw new Error(data.error || 'Đăng ký thất bại, vui lòng thử lại');
       }
 
@@ -292,9 +306,29 @@ export default function QRCheckinModal({
                 </div>
 
                 {errorMsg && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    <span>{errorMsg}</span>
+                  <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-xl text-xs space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+                      <span className="font-medium leading-relaxed">{errorMsg}</span>
+                    </div>
+                    {duplicateInfo?.duplicateType === 'SAME_NAME_SAME_PHONE' && duplicateInfo.registration && (
+                      <div className="pl-6 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRegistrationResult({
+                              success: true,
+                              registration: duplicateInfo.registration,
+                              message: 'Thông tin vé đã đăng ký của bạn',
+                            });
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+                        >
+                          <Ticket className="w-3.5 h-3.5" />
+                          <span>Xem lại vé QR đã đăng ký</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
