@@ -53,6 +53,10 @@ export default function LoginPage() {
           );
           if (data.ref_code) {
             localStorage.setItem("nghieng_user_ref_code", data.ref_code);
+            localStorage.setItem("ref_code", data.ref_code);
+          }
+          if (data.user?.id) {
+            localStorage.setItem("nghieng_user_id", String(data.user.id));
           }
         } catch {
           // Ignore

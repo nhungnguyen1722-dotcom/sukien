@@ -4,6 +4,7 @@ import InviteManagement, {
   Invitation,
   InviteStats,
   CurrentUser,
+  UpcomingEvent,
 } from '@/components/admin/InviteManagement';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ async function getInitialInviteData(): Promise<{
   invitations: Invitation[];
   stats: InviteStats;
   currentUser: CurrentUser;
-  upcomingEvents: { id: number; name: string; event_date: string | null; status: string }[];
+  upcomingEvents: UpcomingEvent[];
 }> {
   try {
     const cookieStore = await cookies();
@@ -60,10 +61,24 @@ async function getInitialInviteData(): Promise<{
         cookieUserId ? [parseInt(cookieUserId, 10)] : cookiePhone ? [cookiePhone] : []
       ),
       pool.query(`
-        SELECT id, name, event_date, status
+        SELECT 
+          id, 
+          name, 
+          event_date::text AS event_date, 
+          start_time::text AS start_time, 
+          end_time::text AS end_time, 
+          location, 
+          status
         FROM events
-        WHERE status IN ('Sắp diễn ra', 'Đang thực hiện', 'Đang diễn ra')
-        ORDER BY (CASE WHEN status = 'Sắp diễn ra' THEN 1 ELSE 2 END), event_date ASC
+        ORDER BY 
+          CASE 
+            WHEN status IN ('Sắp diễn ra', 'Đang diễn ra', 'Đang thực hiện') THEN 1 
+            WHEN status = 'Kế hoạch' THEN 2 
+            ELSE 3 
+          END ASC, 
+          event_date ASC, 
+          start_time ASC, 
+          id ASC
       `),
     ]);
 
@@ -104,8 +119,11 @@ async function getInitialInviteData(): Promise<{
       upcomingEvents: eventsRes.rows.map((ev) => ({
         id: ev.id,
         name: ev.name,
-        event_date: ev.event_date ? new Date(ev.event_date).toISOString() : null,
-        status: ev.status,
+        event_date: ev.event_date || null,
+        start_time: ev.start_time || null,
+        end_time: ev.end_time || null,
+        location: ev.location || null,
+        status: ev.status || '',
       })),
     };
   } catch (error) {

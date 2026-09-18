@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   CalendarDays,
@@ -30,8 +30,22 @@ import {
   Phone,
   Paperclip,
   Share2,
+  Upload,
+  Image as LucideImage,
+  Copy,
 } from 'lucide-react';
 import { safeDecodeURI } from '@/lib/authUtils';
+
+const PRESET_EVENT_IMAGES = [
+  { url: '/events/event-1.jpg', title: 'Hội thảo Doanh nghiệp' },
+  { url: '/events/event-2.jpg', title: 'Workshop Chuyển đổi số' },
+  { url: '/events/event-3.jpg', title: 'CEO Talk & Lãnh đạo' },
+  { url: '/events/event-4.jpg', title: 'Hội nghị Thường niên' },
+  { url: '/events/event-5.jpg', title: 'Đào tạo Kỹ năng mềm' },
+  { url: '/events/event-6.jpg', title: 'Hội thảo AI & Công nghệ' },
+  { url: '/events/event-7.jpg', title: 'Teambuilding Gắn kết' },
+  { url: '/events/event-8.jpg', title: 'Gala Ra mắt Sản phẩm' },
+];
 
 export interface EventData {
   id: number;
@@ -39,6 +53,7 @@ export interface EventData {
   name: string;
   short_description: string | null;
   detail_description: string | null;
+  content?: string | null;
   event_date: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -121,6 +136,7 @@ export interface ManagerOption {
   role?: string;
   phone?: string;
   email?: string;
+  ref_code?: string | null;
 }
 
 export interface ScheduleItem {
@@ -132,6 +148,18 @@ export interface ScheduleItem {
   order_num?: number;
 }
 
+const DEFAULT_IN_CHARGE_ROLES = [
+  'Diễn giả',
+  'MC',
+  'Chốt sự kiện',
+  'Phụng sự',
+  'Điều phối',
+  'Hỗ trợ',
+  'Lễ tân',
+  'Khách mời',
+  'Khác',
+];
+
 interface EventDetailProps {
   initialEvent: EventData;
   initialRegistrations: Registration[];
@@ -140,6 +168,7 @@ interface EventDetailProps {
   managers: ManagerOption[];
   initialSchedules?: ScheduleItem[];
   initialInChargePersons?: any[];
+  initialUserRefCode?: string;
 }
 
 export default function EventDetail({
@@ -150,6 +179,7 @@ export default function EventDetail({
   managers,
   initialSchedules,
   initialInChargePersons,
+  initialUserRefCode,
 }: EventDetailProps) {
   const [event, setEvent] = useState<EventData>(initialEvent);
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations);
@@ -183,6 +213,24 @@ export default function EventDetail({
     roles: [] as string[],
     notes: '',
   });
+
+  // Custom roles for in-charge
+  const [customInChargeRoles, setCustomInChargeRoles] = useState<string[]>([]);
+  const [newCustomRoleInput, setNewCustomRoleInput] = useState('');
+  const [showAddCustomRole, setShowAddCustomRole] = useState(false);
+
+  // Available roles computed
+  const availableInChargeRoles = useMemo(() => {
+    const list = [...DEFAULT_IN_CHARGE_ROLES, ...customInChargeRoles];
+    if (Array.isArray(inChargeForm.roles)) {
+      inChargeForm.roles.forEach((r) => {
+        if (r && !list.includes(r)) {
+          list.push(r);
+        }
+      });
+    }
+    return Array.from(new Set(list));
+  }, [customInChargeRoles, inChargeForm.roles]);
 
   // Schedule list state (Item 5)
   const [scheduleList, setScheduleList] = useState<ScheduleItem[]>(
@@ -237,6 +285,39 @@ export default function EventDetail({
     image_url: event.image_url || '/events/event-1.jpg',
     notes: event.notes || '',
   });
+  const [editContentHtml, setEditContentHtml] = useState<string>(
+    (event as any).content || event.detail_description || ''
+  );
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleEditFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setEditEventForm((prev) => ({ ...prev, image_url: data.url }));
+        showToast('success', 'Tải ảnh sự kiện lên thành công!');
+      } else {
+        showToast('error', data.error || 'Lỗi khi tải ảnh');
+      }
+    } catch {
+      showToast('error', 'Lỗi kết nối khi tải ảnh');
+    } finally {
+      setIsUploadingImage(false);
+      if (editFileInputRef.current) editFileInputRef.current.value = '';
+    }
+  };
 
   // Form states
   const [costForm, setCostForm] = useState({
@@ -296,7 +377,8 @@ export default function EventDetail({
   const [currentUserName, setCurrentUserName] = useState('');
   const [currentUserPhone, setCurrentUserPhone] = useState('');
   const [currentUserEmail, setCurrentUserEmail] = useState('');
-  const [currentUserRefCode, setCurrentUserRefCode] = useState('N_0000000001');
+  const [currentUserRefCode, setCurrentUserRefCode] = useState(initialUserRefCode || 'N_0000000001');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Search dropdown for member in In-Charge modal (Mục 9.3, Hình 10.2)
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -324,22 +406,43 @@ export default function EventDetail({
       const cName = getCookie('user_name');
       const cPhone = getCookie('user_phone');
       const cEmail = getCookie('user_email');
-      const cRef = getCookie('ref_code') || getCookie('user_ref');
+      const cRef =
+        getCookie('user_ref_code') ||
+        getCookie('ref_code') ||
+        getCookie('user_ref') ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('nghieng_user_ref_code') || localStorage.getItem('ref_code')
+          : null);
+
       if (cRole) setCurrentUserRole(cRole);
-      if (cId) {
-        setCurrentUserId(parseInt(cId, 10));
-        if (!cRef) {
-          setCurrentUserRefCode('N_' + String(cId).padStart(10, '0'));
-        }
-      }
+      if (cId) setCurrentUserId(parseInt(cId, 10));
       if (cName) setCurrentUserName(cName);
       if (cPhone) setCurrentUserPhone(cPhone);
       if (cEmail) setCurrentUserEmail(cEmail);
-      if (cRef) setCurrentUserRefCode(cRef);
+
+      if (cRef) {
+        setCurrentUserRefCode(cRef);
+      } else {
+        // Try finding user in managers to get their actual ref_code
+        const found = managers.find(
+          (m) =>
+            (cId && m.id === parseInt(cId, 10)) ||
+            (cPhone && m.phone && m.phone === cPhone) ||
+            (cEmail && m.email && m.email.toLowerCase() === cEmail.toLowerCase()) ||
+            (cName && m.full_name && safeDecodeURI(m.full_name).toLowerCase() === safeDecodeURI(cName).toLowerCase())
+        );
+        if (found?.ref_code) {
+          setCurrentUserRefCode(found.ref_code);
+        } else if (initialUserRefCode) {
+          setCurrentUserRefCode(initialUserRefCode);
+        } else if (cId) {
+          setCurrentUserRefCode('N_' + String(cId).padStart(10, '0'));
+        }
+      }
     } catch {
       // Ignore
     }
-  }, []);
+  }, [managers, initialUserRefCode]);
 
   const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
 
@@ -356,6 +459,11 @@ export default function EventDetail({
   }, [isAdmin, inChargePersons, currentUserId, currentUserName]);
 
   const isAlreadyRegisteredInCharge = Boolean(myInChargePerson);
+
+  // Computed Share URL for QR check-in (ref code of logged-in user)
+  const shareOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const effectiveRefCode = currentUserRefCode || initialUserRefCode || 'N_0000000001';
+  const eventShareUrl = `${shareOrigin}/qr-checkin?ref=${encodeURIComponent(effectiveRefCode)}&event=${event.id}`;
 
   // Thống kê tổng số khách mời: Khách đăng ký & check-in + Danh sách người phụ trách (Mục 7)
   const totalExpectedGuests = useMemo(() => {
@@ -475,6 +583,7 @@ export default function EventDetail({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...editEventForm,
+          content: editContentHtml,
           mc_fee: event.mc_fee,
           speaker_fee: event.speaker_fee,
           support_fee: event.support_fee,
@@ -483,7 +592,10 @@ export default function EventDetail({
         }),
       });
 
-      if (!res.ok) throw new Error('Cập nhật sự kiện thất bại');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Cập nhật sự kiện thất bại');
+      }
 
       setEvent({
         ...event,
@@ -496,12 +608,14 @@ export default function EventDetail({
         status: editEventForm.status,
         image_url: editEventForm.image_url,
         notes: editEventForm.notes,
+        content: editContentHtml,
+        detail_description: editContentHtml,
       });
 
       showToast('success', 'Đã cập nhật thông tin sự kiện!');
       setIsEditEventModalOpen(false);
-    } catch {
-      showToast('error', 'Lỗi khi cập nhật thông tin sự kiện');
+    } catch (err: any) {
+      showToast('error', err?.message || 'Lỗi khi cập nhật thông tin sự kiện');
     }
   };
 
@@ -847,11 +961,13 @@ export default function EventDetail({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            user_id: inChargeForm.user_id || undefined,
             full_name: inChargeForm.full_name,
             position: inChargeForm.position,
             phone: inChargeForm.phone,
             email: inChargeForm.email,
             roles: inChargeForm.roles,
+            status: isAdmin ? 'Đã duyệt' : 'Chờ duyệt',
           }),
         });
         if (res.ok) {
@@ -863,6 +979,8 @@ export default function EventDetail({
       }
       setIsAddInChargeModalOpen(false);
       setEditingInCharge(null);
+      setShowAddCustomRole(false);
+      setNewCustomRoleInput('');
     } catch {
       showToast('error', 'Có lỗi xảy ra');
     }
@@ -1209,6 +1327,8 @@ export default function EventDetail({
                     image_url: event.image_url || '/events/event-1.jpg',
                     notes: event.notes || '',
                   });
+                  setEditContentHtml((event as any).content || event.detail_description || '');
+                  setShowMediaLibrary(false);
                   setIsEditEventModalOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
@@ -1249,23 +1369,23 @@ export default function EventDetail({
                   </span>
                 )}
               </div>
-              {/* Mobile Share QR link button at right side of image (Hình 9.5) */}
-              <button
-                type="button"
-                onClick={() => {
-                  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                  const refCode = currentUserRefCode || 'N_0000000001';
-                  const shareUrl = `${origin}/qr-checkin?ref=${refCode}&event=${event.id}`;
+              {/* Share QR link button at right side of image (Hình 1) */}
+              <a
+                href={eventShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
                   if (navigator.clipboard) {
-                    navigator.clipboard.writeText(shareUrl);
-                    showToast('success', `Đã sao chép link mời: ${shareUrl}`);
+                    navigator.clipboard.writeText(eventShareUrl);
+                    showToast('success', `Đã sao chép link mời: ${eventShareUrl}`);
                   }
+                  setIsShareModalOpen(true);
                 }}
-                className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-blue-600 rounded-lg shadow-sm border border-slate-200 backdrop-blur-xs transition-all active:scale-95 cursor-pointer"
-                title="Chia sẻ link QR mời bạn bè"
+                className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-blue-600 rounded-lg shadow-sm border border-slate-200 backdrop-blur-xs transition-all active:scale-95 cursor-pointer inline-flex items-center justify-center z-10"
+                title={`Chia sẻ link QR mời bạn bè: ${eventShareUrl}`}
               >
                 <Share2 className="w-4 h-4" />
-              </button>
+              </a>
             </div>
           </div>
 
@@ -1433,6 +1553,26 @@ export default function EventDetail({
             </div>
           </div>
 
+          {/* NỘI DUNG GIỚI THIỆU CHI TIẾT (Mục 2.2) */}
+          {((event as any).content || event.detail_description) && (
+            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Nội dung giới thiệu chi tiết sự kiện (Content Editor)
+                </h3>
+                <span className="text-[11px] text-slate-400">
+                  Xuất hiện tại Tab Giới thiệu trên trang Public
+                </span>
+              </div>
+              <div
+                className="text-slate-700 leading-relaxed text-xs space-y-2.5 font-normal [&_img]:rounded-xl [&_img]:shadow-sm [&_img]:my-3 [&_img]:max-h-80 [&_img]:w-full [&_img]:object-cover [&_h4]:font-bold [&_h4]:text-slate-900 [&_h4]:text-sm [&_h4]:mt-3 [&_h4]:mb-1 [&_p]:my-1"
+                dangerouslySetInnerHTML={{
+                  __html: (event as any).content || event.detail_description || '',
+                }}
+              />
+            </div>
+          )}
+
           <hr className="border-slate-100" />
 
           {/* ITEM 21: DANH SÁCH NGƯỜI PHỤ TRÁCH (Hình 34 - 37) */}
@@ -1472,6 +1612,8 @@ export default function EventDetail({
                       });
                       setMemberSearchQuery('');
                       setIsMemberDropdownOpen(false);
+                      setShowAddCustomRole(false);
+                      setNewCustomRoleInput('');
                       setIsAddInChargeModalOpen(true);
                     }}
                     className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
@@ -1605,6 +1747,8 @@ export default function EventDetail({
                                   roles: Array.isArray(p.roles) ? p.roles : [p.roles || 'Diễn giả'],
                                   notes: '',
                                 });
+                                setShowAddCustomRole(false);
+                                setNewCustomRoleInput('');
                                 setIsAddInChargeModalOpen(true);
                               }}
                               className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50 cursor-pointer"
@@ -1665,6 +1809,8 @@ export default function EventDetail({
                               roles: Array.isArray(p.roles) ? p.roles : [p.roles || 'Diễn giả'],
                               notes: '',
                             });
+                            setShowAddCustomRole(false);
+                            setNewCustomRoleInput('');
                             setIsAddInChargeModalOpen(true);
                           }}
                           className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 cursor-pointer"
@@ -2826,53 +2972,179 @@ export default function EventDetail({
           </div>
         </div>
       )}
-      {/* MODAL: CHỈNH SỬA THÔNG TIN SỰ KIỆN (Item 15, 18: Không có expected_guests và manager_id) */}
+      {/* MODAL: CHỈNH SỬA THÔNG TIN SỰ KIỆN (Hình 8, 9, 10) */}
       {isEditEventModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Chỉnh sửa thông tin sự kiện</h3>
+              <h2 className="text-lg font-bold text-slate-900">Chỉnh sửa thông tin sự kiện</h2>
               <button
                 onClick={() => setIsEditEventModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditEvent} className="p-6 overflow-y-auto space-y-4">
+            <form onSubmit={handleSaveEditEvent} className="overflow-y-auto px-6 py-5 flex-1 space-y-5">
+              {/* Hình ảnh sự kiện (Hình 8) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Hình ảnh sự kiện
+                </label>
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditFileUpload}
+                  className="hidden"
+                />
+
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                  {editEventForm.image_url ? (
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-900 group aspect-[16/9] max-h-48">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editEventForm.image_url}
+                        alt="Event Preview"
+                        className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-800 text-xs font-semibold rounded-lg shadow transition-colors flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Đổi ảnh khác
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditEventForm({ ...editEventForm, image_url: '' })}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow transition-colors flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center bg-white">
+                      <LucideImage className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 mb-3">Chưa có hình ảnh sự kiện</p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      disabled={isUploadingImage}
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+                    >
+                      {isUploadingImage ? (
+                        <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      )}
+                      <span>Tải ảnh từ máy</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMediaLibrary(!showMediaLibrary)}
+                      className="px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Chọn từ Thư viện Media</span>
+                    </button>
+                  </div>
+
+                  {/* Media Library Grid */}
+                  {showMediaLibrary && (
+                    <div className="mt-3 p-3 bg-white border border-blue-100 rounded-xl shadow-inner space-y-2 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-700">Thư viện ảnh sự kiện có sẵn:</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowMediaLibrary(false)}
+                          className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                        >
+                          Đóng
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1">
+                        {PRESET_EVENT_IMAGES.map((img) => (
+                          <div
+                            key={img.url}
+                            onClick={() => {
+                              setEditEventForm({ ...editEventForm, image_url: img.url });
+                              setShowMediaLibrary(false);
+                            }}
+                            className={`group relative rounded-lg overflow-hidden border-2 cursor-pointer aspect-video transition-all hover:scale-105 ${
+                              editEventForm.image_url === img.url
+                                ? 'border-blue-600 ring-2 ring-blue-500/20'
+                                : 'border-slate-200 hover:border-blue-400'
+                            }`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              alt={img.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
+                              <span className="text-[10px] text-white font-medium truncate">
+                                {img.title}
+                              </span>
+                            </div>
+                            {editEventForm.image_url === img.url && (
+                              <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                                <Check className="w-2.5 h-2.5" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tên sự kiện */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Tên sự kiện <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={editEventForm.name}
                   onChange={(e) => setEditEventForm({ ...editEventForm, name: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Ngày tổ chức & Trạng thái */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Ngày tổ chức <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
                     value={editEventForm.event_date}
                     onChange={(e) => setEditEventForm({ ...editEventForm, event_date: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng thái</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Trạng thái</label>
                   <select
                     value={editEventForm.status}
                     onChange={(e) => setEditEventForm({ ...editEventForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   >
                     <option value="Sắp diễn ra">Sắp diễn ra</option>
                     <option value="Kế hoạch">Kế hoạch</option>
@@ -2882,68 +3154,152 @@ export default function EventDetail({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Giờ bắt đầu & Giờ kết thúc */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giờ bắt đầu</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Giờ bắt đầu</label>
                   <input
                     type="time"
                     value={editEventForm.start_time}
                     onChange={(e) => setEditEventForm({ ...editEventForm, start_time: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giờ kết thúc</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Giờ kết thúc</label>
                   <input
                     type="time"
                     value={editEventForm.end_time}
                     onChange={(e) => setEditEventForm({ ...editEventForm, end_time: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   />
                 </div>
               </div>
 
+              {/* Địa điểm */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Địa điểm</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Địa điểm</label>
                 <input
                   type="text"
                   value={editEventForm.location}
                   onChange={(e) => setEditEventForm({ ...editEventForm, location: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                 />
               </div>
 
+              {/* Ghi chú */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Hình ảnh sự kiện (URL)</label>
-                <input
-                  type="text"
-                  value={editEventForm.image_url}
-                  onChange={(e) => setEditEventForm({ ...editEventForm, image_url: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi chú</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Ghi chú</label>
                 <textarea
                   rows={3}
                   value={editEventForm.notes}
                   onChange={(e) => setEditEventForm({ ...editEventForm, notes: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 resize-none"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 resize-none"
                 />
               </div>
 
+              {/* NỘI DUNG GIỚI THIỆU CHI TIẾT (CONTENT EDITOR - MỤC 2.2) (Hình 9) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Nội dung giới thiệu chi tiết (Content Editor - Mục 2.2)
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Nhập text & chèn ảnh. Nội dung này sẽ xuất hiện tại Tab Giới thiệu trên mục Lịch trình dự kiến.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                  {/* Toolbar */}
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 border-b border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = prompt('Nhập URL hình ảnh:');
+                        if (url) {
+                          setEditContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Chèn ảnh từ liên kết URL"
+                    >
+                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Chèn ảnh URL</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = async (e: any) => {
+                          const file = e.target?.files?.[0];
+                          if (!file) return;
+                          const uploadData = new FormData();
+                          uploadData.append('file', file);
+                          try {
+                            const res = await fetch('/api/admin/upload', { method: 'POST', body: uploadData });
+                            const d = await res.json();
+                            if (d.url) {
+                              setEditContentHtml((prev) => `${prev}\n<img src="${d.url}" alt="${file.name}" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+                            }
+                          } catch {
+                            alert('Lỗi khi tải ảnh');
+                          }
+                        };
+                        input.click();
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Tải ảnh từ máy và chèn vào nội dung"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Tải ảnh từ máy</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditContentHtml((prev) => `${prev}\n<h4 class="font-bold text-slate-900 mt-3 mb-1">Tiêu đề đoạn</h4>\n`)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-bold text-slate-700 cursor-pointer shadow-2xs"
+                      title="Tiêu đề đoạn"
+                    >
+                      Tiêu đề H4
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditContentHtml((prev) => `${prev}\n<p class="text-slate-600 leading-relaxed my-2">Nội dung chi tiết đoạn văn bản...</p>\n`)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-medium text-slate-700 cursor-pointer shadow-2xs"
+                      title="Đoạn văn"
+                    >
+                      Đoạn văn
+                    </button>
+                  </div>
+
+                  <textarea
+                    rows={6}
+                    value={editContentHtml}
+                    onChange={(e) => setEditContentHtml(e.target.value)}
+                    placeholder="Nhập nội dung bài viết và chèn hình ảnh tại đây..."
+                    className="w-full p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans leading-relaxed resize-y"
+                  />
+                </div>
+              </div>
+
+              {/* Footer Actions */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditEventModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
                 >
                   Lưu thay đổi
                 </button>
@@ -3101,9 +3457,8 @@ export default function EventDetail({
                             key={m.id}
                             type="button"
                             onClick={() => {
-                              const ALL_ROLES = ['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'];
                               const matchedRoles = m.role
-                                ? ALL_ROLES.filter((r) => m.role?.toLowerCase().includes(r.toLowerCase()))
+                                ? availableInChargeRoles.filter((r) => m.role?.toLowerCase().includes(r.toLowerCase()))
                                 : [];
                               setInChargeForm({
                                 ...inChargeForm,
@@ -3112,7 +3467,7 @@ export default function EventDetail({
                                 position: m.role || 'Thành viên',
                                 phone: m.phone || '',
                                 email: m.email || '',
-                                roles: matchedRoles.length > 0 ? [matchedRoles[0]] : ['Diễn giả'],
+                                roles: matchedRoles.length > 0 ? matchedRoles : ['Diễn giả'],
                               });
                               setMemberSearchQuery(safeDecodeURI(m.full_name));
                               setIsMemberDropdownOpen(false);
@@ -3196,33 +3551,117 @@ export default function EventDetail({
                 />
               </div>
 
-              {/* Radio Button Role Selection (Mục 9.2, 9.3 - Hình 10.1, 10.3) */}
+              {/* Checkbox Role Selection (Hình 10 & 11) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">
-                  Vai trò trong sự kiện <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  {['Diễn giả', 'MC', 'Chốt sự kiện', 'Phụng sự', 'Điều phối', 'Hỗ trợ', 'Khách mời', 'Khác'].map((r) => {
-                    const isSelected = inChargeForm.roles.includes(r);
-                    return (
-                      <label key={r} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100/70 cursor-pointer select-none">
-                        <input
-                          type="radio"
-                          name="in_charge_role"
-                          checked={isSelected}
-                          onChange={() => {
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Vai trò trong sự kiện <span className="text-rose-500">*</span>
+                    <span className="text-[11px] font-normal text-slate-500 ml-1.5">(Có thể chọn nhiều vai trò)</span>
+                  </label>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomRole(!showAddCustomRole)}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Thêm vai trò khác</span>
+                    </button>
+                  )}
+                </div>
+
+                {isAdmin && showAddCustomRole && (
+                  <div className="flex items-center gap-2 mb-2.5 p-2 bg-blue-50/60 rounded-xl border border-blue-200 animate-in fade-in duration-150">
+                    <input
+                      type="text"
+                      value={newCustomRoleInput}
+                      onChange={(e) => setNewCustomRoleInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const trimmed = newCustomRoleInput.trim();
+                          if (trimmed) {
+                            if (!customInChargeRoles.includes(trimmed)) {
+                              setCustomInChargeRoles([...customInChargeRoles, trimmed]);
+                            }
+                            if (!inChargeForm.roles.includes(trimmed)) {
+                              setInChargeForm({
+                                ...inChargeForm,
+                                roles: [...inChargeForm.roles, trimmed],
+                              });
+                            }
+                            setNewCustomRoleInput('');
+                          }
+                        }
+                      }}
+                      placeholder="Nhập tên vai trò mới..."
+                      className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = newCustomRoleInput.trim();
+                        if (trimmed) {
+                          if (!customInChargeRoles.includes(trimmed)) {
+                            setCustomInChargeRoles([...customInChargeRoles, trimmed]);
+                          }
+                          if (!inChargeForm.roles.includes(trimmed)) {
                             setInChargeForm({
                               ...inChargeForm,
-                              roles: [r],
+                              roles: [...inChargeForm.roles, trimmed],
                             });
+                          }
+                          setNewCustomRoleInput('');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs cursor-pointer"
+                    >
+                      Thêm
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {availableInChargeRoles.map((r) => {
+                    const isSelected = inChargeForm.roles.includes(r);
+                    return (
+                      <label
+                        key={r}
+                        className={`flex items-center gap-2 p-2 rounded-lg border select-none transition-colors ${
+                          isSelected
+                            ? 'bg-blue-50/70 border-blue-200 text-blue-900 font-semibold'
+                            : 'bg-white border-slate-200/80 hover:bg-slate-100/70 text-slate-700 font-medium'
+                        } ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-75'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!isAdmin}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setInChargeForm({
+                                ...inChargeForm,
+                                roles: [...inChargeForm.roles, r],
+                              });
+                            } else {
+                              setInChargeForm({
+                                ...inChargeForm,
+                                roles: inChargeForm.roles.filter((role) => role !== r),
+                              });
+                            }
                           }}
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
                         />
-                        <span className="text-xs text-slate-700 font-medium">{r}</span>
+                        <span className="text-xs">{r}</span>
                       </label>
                     );
                   })}
                 </div>
+                {!isAdmin && (
+                  <p className="text-[11px] text-slate-400 mt-1 italic">
+                    * Chỉ người dùng có quyền Admin mới được phép chỉnh sửa vai trò cho người phụ trách.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
@@ -3360,6 +3799,92 @@ export default function EventDetail({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CHIA SẺ LIÊN KẾT QR CHECK-IN SỰ KIỆN */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 border border-slate-100 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-base">Chia sẻ sự kiện (QR Check-in)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-semibold text-slate-800">
+                  Link mời đăng ký & check-in:
+                </p>
+                <span className="text-[10px] text-blue-600 font-medium font-mono">
+                  Mã: {effectiveRefCode}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={eventShareUrl}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 select-all font-mono"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText(eventShareUrl);
+                      showToast('success', `Đã sao chép link mời: ${eventShareUrl}`);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex-shrink-0 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Sao chép</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+              <a
+                href={eventShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline font-medium inline-flex items-center gap-1"
+              >
+                <span>Mở trang QR check-in</span>
+                <span>↗</span>
+              </a>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(`https://zalo.me/share?url=${encodeURIComponent(eventShareUrl)}`, '_blank', 'width=600,height=400');
+                  }}
+                  className="px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Zalo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(eventShareUrl)}`, '_blank', 'width=600,height=400');
+                  }}
+                  className="px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Facebook
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

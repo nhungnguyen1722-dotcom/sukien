@@ -151,6 +151,8 @@ export async function PUT(
       notes,
       image_url,
       content,
+      start_time,
+      end_time,
     } = body;
 
     if (!name || !name.trim()) {
@@ -175,11 +177,13 @@ export async function PUT(
         closer_fee = $10,
         tea_break_fee = $11,
         notes = $12,
-        image_url = COALESCE($13, image_url),
-        content = COALESCE($14, content),
-        detail_description = COALESCE($14, detail_description),
+        image_url = CASE WHEN $13::text IS NOT NULL THEN $13 ELSE image_url END,
+        content = CASE WHEN $14::text IS NOT NULL THEN $14 ELSE content END,
+        detail_description = CASE WHEN $14::text IS NOT NULL THEN $14 ELSE detail_description END,
+        start_time = CASE WHEN $15::text IS NOT NULL THEN $15::time ELSE start_time END,
+        end_time = CASE WHEN $16::text IS NOT NULL THEN $16::time ELSE end_time END,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $15
+      WHERE id = $17
       RETURNING *`,
       [
         name.trim(),
@@ -194,8 +198,10 @@ export async function PUT(
         closer_fee !== undefined ? parseFloat(closer_fee) : 0,
         tea_break_fee !== undefined ? parseFloat(tea_break_fee) : 0,
         notes !== undefined ? notes?.trim() : null,
-        image_url || null,
+        image_url !== undefined ? image_url : null,
         content !== undefined ? content : null,
+        start_time && start_time.trim() ? start_time.trim() : null,
+        end_time && end_time.trim() ? end_time.trim() : null,
         eventId,
       ]
     );

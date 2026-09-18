@@ -33,6 +33,17 @@ export default function ReceptionLoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        try {
+          if (data.ref_code) {
+            localStorage.setItem("nghieng_user_ref_code", data.ref_code);
+            localStorage.setItem("ref_code", data.ref_code);
+          }
+          if (data.user?.id) {
+            localStorage.setItem("nghieng_user_id", String(data.user.id));
+          }
+        } catch {
+          // Ignore
+        }
         // Reception user goes to /admin/le-tan
         router.push(data.redirectTo || "/admin/le-tan");
         router.refresh();

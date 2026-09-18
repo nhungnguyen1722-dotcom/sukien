@@ -55,6 +55,7 @@ export default function QRCheckinModal({
 }: QRCheckinModalProps) {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [registrationResult, setRegistrationResult] = useState<any>(null);
@@ -74,6 +75,9 @@ export default function QRCheckinModal({
         if (parsed.phone) {
           setPhone(parsed.phone || '');
           setFullName(parsed.fullName || '');
+          if (parsed.hasTeaBreak !== undefined) {
+            setHasTeaBreak(Boolean(parsed.hasTeaBreak));
+          }
         }
       }
     } catch {
@@ -110,6 +114,7 @@ export default function QRCheckinModal({
           referrer: `${inviter.name} (${inviter.refCode})`,
           company: 'Khách mời tham dự',
           isTodayCheckin: false,
+          has_tea_break: hasTeaBreak,
         }),
       });
 
@@ -126,6 +131,7 @@ export default function QRCheckinModal({
             phone: cleanPhone,
             fullName: fullName.trim(),
             referrer: `${inviter.name} (${inviter.refCode})`,
+            hasTeaBreak: hasTeaBreak,
             registeredAt: new Date().toISOString(),
           })
         );
@@ -247,6 +253,23 @@ export default function QRCheckinModal({
 
                 {/* Registration Form */}
                 <form onSubmit={handleSubmit} className="space-y-3.5">
+                  {/* Thông tin hiển thị về người mời (Hình 5) */}
+                  {inviter && (
+                    <div className="bg-[#f0f5ff] border border-blue-100 rounded-2xl p-3 sm:p-3.5 flex items-center gap-3 shadow-2xs">
+                      <div className="w-10 h-10 rounded-xl bg-white text-blue-600 flex items-center justify-center flex-shrink-0 shadow-xs border border-blue-100/60">
+                        <User className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] sm:text-xs text-slate-500 font-normal leading-tight">
+                          Bạn đang được mời tham dự bởi
+                        </p>
+                        <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug truncate mt-0.5">
+                          {inviter.name} ({inviter.refCode})
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Họ và tên của bạn */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
@@ -281,6 +304,23 @@ export default function QRCheckinModal({
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
                       />
                     </div>
+                  </div>
+
+                  {/* Checkbox Đăng ký suất ăn trưa tiệc trà (Hình 6) */}
+                  <div className="flex items-center gap-2.5 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl shadow-2xs">
+                    <input
+                      type="checkbox"
+                      id="teaBreakCheckbox"
+                      checked={hasTeaBreak}
+                      onChange={(e) => setHasTeaBreak(e.target.checked)}
+                      className="w-4 h-4 rounded border-amber-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="teaBreakCheckbox"
+                      className="text-xs text-amber-950 font-semibold cursor-pointer select-none"
+                    >
+                      Đăng ký suất ăn trưa tiệc trà (50.000 đ/suất)
+                    </label>
                   </div>
 
                   {/* Nút Xác nhận tham dự */}
@@ -490,6 +530,12 @@ export default function QRCheckinModal({
                 <div className="flex justify-between">
                   <span className="text-slate-400">Thời gian:</span>
                   <span className="font-semibold text-slate-800">{formatDateDisplay(defaultEvent.event_date)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Suất ăn tiệc trà:</span>
+                  <span className="font-semibold text-slate-800">
+                    {hasTeaBreak ? 'Đã đăng ký (50.000 đ/suất)' : 'Không đăng ký'}
+                  </span>
                 </div>
               </div>
             </div>

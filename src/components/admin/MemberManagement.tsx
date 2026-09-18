@@ -71,6 +71,7 @@ const COMPETENCY_OPTIONS = [
   'Hỗ trợ',
   'Khách mời',
   'Kinh doanh',
+  'Lễ tân',
   'Khác',
 ];
 
@@ -491,7 +492,7 @@ export default function MemberManagement({
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-medium text-xs">
                 <th className="py-4 px-5">Họ và tên</th>
-                <th className="py-4 px-5">Người mới</th>
+                <th className="py-4 px-5">Người mời</th>
                 <th className="py-4 px-5">Năng lực thực hiện</th>
                 <th className="py-4 px-5">Chức danh</th>
                 <th className="py-4 px-5">Số lần làm khách</th>
@@ -520,7 +521,7 @@ export default function MemberManagement({
                       )}
                     </td>
 
-                    {/* Người mới (di chuyển sang cạnh Họ và tên theo Hình 5, format theo Hình 5.2 & 5.3) */}
+                    {/* Người mời (di chuyển sang cạnh Họ và tên theo Hình 5, format theo Hình 5.2 & 5.3) */}
                     <td className="py-4 px-5 text-slate-600">
                       {member.referral_group === 'Chọn người mời trong hệ thống' ? (
                         member.referrer_name ? (
@@ -720,7 +721,12 @@ export default function MemberManagement({
                             if (isChecked) {
                               updatedList = updatedList.filter((item) => item !== opt);
                             } else {
-                              updatedList.push(opt);
+                              if (opt === 'Khác') {
+                                updatedList = ['Khác'];
+                              } else {
+                                updatedList = updatedList.filter((item) => item !== 'Khác');
+                                updatedList.push(opt);
+                              }
                             }
                             setFormData({
                               ...formData,

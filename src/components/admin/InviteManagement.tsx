@@ -16,6 +16,7 @@ import {
   X,
   Search,
   ChevronRight,
+  ChevronDown,
   ExternalLink,
   Trash2,
   Save,
@@ -67,6 +68,80 @@ export interface UpcomingEvent {
   status?: string;
 }
 
+export function getEventTimestamps(event: UpcomingEvent): { startTimestamp: number; endTimestamp: number } | null {
+  if (!event.event_date) return null;
+
+  let year: number, month: number, day: number;
+  if (typeof event.event_date === 'string' && event.event_date.includes('-')) {
+    const parts = event.event_date.split('T')[0].split('-');
+    year = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10) - 1;
+    day = parseInt(parts[2], 10);
+  } else {
+    const d = new Date(event.event_date);
+    year = d.getFullYear();
+    month = d.getMonth();
+    day = d.getDate();
+  }
+
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+  // Parse start time (default 08:30)
+  let startH = 8, startM = 30, startS = 0;
+  if (event.start_time) {
+    const sParts = event.start_time.split(':').map((p) => parseInt(p, 10));
+    if (!isNaN(sParts[0])) startH = sParts[0];
+    if (!isNaN(sParts[1])) startM = sParts[1];
+    if (!isNaN(sParts[2])) startS = sParts[2];
+  }
+
+  // Parse end time (default 11:30 or start + 3h)
+  let endH = 11, endM = 30, endS = 0;
+  if (event.end_time) {
+    const eParts = event.end_time.split(':').map((p) => parseInt(p, 10));
+    if (!isNaN(eParts[0])) endH = eParts[0];
+    if (!isNaN(eParts[1])) endM = eParts[1];
+    if (!isNaN(eParts[2])) endS = eParts[2];
+  } else if (event.start_time) {
+    endH = Math.min(startH + 3, 23);
+    endM = startM;
+    endS = 0;
+  }
+
+  const startTimestamp = new Date(year, month, day, startH, startM, startS).getTime();
+  const endTimestamp = new Date(year, month, day, endH, endM, endS).getTime();
+
+  return { startTimestamp, endTimestamp };
+}
+
+export function findNearestUpcomingEvent(events: UpcomingEvent[], now: Date = new Date()): UpcomingEvent | null {
+  const nowTime = now.getTime();
+
+  const candidates: { ev: UpcomingEvent; ts: { startTimestamp: number; endTimestamp: number } }[] = [];
+
+  for (const ev of events) {
+    const ts = getEventTimestamps(ev);
+    if (!ts) continue;
+    const status = (ev.status || '').trim();
+    if (status === 'Đã hoàn thành' || status === 'Đã diễn ra' || status === 'Đã kết thúc') {
+      continue;
+    }
+    // The event has not passed yet: endTimestamp > nowTime
+    if (ts.endTimestamp > nowTime) {
+      candidates.push({ ev, ts });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Sort by startTimestamp ASC, then endTimestamp ASC (closest event first)
+  candidates.sort(
+    (a, b) => a.ts.startTimestamp - b.ts.startTimestamp || a.ts.endTimestamp - b.ts.endTimestamp
+  );
+
+  return candidates[0].ev;
+}
+
 interface InviteManagementProps {
   initialInvitations: Invitation[];
   initialStats: InviteStats;
@@ -89,8 +164,34 @@ export default function InviteManagement({
 
   // Event Selection for referral link (Item 10)
   const [eventsList, setEventsList] = useState<UpcomingEvent[]>(upcomingEvents);
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
-  const [eventInputVal, setEventInputVal] = useState<string>('');
+
+  // Compute nearest upcoming event default
+  const defaultInitialEvent = useMemo(() => {
+    return findNearestUpcomingEvent(upcomingEvents);
+  }, [upcomingEvents]);
+
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(() => {
+    return defaultInitialEvent?.id ?? null;
+  });
+  const [eventInputVal, setEventInputVal] = useState<string>(() => {
+    return defaultInitialEvent ? `${defaultInitialEvent.id} - ${defaultInitialEvent.name}` : '';
+  });
+
+  // Track if user has explicitly changed/cleared selection
+  const [isUserModified, setIsUserModified] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch upcoming events if none provided via props
   useEffect(() => {
@@ -99,21 +200,39 @@ export default function InviteManagement({
         .then((res) => res.json())
         .then((data) => {
           if (data && Array.isArray(data.events)) {
-            const up = data.events.filter(
-              (e: any) => e.status === 'Sắp diễn ra' || e.status === 'Đang diễn ra'
-            );
-            setEventsList(up);
+            setEventsList(data.events);
           }
         })
         .catch(() => {});
     }
   }, [eventsList.length]);
 
+  // Synchronize default event when eventsList updates and user hasn't modified it
+  useEffect(() => {
+    if (!isUserModified && eventsList.length > 0) {
+      const nearest = findNearestUpcomingEvent(eventsList);
+      if (nearest) {
+        setSelectedEventId(nearest.id);
+        setEventInputVal(`${nearest.id} - ${nearest.name}`);
+      } else {
+        setSelectedEventId(null);
+        setEventInputVal('');
+      }
+    }
+  }, [eventsList, isUserModified]);
+
   const handleSelectEvent = (val: string) => {
+    setIsUserModified(true);
     setEventInputVal(val);
     const idMatch = val.match(/^(\d+)/);
     if (idMatch) {
-      setSelectedEventId(parseInt(idMatch[1], 10));
+      const parsedId = parseInt(idMatch[1], 10);
+      const found = eventsList.find((ev) => ev.id === parsedId);
+      if (found) {
+        setSelectedEventId(found.id);
+        return;
+      }
+      setSelectedEventId(parsedId);
     } else {
       const found = eventsList.find(
         (ev) => ev.name.toLowerCase() === val.trim().toLowerCase()
@@ -125,6 +244,24 @@ export default function InviteManagement({
       }
     }
   };
+
+  const handlePickEvent = (ev: UpcomingEvent) => {
+    setIsUserModified(true);
+    setSelectedEventId(ev.id);
+    setEventInputVal(`${ev.id} - ${ev.name}`);
+    setIsDropdownOpen(false);
+  };
+
+  const filteredDropdownEvents = useMemo(() => {
+    if (!eventInputVal.trim()) return eventsList;
+    const q = eventInputVal.trim().toLowerCase();
+    return eventsList.filter(
+      (ev) =>
+        ev.id.toString() === q ||
+        ev.name.toLowerCase().includes(q) ||
+        `${ev.id} - ${ev.name}`.toLowerCase().includes(q)
+    );
+  }, [eventsList, eventInputVal]);
 
   const selectedEvent = useMemo(() => {
     if (!selectedEventId) return null;
@@ -231,7 +368,7 @@ export default function InviteManagement({
           reward_points: 0,
           event_id: selectedEventId,
           event_name: selectedEvent ? selectedEvent.name : 'Sự kiện Nghiêng Complex',
-          event_time: selectedEvent ? `${formatDateDisplay(selectedEvent.event_date ?? null)} (${selectedEvent.start_time || '08:30'} - ${selectedEvent.end_time || '11:30'})` : '30/05/2026 (Thứ năm) - 08:30 - 11:30',
+          event_time: selectedEvent ? `${formatDateDisplay(selectedEvent.event_date ?? null)} (${selectedEvent.start_time?.slice(0, 5) || '08:30'} - ${selectedEvent.end_time?.slice(0, 5) || '11:30'})` : '—',
           event_location: selectedEvent?.location || 'Trung tâm Hội nghị Quốc gia, Hà Nội',
           invite_link: referralUrl,
         }),
@@ -379,10 +516,14 @@ export default function InviteManagement({
     }
   };
 
-  // Format date helper: returns dd/M/yyyy (e.g. 19/8/2026) to match screenshot
+  // Format date helper: returns dd/M/yyyy (e.g. 19/9/2026) to match screenshot
   const formatDateDisplay = (dateStr: string | null) => {
     if (!dateStr) return '—';
     try {
+      if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [y, m, d] = dateStr.split('-');
+        return `${parseInt(d, 10)}/${parseInt(m, 10)}/${y}`;
+      }
       const date = new Date(dateStr);
       const day = date.getDate();
       const month = date.getMonth() + 1;
@@ -535,31 +676,107 @@ export default function InviteManagement({
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Chọn sự kiện áp dụng (Sắp diễn ra):
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="upcoming-events-list"
-                  placeholder="Gõ tìm kiếm hoặc chọn sự kiện..."
-                  value={eventInputVal}
-                  onChange={(e) => handleSelectEvent(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs md:text-sm px-3.5 py-2.5 rounded-xl outline-none focus:border-blue-500 transition placeholder:text-slate-400 pr-16"
-                />
+              <div className="relative" ref={dropdownRef}>
+                <div className="relative">
+                  <input
+                    type="text"
+                    list="upcoming-events-list"
+                    placeholder="Gõ tìm kiếm hoặc chọn sự kiện..."
+                    value={eventInputVal}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    onChange={(e) => {
+                      setIsDropdownOpen(true);
+                      handleSelectEvent(e.target.value);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs md:text-sm px-3.5 py-2.5 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition placeholder:text-slate-400 pr-20"
+                  />
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    {selectedEventId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserModified(true);
+                          setSelectedEventId(null);
+                          setEventInputVal('');
+                          setIsDropdownOpen(false);
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-rose-600 bg-slate-200/70 hover:bg-rose-50 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                      >
+                        Bỏ chọn
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsDropdownOpen((prev) => !prev)}
+                      className="text-slate-400 hover:text-slate-600 p-0.5 rounded-md transition-colors cursor-pointer"
+                      title="Danh sách sự kiện"
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 <datalist id="upcoming-events-list">
                   {eventsList.map((ev) => (
                     <option key={ev.id} value={`${ev.id} - ${ev.name}`} />
                   ))}
                 </datalist>
-                {selectedEventId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedEventId(null);
-                      setEventInputVal('');
-                    }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-500 hover:text-rose-600 bg-slate-200/70 hover:bg-rose-50 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                  >
-                    Bỏ chọn
-                  </button>
+
+                {/* Dropdown Menu Danh sách sự kiện tìm kiếm */}
+                {isDropdownOpen && (
+                  <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
+                    {filteredDropdownEvents.length === 0 ? (
+                      <div className="px-4 py-3 text-xs text-slate-400 text-center">
+                        Không tìm thấy sự kiện phù hợp
+                      </div>
+                    ) : (
+                      filteredDropdownEvents.map((ev) => {
+                        const isSelected = ev.id === selectedEventId;
+                        const isNearest = ev.id === defaultInitialEvent?.id;
+                        return (
+                          <button
+                            key={ev.id}
+                            type="button"
+                            onClick={() => handlePickEvent(ev)}
+                            className={`w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 transition flex items-center justify-between gap-2 cursor-pointer ${
+                              isSelected ? 'bg-blue-50/90 font-semibold text-blue-700' : 'text-slate-800'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs md:text-sm font-medium truncate">
+                                  {ev.id} - {ev.name}
+                                </span>
+                                {isNearest && (
+                                  <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full shrink-0">
+                                    Gần nhất
+                                  </span>
+                                )}
+                                {ev.status === 'Sắp diễn ra' && !isNearest && (
+                                  <span className="text-[10px] bg-blue-100 text-blue-700 font-medium px-1.5 py-0.5 rounded-full shrink-0">
+                                    Sắp diễn ra
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                                <span>{formatDateDisplay(ev.event_date ?? null)}</span>
+                                {(ev.start_time || ev.end_time) && (
+                                  <span>
+                                    • ({ev.start_time?.slice(0, 5) || '08:30'} - {ev.end_time?.slice(0, 5) || '11:30'})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 )}
               </div>
               {selectedEventId && (
@@ -757,15 +974,15 @@ export default function InviteManagement({
               <div className="font-bold text-slate-900 mb-1">Thông tin sự kiện:</div>
               <div className="flex items-start gap-2">
                 <Calendar className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                <span><strong className="text-slate-700">Tên sự kiện:</strong> {selectedEvent ? selectedEvent.name : 'Hội thảo Kết nối Doanh nghiệp 2026'}</span>
+                <span><strong className="text-slate-700">Tên sự kiện:</strong> {selectedEvent ? selectedEvent.name : '(Chưa chọn sự kiện)'}</span>
               </div>
               <div className="flex items-start gap-2">
                 <Clock className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                <span><strong className="text-slate-700">Thời gian:</strong> {selectedEvent ? `${formatDateDisplay(selectedEvent.event_date ?? null)} (${selectedEvent.start_time || '08:30'} - ${selectedEvent.end_time || '11:30'})` : '30/05/2026 (Thứ năm) – 08:30 - 11:30'}</span>
+                <span><strong className="text-slate-700">Thời gian:</strong> {selectedEvent ? `${formatDateDisplay(selectedEvent.event_date ?? null)} (${selectedEvent.start_time?.slice(0, 5) || '08:30'} - ${selectedEvent.end_time?.slice(0, 5) || '11:30'})` : '—'}</span>
               </div>
               <div className="flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                <span><strong className="text-slate-700">Địa điểm:</strong> {selectedEvent?.location || 'Trung tâm Hội nghị Quốc gia, Hà Nội'}</span>
+                <span><strong className="text-slate-700">Địa điểm:</strong> {selectedEvent?.location || (selectedEvent ? 'Trung tâm Hội nghị Quốc gia, Hà Nội' : '—')}</span>
               </div>
               <div className="flex items-start gap-2">
                 <Users className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />

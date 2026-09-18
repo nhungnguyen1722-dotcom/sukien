@@ -13,14 +13,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check user in database by email, phone, or full_name
+    const cleanEmail = email.trim();
+    const phoneNoN = cleanEmail.replace(/^N_/i, '');
+    const cleanRef = cleanEmail.startsWith('N_') ? cleanEmail : 'N_' + cleanEmail;
+
+    // Check user in database by email, phone, full_name, or ref_code
     const result = await pool.query(
       `SELECT id, full_name, email, phone, role, status, ref_code FROM users 
        WHERE LOWER(email) = LOWER($1) 
           OR phone = $1 
+          OR phone = $2
           OR LOWER(full_name) = LOWER($1)
+          OR LOWER(ref_code) = LOWER($1)
+          OR LOWER(ref_code) = LOWER($3)
        LIMIT 1`,
-      [email.trim()]
+      [cleanEmail, phoneNoN, cleanRef]
     );
 
     let user = result.rows[0];
@@ -77,6 +84,8 @@ export async function POST(request: NextRequest) {
     response.cookies.set('user_phone', encodeURIComponent(user.phone || ''), cookieOptions);
     response.cookies.set('user_id', String(user.id), cookieOptions);
     response.cookies.set('user_ref_code', userRefCode, cookieOptions);
+    response.cookies.set('ref_code', userRefCode, cookieOptions);
+    response.cookies.set('user_ref', userRefCode, cookieOptions);
     return response;
   } catch (error) {
     console.error('Login error:', error);

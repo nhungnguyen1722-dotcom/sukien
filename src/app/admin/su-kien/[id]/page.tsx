@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 import pool from '@/lib/db';
 import EventDetail, {
   EventData,
@@ -36,6 +37,34 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
   }
 
   try {
+    const cookieStore = await cookies();
+    const cookieUserId = cookieStore.get('user_id')?.value;
+    const cookiePhone = cookieStore.get('user_phone')?.value;
+    const cookieEmail = cookieStore.get('user_email')?.value;
+    let userRefCode = cookieStore.get('user_ref_code')?.value || cookieStore.get('ref_code')?.value || cookieStore.get('user_ref')?.value;
+
+    if (!userRefCode && (cookieUserId || cookiePhone || cookieEmail)) {
+      try {
+        const uRes = await pool.query(
+          `SELECT ref_code FROM users 
+           WHERE id = $1 
+              OR phone = $2 
+              OR (email IS NOT NULL AND LOWER(email) = LOWER($3)) 
+           LIMIT 1`,
+          [
+            cookieUserId ? parseInt(cookieUserId, 10) : -1,
+            cookiePhone ? decodeURIComponent(cookiePhone) : '',
+            cookieEmail ? decodeURIComponent(cookieEmail) : '',
+          ]
+        );
+        if (uRes.rows.length > 0 && uRes.rows[0].ref_code) {
+          userRefCode = uRes.rows[0].ref_code;
+        }
+      } catch (e) {
+        console.error('Error resolving user ref code on server:', e);
+      }
+    }
+
     const [eventRes, regRes, logsRes, attachRes, managersRes, schedulesRes, inChargeRes] = await Promise.all([
       pool.query(
         `
@@ -83,7 +112,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
       `,
         [eventId]
       ),
-      pool.query(`SELECT id, full_name, phone, email, role FROM users ORDER BY full_name ASC`),
+      pool.query(`SELECT id, full_name, phone, email, role, ref_code FROM users ORDER BY full_name ASC`),
       pool.query(
         `SELECT id, time, title, speaker, description, order_num FROM event_schedules WHERE event_id = $1 ORDER BY order_num ASC, id ASC`,
         [eventId]
@@ -145,6 +174,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         managers={managers}
         initialSchedules={schedules}
         initialInChargePersons={inChargePersons}
+        initialUserRefCode={userRefCode || undefined}
       />
     );
   } catch (error) {
