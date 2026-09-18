@@ -1,4 +1,4 @@
-const { Pool } = require('pg');
+﻿const { Pool } = require('pg');
 const pool = new Pool({
   user: 'postgres',
   password: '1111222267',
@@ -9,14 +9,14 @@ const pool = new Pool({
 
 async function main() {
   const sampleUsers = [
-    { full_name: 'Nguyễn Văn An', phone: '0901234567', email: 'an.nguyen@welink.vn', role: 'MC', status: 'Hoạt động' },
-    { full_name: 'Trần Thị Bình', phone: '0902345678', email: 'binh.tran@welink.vn', role: 'Thuyết trình', status: 'Hoạt động' },
-    { full_name: 'Lê Hoàng Cường', phone: '0903456789', email: 'cuong.le@welink.vn', role: 'Chốt sự kiện', status: 'Hoạt động' },
-    { full_name: 'Phạm Thị Dung', phone: '0904567890', email: 'dung.pham@welink.vn', role: 'Phụng sự', status: 'Hoạt động' },
-    { full_name: 'Hoàng Văn Em', phone: '0905678901', email: 'em.hoang@welink.vn', role: 'Kinh doanh', status: 'Hoạt động' },
-    { full_name: 'Đỗ Thị Phương', phone: '0906789012', email: 'phuong.do@welink.vn', role: 'Team Leader', status: 'Hoạt động' },
-    { full_name: 'Vũ Kế Toán', phone: '0907890123', email: 'ketoan.vu@welink.vn', role: 'Kế toán', status: 'Hoạt động' },
-    { full_name: 'Bùi Công Nghệ', phone: '0908901234', email: 'congnghe.bui@welink.vn', role: 'Công nghệ', status: 'Hoạt động' },
+    { full_name: 'Nguyá»…n VÄƒn An', phone: '0901234567', email: 'an.nguyen@nghiengcomplex.vn', role: 'MC', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'Tráº§n Thá»‹ BÃ¬nh', phone: '0902345678', email: 'binh.tran@nghiengcomplex.vn', role: 'Thuyáº¿t trÃ¬nh', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'LÃª HoÃ ng CÆ°á»ng', phone: '0903456789', email: 'cuong.le@nghiengcomplex.vn', role: 'Chá»‘t sá»± kiá»‡n', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'Pháº¡m Thá»‹ Dung', phone: '0904567890', email: 'dung.pham@nghiengcomplex.vn', role: 'Phá»¥ng sá»±', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'HoÃ ng VÄƒn Em', phone: '0905678901', email: 'em.hoang@nghiengcomplex.vn', role: 'Kinh doanh', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'Äá»— Thá»‹ PhÆ°Æ¡ng', phone: '0906789012', email: 'phuong.do@nghiengcomplex.vn', role: 'Team Leader', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'VÅ© Káº¿ ToÃ¡n', phone: '0907890123', email: 'ketoan.vu@nghiengcomplex.vn', role: 'Káº¿ toÃ¡n', status: 'Hoáº¡t Ä‘á»™ng' },
+    { full_name: 'BÃ¹i CÃ´ng Nghá»‡', phone: '0908901234', email: 'congnghe.bui@nghiengcomplex.vn', role: 'CÃ´ng nghá»‡', status: 'Hoáº¡t Ä‘á»™ng' },
   ];
 
   for (const u of sampleUsers) {
@@ -43,3 +43,4 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+

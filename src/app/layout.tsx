@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WeLink",
+  title: "Nghiêng Complex",
   description: "Hệ thống quản lý sự kiện – thành viên – người mời",
 };
 

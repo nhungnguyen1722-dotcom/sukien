@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   User,
   Phone,
@@ -53,6 +54,7 @@ export default function QRCheckinModal({
   inviter,
   defaultEvent,
 }: QRCheckinModalProps) {
+  const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [hasTeaBreak, setHasTeaBreak] = useState(true);

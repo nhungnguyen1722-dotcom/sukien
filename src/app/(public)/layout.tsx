@@ -54,7 +54,7 @@ export default async function PublicLayout({
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-100 py-6 px-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500">
-        <p>© 2026 Tập đoàn Nghiêng Complex. Bản quyền thuộc về WeLink.</p>
+        <p>© 2026 Tập đoàn Nghiêng Complex. Bản quyền thuộc về Nghiêng Complex.</p>
         <Link href="/admin" className="text-blue-600 hover:underline mt-4 sm:mt-0">Đăng nhập quản trị</Link>
       </footer>
     </div>

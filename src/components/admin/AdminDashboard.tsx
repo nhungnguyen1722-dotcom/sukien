@@ -7,6 +7,8 @@ import {
   Users,
   Wallet,
   ArrowRight,
+  Home,
+  ArrowUpRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -77,12 +79,27 @@ export default function AdminDashboard({
 
   return (
     <div className="p-8 max-w-[1400px]">
-      {/* Title & Subtitle */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Tổng quan</h1>
-        <p className="text-sm text-gray-500 mt-1.5 font-normal">
-          Hệ thống quản lý sự kiện – thành viên – người mới
-        </p>
+      {/* Title & Subtitle + Link đến trang chủ (Áp dụng cho tất cả tài khoản) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Tổng quan</h1>
+          <p className="text-sm text-gray-500 mt-1.5 font-normal">
+            Hệ thống quản lý sự kiện – thành viên – người mới
+          </p>
+        </div>
+
+        <Link
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-white border border-gray-200/90 hover:border-blue-500 hover:bg-blue-50/60 text-gray-700 hover:text-blue-600 rounded-xl text-sm font-semibold shadow-xs transition-all duration-200 group self-start sm:self-center cursor-pointer active:scale-98"
+        >
+          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+            <Home className="w-4 h-4 text-blue-600" />
+          </div>
+          <span>Về trang chủ</span>
+          <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+        </Link>
       </div>
 
       {/* Top Stat Cards - 4 cards for admin, 3 cards for non-admin (Mục 4: Non-admin không được xem Tổng chi phí dự kiến) */}

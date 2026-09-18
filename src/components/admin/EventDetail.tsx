@@ -93,6 +93,8 @@ export interface Registration {
   company_address: string | null;
   source: string | null;
   referrer_name?: string | null;
+  referrer_phone?: string | null;
+  referrer_group?: string | null;
   attendance_status: string;
   is_food_approved: boolean;
   notes: string | null;
@@ -1940,7 +1942,7 @@ export default function EventDetail({
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                     <th className="py-3 px-4">Tên khách</th>
-                    <th className="py-3 px-4">SĐT</th>
+                    <th className="py-3 px-4">Người mời</th>
                     <th className="py-3 px-4">Nguồn</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Trạng thái tham dự</th>
@@ -1962,8 +1964,22 @@ export default function EventDetail({
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4">
                             <span className="font-bold text-slate-800 block">{safeDecodeURI(guest.guest_name)}</span>
+                            {guest.guest_phone && (
+                              <span className="text-[11px] text-slate-400 block mt-0.5">{guest.guest_phone}</span>
+                            )}
                           </td>
-                          <td className="py-3.5 px-4 text-slate-600">{guest.guest_phone || '—'}</td>
+                          <td className="py-3.5 px-4">
+                            {(guest.referrer_name || guest.referrer_group) ? (
+                              <div>
+                                <span className="font-medium text-slate-800 block">{guest.referrer_name || guest.referrer_group}</span>
+                                {guest.referrer_phone && (
+                                  <span className="text-[11px] text-slate-400 block mt-0.5">{guest.referrer_phone}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Lễ tân nhập'}</td>
                           <td className="py-3.5 px-4 text-center">
                             <input
@@ -2041,7 +2057,15 @@ export default function EventDetail({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <span className="font-bold text-slate-800 block text-sm">{safeDecodeURI(guest.guest_name)}</span>
-                          <span className="text-xs text-slate-500 block">{guest.guest_phone || '—'}</span>
+                          {guest.guest_phone && (
+                            <span className="text-xs text-slate-500 block">{guest.guest_phone}</span>
+                          )}
+                          {(guest.referrer_name || guest.referrer_group) && (
+                            <span className="text-[11px] text-slate-400 block mt-0.5">
+                              Người mời: {guest.referrer_name || guest.referrer_group}
+                              {guest.referrer_phone ? ` (${guest.referrer_phone})` : ''}
+                            </span>
+                          )}
                           <span className="text-[11px] text-slate-400 block">Nguồn: {guest.source || 'Lễ tân nhập'}</span>
                         </div>
 

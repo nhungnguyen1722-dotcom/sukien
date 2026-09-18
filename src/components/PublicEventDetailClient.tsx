@@ -156,7 +156,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
     { label: 'Quản lý cấp cao', icon: Award },
     { label: 'Chuyên gia', icon: GraduationCap },
     { label: 'Nhà đầu tư', icon: Layers },
-    { label: 'Cộng đồng WeLink', icon: Users },
+    { label: 'Cộng đồng Nghiêng Complex', icon: Users },
   ];
 
   return (
@@ -416,7 +416,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                     </div>
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
                       <h4 className="font-bold text-gray-900 mb-1">Chuyên đề 2</h4>
-                      <p className="text-xs text-gray-500">Xây dựng chuỗi giá trị liên kết và tiếp cận tệp khách hàng tiềm năng cùng WeLink.</p>
+                      <p className="text-xs text-gray-500">Xây dựng chuỗi giá trị liên kết và tiếp cận tệp khách hàng tiềm năng cùng Nghiêng Complex.</p>
                     </div>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CalendarDays,
   Calendar,
@@ -52,6 +53,7 @@ export default function EventRegistrationModal({
   event,
   onSuccess,
 }: EventRegistrationModalProps) {
+  const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -229,23 +231,47 @@ export default function EventRegistrationModal({
             email: email.trim(),
             company: company.trim(),
             referrer: finalReferrer,
+            hasTeaBreak: hasTeaBreak,
           })
         );
       } catch {
         // Ignore
       }
+
+      // Tự động chuyển sang trạng thái đăng nhập cho khách hàng sau khi đăng ký thành công
       try {
-        if (data.user) {
-          document.cookie = `user_role=Thành viên; path=/; max-age=31536000; SameSite=Lax`;
-          document.cookie = `user_name=${encodeURIComponent(data.user.fullName || fullName)}; path=/; max-age=31536000; SameSite=Lax`;
-          document.cookie = `user_phone=${encodeURIComponent(data.user.phone || phone)}; path=/; max-age=31536000; SameSite=Lax`;
-          if (data.user.id) {
-            document.cookie = `user_id=${data.user.id}; path=/; max-age=31536000; SameSite=Lax`;
-          }
-          if (email) {
-            document.cookie = `user_email=${encodeURIComponent(email)}; path=/; max-age=31536000; SameSite=Lax`;
-          }
+        const role = data.role || data.user?.role || 'Thành viên';
+        const uName = data.user?.fullName || fullName.trim();
+        const uPhone = data.user?.phone || phone.trim();
+        const uEmail = data.user?.email || email.trim();
+        const uId = data.user?.id ? String(data.user.id) : '';
+        const uRefCode = data.ref_code || data.user?.ref_code || (uPhone ? `N_${uPhone}` : 'N_0000000001');
+        const maxAge = 31536000;
+
+        document.cookie = `user_role=${encodeURIComponent(role)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `user_name=${encodeURIComponent(uName)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `user_phone=${encodeURIComponent(uPhone)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        if (uEmail) {
+          document.cookie = `user_email=${encodeURIComponent(uEmail)}; path=/; max-age=${maxAge}; SameSite=Lax`;
         }
+        if (uId) {
+          document.cookie = `user_id=${uId}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        }
+        document.cookie = `user_ref_code=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `ref_code=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `user_ref=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+
+        localStorage.setItem('nghieng_auth_role', role);
+        localStorage.setItem('nghieng_user_name', uName);
+        localStorage.setItem('nghieng_user_phone', uPhone);
+        if (uEmail) localStorage.setItem('nghieng_user_email', uEmail);
+        if (uId) localStorage.setItem('nghieng_user_id', uId);
+        localStorage.setItem('nghieng_user_ref_code', uRefCode);
+        localStorage.setItem('ref_code', uRefCode);
+
+        // Dispatch sự kiện để PublicHeaderAuth và EventHomePage cập nhật tức thì
+        window.dispatchEvent(new Event('nghieng-auth-change'));
+        window.dispatchEvent(new Event('storage'));
       } catch {
         // Ignore
       }
@@ -404,7 +430,11 @@ export default function EventRegistrationModal({
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-[11px] text-blue-100">
-                  <span>Mặc định: Suất ăn tiệc trà đã được xác nhận</span>
+                  <span>
+                    {hasTeaBreak
+                      ? 'Suất ăn tiệc trà: Đã đăng ký (50.000 đ/suất)'
+                      : 'Suất ăn tiệc trà: Không đăng ký'}
+                  </span>
                   <span>Trạng thái: {registrationResult.attendanceStatus}</span>
                 </div>
               </div>
@@ -421,7 +451,10 @@ export default function EventRegistrationModal({
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    onClose();
+                    router.refresh();
+                  }}
                   className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-semibold rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
@@ -660,7 +693,7 @@ export default function EventRegistrationModal({
                       className="w-4 h-4 rounded border-amber-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                     <label htmlFor="teaBreakCheckbox" className="text-xs text-amber-950 font-semibold cursor-pointer select-none">
-                      Đăng ký dự Suất ăn trưa tiệc trà (50.000đ/suất)
+                      Đăng ký suất ăn trưa tiệc trà (50.000 đ/suất)
                     </label>
                   </div>
 

@@ -119,8 +119,13 @@ export async function POST(request: NextRequest) {
       [cleanPhone]
     );
 
+    let userRole = 'Thành viên';
+    let userRefCode = '';
+
     if (existingUserRes.rows.length > 0) {
       userId = existingUserRes.rows[0].id;
+      userRole = existingUserRes.rows[0].role || 'Thành viên';
+      userRefCode = existingUserRes.rows[0].ref_code || (cleanPhone ? `N_${cleanPhone}` : `N_${Date.now()}`);
       // Cập nhật thông tin nếu cần
       if (cleanEmail || referrerId) {
         await pool.query(
@@ -135,6 +140,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Tạo mới tài khoản với SĐT và mật khẩu là SĐT
       const generatedRefCode = cleanPhone ? `N_${cleanPhone}` : `N_${Date.now()}`;
+      userRefCode = generatedRefCode;
       const newUserRes = await pool.query(
         `INSERT INTO users (
           full_name,
@@ -148,8 +154,8 @@ export async function POST(request: NextRequest) {
           status,
           join_date,
           ref_code
-        ) VALUES ($1, $2, $3, $4, 'Khách mời', 'Khách mời', $5, $6, 'Đang hoạt động', CURRENT_DATE, $7)
-        RETURNING id, ref_code`,
+        ) VALUES ($1, $2, $3, $4, 'Thành viên', 'Thành viên', $5, $6, 'Đang hoạt động', CURRENT_DATE, $7)
+        RETURNING id, ref_code, role`,
         [
           cleanName,
           cleanPhone,
@@ -162,6 +168,7 @@ export async function POST(request: NextRequest) {
       );
       if (newUserRes.rows.length > 0) {
         userId = newUserRes.rows[0].id;
+        userRole = newUserRes.rows[0].role || 'Thành viên';
       }
     }
 
@@ -174,8 +181,10 @@ export async function POST(request: NextRequest) {
 
     // 5. Lưu vào event_registrations (Mục 10 - Checkbox Suất ăn tiệc trà)
     const isFoodApproved = body.has_tea_break !== undefined
-      ? Boolean(body.has_tea_break)
-      : (body.is_food_approved !== undefined ? Boolean(body.is_food_approved) : true);
+      ? (body.has_tea_break === true || body.has_tea_break === 'true' || body.has_tea_break === 1 || body.has_tea_break === '1')
+      : (body.is_food_approved !== undefined
+          ? (body.is_food_approved === true || body.is_food_approved === 'true' || body.is_food_approved === 1 || body.is_food_approved === '1')
+          : true);
 
     const regRes = await pool.query(
       `INSERT INTO event_registrations (
@@ -242,6 +251,9 @@ export async function POST(request: NextRequest) {
       [parsedEventId]
     );
 
+    const finalRole = userRole || 'Thành viên';
+    const finalRefCode = userRefCode || (cleanPhone ? `N_${cleanPhone}` : `N_${Date.now()}`);
+
     const response = NextResponse.json({
       success: true,
       message: isTodayCheckin
@@ -254,6 +266,7 @@ export async function POST(request: NextRequest) {
         guestPhone: registration.guest_phone,
         guestEmail: registration.guest_email,
         attendanceStatus: registration.attendance_status,
+        isFoodApproved: registration.is_food_approved,
         eventName: event.name,
         eventDate: event.event_date,
         eventLocation: event.location,
@@ -262,7 +275,12 @@ export async function POST(request: NextRequest) {
         id: userId,
         phone: cleanPhone,
         fullName: cleanName,
-      }
+        email: cleanEmail,
+        role: finalRole,
+        ref_code: finalRefCode,
+      },
+      role: finalRole,
+      ref_code: finalRefCode,
     });
 
     // Tự động đăng nhập người dùng & Lưu cookie persistent (1 năm) trên thiết bị PC & Mobile (Mục 13)
@@ -271,9 +289,6 @@ export async function POST(request: NextRequest) {
       maxAge: 365 * 24 * 60 * 60, // Persistent 1 năm
       sameSite: 'lax' as const,
     };
-    const finalRole = existingUserRes.rows.length > 0 && existingUserRes.rows[0].role
-      ? existingUserRes.rows[0].role
-      : 'Thành viên';
     response.cookies.set('user_role', finalRole, cookieOptions);
     response.cookies.set('user_name', encodeURIComponent(cleanName), cookieOptions);
     response.cookies.set('user_email', encodeURIComponent(cleanEmail || ''), cookieOptions);
@@ -281,10 +296,9 @@ export async function POST(request: NextRequest) {
     if (userId) {
       response.cookies.set('user_id', String(userId), cookieOptions);
     }
-    const finalRefCode = existingUserRes.rows.length > 0 && existingUserRes.rows[0].ref_code
-      ? existingUserRes.rows[0].ref_code
-      : (cleanPhone ? `N_${cleanPhone}` : `N_${Date.now()}`);
     response.cookies.set('user_ref_code', finalRefCode, cookieOptions);
+    response.cookies.set('ref_code', finalRefCode, cookieOptions);
+    response.cookies.set('user_ref', finalRefCode, cookieOptions);
 
     return response;
   } catch (error: any) {

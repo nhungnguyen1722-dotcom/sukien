@@ -1,84 +1,84 @@
-const { Pool } = require('pg');
+﻿const { Pool } = require('pg');
 const { getDatabaseConfig } = require('./db-config');
 
 const pool = new Pool(getDatabaseConfig());
 
 async function seedEvents() {
   try {
-    // Lấy 1 manager hợp lệ (nếu có)
+    // Láº¥y 1 manager há»£p lá»‡ (náº¿u cÃ³)
     const userRes = await pool.query('SELECT id FROM users LIMIT 1');
     const managerId = userRes.rows.length > 0 ? userRes.rows[0].id : null;
 
     const eventsData = [
       {
-        name: 'Hội nghị khách hàng đầu năm 2025',
+        name: 'Há»™i nghá»‹ khÃ¡ch hÃ ng Ä‘áº§u nÄƒm 2025',
         event_date: '2025-01-15',
         expected_guests: 50,
-        location: 'Khách sạn Daewoo, Hà Nội',
-        status: 'Đã hoàn thành',
+        location: 'KhÃ¡ch sáº¡n Daewoo, HÃ  Ná»™i',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Workshop Kỹ năng bán hàng BĐS 2025',
+        name: 'Workshop Ká»¹ nÄƒng bÃ¡n hÃ ng BÄS 2025',
         event_date: '2025-03-10',
         expected_guests: 30,
-        location: 'Văn phòng WeLink',
-        status: 'Đã hoàn thành',
+        location: 'VÄƒn phÃ²ng Nghiêng Complex',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Tiệc trà kết nối nhà đầu tư Q1',
+        name: 'Tiá»‡c trÃ  káº¿t ná»‘i nhÃ  Ä‘áº§u tÆ° Q1',
         event_date: '2025-04-20',
         expected_guests: 40,
-        location: 'Nhà hàng Sen Tây Hồ',
-        status: 'Đã hoàn thành',
+        location: 'NhÃ  hÃ ng Sen TÃ¢y Há»“',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Hội thảo: Cơ hội đầu tư vùng ven',
+        name: 'Há»™i tháº£o: CÆ¡ há»™i Ä‘áº§u tÆ° vÃ¹ng ven',
         event_date: '2025-05-25',
         expected_guests: 100,
-        location: 'Trung tâm Hội nghị Quốc gia',
-        status: 'Đã hoàn thành',
+        location: 'Trung tÃ¢m Há»™i nghá»‹ Quá»‘c gia',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Gặp gỡ đối tác chiến lược',
+        name: 'Gáº·p gá»¡ Ä‘á»‘i tÃ¡c chiáº¿n lÆ°á»£c',
         event_date: '2025-06-12',
         expected_guests: 20,
         location: 'JW Marriott Hanoi',
-        status: 'Đã hoàn thành',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Lễ ra quân dự án Eco Park',
+        name: 'Lá»… ra quÃ¢n dá»± Ã¡n Eco Park',
         event_date: '2025-08-08',
         expected_guests: 150,
-        location: 'KĐT Ecopark',
-        status: 'Đã hoàn thành',
+        location: 'KÄT Ecopark',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Đào tạo Sales K2',
+        name: 'ÄÃ o táº¡o Sales K2',
         event_date: '2025-09-05',
         expected_guests: 35,
-        location: 'Phòng đào tạo WeLink',
-        status: 'Đã hoàn thành',
+        location: 'PhÃ²ng Ä‘Ã o táº¡o Nghiêng Complex',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Sự kiện tri ân khách hàng',
+        name: 'Sá»± kiá»‡n tri Ã¢n khÃ¡ch hÃ ng',
         event_date: '2025-10-20',
         expected_guests: 80,
-        location: 'Trống Đồng Palace',
-        status: 'Đã hoàn thành',
+        location: 'Trá»‘ng Äá»“ng Palace',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Networking Doanh nhân trẻ',
+        name: 'Networking Doanh nhÃ¢n tráº»',
         event_date: '2025-11-15',
         expected_guests: 60,
-        location: 'Café The Vista',
-        status: 'Đã hoàn thành',
+        location: 'CafÃ© The Vista',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       },
       {
-        name: 'Gala Dinner Tổng kết 2025',
+        name: 'Gala Dinner Tá»•ng káº¿t 2025',
         event_date: '2025-12-25',
         expected_guests: 200,
-        location: 'Khách sạn InterContinental',
-        status: 'Đã hoàn thành',
+        location: 'KhÃ¡ch sáº¡n InterContinental',
+        status: 'ÄÃ£ hoÃ n thÃ nh',
       }
     ];
 
@@ -94,7 +94,7 @@ async function seedEvents() {
         `INSERT INTO events (
           name, event_date, expected_guests, location, manager_id, status, approval_status,
           mc_fee, speaker_fee, support_fee, closer_fee, tea_break_fee, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'Đã duyệt', $7, $8, $9, $10, $11, 'Sự kiện đã hoàn thành tốt đẹp')`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'ÄÃ£ duyá»‡t', $7, $8, $9, $10, $11, 'Sá»± kiá»‡n Ä‘Ã£ hoÃ n thÃ nh tá»‘t Ä‘áº¹p')`,
         [
           event.name,
           event.event_date,
@@ -111,12 +111,13 @@ async function seedEvents() {
       );
     }
 
-    console.log('Đã tạo thành công 10 sự kiện cũ trong năm 2025.');
+    console.log('ÄÃ£ táº¡o thÃ nh cÃ´ng 10 sá»± kiá»‡n cÅ© trong nÄƒm 2025.');
   } catch (error) {
-    console.error('Lỗi khi tạo dữ liệu:', error);
+    console.error('Lá»—i khi táº¡o dá»¯ liá»‡u:', error);
   } finally {
     pool.end();
   }
 }
 
 seedEvents();
+
