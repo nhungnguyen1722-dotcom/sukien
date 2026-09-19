@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 
-let NEON_CONN_STRING = 'postgresql://neondb_owner:npg_Gy2mBY4leKgb@ep-snowy-forest-ax0u3mls.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_Gy2mBY4leKgb@ep-snowy-forest-ax0u3mls.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 const LOCAL_CONFIG = {
   user: process.env.DB_USER || 'postgres',
@@ -37,7 +37,7 @@ async function syncDatabases() {
   const neonPool = new Pool({
     connectionString: NEON_CONN_STRING,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 15000,
+    connectionTimeoutMillis: 30000,
   });
 
   const localPool = new Pool(LOCAL_CONFIG);
@@ -152,12 +152,24 @@ async function syncDatabases() {
     // 2. Tạm tắt kiểm tra Foreign Key để import an toàn
     await localClient.query("SET session_replication_role = 'replica'");
 
-    const tableListStr = neonTables.map(t => `"${t}"`).join(', ');
+    // Check if table_tinh already populated locally
+    const localTinhCountRes = await localClient.query('SELECT COUNT(*) as cnt FROM table_tinh');
+    const localTinhCount = parseInt(localTinhCountRes.rows[0].cnt, 10);
+    const needSyncTinh = localTinhCount < 63;
+
+    // Truncate target tables (keep table_tinh if already populated to avoid 50MB GIS download)
+    const tablesToTruncate = neonTables.filter(t => t !== 'table_tinh' || needSyncTinh);
+    const tableListStr = tablesToTruncate.map(t => `"${t}"`).join(', ');
     console.log(`[Dữ liệu] Dọn sạch dữ liệu cũ các bảng đích: ${tableListStr}...`);
     await localClient.query(`TRUNCATE TABLE ${tableListStr} CASCADE`);
 
     // 3. Sao chép dữ liệu từng bảng
     for (const tableName of neonTables) {
+      if (tableName === 'table_tinh' && !needSyncTinh) {
+        console.log(`  - "table_tinh": Giữ nguyên ${localTinhCount} tỉnh/thành GIS hiện có (đầy đủ).`);
+        continue;
+      }
+
       const colsRes = await neonPool.query(`
         SELECT column_name, udt_name 
         FROM information_schema.columns
@@ -175,7 +187,7 @@ async function syncDatabases() {
       let selectQuery = '';
       if (colsRes.rows.some(r => r.udt_name === 'geometry')) {
         const selectCols = colNames.map(c => {
-          if (isGeomCol(c)) return `ST_AsEWKT("${c}") as "${c}"`;
+          if (isGeomCol(c)) return `ST_AsBinary("${c}") as "${c}"`;
           return `"${c}"`;
         }).join(', ');
         selectQuery = `SELECT ${selectCols} FROM "${tableName}"`;
@@ -203,7 +215,7 @@ async function syncDatabases() {
             let val = row[col];
             if (isGeomCol(col)) {
               if (val) {
-                valuePlaceholders.push(`ST_GeomFromEWKT($${values.length + 1})`);
+                valuePlaceholders.push(`ST_GeomFromWKB($${values.length + 1}, 4326)`);
                 values.push(val);
               } else {
                 valuePlaceholders.push(`$${values.length + 1}`);

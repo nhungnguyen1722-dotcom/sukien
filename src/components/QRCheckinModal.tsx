@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Printer,
+  RotateCcw,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 
@@ -99,28 +100,47 @@ export default function QRCheckinModal({
       setReferrerType('co_nguoi_gioi_thieu');
     }
 
+    // Chặn lưu thông tin cookies/localStorage trên điện thoại:
+    // Đảm bảo mỗi lần quét mã QR là một form đăng ký mới tinh, không tự động lưu/điền lại thông tin cũ
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.phone) {
-          setPhone(parsed.phone || '');
-          setFullName(parsed.fullName || '');
-          setEmail(parsed.email || '');
-          if (parsed.referrerType) {
-            setReferrerType(parsed.referrerType);
-          }
-          if (parsed.referrer && !referrer) {
-            setReferrer(parsed.referrer);
-          }
-          if (parsed.hasTeaBreak !== undefined) {
-            setHasTeaBreak(Boolean(parsed.hasTeaBreak));
-          }
-        }
+      localStorage.removeItem(STORAGE_KEY);
+      const roleCookie = typeof document !== 'undefined' ? document.cookie.match(/(?:^|;\s*)user_role=([^;]*)/) : null;
+      const currentRole = roleCookie ? decodeURIComponent(roleCookie[1]).toLowerCase() : '';
+      const isAdmin = currentRole.includes('admin') || currentRole.includes('quản trị');
+
+      if (!isAdmin && typeof document !== 'undefined') {
+        const cookiesToClear = [
+          'user_role',
+          'user_name',
+          'user_email',
+          'user_phone',
+          'user_id',
+          'user_ref_code',
+          'ref_code',
+          'user_ref',
+        ];
+        cookiesToClear.forEach((name) => {
+          document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        });
+        localStorage.removeItem('nghieng_auth_role');
+        localStorage.removeItem('nghieng_user_name');
+        localStorage.removeItem('nghieng_user_phone');
+        localStorage.removeItem('nghieng_user_email');
+        localStorage.removeItem('nghieng_user_id');
+        localStorage.removeItem('nghieng_user_ref_code');
+        localStorage.removeItem('ref_code');
+        window.dispatchEvent(new Event('nghieng-auth-change'));
+        window.dispatchEvent(new Event('storage'));
       }
     } catch {
       // Ignore
     }
+
+    // Reset các trường thông tin luôn mới tinh khi quét
+    setPhone('');
+    setFullName('');
+    setEmail('');
+    setNotes('');
   }, [isOpen, inviter]);
 
   const handleReferrerSearch = async (value: string) => {
@@ -204,62 +224,8 @@ export default function QRCheckinModal({
         throw new Error(data.error || 'Đăng ký thất bại, vui lòng thử lại');
       }
 
-      // Save to localStorage for single-tap convenience
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            phone: cleanPhone,
-            fullName: fullName.trim(),
-            email: email.trim(),
-            referrerType: referrerType,
-            referrer: referrer.trim(),
-            hasTeaBreak: hasTeaBreak,
-            registeredAt: new Date().toISOString(),
-          })
-        );
-      } catch {
-        // Ignore
-      }
-
-      // Tự động chuyển sang trạng thái đăng nhập cho khách hàng sau khi đăng ký thành công
-      try {
-        const role = data.role || data.user?.role || 'Thành viên';
-        const uName = data.user?.fullName || fullName.trim();
-        const uPhone = data.user?.phone || cleanPhone;
-        const uEmail = data.user?.email || '';
-        const uId = data.user?.id ? String(data.user.id) : '';
-        const uRefCode = data.ref_code || data.user?.ref_code || (cleanPhone ? `N_${cleanPhone}` : 'N_0000000001');
-        const maxAge = 31536000;
-
-        document.cookie = `user_role=${encodeURIComponent(role)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `user_name=${encodeURIComponent(uName)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `user_phone=${encodeURIComponent(uPhone)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        if (uEmail) {
-          document.cookie = `user_email=${encodeURIComponent(uEmail)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        }
-        if (uId) {
-          document.cookie = `user_id=${uId}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        }
-        document.cookie = `user_ref_code=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `ref_code=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `user_ref=${encodeURIComponent(uRefCode)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-
-        localStorage.setItem('nghieng_auth_role', role);
-        localStorage.setItem('nghieng_user_name', uName);
-        localStorage.setItem('nghieng_user_phone', uPhone);
-        if (uEmail) localStorage.setItem('nghieng_user_email', uEmail);
-        if (uId) localStorage.setItem('nghieng_user_id', uId);
-        localStorage.setItem('nghieng_user_ref_code', uRefCode);
-        localStorage.setItem('ref_code', uRefCode);
-
-        // Dispatch sự kiện để PublicHeaderAuth và EventHomePage cập nhật tức thì
-        window.dispatchEvent(new Event('nghieng-auth-change'));
-        window.dispatchEvent(new Event('storage'));
-      } catch {
-        // Ignore
-      }
-
+      // Chặn hoàn toàn việc lưu cookies/localStorage khi đăng ký qua QR check-in
+      // Người dùng quét mã trên điện thoại nhận vé điện tử trực tiếp, không bị lưu cookies gây trùng lặp khi quét lần 2
       setRegistrationResult(data);
     } catch (err: any) {
       setErrorMsg(err.message || 'Có lỗi xảy ra khi gửi thông tin');
@@ -272,6 +238,49 @@ export default function QRCheckinModal({
     onClose();
     if (registrationResult) {
       router.refresh();
+    }
+  };
+
+  const handleClearForm = () => {
+    setFullName('');
+    setPhone('');
+    setEmail('');
+    setNotes('');
+    setReferrer('');
+    setReferrerType('vang_lai');
+    setErrorMsg('');
+    setDuplicateInfo(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      const roleCookie = typeof document !== 'undefined' ? document.cookie.match(/(?:^|;\s*)user_role=([^;]*)/) : null;
+      const currentRole = roleCookie ? decodeURIComponent(roleCookie[1]).toLowerCase() : '';
+      const isAdmin = currentRole.includes('admin') || currentRole.includes('quản trị');
+      if (!isAdmin && typeof document !== 'undefined') {
+        const cookiesToClear = [
+          'user_role',
+          'user_name',
+          'user_email',
+          'user_phone',
+          'user_id',
+          'user_ref_code',
+          'ref_code',
+          'user_ref',
+        ];
+        cookiesToClear.forEach((name) => {
+          document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        });
+        localStorage.removeItem('nghieng_auth_role');
+        localStorage.removeItem('nghieng_user_name');
+        localStorage.removeItem('nghieng_user_phone');
+        localStorage.removeItem('nghieng_user_email');
+        localStorage.removeItem('nghieng_user_id');
+        localStorage.removeItem('nghieng_user_ref_code');
+        localStorage.removeItem('ref_code');
+        window.dispatchEvent(new Event('nghieng-auth-change'));
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch {
+      // Ignore
     }
   };
 
@@ -553,32 +562,45 @@ export default function QRCheckinModal({
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Người giới thiệu
                     </label>
-                    <div className="flex items-center gap-6 mb-2">
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
-                        <input
-                          type="radio"
-                          name="referrerType"
-                          value="vang_lai"
-                          checked={referrerType === 'vang_lai'}
-                          onChange={() => {
-                            setReferrerType('vang_lai');
-                            setReferrer('');
-                          }}
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span>Người vãng lai</span>
-                      </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
-                        <input
-                          type="radio"
-                          name="referrerType"
-                          value="co_nguoi_gioi_thieu"
-                          checked={referrerType === 'co_nguoi_gioi_thieu'}
-                          onChange={() => setReferrerType('co_nguoi_gioi_thieu')}
-                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span>Người giới thiệu</span>
-                      </label>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-4 sm:gap-6">
+                        <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
+                          <input
+                            type="radio"
+                            name="referrerType"
+                            value="vang_lai"
+                            checked={referrerType === 'vang_lai'}
+                            onChange={() => {
+                              setReferrerType('vang_lai');
+                              setReferrer('');
+                            }}
+                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span>Người vãng lai</span>
+                        </label>
+                        <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
+                          <input
+                            type="radio"
+                            name="referrerType"
+                            value="co_nguoi_gioi_thieu"
+                            checked={referrerType === 'co_nguoi_gioi_thieu'}
+                            onChange={() => setReferrerType('co_nguoi_gioi_thieu')}
+                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span>Người giới thiệu</span>
+                        </label>
+                      </div>
+
+                      {/* Nút Clear (Theo đúng vị trí khoanh đỏ trong ảnh) */}
+                      <button
+                        type="button"
+                        onClick={handleClearForm}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                        title="Xóa trắng tất cả thông tin đã nhập và cookies"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Clear</span>
+                      </button>
                     </div>
 
                     {referrerType === 'co_nguoi_gioi_thieu' && (
