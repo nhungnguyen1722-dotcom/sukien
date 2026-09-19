@@ -77,6 +77,14 @@ export default function EventRegistrationModal({
 
   const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{id: number; full_name: string; phone: string}>>([]);
   const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
+  const [origin, setOrigin] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      setOrigin(window.location.origin);
+    }
+  }, []);
+
   const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
 
   // Load saved profile on mount or open
@@ -121,7 +129,7 @@ export default function EventRegistrationModal({
             .then((data) => {
               if (data.results && data.results.length > 0) {
                 const u = data.results[0];
-                setReferrer(`${u.full_name} (${u.ref_code || trimmedRef})`);
+                setReferrer(`${u.full_name} (${(u as any).ref_code || trimmedRef})`);
               } else if (trimmedRef.includes('0914556677') || trimmedRef.toUpperCase().includes('CUC')) {
                 setReferrer(`Vũ Thị Cúc (${trimmedRef})`);
               } else if (trimmedRef.includes('0901234567') || trimmedRef.toUpperCase().includes('AN')) {
@@ -320,15 +328,10 @@ export default function EventRegistrationModal({
 
   const eventCode = (event as any).code || `EVT2026${String(event.id).padStart(4, '0')}`;
 
-  const qrScanUrl = useMemo(() => {
-    let origin = 'https://sukien-rouge.vercel.app';
-    if (typeof window !== 'undefined' && window.location?.origin) {
-      origin = window.location.origin;
-    }
-    const hasSpecificRef = referrer && referrer !== 'Khách vãng lai';
-    const refQuery = hasSpecificRef ? `ref=${encodeURIComponent(referrer)}` : 'ref';
-    return `${origin}/qr-checkin?${refQuery}&event=${event.id}`;
-  }, [referrer, event.id]);
+  const hasSpecificRef = referrer && referrer !== 'Khách vãng lai';
+  const refQuery = hasSpecificRef ? `ref=${encodeURIComponent(referrer)}` : 'ref';
+  const qrRelativePath = `/qr-checkin?${refQuery}&event=${event.id}`;
+  const qrScanUrl = origin ? `${origin}${qrRelativePath}` : qrRelativePath;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -623,16 +626,18 @@ export default function EventRegistrationModal({
                 <div className="md:hidden bg-[#f0f6ff] border border-blue-100 rounded-2xl p-3 sm:p-3.5 mb-4 flex items-center justify-between gap-2.5 shadow-2xs">
                   {/* Left: QR Code Preview */}
                   <a
-                    href={qrScanUrl}
+                    href={qrRelativePath}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={`Quét mã QR hoặc nhấn để mở link đăng ký: ${qrScanUrl}`}
+                    title="Quét mã QR hoặc nhấn để mở link đăng ký"
+                    suppressHydrationWarning
                     className="w-[66px] h-[66px] bg-white rounded-xl p-1.5 border border-blue-100/70 shadow-xs shrink-0 flex items-center justify-center hover:border-blue-400 transition-colors cursor-pointer"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrScanUrl)}`}
                       alt={`Mã QR ${eventCode}`}
+                      suppressHydrationWarning
                       className="w-full h-full object-contain"
                     />
                   </a>

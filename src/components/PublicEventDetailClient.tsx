@@ -47,6 +47,13 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const [copiedRef, setCopiedRef] = useState(false);
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id?: string; phone?: string; name?: string; ref_code?: string } | null>(null);
+  const [origin, setOrigin] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   useEffect(() => {
     const syncCurrentUser = () => {
@@ -111,14 +118,13 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const isEnded = event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành';
 
   const getShareUrl = () => {
-    if (typeof window === 'undefined') return '';
-    const origin = window.location.origin;
+    const currentOrigin = origin || (typeof window !== 'undefined' ? window.location.origin : '');
     // Khi đã đăng nhập: lấy ref_code của tài khoản
     if (currentUser?.ref_code) {
-      return `${origin}/qr-checkin?ref=${encodeURIComponent(currentUser.ref_code)}&event=${event.id}`;
+      return `${currentOrigin}/qr-checkin?ref=${encodeURIComponent(currentUser.ref_code)}&event=${event.id}`;
     }
     // Khi đã đăng xuất hoặc chưa đăng nhập: dạng Share link QR đăng ký của form đó (ví dụ ?ref&event=38)
-    return `${origin}/qr-checkin?ref&event=${event.id}`;
+    return `${currentOrigin}/qr-checkin?ref&event=${event.id}`;
   };
 
   const handleCopyLink = () => {
@@ -653,7 +659,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                 <input
                   type="text"
                   readOnly
-                  value={typeof window !== 'undefined' ? getShareUrl() : ''}
+                  value={getShareUrl()}
                   className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 select-all truncate font-mono"
                 />
                 <button

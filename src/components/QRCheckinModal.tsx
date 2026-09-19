@@ -73,6 +73,15 @@ export default function QRCheckinModal({
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  // Dynamic Client Origin to prevent SSR Hydration Mismatch
+  const [origin, setOrigin] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      setOrigin(window.location.origin);
+    }
+  }, []);
+
   const [duplicateInfo, setDuplicateInfo] = useState<{
     isDuplicate: boolean;
     duplicateType?: string;
@@ -159,8 +168,6 @@ export default function QRCheckinModal({
     setShowReferrerDropdown(false);
     setReferrerSearchResults([]);
   };
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,15 +320,12 @@ export default function QRCheckinModal({
 
   const eventCode = defaultEvent.code || `EVT2026${String(defaultEvent.id).padStart(4, '0')}`;
 
-  const qrScanUrl = useMemo(() => {
-    let origin = 'https://sukien-rouge.vercel.app';
-    if (typeof window !== 'undefined' && window.location?.origin) {
-      origin = window.location.origin;
-    }
-    const hasSpecificRef = inviter?.refCode && inviter.refCode !== 'N_0000000001';
-    const refQuery = hasSpecificRef ? `ref=${encodeURIComponent(inviter.refCode)}` : 'ref';
-    return `${origin}/qr-checkin?${refQuery}&event=${defaultEvent.id}`;
-  }, [inviter?.refCode, defaultEvent.id]);
+  const hasSpecificRef = inviter?.refCode && inviter.refCode !== 'N_0000000001';
+  const refQuery = hasSpecificRef ? `ref=${encodeURIComponent(inviter.refCode)}` : 'ref';
+  const qrRelativePath = `/qr-checkin?${refQuery}&event=${defaultEvent.id}`;
+  const qrScanUrl = origin ? `${origin}${qrRelativePath}` : qrRelativePath;
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -460,16 +464,18 @@ export default function QRCheckinModal({
                   {/* Event QR Code preview */}
                   <div className="flex flex-col items-center shrink-0 border-l border-slate-200 pl-3">
                     <a
-                      href={qrScanUrl}
+                      href={qrRelativePath}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title={`Quét mã QR hoặc nhấn để mở link đăng ký: ${qrScanUrl}`}
+                      title="Quét mã QR hoặc nhấn để mở link đăng ký"
+                      suppressHydrationWarning
                       className="p-1 bg-white border border-slate-200 rounded-lg shadow-xs hover:border-blue-400 transition-colors cursor-pointer block group"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrScanUrl)}`}
                         alt={`Mã QR ${eventCode}`}
+                        suppressHydrationWarning
                         className="w-12 h-12 sm:w-14 sm:h-14 object-contain group-hover:scale-105 transition-transform"
                       />
                     </a>
@@ -483,16 +489,18 @@ export default function QRCheckinModal({
                 <div className="md:hidden bg-[#f0f6ff] border border-blue-100 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 shadow-2xs">
                   {/* Left: QR Code Preview */}
                   <a
-                    href={qrScanUrl}
+                    href={qrRelativePath}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={`Quét mã QR hoặc nhấn để mở link đăng ký: ${qrScanUrl}`}
+                    title="Quét mã QR hoặc nhấn để mở link đăng ký"
+                    suppressHydrationWarning
                     className="w-[66px] h-[66px] bg-white rounded-xl p-1.5 border border-blue-100/70 shadow-xs shrink-0 flex items-center justify-center hover:border-blue-400 transition-colors cursor-pointer"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrScanUrl)}`}
                       alt={`Mã QR ${eventCode}`}
+                      suppressHydrationWarning
                       className="w-full h-full object-contain"
                     />
                   </a>

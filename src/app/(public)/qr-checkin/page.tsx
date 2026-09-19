@@ -64,10 +64,10 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
             refCode: 'N_0901234567',
             id: 3,
           };
-        } else if (refCode.startsWith('N_') && refCode !== 'N_0000000001') {
+        } else if (refCode && refCode !== 'N_0000000001') {
           inviter = {
             name: 'Người giới thiệu',
-            refCode: refCode,
+            refCode: prefixRef,
             id: null,
           };
         }

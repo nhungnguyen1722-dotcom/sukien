@@ -493,7 +493,14 @@ export default function EventDetail({
   const isAlreadyRegisteredInCharge = Boolean(myInChargePerson);
 
   // Computed Share URL for QR check-in (ref code of logged-in user)
-  const shareOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const [shareOrigin, setShareOrigin] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.origin) {
+      setShareOrigin(window.location.origin);
+    }
+  }, []);
+
   const effectiveRefCode = currentUserRefCode || initialUserRefCode || 'N_0000000001';
   const eventShareUrl = `${shareOrigin}/qr-checkin?ref=${encodeURIComponent(effectiveRefCode)}&event=${event.id}`;
   const eventCode = event.code || `EVT2026${String(event.id).padStart(4, '0')}`;
@@ -503,7 +510,9 @@ export default function EventDetail({
 
   const handleDownloadEventQr = async () => {
     try {
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrRegisterUrl)}`;
+      const currentOrigin = shareOrigin || (typeof window !== 'undefined' ? window.location.origin : '');
+      const fullQrUrl = `${currentOrigin}/qr-checkin?ref&event=${event.id}`;
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(fullQrUrl)}`;
       const res = await fetch(qrApiUrl);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -516,7 +525,9 @@ export default function EventDetail({
       document.body.removeChild(a);
       showToast('success', 'Đã tải xuống mã QR sự kiện');
     } catch {
-      window.open(`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrRegisterUrl)}`, '_blank');
+      const currentOrigin = shareOrigin || (typeof window !== 'undefined' ? window.location.origin : '');
+      const fullQrUrl = `${currentOrigin}/qr-checkin?ref&event=${event.id}`;
+      window.open(`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(fullQrUrl)}`, '_blank');
     }
   };
 

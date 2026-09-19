@@ -13,14 +13,19 @@ export async function GET(request: NextRequest) {
     }
 
     const cleanQuery = q.replace(/\s+/g, '');
+    const cleanPhone = cleanQuery.replace(/^N_/, '');
     
     const result = await pool.query(
-      `SELECT id, full_name, phone 
+      `SELECT id, full_name, phone, ref_code 
        FROM users 
-       WHERE phone LIKE $1 OR full_name ILIKE $2
+       WHERE phone LIKE $1 
+          OR phone LIKE $2
+          OR ref_code ILIKE $1 
+          OR ref_code ILIKE $3
+          OR full_name ILIKE $4
        ORDER BY full_name ASC 
        LIMIT 10`,
-      [`%${cleanQuery}%`, `%${q}%`]
+      [`%${cleanQuery}%`, `%${cleanPhone}%`, `%${cleanPhone}%`, `%${q}%`]
     );
 
     return NextResponse.json({ results: result.rows });
