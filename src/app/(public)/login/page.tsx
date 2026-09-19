@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,11 +8,35 @@ import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("nhungnguyen1722@gmail.com");
-  const [password, setPassword] = useState("••••••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    // Khi vào trang đăng nhập, dọn dẹp các cookie và storage phiên cũ để form và phiên đăng nhập hoàn toàn mới
+    try {
+      document.cookie = "user_role=; path=/; max-age=0";
+      document.cookie = "user_name=; path=/; max-age=0";
+      document.cookie = "user_email=; path=/; max-age=0";
+      document.cookie = "user_phone=; path=/; max-age=0";
+      document.cookie = "user_id=; path=/; max-age=0";
+      document.cookie = "user_ref_code=; path=/; max-age=0";
+      document.cookie = "ref_code=; path=/; max-age=0";
+      document.cookie = "user_ref=; path=/; max-age=0";
+      localStorage.removeItem("nghieng_auth_role");
+      localStorage.removeItem("nghieng_user_ref_code");
+      localStorage.removeItem("ref_code");
+      localStorage.removeItem("nghieng_user_id");
+      localStorage.removeItem("nghieng_user_name");
+      localStorage.removeItem("nghieng_user_email");
+      localStorage.removeItem("nghieng_user_phone");
+      window.dispatchEvent(new Event("nghieng-auth-change"));
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -194,7 +218,7 @@ export default function LoginPage() {
                 <input
                   id="password"
                   type="password"
-                  placeholder="••••••••••••"
+                  placeholder="Nhập mật khẩu"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"

@@ -92,6 +92,7 @@ export interface Registration {
   guest_email: string | null;
   company_address: string | null;
   source: string | null;
+  referrer_id?: number | null;
   referrer_name?: string | null;
   referrer_phone?: string | null;
   referrer_group?: string | null;
@@ -171,6 +172,7 @@ interface EventDetailProps {
   initialSchedules?: ScheduleItem[];
   initialInChargePersons?: any[];
   initialUserRefCode?: string;
+  initialUserRole?: string;
 }
 
 export default function EventDetail({
@@ -182,6 +184,7 @@ export default function EventDetail({
   initialSchedules,
   initialInChargePersons,
   initialUserRefCode,
+  initialUserRole,
 }: EventDetailProps) {
   const [event, setEvent] = useState<EventData>(initialEvent);
   const [registrations, setRegistrations] = useState<Registration[]>(initialRegistrations);
@@ -201,6 +204,16 @@ export default function EventDetail({
   const [isAddInChargeModalOpen, setIsAddInChargeModalOpen] = useState(false);
   const [editingInCharge, setEditingInCharge] = useState<any | null>(null);
   const [isAddScheduleModalOpen, setIsAddScheduleModalOpen] = useState(false);
+
+  // Edit Referrer Modal state (Chỉ dành cho tài khoản Admin)
+  const [isEditReferrerModalOpen, setIsEditReferrerModalOpen] = useState(false);
+  const [editingGuest, setEditingGuest] = useState<Registration | null>(null);
+  const [selectedReferrerMemberId, setSelectedReferrerMemberId] = useState<number | null>(null);
+  const [referrerInputName, setReferrerInputName] = useState('');
+  const [referrerInputPhone, setReferrerInputPhone] = useState('');
+  const [referrerMemberSearch, setReferrerMemberSearch] = useState('');
+  const [isReferrerMemberDropdownOpen, setIsReferrerMemberDropdownOpen] = useState(false);
+  const [isSavingReferrer, setIsSavingReferrer] = useState(false);
 
   // In-charge persons state - loaded from DB via props
   const [inChargePersons, setInChargePersons] = useState<any[]>(initialInChargePersons || []);
@@ -374,7 +387,7 @@ export default function EventDetail({
   const [guestStatusFilter, setGuestStatusFilter] = useState('');
 
   // User Auth & Role detection
-  const [currentUserRole, setCurrentUserRole] = useState('ADMIN');
+  const [currentUserRole, setCurrentUserRole] = useState(initialUserRole || 'ADMIN');
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [currentUserName, setCurrentUserName] = useState('');
   const [currentUserPhone, setCurrentUserPhone] = useState('');
@@ -396,6 +409,18 @@ export default function EventDetail({
         (m.role && m.role.toLowerCase().includes(q))
     );
   }, [managers, memberSearchQuery]);
+
+  // Search dropdown for referrer in Edit Referrer modal
+  const filteredReferrerMembers = useMemo(() => {
+    if (!referrerMemberSearch.trim()) return managers;
+    const q = referrerMemberSearch.toLowerCase();
+    return managers.filter(
+      (m) =>
+        (m.full_name && m.full_name.toLowerCase().includes(q)) ||
+        (m.phone && m.phone.includes(q)) ||
+        (m.role && m.role.toLowerCase().includes(q))
+    );
+  }, [managers, referrerMemberSearch]);
 
   useEffect(() => {
     try {
@@ -446,7 +471,10 @@ export default function EventDetail({
     }
   }, [managers, initialUserRefCode]);
 
-  const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
+  const isAdmin =
+    currentUserRole.toUpperCase() === 'ADMIN' ||
+    currentUserRole.toUpperCase().includes('QUẢN TRỊ') ||
+    currentUserRole.toUpperCase().includes('QUAN TRI');
 
   // Kiểm tra tài khoản hiện tại đã đăng ký làm người phụ trách chưa (Item 3)
   const myInChargePerson = useMemo(() => {
@@ -924,6 +952,83 @@ export default function EventDetail({
       });
     } catch (err) {
       showToast('error', 'Có lỗi xảy ra khi thêm khách');
+    }
+  };
+
+  // Handler: Mở modal đổi người giới thiệu cho khách (Chỉ Admin)
+  const handleOpenEditReferrer = (guest: Registration) => {
+    setEditingGuest(guest);
+    setSelectedReferrerMemberId(guest.referrer_id || null);
+    setReferrerInputName(safeDecodeURI(guest.referrer_name || guest.referrer_group || ''));
+    setReferrerInputPhone(guest.referrer_phone || '');
+    setReferrerMemberSearch('');
+    setIsReferrerMemberDropdownOpen(false);
+    setIsEditReferrerModalOpen(true);
+  };
+
+  // Handler: Chọn thành viên từ gợi ý tìm kiếm
+  const handleSelectReferrerMember = (member: ManagerOption) => {
+    setSelectedReferrerMemberId(member.id);
+    const decodedName = safeDecodeURI(member.full_name);
+    setReferrerInputName(decodedName);
+    setReferrerInputPhone(member.phone || '');
+    setReferrerMemberSearch(decodedName);
+    setIsReferrerMemberDropdownOpen(false);
+  };
+
+  // Handler: Xóa người giới thiệu (khách vãng lai)
+  const handleClearReferrer = () => {
+    setSelectedReferrerMemberId(null);
+    setReferrerInputName('');
+    setReferrerInputPhone('');
+    setReferrerMemberSearch('');
+    setIsReferrerMemberDropdownOpen(false);
+  };
+
+  // Handler: Lưu thay đổi người giới thiệu (Chỉ Admin)
+  const handleSaveReferrer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGuest) return;
+    setIsSavingReferrer(true);
+    try {
+      const res = await fetch('/api/admin/le-tan', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingGuest.id,
+          referrer_id: selectedReferrerMemberId,
+          referrer_group: referrerInputName.trim() || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast('error', data.error || 'Lỗi khi cập nhật người giới thiệu');
+        return;
+      }
+
+      setRegistrations((prev) =>
+        prev.map((r) =>
+          r.id === editingGuest.id
+            ? {
+                ...r,
+                referrer_id: data.registration?.referrer_id ?? selectedReferrerMemberId,
+                referrer_group: data.registration?.referrer_group ?? (referrerInputName.trim() || null),
+                referrer_name: data.registration?.referrer_name ?? (selectedReferrerMemberId ? referrerInputName.trim() : null),
+                referrer_phone: data.registration?.referrer_phone ?? (selectedReferrerMemberId ? referrerInputPhone.trim() : null),
+              }
+            : r
+        )
+      );
+
+      showToast('success', 'Đã cập nhật người giới thiệu thành công');
+      setIsEditReferrerModalOpen(false);
+      setEditingGuest(null);
+    } catch (err) {
+      console.error('Error updating referrer:', err);
+      showToast('error', 'Có lỗi xảy ra khi cập nhật người giới thiệu');
+    } finally {
+      setIsSavingReferrer(false);
     }
   };
 
@@ -2006,16 +2111,30 @@ export default function EventDetail({
                             )}
                           </td>
                           <td className="py-3.5 px-4">
-                            {(guest.referrer_name || guest.referrer_group) ? (
+                            <div className="flex items-center justify-between gap-2">
                               <div>
-                                <span className="font-medium text-slate-800 block">{guest.referrer_name || guest.referrer_group}</span>
-                                {guest.referrer_phone && (
-                                  <span className="text-[11px] text-slate-500 block mt-0.5">{guest.referrer_phone}</span>
+                                {(guest.referrer_name || guest.referrer_group) ? (
+                                  <div>
+                                    <span className="font-medium text-slate-800 block">{safeDecodeURI(guest.referrer_name || guest.referrer_group || '')}</span>
+                                    {guest.referrer_phone && (
+                                      <span className="text-[11px] text-slate-500 block mt-0.5">{guest.referrer_phone}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
                                 )}
                               </div>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditReferrer(guest)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                                  title="Đổi người giới thiệu (Chỉ Admin)"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4 text-slate-600">{guest.source || 'Trang chủ Web'}</td>
                           <td className="py-3.5 px-4 text-center">
@@ -2098,12 +2217,22 @@ export default function EventDetail({
                           {guest.guest_phone && (
                             <span className="text-xs text-slate-500 block">{guest.guest_phone}</span>
                           )}
-                          {(guest.referrer_name || guest.referrer_group) && (
-                            <span className="text-[11px] text-slate-400 block mt-0.5">
-                              Người mời: {guest.referrer_name || guest.referrer_group}
+                          <div className="flex items-center justify-between gap-1.5 mt-0.5">
+                            <span className="text-[11px] text-slate-500">
+                              Người mời: {safeDecodeURI(guest.referrer_name || guest.referrer_group || '—')}
                               {guest.referrer_phone ? ` (${guest.referrer_phone})` : ''}
                             </span>
-                          )}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditReferrer(guest)}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors shrink-0"
+                                title="Đổi người giới thiệu (Chỉ Admin)"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                           <span className="text-[11px] text-slate-400 block">Nguồn: {guest.source || 'Lễ tân nhập'}</span>
                         </div>
 
@@ -2943,6 +3072,172 @@ export default function EventDetail({
                   className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
                 >
                   Lưu khách
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHỈNH SỬA NGƯỜI GIỚI THIỆU (CHỈ DÀNH CHO ADMIN) */}
+      {isEditReferrerModalOpen && editingGuest && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Chỉnh sửa người giới thiệu</h3>
+                  <p className="text-xs text-slate-500">Chỉ tài khoản Admin mới có quyền đổi người giới thiệu</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditReferrerModalOpen(false);
+                  setEditingGuest(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveReferrer} className="p-6 space-y-4 overflow-y-auto">
+              {/* Thông tin khách */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Khách đăng ký:</span>
+                  <span className="font-bold text-slate-900 text-sm">{safeDecodeURI(editingGuest.guest_name)}</span>
+                </div>
+                {editingGuest.guest_phone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Số điện thoại:</span>
+                    <span className="font-semibold text-slate-700">{editingGuest.guest_phone}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Người giới thiệu hiện tại:</span>
+                  <span className="font-semibold text-blue-600">
+                    {safeDecodeURI(editingGuest.referrer_name || editingGuest.referrer_group || 'Chưa có')}
+                    {editingGuest.referrer_phone ? ` (${editingGuest.referrer_phone})` : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tìm kiếm và chọn thành viên trong hệ thống */}
+              <div className="relative">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Chọn thành viên hệ thống (Tìm kiếm gợi ý)
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={referrerMemberSearch}
+                    onChange={(e) => {
+                      setReferrerMemberSearch(e.target.value);
+                      setIsReferrerMemberDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsReferrerMemberDropdownOpen(true)}
+                    placeholder="Gõ để tìm kiếm theo tên hoặc SĐT..."
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+
+                {isReferrerMemberDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-30 divide-y divide-slate-100">
+                    {filteredReferrerMembers.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-400 text-center">Không tìm thấy thành viên phù hợp</div>
+                    ) : (
+                      filteredReferrerMembers.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleSelectReferrerMember(m)}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                        >
+                          <div>
+                            <span className="font-semibold text-slate-800 block">{safeDecodeURI(m.full_name)}</span>
+                            <span className="text-[11px] text-slate-400">{m.phone || '—'}</span>
+                          </div>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                            {m.role || 'Thành viên'}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Thông tin người giới thiệu được chọn hoặc nhập thủ công */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Họ tên người giới thiệu
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleClearReferrer}
+                    className="text-[11px] text-rose-600 hover:text-rose-700 font-medium hover:underline cursor-pointer"
+                  >
+                    Xóa / Khách vãng lai
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={referrerInputName}
+                  onChange={(e) => {
+                    setReferrerInputName(e.target.value);
+                    if (selectedReferrerMemberId) {
+                      setSelectedReferrerMemberId(null);
+                    }
+                  }}
+                  placeholder="Nhập tên người giới thiệu hoặc để trống nếu là khách vãng lai"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Số điện thoại người giới thiệu (Tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={referrerInputPhone}
+                    onChange={(e) => setReferrerInputPhone(e.target.value)}
+                    placeholder="0912..."
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+
+                {selectedReferrerMemberId && (
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>Đã liên kết với tài khoản thành viên hệ thống (ID: {selectedReferrerMemberId})</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditReferrerModalOpen(false);
+                    setEditingGuest(null);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingReferrer}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
+                >
+                  {isSavingReferrer ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </form>

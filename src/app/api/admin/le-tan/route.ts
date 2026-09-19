@@ -244,10 +244,58 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, attendance_status, guest_role, notes, is_food_approved, guest_name, guest_phone } = body;
+    const {
+      id,
+      attendance_status,
+      guest_role,
+      notes,
+      is_food_approved,
+      guest_name,
+      guest_phone,
+      referrer_id,
+      referrer_group,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Thiếu ID khách mời' }, { status: 400 });
+    }
+
+    // Kiểm tra quyền Admin nếu có thay đổi người giới thiệu
+    const isUpdatingReferrer = referrer_id !== undefined || referrer_group !== undefined;
+    if (isUpdatingReferrer) {
+      const rawRole = request.cookies.get('user_role')?.value || '';
+      const decodedRole = decodeURIComponent(rawRole).toLowerCase();
+      let isAdmin =
+        decodedRole === 'admin' ||
+        decodedRole.includes('admin') ||
+        decodedRole.includes('quản trị') ||
+        decodedRole.includes('quan tri');
+
+      const userIdCookie = request.cookies.get('user_id')?.value;
+      if (!isAdmin && userIdCookie) {
+        const uId = parseInt(userIdCookie, 10);
+        if (!isNaN(uId)) {
+          const uRes = await pool.query('SELECT role FROM users WHERE id = $1', [uId]);
+          if (uRes.rows.length > 0) {
+            const dbRole = (uRes.rows[0].role || '').toLowerCase();
+            if (
+              dbRole === 'admin' ||
+              dbRole.includes('admin') ||
+              dbRole.includes('quản trị') ||
+              dbRole.includes('quan tri')
+            ) {
+              isAdmin = true;
+            }
+          }
+        }
+      }
+
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: 'Chỉ tài khoản Admin mới có quyền thay đổi người giới thiệu của từng dòng' },
+          { status: 403 }
+        );
+      }
     }
 
     if (guest_phone && guest_phone.trim()) {
@@ -304,7 +352,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updates: string[] = [];
-    const params: (string | number | boolean)[] = [id];
+    const params: (string | number | boolean | null)[] = [id];
 
     if (guest_name !== undefined) {
       params.push(guest_name.trim());
@@ -343,6 +391,18 @@ export async function PATCH(request: NextRequest) {
       updates.push(`notes = $${params.length}`);
     }
 
+    if (referrer_id !== undefined) {
+      const parsedRefId = referrer_id ? parseInt(String(referrer_id), 10) : null;
+      params.push(isNaN(parsedRefId as number) ? null : parsedRefId);
+      updates.push(`referrer_id = $${params.length}`);
+    }
+
+    if (referrer_group !== undefined) {
+      const cleanRefGroup = referrer_group ? String(referrer_group).trim() : null;
+      params.push(cleanRefGroup);
+      updates.push(`referrer_group = $${params.length}`);
+    }
+
     if (updates.length === 0) {
       return NextResponse.json({ error: 'Không có dữ liệu cập nhật' }, { status: 400 });
     }
@@ -362,8 +422,45 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Không tìm thấy khách mời' }, { status: 404 });
     }
 
+    // Truy vấn đầy đủ thông tin kèm referrer_name, referrer_phone từ bảng users
+    const fetchQuery = `
+      SELECT 
+        r.*,
+        u.full_name AS referrer_name,
+        u.phone AS referrer_phone,
+        e.name AS event_name,
+        e.event_date::text AS event_date
+      FROM event_registrations r
+      LEFT JOIN users u ON r.referrer_id = u.id
+      LEFT JOIN events e ON r.event_id = e.id
+      WHERE r.id = $1
+    `;
+    const fullResult = await pool.query(fetchQuery, [id]);
+    const updatedRow = fullResult.rows[0] || result.rows[0];
+
+    // Trigger sync Google Sheet nếu có thay đổi người giới thiệu
+    if (isUpdatingReferrer) {
+      import('@/lib/googleSheetWebhook').then(({ sendToGoogleSheet }) => {
+        sendToGoogleSheet({
+          guest_code: updatedRow.guest_code,
+          guest_name: updatedRow.guest_name,
+          guest_phone: updatedRow.guest_phone,
+          event_name: updatedRow.event_name,
+          event_date: updatedRow.event_date,
+          sale_name: updatedRow.referrer_name || updatedRow.referrer_group || '',
+          source: updatedRow.source,
+          attendance_status: updatedRow.attendance_status,
+          notes: updatedRow.notes,
+        }).catch((err) => console.error('Google Sheet background sync error:', err));
+      });
+    }
+
     return NextResponse.json({
-      registration: result.rows[0],
+      registration: {
+        ...updatedRow,
+        created_at: updatedRow.created_at ? new Date(updatedRow.created_at).toISOString() : null,
+        updated_at: updatedRow.updated_at ? new Date(updatedRow.updated_at).toISOString() : null,
+      },
       message: 'Cập nhật thành công'
     });
   } catch (error) {

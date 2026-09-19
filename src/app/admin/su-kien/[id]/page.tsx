@@ -41,6 +41,8 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
     const cookieUserId = cookieStore.get('user_id')?.value;
     const cookiePhone = cookieStore.get('user_phone')?.value;
     const cookieEmail = cookieStore.get('user_email')?.value;
+    const cookieRole = cookieStore.get('user_role')?.value;
+    let userRole = cookieRole ? decodeURIComponent(cookieRole) : undefined;
     let userRefCode = cookieStore.get('user_ref_code')?.value || cookieStore.get('ref_code')?.value || cookieStore.get('user_ref')?.value;
 
     if (!userRefCode && (cookieUserId || cookiePhone || cookieEmail)) {
@@ -175,6 +177,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         initialSchedules={schedules}
         initialInChargePersons={inChargePersons}
         initialUserRefCode={userRefCode || undefined}
+        initialUserRole={userRole || undefined}
       />
     );
   } catch (error) {
