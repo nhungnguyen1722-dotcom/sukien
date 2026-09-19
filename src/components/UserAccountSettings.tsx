@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   User,
   Settings,
@@ -33,9 +33,48 @@ import {
 } from 'lucide-react';
 
 export default function UserAccountSettings() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRoleParam = searchParams.get('role');
   const initialTabParam = searchParams.get('tab');
+
+  const handleLogout = () => {
+    try {
+      const cookiesToClear = [
+        'user_role',
+        'user_name',
+        'user_email',
+        'user_phone',
+        'user_id',
+        'user_ref_code',
+        'ref_code',
+        'user_ref',
+      ];
+      cookiesToClear.forEach((name) => {
+        document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      });
+
+      const storageToClear = [
+        'nghieng_auth_role',
+        'nghieng_user_name',
+        'nghieng_user_phone',
+        'nghieng_user_email',
+        'nghieng_user_id',
+        'nghieng_user_ref_code',
+        'ref_code',
+      ];
+      storageToClear.forEach((key) => {
+        localStorage.removeItem(key);
+      });
+
+      window.dispatchEvent(new Event('nghieng-auth-change'));
+      window.dispatchEvent(new Event('storage'));
+    } catch {
+      // Ignore
+    }
+    router.push('/');
+    router.refresh();
+  };
 
   // Role: 'member' | 'admin'
   const [activeRole, setActiveRole] = useState<'member' | 'admin'>(
@@ -441,13 +480,14 @@ export default function UserAccountSettings() {
               )}
 
               <div className="pt-2 border-t border-slate-100">
-                <Link
-                  href="/"
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-all text-left"
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-all text-left cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 text-slate-400" />
                   <span>Đăng xuất</span>
-                </Link>
+                </button>
               </div>
             </div>
           </div>

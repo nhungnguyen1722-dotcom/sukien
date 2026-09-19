@@ -125,12 +125,35 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
   const handleLogout = () => {
     setRole('guest');
     try {
-      localStorage.removeItem('nghieng_auth_role');
-      document.cookie = 'user_role=; path=/; max-age=0';
-      document.cookie = 'user_name=; path=/; max-age=0';
-      document.cookie = 'user_email=; path=/; max-age=0';
-      document.cookie = 'user_phone=; path=/; max-age=0';
-      document.cookie = 'user_id=; path=/; max-age=0';
+      const cookiesToClear = [
+        'user_role',
+        'user_name',
+        'user_email',
+        'user_phone',
+        'user_id',
+        'user_ref_code',
+        'ref_code',
+        'user_ref',
+      ];
+      cookiesToClear.forEach((name) => {
+        document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      });
+
+      const storageToClear = [
+        'nghieng_auth_role',
+        'nghieng_user_name',
+        'nghieng_user_phone',
+        'nghieng_user_email',
+        'nghieng_user_id',
+        'nghieng_user_ref_code',
+        'ref_code',
+      ];
+      storageToClear.forEach((key) => {
+        localStorage.removeItem(key);
+      });
+
+      window.dispatchEvent(new Event('nghieng-auth-change'));
+      window.dispatchEvent(new Event('storage'));
     } catch {
       // Ignore
     }

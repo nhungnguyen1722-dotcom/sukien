@@ -33,6 +33,7 @@ import {
   Upload,
   Image as LucideImage,
   Copy,
+  QrCode,
 } from 'lucide-react';
 import { safeDecodeURI } from '@/lib/authUtils';
 
@@ -385,6 +386,7 @@ export default function EventDetail({
   // Guest search/filter
   const [guestSearch, setGuestSearch] = useState('');
   const [guestStatusFilter, setGuestStatusFilter] = useState('');
+  const [guestFoodFilter, setGuestFoodFilter] = useState('');
 
   // User Auth & Role detection
   const [currentUserRole, setCurrentUserRole] = useState(initialUserRole || 'ADMIN');
@@ -494,6 +496,29 @@ export default function EventDetail({
   const shareOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const effectiveRefCode = currentUserRefCode || initialUserRefCode || 'N_0000000001';
   const eventShareUrl = `${shareOrigin}/qr-checkin?ref=${encodeURIComponent(effectiveRefCode)}&event=${event.id}`;
+  const eventCode = event.code || `EVT2026${String(event.id).padStart(4, '0')}`;
+  const qrRegisterUrl = `${shareOrigin}/qr-checkin?ref&event=${event.id}`;
+  const [copiedQrCode, setCopiedQrCode] = useState(false);
+  const [copiedQrLink, setCopiedQrLink] = useState(false);
+
+  const handleDownloadEventQr = async () => {
+    try {
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrRegisterUrl)}`;
+      const res = await fetch(qrApiUrl);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `QR_${eventCode}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast('success', 'Đã tải xuống mã QR sự kiện');
+    } catch {
+      window.open(`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrRegisterUrl)}`, '_blank');
+    }
+  };
 
   // Thống kê tổng số khách mời: Khách đăng ký & check-in + Danh sách người phụ trách (Mục 7)
   const totalExpectedGuests = useMemo(() => {
@@ -608,13 +633,26 @@ export default function EventDetail({
   // Filtered registrations
   const filteredGuests = useMemo(() => {
     return registrations.filter((r) => {
+      const q = guestSearch.trim().toLowerCase();
       const matchSearch =
-        (r.guest_name && r.guest_name.toLowerCase().includes(guestSearch.toLowerCase())) ||
-        (r.guest_phone && r.guest_phone.includes(guestSearch));
+        !q ||
+        (r.guest_name && r.guest_name.toLowerCase().includes(q)) ||
+        (r.guest_phone && r.guest_phone.includes(q));
       const matchStatus = guestStatusFilter ? r.attendance_status === guestStatusFilter : true;
-      return matchSearch && matchStatus;
+
+      const isCanceled = r.attendance_status === 'Đã hủy' || r.attendance_status === 'Hủy';
+      const hasFood = !isCanceled && isGuestFoodApproved(r.is_food_approved);
+
+      let matchFood = true;
+      if (guestFoodFilter === 'eat') {
+        matchFood = hasFood;
+      } else if (guestFoodFilter === 'no_eat') {
+        matchFood = !hasFood;
+      }
+
+      return matchSearch && matchStatus && matchFood;
     });
-  }, [registrations, guestSearch, guestStatusFilter]);
+  }, [registrations, guestSearch, guestStatusFilter, guestFoodFilter]);
 
   // Handler: Save Edit Event
   const handleSaveEditEvent = async (e: React.FormEvent) => {
@@ -1697,9 +1735,10 @@ export default function EventDetail({
             </div>
           </div>
 
-          {/* NỘI DUNG GIỚI THIỆU CHI TIẾT (Mục 2.2) */}
-          {((event as any).content || event.detail_description) && (
-            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-2xs space-y-3">
+          {/* NỘI DUNG GIỚI THIỆU CHI TIẾT (Mục 2.2) & MÃ QR THAM DỰ SỰ KIỆN (Hình 1 & 2) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* CỘT TRÁI: Content Editor (Mục 2.2) */}
+            <div className="lg:col-span-7 border border-slate-200 rounded-2xl p-5 bg-white shadow-2xs space-y-3 flex flex-col">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
                   Nội dung giới thiệu chi tiết sự kiện (Content Editor)
@@ -1708,14 +1747,117 @@ export default function EventDetail({
                   Xuất hiện tại Tab Giới thiệu trên trang Public
                 </span>
               </div>
-              <div
-                className="text-slate-700 leading-relaxed text-xs space-y-2.5 font-normal [&_img]:rounded-xl [&_img]:shadow-sm [&_img]:my-3 [&_img]:max-h-80 [&_img]:w-full [&_img]:object-cover [&_h4]:font-bold [&_h4]:text-slate-900 [&_h4]:text-sm [&_h4]:mt-3 [&_h4]:mb-1 [&_p]:my-1"
-                dangerouslySetInnerHTML={{
-                  __html: (event as any).content || event.detail_description || '',
-                }}
-              />
+              {((event as any).content || event.detail_description) ? (
+                <div
+                  className="text-slate-700 leading-relaxed text-xs space-y-2.5 font-normal flex-1 [&_img]:rounded-xl [&_img]:shadow-sm [&_img]:my-3 [&_img]:max-h-80 [&_img]:w-full [&_img]:object-cover [&_h4]:font-bold [&_h4]:text-slate-900 [&_h4]:text-sm [&_h4]:mt-3 [&_h4]:mb-1 [&_p]:my-1"
+                  dangerouslySetInnerHTML={{
+                    __html: (event as any).content || event.detail_description || '',
+                  }}
+                />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center py-8 text-center text-slate-400 text-xs italic">
+                  Chưa có nội dung giới thiệu chi tiết cho sự kiện này.
+                </div>
+              )}
             </div>
-          )}
+
+            {/* CỘT PHẢI: MÃ QR THAM DỰ SỰ KIỆN (Hình 2) */}
+            <div className="lg:col-span-5 border border-slate-200 rounded-2xl p-5 bg-white shadow-2xs space-y-4 flex flex-col justify-between">
+              {/* Header */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                    <QrCode className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Mã QR tham dự sự kiện
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 pl-8">
+                  Mã QR riêng của sự kiện này. Người tham dự quét mã để đăng ký tham gia.
+                </p>
+              </div>
+
+              {/* QR Code & Information Boxes (Hình 2) */}
+              <div className="border border-slate-100 rounded-xl p-3.5 bg-slate-50/50 flex flex-col sm:flex-row items-center gap-3.5 flex-1">
+                {/* QR Image */}
+                <div className="w-28 h-28 sm:w-32 sm:h-32 p-1.5 bg-white border border-slate-200 rounded-xl shadow-2xs shrink-0 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrRegisterUrl)}`}
+                    alt="Mã QR Sự kiện"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+
+                {/* Right Fields */}
+                <div className="flex-1 min-w-0 space-y-2.5 w-full">
+                  {/* Mã sự kiện */}
+                  <div className="bg-white border border-slate-200/80 rounded-xl p-2.5">
+                    <span className="block text-[11px] font-medium text-slate-400 mb-0.5">Mã sự kiện</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span className="font-mono font-bold text-xs text-slate-800 truncate">{eventCode}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(eventCode);
+                            setCopiedQrCode(true);
+                            setTimeout(() => setCopiedQrCode(false), 2000);
+                            showToast('success', 'Đã sao chép mã sự kiện');
+                          }
+                        }}
+                        className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Sao chép mã sự kiện"
+                      >
+                        {copiedQrCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Link đăng ký */}
+                  <div className="bg-white border border-slate-200/80 rounded-xl p-2.5">
+                    <span className="block text-[11px] font-medium text-slate-400 mb-0.5">Link đăng ký</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-blue-600 truncate min-w-0" title={qrRegisterUrl}>
+                        {qrRegisterUrl}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(qrRegisterUrl);
+                            setCopiedQrLink(true);
+                            setTimeout(() => setCopiedQrLink(false), 2000);
+                            showToast('success', 'Đã sao chép link đăng ký');
+                          }
+                        }}
+                        className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                        title="Sao chép link đăng ký"
+                      >
+                        {copiedQrLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={handleDownloadEventQr}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer active:scale-98"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải xuống QR</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
           <hr className="border-slate-100" />
 
@@ -2024,7 +2166,7 @@ export default function EventDetail({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
-                  Khách đăng ký & Check-in Suất ăn Tiệc trà ({registrations.length})
+                  Khách đăng ký & Check-in Suất ăn Tiệc trà ({filteredGuests.length !== registrations.length ? `${filteredGuests.length}/${registrations.length}` : registrations.length})
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Mặc định tính suất ăn 50.000đ/khách. Bỏ tích chọn người không ăn để chốt đề xuất thanh toán.
@@ -2053,8 +2195,8 @@ export default function EventDetail({
             </div>
 
             {/* Guest Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              <div className="relative sm:col-span-2">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4 items-stretch sm:items-center">
+              <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -2065,17 +2207,45 @@ export default function EventDetail({
                 />
               </div>
 
-              <select
-                value={guestStatusFilter}
-                onChange={(e) => setGuestStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="Đã đăng ký">Đã đăng ký</option>
-                <option value="Đã check-in">Đã check-in</option>
-                <option value="Về sớm">Về sớm</option>
-                <option value="Đã hủy">Đã hủy</option>
-              </select>
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <select
+                  value={guestStatusFilter}
+                  onChange={(e) => setGuestStatusFilter(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 cursor-pointer"
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="Đã đăng ký">Đã đăng ký</option>
+                  <option value="Đã check-in">Đã check-in</option>
+                  <option value="Về sớm">Về sớm</option>
+                  <option value="Đã hủy">Đã hủy</option>
+                </select>
+
+                <select
+                  value={guestFoodFilter}
+                  onChange={(e) => setGuestFoodFilter(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 cursor-pointer"
+                >
+                  <option value="">Tất cả suất ăn</option>
+                  <option value="eat">Người tham gia suất ăn</option>
+                  <option value="no_eat">Người không tham gia suất ăn</option>
+                </select>
+
+                {(guestSearch || guestStatusFilter || guestFoodFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGuestSearch('');
+                      setGuestStatusFilter('');
+                      setGuestFoodFilter('');
+                    }}
+                    className="px-2.5 py-2 text-xs font-medium text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 rounded-xl transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                    title="Xóa bộ lọc"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Đặt lại</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Desktop Table View */}
@@ -2083,6 +2253,7 @@ export default function EventDetail({
               <table className="w-full text-left text-xs text-slate-600 border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+                    <th className="py-3 px-4 w-12 text-center">STT</th>
                     <th className="py-3 px-4">Tên khách</th>
                     <th className="py-3 px-4">Người giới thiệu</th>
                     <th className="py-3 px-4">Nguồn</th>
@@ -2094,16 +2265,19 @@ export default function EventDetail({
                 <tbody className="divide-y divide-slate-100">
                   {filteredGuests.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        Chưa có khách đăng ký cho sự kiện này
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        {registrations.length === 0
+                          ? 'Chưa có khách đăng ký cho sự kiện này'
+                          : 'Không tìm thấy khách nào phù hợp với bộ lọc hiện tại'}
                       </td>
                     </tr>
                   ) : (
-                    filteredGuests.map((guest) => {
+                    filteredGuests.map((guest, idx) => {
                       const isFood = isGuestFoodApproved(guest.is_food_approved);
                       const status = guest.attendance_status || 'Đã đăng ký';
                       return (
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 text-center font-medium text-slate-500">{idx + 1}</td>
                           <td className="py-3.5 px-4">
                             <span className="font-bold text-slate-800 block">{safeDecodeURI(guest.guest_name)}</span>
                             {guest.guest_phone && (
@@ -2203,37 +2377,44 @@ export default function EventDetail({
             <div className="sm:hidden space-y-3">
               {filteredGuests.length === 0 ? (
                 <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
-                  Chưa có khách đăng ký cho sự kiện này
+                  {registrations.length === 0
+                    ? 'Chưa có khách đăng ký cho sự kiện này'
+                    : 'Không tìm thấy khách nào phù hợp với bộ lọc hiện tại'}
                 </div>
               ) : (
-                filteredGuests.map((guest) => {
+                filteredGuests.map((guest, idx) => {
                   const isFood = isGuestFoodApproved(guest.is_food_approved);
                   const status = guest.attendance_status || 'Đã đăng ký';
                   return (
                     <div key={guest.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="font-bold text-slate-800 block text-sm">{safeDecodeURI(guest.guest_name)}</span>
-                          {guest.guest_phone && (
-                            <span className="text-xs text-slate-500 block">{guest.guest_phone}</span>
-                          )}
-                          <div className="flex items-center justify-between gap-1.5 mt-0.5">
-                            <span className="text-[11px] text-slate-500">
-                              Người mời: {safeDecodeURI(guest.referrer_name || guest.referrer_group || '—')}
-                              {guest.referrer_phone ? ` (${guest.referrer_phone})` : ''}
-                            </span>
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditReferrer(guest)}
-                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors shrink-0"
-                                title="Đổi người giới thiệu (Chỉ Admin)"
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </button>
+                        <div className="flex items-start gap-2.5">
+                          <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <span className="font-bold text-slate-800 block text-sm">{safeDecodeURI(guest.guest_name)}</span>
+                            {guest.guest_phone && (
+                              <span className="text-xs text-slate-500 block">{guest.guest_phone}</span>
                             )}
+                            <div className="flex items-center justify-between gap-1.5 mt-0.5">
+                              <span className="text-[11px] text-slate-500">
+                                Người mời: {safeDecodeURI(guest.referrer_name || guest.referrer_group || '—')}
+                                {guest.referrer_phone ? ` (${guest.referrer_phone})` : ''}
+                              </span>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditReferrer(guest)}
+                                  className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors shrink-0"
+                                  title="Đổi người giới thiệu (Chỉ Admin)"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400 block">Nguồn: {guest.source || 'Lễ tân nhập'}</span>
                           </div>
-                          <span className="text-[11px] text-slate-400 block">Nguồn: {guest.source || 'Lễ tân nhập'}</span>
                         </div>
 
                         <span

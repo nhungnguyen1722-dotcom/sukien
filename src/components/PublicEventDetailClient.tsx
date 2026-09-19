@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export interface PublicScheduleItem {
   id?: number | string;
@@ -48,32 +49,52 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const [currentUser, setCurrentUser] = useState<{ id?: string; phone?: string; name?: string; ref_code?: string } | null>(null);
 
   useEffect(() => {
-    try {
-      const getCookie = (name: string) => {
-        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-        return match ? decodeURIComponent(match[3]) : null;
-      };
-      const cId = getCookie('user_id');
-      const cPhone = getCookie('user_phone');
-      const cName = getCookie('user_name');
-      let cRef = getCookie('user_ref_code');
-      if (!cRef && typeof window !== 'undefined') {
-        cRef = localStorage.getItem('nghieng_user_ref_code');
+    const syncCurrentUser = () => {
+      try {
+        const getCookie = (name: string) => {
+          const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return match ? safeDecodeURI(match[3]) : null;
+        };
+
+        const role = getCookie('user_role') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_auth_role') : '');
+        const isGuest = !role || role.toLowerCase() === 'guest';
+
+        if (isGuest) {
+          setCurrentUser(null);
+          return;
+        }
+
+        const cId = getCookie('user_id') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_id') : '');
+        const cPhone = getCookie('user_phone') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_phone') : '');
+        const cName = getCookie('user_name') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_name') : '');
+        let cRef = getCookie('user_ref_code') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_ref_code') : '');
+        if (!cRef && cId) {
+          cRef = 'N_' + String(cId).padStart(10, '0');
+        }
+        if (cId || cPhone || cRef) {
+          setCurrentUser({
+            id: cId || undefined,
+            phone: cPhone || undefined,
+            name: cName || undefined,
+            ref_code: cRef || '',
+          });
+        } else {
+          setCurrentUser(null);
+        }
+      } catch {
+        // Ignore
       }
-      if (!cRef && cId) {
-        cRef = 'N_' + String(cId).padStart(10, '0');
-      }
-      if (cId || cPhone || cRef) {
-        setCurrentUser({
-          id: cId || undefined,
-          phone: cPhone || undefined,
-          name: cName || undefined,
-          ref_code: cRef || 'N_0000000001',
-        });
-      }
-    } catch {
-      // Ignore
-    }
+    };
+
+    syncCurrentUser();
+
+    window.addEventListener('nghieng-auth-change', syncCurrentUser);
+    window.addEventListener('storage', syncCurrentUser);
+
+    return () => {
+      window.removeEventListener('nghieng-auth-change', syncCurrentUser);
+      window.removeEventListener('storage', syncCurrentUser);
+    };
   }, []);
 
   const eventDateObj = event.event_date ? new Date(event.event_date) : new Date();
@@ -92,10 +113,12 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const getShareUrl = () => {
     if (typeof window === 'undefined') return '';
     const origin = window.location.origin;
-    // Khi đã đăng nhập: lấy ref_code của tài khoản (ví dụ N_0000000002)
-    // Khi chưa đăng nhập: ID mặc định của nhungnguyen1722@gmail.com là N_0000000001
-    const refCode = currentUser?.ref_code || 'N_0000000001';
-    return `${origin}/qr-checkin?ref=${encodeURIComponent(refCode)}&event=${event.id}`;
+    // Khi đã đăng nhập: lấy ref_code của tài khoản
+    if (currentUser?.ref_code) {
+      return `${origin}/qr-checkin?ref=${encodeURIComponent(currentUser.ref_code)}&event=${event.id}`;
+    }
+    // Khi đã đăng xuất hoặc chưa đăng nhập: dạng Share link QR đăng ký của form đó (ví dụ ?ref&event=38)
+    return `${origin}/qr-checkin?ref&event=${event.id}`;
   };
 
   const handleCopyLink = () => {
@@ -618,10 +641,12 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs font-semibold text-slate-800">
-                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Liên kết sự kiện:'}
+                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Share link QR đăng ký sự kiện:'}
                 </p>
                 <span className="text-[10px] text-blue-600 font-medium">
-                  {currentUser ? 'Đã gắn ID cá nhân' : 'Mặc định Admin nhungnguyen1722@gmail.com'}
+                  {currentUser
+                    ? `Đã gắn ID cá nhân (${currentUser.ref_code})`
+                    : `Mã sự kiện: ${event.code || `EVT2026${String(event.id).padStart(4, '0')}`}`}
                 </span>
               </div>
               <div className="flex items-center gap-2">

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   User,
   Phone,
+  Mail,
   Calendar,
   X,
   QrCode,
@@ -20,6 +21,10 @@ import {
   Users,
   Info,
   ShieldCheck,
+  UserPlus,
+  ArrowLeft,
+  ArrowRight,
+  Printer,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 
@@ -57,6 +62,13 @@ export default function QRCheckinModal({
   const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [notes, setNotes] = useState('');
+  const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('co_nguoi_gioi_thieu');
+  const [referrer, setReferrer] = useState('');
+  const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{ id: number; full_name: string; phone: string; ref_code?: string }>>([]);
+  const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -67,13 +79,24 @@ export default function QRCheckinModal({
   } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
-  // Auto-fill from localStorage if previously registered
+  // Auto-fill from localStorage or inviter props
   useEffect(() => {
     if (!isOpen) {
       setRegistrationResult(null);
       setErrorMsg('');
       setDuplicateInfo(null);
       return;
+    }
+
+    const isDefaultInviter =
+      !inviter ||
+      !inviter.refCode ||
+      inviter.refCode === 'N_0000000001' ||
+      (inviter.name && (inviter.name.includes('Nhung') || inviter.name.includes('Ban tổ chức')));
+
+    if (!isDefaultInviter && inviter.name) {
+      setReferrer(`${inviter.name} (${inviter.refCode})`);
+      setReferrerType('co_nguoi_gioi_thieu');
     }
 
     try {
@@ -83,6 +106,13 @@ export default function QRCheckinModal({
         if (parsed.phone) {
           setPhone(parsed.phone || '');
           setFullName(parsed.fullName || '');
+          setEmail(parsed.email || '');
+          if (parsed.referrerType) {
+            setReferrerType(parsed.referrerType);
+          }
+          if (parsed.referrer && !referrer) {
+            setReferrer(parsed.referrer);
+          }
           if (parsed.hasTeaBreak !== undefined) {
             setHasTeaBreak(Boolean(parsed.hasTeaBreak));
           }
@@ -91,7 +121,35 @@ export default function QRCheckinModal({
     } catch {
       // Ignore
     }
-  }, [isOpen]);
+  }, [isOpen, inviter]);
+
+  const handleReferrerSearch = async (value: string) => {
+    setReferrer(value);
+    if (value.trim().length < 2) {
+      setReferrerSearchResults([]);
+      setShowReferrerDropdown(false);
+      return;
+    }
+
+    setIsSearchingReferrer(true);
+    try {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(value.trim())}`);
+      const data = await res.json();
+      setReferrerSearchResults(data.results || []);
+      setShowReferrerDropdown(data.results && data.results.length > 0);
+    } catch {
+      setReferrerSearchResults([]);
+      setShowReferrerDropdown(false);
+    } finally {
+      setIsSearchingReferrer(false);
+    }
+  };
+
+  const handleSelectReferrer = (member: { id: number; full_name: string; phone: string; ref_code?: string }) => {
+    setReferrer(`${member.full_name} (${member.ref_code || member.phone})`);
+    setShowReferrerDropdown(false);
+    setReferrerSearchResults([]);
+  };
 
   if (!isOpen) return null;
 
@@ -113,6 +171,11 @@ export default function QRCheckinModal({
 
     setIsSubmitting(true);
     try {
+      const finalReferrer =
+        referrerType === 'vang_lai'
+          ? 'Khách vãng lai'
+          : (referrer.trim() || 'Người giới thiệu');
+
       const res = await fetch('/api/events/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,8 +183,10 @@ export default function QRCheckinModal({
           eventId: defaultEvent.id,
           fullName: fullName.trim(),
           phone: cleanPhone,
-          referrer: `${inviter.name} (${inviter.refCode})`,
-          company: 'Khách mời tham dự',
+          email: email.trim() || undefined,
+          company: referrerType === 'vang_lai' ? 'Khách vãng lai' : 'Khách mời tham dự',
+          referrer: finalReferrer,
+          notes: notes.trim() || undefined,
           isTodayCheckin: false,
           has_tea_break: hasTeaBreak,
         }),
@@ -146,7 +211,9 @@ export default function QRCheckinModal({
           JSON.stringify({
             phone: cleanPhone,
             fullName: fullName.trim(),
-            referrer: `${inviter.name} (${inviter.refCode})`,
+            email: email.trim(),
+            referrerType: referrerType,
+            referrer: referrer.trim(),
             hasTeaBreak: hasTeaBreak,
             registeredAt: new Date().toISOString(),
           })
@@ -225,14 +292,94 @@ export default function QRCheckinModal({
 
   const eventCode = defaultEvent.code || `EVT2026${String(defaultEvent.id).padStart(4, '0')}`;
 
+  const qrScanUrl = useMemo(() => {
+    let origin = 'https://sukien-rouge.vercel.app';
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      origin = window.location.origin;
+    }
+    const hasSpecificRef = inviter?.refCode && inviter.refCode !== 'N_0000000001';
+    const refQuery = hasSpecificRef ? `ref=${encodeURIComponent(inviter.refCode)}` : 'ref';
+    return `${origin}/qr-checkin?${refQuery}&event=${defaultEvent.id}`;
+  }, [inviter?.refCode, defaultEvent.id]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-        {/* Close Button */}
+        {/* Mobile Top Hero Banner (media_1789789506527.png) */}
+        <div className="md:hidden relative w-full overflow-hidden rounded-t-3xl rounded-b-[24px] shadow-sm">
+          {/* Background image & gradient overlay */}
+          <div className="absolute inset-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={defaultEvent.image_url || '/events/hero-banner.jpg'}
+              alt={defaultEvent.name}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-950/85 via-slate-900/75 to-slate-950/90" />
+          </div>
+
+          {/* Banner content */}
+          <div className="relative z-10 p-4 sm:p-5">
+            {/* Top row: NGHIÊNG Complex Logo & Close Button */}
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-10 relative flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 78 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                    <circle cx="42" cy="20" r="14" fill="#F59E0B" />
+                    <path d="M6 46L31 10L56 46" stroke="#00B4D8" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M19 46L31 27L43 46" stroke="#0284C7" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M42 46L58 18L74 46" stroke="#00B4D8" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M50 46L58 32L66 46" stroke="#0284C7" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-black tracking-wider text-white uppercase leading-tight">
+                    NGHIÊNG
+                  </span>
+                  <span className="text-[11px] font-semibold text-amber-400 tracking-wide leading-tight -mt-0.5">
+                    Complex
+                  </span>
+                </div>
+              </div>
+
+              {/* Close Button on Mobile */}
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="w-8 h-8 rounded-full bg-black/40 border border-white/20 hover:bg-black/60 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sự kiện Badge */}
+            <div className="mt-3">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold shadow-xs">
+                <Calendar className="w-3.5 h-3.5 text-white" />
+                <span>Sự kiện</span>
+              </span>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-xl font-bold text-white tracking-tight mt-2 mb-1 leading-snug">
+              Đăng ký tham dự sự kiện
+            </h2>
+
+            {/* Subtitle */}
+            <p className="text-xs text-slate-200/90 leading-relaxed">
+              Vui lòng điền thông tin để đăng ký tham dự sự kiện.
+              <br />
+              Sau khi đăng ký thành công, bạn sẽ nhận được mã QR để check-in tại sự kiện.
+            </p>
+          </div>
+        </div>
+
+        {/* Desktop Close Button */}
         <button
           onClick={handleCloseModal}
           type="button"
-          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors shadow-xs"
+          className="hidden md:flex absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 items-center justify-center transition-colors shadow-xs"
         >
           <X className="w-4 h-4" />
         </button>
@@ -241,10 +388,10 @@ export default function QRCheckinModal({
           /* FORM VIEW - 2 COLUMNS CHUẨN 100% THEO HÌNH 4.7 */
           <div className="grid grid-cols-1 md:grid-cols-12 min-h-[520px]">
             {/* Left Column: Form & Event Card */}
-            <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-between space-y-5">
+            <div className="md:col-span-7 p-4 sm:p-6 md:p-8 flex flex-col justify-between space-y-5">
               <div className="space-y-4">
-                {/* Header with blue calendar icon */}
-                <div className="flex items-start gap-3.5 pr-6">
+                {/* Desktop Header with blue calendar icon */}
+                <div className="hidden md:flex items-start gap-3.5 pr-6">
                   <div className="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 shadow-xs">
                     <Calendar className="w-6 h-6" />
                   </div>
@@ -259,8 +406,8 @@ export default function QRCheckinModal({
                   </div>
                 </div>
 
-                {/* Event Summary Mini-Card (Hình 4.7) */}
-                <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3">
+                {/* Desktop Mini-Card (Hình 4.7) */}
+                <div className="hidden md:flex bg-slate-50/90 border border-slate-200/80 rounded-2xl p-3 sm:p-4 items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-200 shrink-0 border border-slate-200 shadow-xs relative">
                       {defaultEvent.image_url ? (
@@ -291,17 +438,84 @@ export default function QRCheckinModal({
 
                   {/* Event QR Code preview */}
                   <div className="flex flex-col items-center shrink-0 border-l border-slate-200 pl-3">
-                    <div className="p-1 bg-white border border-slate-200 rounded-lg shadow-xs">
+                    <a
+                      href={qrScanUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Quét mã QR hoặc nhấn để mở link đăng ký: ${qrScanUrl}`}
+                      className="p-1 bg-white border border-slate-200 rounded-lg shadow-xs hover:border-blue-400 transition-colors cursor-pointer block group"
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(eventCode)}`}
-                        alt="QR Mã sự kiện"
-                        className="w-12 h-12 sm:w-14 sm:h-14 object-contain"
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrScanUrl)}`}
+                        alt={`Mã QR ${eventCode}`}
+                        className="w-12 h-12 sm:w-14 sm:h-14 object-contain group-hover:scale-105 transition-transform"
                       />
-                    </div>
+                    </a>
                     <span className="text-[9px] font-mono text-slate-500 mt-1 max-w-[80px] truncate text-center" title={eventCode}>
                       {eventCode}
                     </span>
+                  </div>
+                </div>
+
+                {/* Mobile Event Card with QR & Curved Arrow (media_1789789506527.png) */}
+                <div className="md:hidden bg-[#f0f6ff] border border-blue-100 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 shadow-2xs">
+                  {/* Left: QR Code Preview */}
+                  <a
+                    href={qrScanUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Quét mã QR hoặc nhấn để mở link đăng ký: ${qrScanUrl}`}
+                    className="w-[66px] h-[66px] bg-white rounded-xl p-1.5 border border-blue-100/70 shadow-xs shrink-0 flex items-center justify-center hover:border-blue-400 transition-colors cursor-pointer"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrScanUrl)}`}
+                      alt={`Mã QR ${eventCode}`}
+                      className="w-full h-full object-contain"
+                    />
+                  </a>
+
+                  {/* Middle: Event Name & Badge */}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 line-clamp-2 leading-tight">
+                      {defaultEvent.name}
+                    </h4>
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold shadow-2xs">
+                        <Ticket className="w-3 h-3 text-blue-600" />
+                        <span>Mã sự kiện: {eventCode}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: Calendar + 'Quét mã QR để đăng ký nhanh' + Curved Arrow */}
+                  <div className="flex flex-col items-end shrink-0 pl-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-lg bg-blue-100/70 border border-blue-200/70 flex items-center justify-center text-blue-600 shrink-0">
+                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                      </div>
+                      <div className="text-[10px] font-semibold text-blue-600 leading-tight text-left">
+                        <div>Quét mã QR</div>
+                        <div>để đăng ký nhanh</div>
+                      </div>
+                    </div>
+
+                    {/* Curved Arrow pointing towards QR */}
+                    <div className="w-full flex justify-center pt-1 pr-2">
+                      <svg
+                        className="w-12 h-4.5 text-blue-500"
+                        viewBox="0 0 50 18"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M44 2 C44 11, 20 15, 6 15" />
+                        <polyline points="11 9, 5 15, 11 21" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
 
@@ -334,22 +548,81 @@ export default function QRCheckinModal({
 
                 {/* Registration Form */}
                 <form onSubmit={handleSubmit} className="space-y-3.5">
-                  {/* Thông tin hiển thị về người mời (Hình 5) */}
-                  {inviter && (
-                    <div className="bg-[#f0f5ff] border border-blue-100 rounded-2xl p-3 sm:p-3.5 flex items-center gap-3 shadow-2xs">
-                      <div className="w-10 h-10 rounded-xl bg-white text-blue-600 flex items-center justify-center flex-shrink-0 shadow-xs border border-blue-100/60">
-                        <User className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] sm:text-xs text-slate-500 font-normal leading-tight">
-                          Bạn đang được mời tham dự bởi
-                        </p>
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug truncate mt-0.5">
-                          {inviter.name} ({inviter.refCode})
-                        </p>
-                      </div>
+                  {/* Người giới thiệu (Hình 2) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Người giới thiệu
+                    </label>
+                    <div className="flex items-center gap-6 mb-2">
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
+                        <input
+                          type="radio"
+                          name="referrerType"
+                          value="vang_lai"
+                          checked={referrerType === 'vang_lai'}
+                          onChange={() => {
+                            setReferrerType('vang_lai');
+                            setReferrer('');
+                          }}
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Người vãng lai</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
+                        <input
+                          type="radio"
+                          name="referrerType"
+                          value="co_nguoi_gioi_thieu"
+                          checked={referrerType === 'co_nguoi_gioi_thieu'}
+                          onChange={() => setReferrerType('co_nguoi_gioi_thieu')}
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Người giới thiệu</span>
+                      </label>
                     </div>
-                  )}
+
+                    {referrerType === 'co_nguoi_gioi_thieu' && (
+                      <div className="relative animate-in fade-in duration-200">
+                        <Users className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          required={referrerType === 'co_nguoi_gioi_thieu'}
+                          value={referrer}
+                          onChange={(e) => handleReferrerSearch(e.target.value)}
+                          onFocus={() => { if (referrerSearchResults.length > 0) setShowReferrerDropdown(true); }}
+                          onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                          placeholder="Nhập đúng SĐT của User thành viên mời"
+                          className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
+                        />
+                        {isSearchingReferrer && (
+                          <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                            <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                          </div>
+                        )}
+                        {showReferrerDropdown && referrerSearchResults.length > 0 && (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                            {referrerSearchResults.map((member) => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => handleSelectReferrer(member)}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition-colors text-xs cursor-pointer border-b border-slate-50 last:border-0"
+                              >
+                                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                  <User className="w-3.5 h-3.5 text-blue-600" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold text-slate-900 text-xs truncate">{member.full_name}</p>
+                                  <p className="text-[11px] text-slate-500">{member.phone} {member.ref_code ? `(${member.ref_code})` : ''}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Họ và tên của bạn */}
                   <div>
@@ -385,6 +658,24 @@ export default function QRCheckinModal({
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
                       />
                     </div>
+                  </div>
+
+                  {/* Ghi chú (tùy chọn) (Hình 2) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Ghi chú <span className="text-slate-400 font-normal">(tùy chọn)</span>
+                      </label>
+                      <span className="text-[11px] text-slate-400">{notes.length}/500</span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      maxLength={500}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Nhập ghi chú (nếu có)"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs resize-none"
+                    />
                   </div>
 
                   {/* Checkbox Đăng ký suất ăn trưa tiệc trà (Hình 6) */}
@@ -600,7 +891,9 @@ export default function QRCheckinModal({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Người giới thiệu:</span>
-                  <span className="font-semibold text-blue-600">{inviter.name}</span>
+                  <span className="font-semibold text-blue-600">
+                    {referrerType === 'vang_lai' ? 'Khách vãng lai' : (referrer || inviter.name || 'Người giới thiệu')}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Sự kiện:</span>

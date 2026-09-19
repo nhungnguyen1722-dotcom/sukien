@@ -16,6 +16,7 @@
     "db:migrate:logs": "node migrate_event_logs.js",
     "db:migrate:schedules": "node migrate_event_schedules.js",
     "db:permissions": "node run_permissions_sql.js",
+    "db:sync:neon": "node sync_db_from_neon.js",
     "db:test": "node test_db.js"
   },
   "dependencies": {

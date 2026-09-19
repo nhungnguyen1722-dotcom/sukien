@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export type EventData = {
   id: number;
@@ -84,22 +85,35 @@ export default function EventHomePage({ events }: EventHomePageProps) {
     const syncCurrentUser = () => {
       if (typeof document !== 'undefined') {
         const getCookie = (name: string) => {
-          const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-          return match ? decodeURIComponent(match[2]) : '';
+          const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return match ? safeDecodeURI(match[3]) : '';
         };
-        const id = getCookie('user_id');
-        const name = getCookie('user_name');
-        const phone = getCookie('user_phone');
-        const email = getCookie('user_email');
-        let refCode = getCookie('user_ref_code');
-        if (!refCode && typeof window !== 'undefined') {
-          refCode = localStorage.getItem('nghieng_user_ref_code') || '';
+
+        const role = getCookie('user_role') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_auth_role') : '');
+        const isGuest = !role || role.toLowerCase() === 'guest';
+
+        if (isGuest) {
+          setCurrentUser(null);
+          return;
         }
+
+        const id = getCookie('user_id') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_id') : '');
+        const name = getCookie('user_name') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_name') : '');
+        const phone = getCookie('user_phone') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_phone') : '');
+        const email = getCookie('user_email') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_email') : '');
+        let refCode = getCookie('user_ref_code') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_ref_code') : '');
         if (!refCode && id) {
           refCode = 'N_' + String(id).padStart(10, '0');
         }
+
         if (id || name || phone || email || refCode) {
-          setCurrentUser({ id, name, phone, email, ref_code: refCode || 'N_0000000001' });
+          setCurrentUser({
+            id: id || '',
+            name: name || '',
+            phone: phone || '',
+            email: email || '',
+            ref_code: refCode || '',
+          });
         } else {
           setCurrentUser(null);
         }
@@ -121,10 +135,12 @@ export default function EventHomePage({ events }: EventHomePageProps) {
     const target = ev || selectedShareEvent;
     if (!target || typeof window === 'undefined') return '';
     const origin = window.location.origin;
-    // Khi đã đăng nhập: lấy ref_code của tài khoản (ví dụ N_0000000002)
-    // Khi chưa đăng nhập: ID mặc định của nhungnguyen1722@gmail.com là N_0000000001
-    const refCode = currentUser?.ref_code || 'N_0000000001';
-    return `${origin}/qr-checkin?ref=${encodeURIComponent(refCode)}&event=${target.id}`;
+    // Khi đã đăng nhập: lấy ref_code của tài khoản
+    if (currentUser?.ref_code) {
+      return `${origin}/qr-checkin?ref=${encodeURIComponent(currentUser.ref_code)}&event=${target.id}`;
+    }
+    // Khi đã đăng xuất hoặc chưa đăng nhập: dạng Share link QR đăng ký của form đó (ví dụ ?ref&event=38)
+    return `${origin}/qr-checkin?ref&event=${target.id}`;
   };
 
   const handleCopyRefLink = async () => {
@@ -819,10 +835,12 @@ export default function EventHomePage({ events }: EventHomePageProps) {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs font-semibold text-slate-800">
-                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Liên kết sự kiện:'}
+                  {currentUser ? 'Share mời bạn bè (Link cá nhân):' : 'Share link QR đăng ký sự kiện:'}
                 </p>
                 <span className="text-[10px] text-blue-600 font-medium">
-                  {currentUser ? 'Đã gắn ID cá nhân' : 'Mặc định Admin nhungnguyen1722@gmail.com'}
+                  {currentUser
+                    ? `Đã gắn ID cá nhân (${currentUser.ref_code})`
+                    : `Mã sự kiện: ${selectedShareEvent?.code || `EVT2026${String(selectedShareEvent?.id).padStart(4, '0')}`}`}
                 </span>
               </div>
               <div className="flex items-center gap-2">
