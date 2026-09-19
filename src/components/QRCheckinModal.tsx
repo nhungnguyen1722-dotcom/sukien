@@ -65,7 +65,7 @@ export default function QRCheckinModal({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
-  const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('co_nguoi_gioi_thieu');
+  const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('vang_lai');
   const [referrer, setReferrer] = useState('');
   const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{ id: number; full_name: string; phone: string; ref_code?: string }>>([]);
   const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
@@ -80,7 +80,8 @@ export default function QRCheckinModal({
   } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
-  // Auto-fill from localStorage or inviter props
+  // Khôi phục thông tin từ cookies hoặc localStorage cho 4 trường:
+  // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
   useEffect(() => {
     if (!isOpen) {
       setRegistrationResult(null);
@@ -89,58 +90,46 @@ export default function QRCheckinModal({
       return;
     }
 
-    const isDefaultInviter =
-      !inviter ||
-      !inviter.refCode ||
-      inviter.refCode === 'N_0000000001' ||
-      (inviter.name && (inviter.name.includes('Nhung') || inviter.name.includes('Ban tổ chức')));
-
-    if (!isDefaultInviter && inviter.name) {
-      setReferrer(`${inviter.name} (${inviter.refCode})`);
-      setReferrerType('co_nguoi_gioi_thieu');
-    }
-
-    // Chặn lưu thông tin cookies/localStorage trên điện thoại:
-    // Đảm bảo mỗi lần quét mã QR là một form đăng ký mới tinh, không tự động lưu/điền lại thông tin cũ
     try {
-      localStorage.removeItem(STORAGE_KEY);
-      const roleCookie = typeof document !== 'undefined' ? document.cookie.match(/(?:^|;\s*)user_role=([^;]*)/) : null;
-      const currentRole = roleCookie ? decodeURIComponent(roleCookie[1]).toLowerCase() : '';
-      const isAdmin = currentRole.includes('admin') || currentRole.includes('quản trị');
+      const getCookie = (name: string) => {
+        if (typeof document === 'undefined') return '';
+        const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+        return match ? decodeURIComponent(match[1]) : '';
+      };
 
-      if (!isAdmin && typeof document !== 'undefined') {
-        const cookiesToClear = [
-          'user_role',
-          'user_name',
-          'user_email',
-          'user_phone',
-          'user_id',
-          'user_ref_code',
-          'ref_code',
-          'user_ref',
-        ];
-        cookiesToClear.forEach((name) => {
-          document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-        });
-        localStorage.removeItem('nghieng_auth_role');
-        localStorage.removeItem('nghieng_user_name');
-        localStorage.removeItem('nghieng_user_phone');
-        localStorage.removeItem('nghieng_user_email');
-        localStorage.removeItem('nghieng_user_id');
-        localStorage.removeItem('nghieng_user_ref_code');
-        localStorage.removeItem('ref_code');
-        window.dispatchEvent(new Event('nghieng-auth-change'));
-        window.dispatchEvent(new Event('storage'));
+      let savedData: any = null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) savedData = JSON.parse(raw);
+      } catch {}
+
+      const savedFullName = getCookie('reg_fullname') || getCookie('user_name') || savedData?.fullName || '';
+      const savedPhone = getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '';
+      const savedReferrer = getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '';
+      const savedNotes = getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '';
+
+      if (savedFullName) setFullName(savedFullName);
+      if (savedPhone) setPhone(savedPhone);
+      if (savedNotes) setNotes(savedNotes);
+      if (savedData?.email) setEmail(savedData.email);
+
+      // Người giới thiệu: ưu tiên người mời từ URL (?ref=...) nếu có, nếu không lấy từ cookies đã lưu
+      const isDefaultInviter =
+        !inviter ||
+        !inviter.refCode ||
+        inviter.refCode === 'N_0000000001' ||
+        (inviter.name && (inviter.name.includes('Nhung') || inviter.name.includes('Ban tổ chức')));
+
+      if (!isDefaultInviter && inviter?.name) {
+        setReferrer(`${inviter.name} (${inviter.refCode})`);
+        setReferrerType('co_nguoi_gioi_thieu');
+      } else if (savedReferrer && savedReferrer !== 'Khách vãng lai') {
+        setReferrer(savedReferrer);
+        setReferrerType('co_nguoi_gioi_thieu');
       }
     } catch {
       // Ignore
     }
-
-    // Reset các trường thông tin luôn mới tinh khi quét
-    setPhone('');
-    setFullName('');
-    setEmail('');
-    setNotes('');
   }, [isOpen, inviter]);
 
   const handleReferrerSearch = async (value: string) => {
@@ -224,8 +213,40 @@ export default function QRCheckinModal({
         throw new Error(data.error || 'Đăng ký thất bại, vui lòng thử lại');
       }
 
-      // Chặn hoàn toàn việc lưu cookies/localStorage khi đăng ký qua QR check-in
-      // Người dùng quét mã trên điện thoại nhận vé điện tử trực tiếp, không bị lưu cookies gây trùng lặp khi quét lần 2
+      // Vẫn lưu cookies ở 4 trường này:
+      // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+      try {
+        const maxAge = 31536000; // 1 năm
+        const setCookie = (name: string, val: string) => {
+          document.cookie = `${name}=${encodeURIComponent(val)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        };
+        const finalReferrerVal = referrerType === 'vang_lai' ? '' : referrer.trim();
+        setCookie('user_name', fullName.trim());
+        setCookie('reg_fullname', fullName.trim());
+        setCookie('user_phone', cleanPhone);
+        setCookie('reg_phone', cleanPhone);
+        setCookie('user_referrer', finalReferrerVal);
+        setCookie('reg_referrer', finalReferrerVal);
+        setCookie('user_notes', notes.trim());
+        setCookie('reg_notes', notes.trim());
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            fullName: fullName.trim(),
+            phone: cleanPhone,
+            email: email.trim(),
+            referrer: finalReferrerVal,
+            referrerType: referrerType,
+            notes: notes.trim(),
+            hasTeaBreak: hasTeaBreak,
+            registeredAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // Ignore
+      }
+
       setRegistrationResult(data);
     } catch (err: any) {
       setErrorMsg(err.message || 'Có lỗi xảy ra khi gửi thông tin');
@@ -242,43 +263,34 @@ export default function QRCheckinModal({
   };
 
   const handleClearForm = () => {
+    // Xóa trắng 4 trường theo đúng 4 mũi tên chỉ định trong ảnh:
+    // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+    setReferrer('');
     setFullName('');
     setPhone('');
-    setEmail('');
     setNotes('');
-    setReferrer('');
-    setReferrerType('vang_lai');
+    setEmail('');
     setErrorMsg('');
     setDuplicateInfo(null);
+
+    // Xóa cookies & localStorage của 4 trường này
+    if (typeof document !== 'undefined') {
+      const cookiesToClear = [
+        'user_name',
+        'reg_fullname',
+        'user_phone',
+        'reg_phone',
+        'user_referrer',
+        'reg_referrer',
+        'user_notes',
+        'reg_notes',
+      ];
+      cookiesToClear.forEach((name) => {
+        document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      });
+    }
     try {
       localStorage.removeItem(STORAGE_KEY);
-      const roleCookie = typeof document !== 'undefined' ? document.cookie.match(/(?:^|;\s*)user_role=([^;]*)/) : null;
-      const currentRole = roleCookie ? decodeURIComponent(roleCookie[1]).toLowerCase() : '';
-      const isAdmin = currentRole.includes('admin') || currentRole.includes('quản trị');
-      if (!isAdmin && typeof document !== 'undefined') {
-        const cookiesToClear = [
-          'user_role',
-          'user_name',
-          'user_email',
-          'user_phone',
-          'user_id',
-          'user_ref_code',
-          'ref_code',
-          'user_ref',
-        ];
-        cookiesToClear.forEach((name) => {
-          document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-        });
-        localStorage.removeItem('nghieng_auth_role');
-        localStorage.removeItem('nghieng_user_name');
-        localStorage.removeItem('nghieng_user_phone');
-        localStorage.removeItem('nghieng_user_email');
-        localStorage.removeItem('nghieng_user_id');
-        localStorage.removeItem('nghieng_user_ref_code');
-        localStorage.removeItem('ref_code');
-        window.dispatchEvent(new Event('nghieng-auth-change'));
-        window.dispatchEvent(new Event('storage'));
-      }
     } catch {
       // Ignore
     }
@@ -591,16 +603,18 @@ export default function QRCheckinModal({
                         </label>
                       </div>
 
-                      {/* Nút Clear (Theo đúng vị trí khoanh đỏ trong ảnh) */}
-                      <button
-                        type="button"
-                        onClick={handleClearForm}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
-                        title="Xóa trắng tất cả thông tin đã nhập và cookies"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Clear</span>
-                      </button>
+                      {/* 1) Khi click Người giới thiệu mới có nút Clear */}
+                      {referrerType === 'co_nguoi_gioi_thieu' && (
+                        <button
+                          type="button"
+                          onClick={handleClearForm}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                          title="Xóa trắng 4 trường thông tin đã lưu"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Clear</span>
+                        </button>
+                      )}
                     </div>
 
                     {referrerType === 'co_nguoi_gioi_thieu' && (
@@ -612,7 +626,14 @@ export default function QRCheckinModal({
                           value={referrer}
                           onChange={(e) => handleReferrerSearch(e.target.value)}
                           onFocus={() => { if (referrerSearchResults.length > 0) setShowReferrerDropdown(true); }}
-                          onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                          onBlur={() => {
+                            setTimeout(() => setShowReferrerDropdown(false), 200);
+                            if (typeof document !== 'undefined') {
+                              const maxAge = 31536000;
+                              document.cookie = `user_referrer=${encodeURIComponent(referrer.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                              document.cookie = `reg_referrer=${encodeURIComponent(referrer.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                            }
+                          }}
                           placeholder="Nhập đúng SĐT của User thành viên mời"
                           className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
                         />
@@ -658,6 +679,13 @@ export default function QRCheckinModal({
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
+                        onBlur={() => {
+                          if (fullName.trim() && typeof document !== 'undefined') {
+                            const maxAge = 31536000;
+                            document.cookie = `user_name=${encodeURIComponent(fullName.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                            document.cookie = `reg_fullname=${encodeURIComponent(fullName.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                          }
+                        }}
                         placeholder="Nhập họ và tên"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
                       />
@@ -676,6 +704,13 @@ export default function QRCheckinModal({
                         required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
+                        onBlur={() => {
+                          if (phone.trim() && typeof document !== 'undefined') {
+                            const maxAge = 31536000;
+                            document.cookie = `user_phone=${encodeURIComponent(phone.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                            document.cookie = `reg_phone=${encodeURIComponent(phone.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                          }
+                        }}
                         placeholder="Nhập số điện thoại"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
                       />
@@ -695,6 +730,13 @@ export default function QRCheckinModal({
                       maxLength={500}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
+                      onBlur={() => {
+                        if (notes.trim() && typeof document !== 'undefined') {
+                          const maxAge = 31536000;
+                          document.cookie = `user_notes=${encodeURIComponent(notes.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                          document.cookie = `reg_notes=${encodeURIComponent(notes.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                        }
+                      }}
                       placeholder="Nhập ghi chú (nếu có)"
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs resize-none"
                     />

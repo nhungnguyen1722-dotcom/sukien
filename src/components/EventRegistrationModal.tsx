@@ -89,6 +89,28 @@ export default function EventRegistrationModal({
     }
 
     try {
+      const getCookie = (name: string) => {
+        if (typeof document === 'undefined') return '';
+        const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+        return match ? decodeURIComponent(match[1]) : '';
+      };
+
+      let savedData: any = null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) savedData = JSON.parse(raw);
+      } catch {}
+
+      const savedFullName = getCookie('reg_fullname') || getCookie('user_name') || savedData?.fullName || '';
+      const savedPhone = getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '';
+      const savedReferrer = getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '';
+      const savedNotes = getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '';
+
+      if (savedFullName) setFullName(savedFullName);
+      if (savedPhone) setPhone(savedPhone);
+      if (savedNotes) setNotes(savedNotes);
+      if (savedData?.email) setEmail(savedData.email);
+
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         const refParam = params.get('ref');
@@ -116,10 +138,11 @@ export default function EventRegistrationModal({
               }
             });
           setReferrerType('co_nguoi_gioi_thieu');
+        } else if (savedReferrer && savedReferrer !== 'Khách vãng lai') {
+          setReferrer(savedReferrer);
+          setReferrerType('co_nguoi_gioi_thieu');
         }
       }
-      localStorage.removeItem(STORAGE_KEY);
-      setHasSavedProfile(false);
     } catch {
       // Ignore storage errors
     }
@@ -219,8 +242,41 @@ export default function EventRegistrationModal({
         throw new Error(data.error || 'Đăng ký thất bại. Vui lòng thử lại.');
       }
 
-      // Chặn hoàn toàn việc lưu cookies/localStorage khi đăng ký sự kiện
-      // Khách tham dự nhận vé điện tử trực tiếp, không bị lưu cookies trên điện thoại
+      // Vẫn lưu cookies ở 4 trường này:
+      // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+      try {
+        const maxAge = 31536000; // 1 năm
+        const setCookie = (name: string, val: string) => {
+          document.cookie = `${name}=${encodeURIComponent(val)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        };
+        const finalReferrerVal = referrerType === 'vang_lai' ? '' : referrer.trim();
+        const cleanPhoneVal = phone.trim();
+        setCookie('user_name', fullName.trim());
+        setCookie('reg_fullname', fullName.trim());
+        setCookie('user_phone', cleanPhoneVal);
+        setCookie('reg_phone', cleanPhoneVal);
+        setCookie('user_referrer', finalReferrerVal);
+        setCookie('reg_referrer', finalReferrerVal);
+        setCookie('user_notes', notes.trim());
+        setCookie('reg_notes', notes.trim());
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            fullName: fullName.trim(),
+            phone: cleanPhoneVal,
+            email: email.trim(),
+            referrer: finalReferrerVal,
+            referrerType: referrerType,
+            notes: notes.trim(),
+            hasTeaBreak: hasTeaBreak,
+            registeredAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // Ignore
+      }
+
       setRegistrationResult(data.registration);
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -234,31 +290,27 @@ export default function EventRegistrationModal({
     try {
       localStorage.removeItem(STORAGE_KEY);
       setHasSavedProfile(false);
+      setReferrer('');
       setFullName('');
       setPhone('');
+      setNotes('');
       setEmail('');
       setCompany('');
-      setReferrer('');
-      setReferrerType('vang_lai');
-      setNotes('');
       setErrorMsg('');
       setDuplicateInfo(null);
-      const roleCookie = typeof document !== 'undefined' ? document.cookie.match(/(?:^|;\s*)user_role=([^;]*)/) : null;
-      const currentRole = roleCookie ? decodeURIComponent(roleCookie[1]).toLowerCase() : '';
-      const isAdmin = currentRole.includes('admin') || currentRole.includes('quản trị');
-      if (!isAdmin && typeof document !== 'undefined') {
+      if (typeof document !== 'undefined') {
         const cookiesToClear = [
-          'user_role',
           'user_name',
+          'reg_fullname',
           'user_phone',
-          'user_email',
-          'user_id',
-          'user_ref_code',
-          'ref_code',
-          'user_ref',
+          'reg_phone',
+          'user_referrer',
+          'reg_referrer',
+          'user_notes',
+          'reg_notes',
         ];
         cookiesToClear.forEach((name) => {
-          document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0`;
+          document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
         });
       }
     } catch {
@@ -663,16 +715,18 @@ export default function EventRegistrationModal({
                         </label>
                       </div>
 
-                      {/* Nút Clear (Theo đúng vị trí khoanh đỏ trong ảnh) */}
-                      <button
-                        type="button"
-                        onClick={clearSavedProfile}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
-                        title="Xóa trắng tất cả thông tin đã nhập và cookies"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Clear</span>
-                      </button>
+                      {/* 1) Khi click Người giới thiệu mới có nút Clear */}
+                      {referrerType === 'co_nguoi_gioi_thieu' && (
+                        <button
+                          type="button"
+                          onClick={clearSavedProfile}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                          title="Xóa trắng 4 trường thông tin đã lưu"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Clear</span>
+                        </button>
+                      )}
                     </div>
 
                     {referrerType === 'co_nguoi_gioi_thieu' && (
@@ -684,7 +738,14 @@ export default function EventRegistrationModal({
                           value={referrer}
                           onChange={(e) => handleReferrerSearch(e.target.value)}
                           onFocus={() => { if (referrerSearchResults.length > 0) setShowReferrerDropdown(true); }}
-                          onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
+                          onBlur={() => {
+                            setTimeout(() => setShowReferrerDropdown(false), 200);
+                            if (typeof document !== 'undefined') {
+                              const maxAge = 31536000;
+                              document.cookie = `user_referrer=${encodeURIComponent(referrer.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                              document.cookie = `reg_referrer=${encodeURIComponent(referrer.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                            }
+                          }}
                           placeholder="Nhập đúng SĐT của User thành viên mời"
                           className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
                         />
@@ -733,7 +794,14 @@ export default function EventRegistrationModal({
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Nguyễn Văn An"
+                        onBlur={() => {
+                          if (fullName.trim() && typeof document !== 'undefined') {
+                            const maxAge = 31536000;
+                            document.cookie = `user_name=${encodeURIComponent(fullName.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                            document.cookie = `reg_fullname=${encodeURIComponent(fullName.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                          }
+                        }}
+                        placeholder="Nhập họ và tên"
                         className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
                     </div>
@@ -751,7 +819,14 @@ export default function EventRegistrationModal({
                         required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="0987 654 321"
+                        onBlur={() => {
+                          if (phone.trim() && typeof document !== 'undefined') {
+                            const maxAge = 31536000;
+                            document.cookie = `user_phone=${encodeURIComponent(phone.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                            document.cookie = `reg_phone=${encodeURIComponent(phone.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                          }
+                        }}
+                        placeholder="Nhập số điện thoại"
                         className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
                     </div>
@@ -792,79 +867,6 @@ export default function EventRegistrationModal({
                     </div>
                   </div>
 
-                  {/* Người giới thiệu (Item 4) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                      Người giới thiệu
-                    </label>
-                    <div className="flex items-center gap-6 mb-2">
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-700">
-                        <input
-                          type="radio"
-                          name="referrerType"
-                          value="vang_lai"
-                          checked={referrerType === 'vang_lai'}
-                          onChange={() => setReferrerType('vang_lai')}
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span>Người vãng lai</span>
-                      </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-700">
-                        <input
-                          type="radio"
-                          name="referrerType"
-                          value="co_nguoi_gioi_thieu"
-                          checked={referrerType === 'co_nguoi_gioi_thieu'}
-                          onChange={() => setReferrerType('co_nguoi_gioi_thieu')}
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span>Người giới thiệu</span>
-                      </label>
-                    </div>
-
-                    {referrerType === 'co_nguoi_gioi_thieu' && (
-                      <div className="relative animate-in fade-in duration-200">
-                        <Users className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          required={referrerType === 'co_nguoi_gioi_thieu'}
-                          value={referrer}
-                          onChange={(e) => handleReferrerSearch(e.target.value)}
-                          onFocus={() => { if (referrerSearchResults.length > 0) setShowReferrerDropdown(true); }}
-                          onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 200)}
-                          placeholder="Nhập đúng SĐT của User thành viên mời"
-                          className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        />
-                        {isSearchingReferrer && (
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
-                          </div>
-                        )}
-                        {showReferrerDropdown && referrerSearchResults.length > 0 && (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
-                            {referrerSearchResults.map((member) => (
-                              <button
-                                key={member.id}
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => handleSelectReferrer(member)}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition-colors text-sm cursor-pointer"
-                              >
-                                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                  <User className="w-3.5 h-3.5 text-blue-600" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-gray-900 text-xs truncate">{member.full_name}</p>
-                                  <p className="text-[11px] text-gray-500">{member.phone}</p>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
                   {/* Ghi chú */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -878,6 +880,13 @@ export default function EventRegistrationModal({
                       maxLength={500}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
+                      onBlur={() => {
+                        if (notes.trim() && typeof document !== 'undefined') {
+                          const maxAge = 31536000;
+                          document.cookie = `user_notes=${encodeURIComponent(notes.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                          document.cookie = `reg_notes=${encodeURIComponent(notes.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                        }
+                      }}
                       placeholder="Nhập ghi chú (nếu có)"
                       className="w-full p-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     />
