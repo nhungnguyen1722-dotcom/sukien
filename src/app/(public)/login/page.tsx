@@ -6,6 +6,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
+const isMobileDevice = () => {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || navigator.vendor || (window as any).opera || "";
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isSmallScreen = window.innerWidth <= 768;
+  return isMobileUA || isSmallScreen;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -15,26 +23,61 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    // Khi vào trang đăng nhập, dọn dẹp các cookie và storage phiên cũ để form và phiên đăng nhập hoàn toàn mới
-    try {
-      document.cookie = "user_role=; path=/; max-age=0";
-      document.cookie = "user_name=; path=/; max-age=0";
-      document.cookie = "user_email=; path=/; max-age=0";
-      document.cookie = "user_phone=; path=/; max-age=0";
-      document.cookie = "user_id=; path=/; max-age=0";
-      document.cookie = "user_ref_code=; path=/; max-age=0";
-      document.cookie = "ref_code=; path=/; max-age=0";
-      document.cookie = "user_ref=; path=/; max-age=0";
-      localStorage.removeItem("nghieng_auth_role");
-      localStorage.removeItem("nghieng_user_ref_code");
-      localStorage.removeItem("ref_code");
-      localStorage.removeItem("nghieng_user_id");
-      localStorage.removeItem("nghieng_user_name");
-      localStorage.removeItem("nghieng_user_email");
-      localStorage.removeItem("nghieng_user_phone");
-      window.dispatchEvent(new Event("nghieng-auth-change"));
-    } catch {
-      // Ignore
+    const isMobile = isMobileDevice();
+
+    if (!isMobile) {
+      // Trên Desktop: dọn dẹp các cookie và storage phiên cũ để form và phiên đăng nhập hoàn toàn mới
+      try {
+        document.cookie = "user_role=; path=/; max-age=0";
+        document.cookie = "user_name=; path=/; max-age=0";
+        document.cookie = "user_email=; path=/; max-age=0";
+        document.cookie = "user_phone=; path=/; max-age=0";
+        document.cookie = "user_id=; path=/; max-age=0";
+        document.cookie = "user_ref_code=; path=/; max-age=0";
+        document.cookie = "ref_code=; path=/; max-age=0";
+        document.cookie = "user_ref=; path=/; max-age=0";
+        localStorage.removeItem("nghieng_auth_role");
+        localStorage.removeItem("nghieng_user_ref_code");
+        localStorage.removeItem("ref_code");
+        localStorage.removeItem("nghieng_user_id");
+        localStorage.removeItem("nghieng_user_name");
+        localStorage.removeItem("nghieng_user_email");
+        localStorage.removeItem("nghieng_user_phone");
+        window.dispatchEvent(new Event("nghieng-auth-change"));
+      } catch {
+        // Ignore
+      }
+    } else {
+      // Chỉ ở trên điện thoại:
+      // Lưu sẵn cookies của tài khoản đã từng đăng nhập lần thứ 1, lần thứ 2 trở đi vẫn lưu
+      // Tự động khôi phục thông tin đăng nhập đã lưu (Email & Mật khẩu) vào form
+      try {
+        const getCookie = (name: string) => {
+          if (typeof document === "undefined") return "";
+          const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+          return match ? decodeURIComponent(match[1]) : "";
+        };
+
+        const savedEmail =
+          getCookie("mobile_saved_email") ||
+          getCookie("user_email") ||
+          localStorage.getItem("nghieng_mobile_email") ||
+          "";
+
+        const savedPassword =
+          getCookie("mobile_saved_password") ||
+          localStorage.getItem("nghieng_mobile_password") ||
+          "";
+
+        if (savedEmail) {
+          setEmail(savedEmail);
+        }
+        if (savedPassword) {
+          setPassword(savedPassword);
+        }
+      } catch {
+        // Ignore
+      }
     }
   }, []);
 
@@ -69,6 +112,34 @@ export default function LoginPage() {
         const userRole = rawRole.toLowerCase();
         const isAdmin = data.isAdmin || userRole.includes("admin") || userRole.includes("quản trị");
         const isReception = data.isReception || userRole.includes("lễ tân") || userRole.includes("le tan");
+
+        const isMobile = isMobileDevice();
+
+        // Chỉ ở trên điện thoại: lưu sẵn cookies tài khoản đăng nhập để lần 2 trở đi vẫn lưu
+        if (isMobile) {
+          try {
+            const maxAge = 365 * 24 * 60 * 60; // 1 năm
+            document.cookie = `mobile_saved_email=${encodeURIComponent(email.trim())}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            document.cookie = `mobile_saved_password=${encodeURIComponent(password)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            localStorage.setItem("nghieng_mobile_email", email.trim());
+            localStorage.setItem("nghieng_mobile_password", password);
+
+            if (data.user?.email) {
+              document.cookie = `user_email=${encodeURIComponent(data.user.email)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            }
+            if (data.user?.full_name) {
+              document.cookie = `user_name=${encodeURIComponent(data.user.full_name)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            }
+            if (data.user?.phone) {
+              document.cookie = `user_phone=${encodeURIComponent(data.user.phone)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            }
+            if (rawRole) {
+              document.cookie = `user_role=${encodeURIComponent(rawRole)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            }
+          } catch {
+            // Ignore
+          }
+        }
 
         try {
           localStorage.setItem(
@@ -188,6 +259,8 @@ export default function LoginPage() {
                 <input
                   id="email"
                   type="text"
+                  name="email"
+                  autoComplete="username email"
                   placeholder="you@example.com hoặc SĐT"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -218,6 +291,8 @@ export default function LoginPage() {
                 <input
                   id="password"
                   type="password"
+                  name="password"
+                  autoComplete="current-password"
                   placeholder="Nhập mật khẩu"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
