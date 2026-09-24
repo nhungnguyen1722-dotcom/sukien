@@ -34,6 +34,7 @@ import {
   Image as LucideImage,
   Copy,
   QrCode,
+  ExternalLink,
 } from 'lucide-react';
 import { safeDecodeURI } from '@/lib/authUtils';
 
@@ -298,6 +299,7 @@ export default function EventDetail({
     location: event.location || '',
     event_type: event.event_type || 'Hội thảo / Seminar',
     status: event.status || 'Sắp diễn ra',
+    approval_status: event.approval_status || 'Chờ duyệt',
     image_url: event.image_url || '/events/event-1.jpg',
     notes: event.notes || '',
   });
@@ -597,6 +599,18 @@ export default function EventDetail({
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  const formatNumberWithDots = (val: number | string) => {
+    if (val === undefined || val === null || val === '') return '';
+    const num = typeof val === 'number' ? val : parseInt(String(val).replace(/\D/g, ''), 10);
+    if (isNaN(num)) return '';
+    return new Intl.NumberFormat('vi-VN').format(num);
+  };
+
+  const parseNumberFromDots = (val: string) => {
+    const clean = val.replace(/\./g, '').replace(/\D/g, '');
+    return clean ? parseInt(clean, 10) : 0;
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === 'Đã diễn ra' || status === 'Đã hoàn thành') {
       return (
@@ -605,10 +619,10 @@ export default function EventDetail({
         </span>
       );
     }
-    if (status === 'Kế hoạch' || status === 'Đang thực hiện') {
+    if (status === 'Kế hoạch' || status === 'Đang diễn ra' || status === 'Đang thực hiện') {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-          {status}
+          {status === 'Đang thực hiện' ? 'Đang diễn ra' : status}
         </span>
       );
     }
@@ -697,6 +711,7 @@ export default function EventDetail({
         location: editEventForm.location,
         event_type: editEventForm.event_type,
         status: editEventForm.status,
+        approval_status: editEventForm.approval_status,
         image_url: editEventForm.image_url,
         notes: editEventForm.notes,
         content: editContentHtml,
@@ -1487,7 +1502,7 @@ export default function EventDetail({
 
           {isAdmin && (
             <>
-              {/* Item 15: Button Cập nhật 5 trường cố định */}
+              {/* Item 15: Button Cập nhật giá 5 trường cố định */}
               <button
                 onClick={() => {
                   setTempFixedFees({
@@ -1502,8 +1517,8 @@ export default function EventDetail({
                 className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
               >
                 <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                <span className="hidden sm:inline">Cập nhật 5 trường cố định</span>
-                <span className="sm:hidden">Cập nhật</span>
+                <span className="hidden lg:inline">Cập nhật giá 5 trường cố định</span>
+                <span className="lg:hidden">Cập nhật</span>
               </button>
 
               {/* Item 15: Button Chỉnh sửa mở modal sửa sự kiện */}
@@ -1517,6 +1532,7 @@ export default function EventDetail({
                     location: event.location || '',
                     event_type: event.event_type || 'Hội thảo / Seminar',
                     status: event.status || 'Sắp diễn ra',
+                    approval_status: event.approval_status || 'Chờ duyệt',
                     image_url: event.image_url || '/events/event-1.jpg',
                     notes: event.notes || '',
                   });
@@ -1532,15 +1548,27 @@ export default function EventDetail({
             </>
           )}
 
+          {/* Desktop Trang Public */}
           <Link
             href={`/su-kien/${event.id}`}
             target="_blank"
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
           >
             <span>Trang Public ↗</span>
           </Link>
         </div>
       </div>
+
+      {/* Nút Trang Public trên Mobile - Nằm ngang hàng với icon menu ở góc phải trên cùng (Mục 3) */}
+      <Link
+        href={`/su-kien/${event.id}`}
+        target="_blank"
+        className="md:hidden fixed top-3.5 right-4 z-40 inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-lg transition-all active:scale-95 cursor-pointer"
+        title="Xem trang Public"
+      >
+        <span>Trang Public</span>
+        <ExternalLink className="w-3.5 h-3.5" />
+      </Link>
 
       {/* Main Header Card - 4 Blocks */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-sm mb-6">
@@ -1947,8 +1975,8 @@ export default function EventDetail({
               </div>
             </div>
 
-            {/* Desktop Table View */}
-            <div className="hidden sm:block border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            {/* Desktop Table View (>= 992px) */}
+            <div className="hidden lg:block border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full text-left text-xs text-slate-600 border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
@@ -2071,8 +2099,8 @@ export default function EventDetail({
               </table>
             </div>
 
-            {/* Mobile Card Layout (Mục 9.1 Hình 9.3) */}
-            <div className="sm:hidden space-y-3">
+            {/* Mobile Card Layout (Mục 9.1 Hình 9.3) (<= 991px) */}
+            <div className="lg:hidden space-y-3">
               {inChargePersons.length === 0 ? (
                 <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                   Chưa có người phụ trách nào được phân công.
@@ -2260,7 +2288,7 @@ export default function EventDetail({
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden sm:block border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+            <div className="hidden lg:block border border-slate-100 rounded-xl overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs text-slate-600 border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
@@ -2385,7 +2413,7 @@ export default function EventDetail({
             </div>
 
             {/* Mobile Card Layout (Mục 9.1 Hình 9.4) */}
-            <div className="sm:hidden space-y-3">
+            <div className="lg:hidden space-y-3">
               {filteredGuests.length === 0 ? (
                 <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                   {registrations.length === 0
@@ -3105,7 +3133,7 @@ export default function EventDetail({
                     className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   >
                     <option value="Kế hoạch">Kế hoạch</option>
-                    <option value="Đang thực hiện">Đang thực hiện</option>
+                    <option value="Đang diễn ra">Đang diễn ra</option>
                     <option value="Đã hoàn thành">Đã hoàn thành</option>
                   </select>
                 </div>
@@ -3675,8 +3703,8 @@ export default function EventDetail({
                 />
               </div>
 
-              {/* Ngày tổ chức & Trạng thái */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Ngày tổ chức, Trạng thái & Duyệt (Mục 10) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Ngày tổ chức <span className="text-rose-500">*</span>
@@ -3698,8 +3726,20 @@ export default function EventDetail({
                   >
                     <option value="Sắp diễn ra">Sắp diễn ra</option>
                     <option value="Kế hoạch">Kế hoạch</option>
-                    <option value="Đang thực hiện">Đang thực hiện</option>
+                    <option value="Đang diễn ra">Đang diễn ra</option>
                     <option value="Đã diễn ra">Đã diễn ra</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Duyệt</label>
+                  <select
+                    value={editEventForm.approval_status}
+                    onChange={(e) => setEditEventForm({ ...editEventForm, approval_status: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                  >
+                    <option value="Chờ duyệt">Chờ duyệt</option>
+                    <option value="Đã duyệt">Đã duyệt</option>
+                    <option value="Từ chối">Từ chối</option>
                   </select>
                 </div>
               </div>
@@ -3885,10 +3925,9 @@ export default function EventDetail({
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao phụng sự (VNĐ)</label>
                   <input
-                    type="number"
-                    step="10000"
-                    value={tempFixedFees.support_fee}
-                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, support_fee: parseFloat(e.target.value) || 0 })}
+                    type="text"
+                    value={formatNumberWithDots(tempFixedFees.support_fee)}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, support_fee: parseNumberFromDots(e.target.value) })}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -3896,10 +3935,9 @@ export default function EventDetail({
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao MC (VNĐ)</label>
                   <input
-                    type="number"
-                    step="10000"
-                    value={tempFixedFees.mc_fee}
-                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, mc_fee: parseFloat(e.target.value) || 0 })}
+                    type="text"
+                    value={formatNumberWithDots(tempFixedFees.mc_fee)}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, mc_fee: parseNumberFromDots(e.target.value) })}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -3907,10 +3945,9 @@ export default function EventDetail({
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao Thuyết trình / Diễn giả (VNĐ)</label>
                   <input
-                    type="number"
-                    step="10000"
-                    value={tempFixedFees.speaker_fee}
-                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, speaker_fee: parseFloat(e.target.value) || 0 })}
+                    type="text"
+                    value={formatNumberWithDots(tempFixedFees.speaker_fee)}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, speaker_fee: parseNumberFromDots(e.target.value) })}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -3918,10 +3955,9 @@ export default function EventDetail({
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Thù lao Người chốt (VNĐ)</label>
                   <input
-                    type="number"
-                    step="10000"
-                    value={tempFixedFees.closer_fee}
-                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, closer_fee: parseFloat(e.target.value) || 0 })}
+                    type="text"
+                    value={formatNumberWithDots(tempFixedFees.closer_fee)}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, closer_fee: parseNumberFromDots(e.target.value) })}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -3929,10 +3965,9 @@ export default function EventDetail({
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Chi phí Tiệc trà (VNĐ)</label>
                   <input
-                    type="number"
-                    step="10000"
-                    value={tempFixedFees.tea_break_fee}
-                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, tea_break_fee: parseFloat(e.target.value) || 0 })}
+                    type="text"
+                    value={formatNumberWithDots(tempFixedFees.tea_break_fee)}
+                    onChange={(e) => setTempFixedFees({ ...tempFixedFees, tea_break_fee: parseNumberFromDots(e.target.value) })}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

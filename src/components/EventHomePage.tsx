@@ -390,10 +390,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                       src={event.image_url}
                       alt={event.name}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
-                      <SystemLogo className="h-16 w-auto object-contain" />
+                    <div className="w-full h-full flex items-center justify-center bg-slate-50 overflow-hidden">
+                      <SystemLogo className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                     </div>
                   )}
 
@@ -494,11 +495,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
       </section>
 
       {/* KHU VỰC 3 & 4: TẤT CẢ SỰ KIỆN (LIST VIEW) & SIDEBAR CỘNG ĐỒNG (IMAGE 3 & 5) */}
-      <section id="tat-ca-su-kien" className="max-w-7xl mx-auto px-[15px] sm:px-6">
+      <section id="tat-ca-su-kien" className="max-w-7xl mx-auto px-0 lg:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* KHU VỰC 3 (BÊN TRÁI): TẤT CẢ SỰ KIỆN (LIST VIEW) */}
           <div className="lg:col-span-8 flex flex-col">
-            <div className="bg-white rounded-2xl border border-gray-100 p-[15px] sm:p-6 shadow-sm">
+            <div className="bg-white rounded-none lg:rounded-2xl border-x-0 lg:border-x border-y border-gray-100 p-[15px] lg:p-6 shadow-sm">
               {/* Header: Sắp xếp + Tiêu đề trên 1 dòng (Mục 11, Hình 13) */}
               <div className="flex items-center justify-between gap-3 pb-4 border-b border-gray-100">
                 <h2 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight">
@@ -550,10 +551,10 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                   return (
                     <div
                       key={event.id}
-                      className="py-4 sm:py-5 flex flex-col lg:flex-row lg:items-center gap-4 hover:bg-slate-50/60 p-2 rounded-xl transition-colors"
+                      className="relative py-4 lg:py-5 flex flex-col lg:flex-row lg:items-center gap-4 hover:bg-slate-50/60 p-0 lg:p-2 rounded-xl transition-colors"
                     >
                       {/* Thumbnail Container */}
-                      <div className="w-full lg:w-32 h-52 lg:h-24 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative border border-slate-200/80 block group">
+                      <div className="w-full lg:w-32 h-52 sm:h-60 lg:h-24 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 relative border border-slate-200/80 block group">
                         <Link
                           href={`/su-kien/${event.id}`}
                           className="w-full h-full block cursor-pointer"
@@ -564,10 +565,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                               src={event.image_url}
                               alt={event.name}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center p-2 bg-slate-50">
-                              <SystemLogo className="h-10 w-auto object-contain" />
+                            <div className="w-full h-full flex items-center justify-center bg-slate-50 overflow-hidden">
+                              <SystemLogo className="w-full h-full object-cover" />
                             </div>
                           )}
                         </Link>

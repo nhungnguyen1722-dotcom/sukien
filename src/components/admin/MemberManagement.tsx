@@ -361,7 +361,7 @@ export default function MemberManagement({
   }, [members, searchQuery]);
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto min-h-screen">
+    <div className="px-[15px] py-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto min-h-screen">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-200">
@@ -383,26 +383,26 @@ export default function MemberManagement({
       )}
 
       {/* Header Section (Item 10: Đồng bộ Google Sheet) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Thành viên</h1>
-          <p className="text-sm text-slate-500 mt-1 font-normal">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Thành viên</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
             Database gốc: nhân sự, khách mời, cộng tác viên — gắn người giới thiệu, chức danh, Team Leader
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Nút Đồng bộ Google Sheet (Mục 5 - Hình 5.4: Mobile đổi thành 'Đồng bộ') */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Nút Đồng bộ Google Sheet (Mục 1 - Đổi tên thành "Đồng bộ" trên mobile <= 991px) */}
           <button
             type="button"
             onClick={handleSyncSheet}
             disabled={isSyncingSheet}
-            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             title="Đồng bộ danh sách thành viên sang Google Sheet"
           >
             <span className={`w-2 h-2 rounded-full bg-emerald-500 ${isSyncingSheet ? 'animate-ping' : ''}`} />
-            <span className="sm:hidden">Đồng bộ</span>
-            <span className="hidden sm:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
+            <span className="lg:hidden">Đồng bộ</span>
+            <span className="hidden lg:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
           </button>
 
           {/* Nút Thêm mới */}
@@ -416,50 +416,50 @@ export default function MemberManagement({
         </div>
       </div>
 
-      {/* 4 Thẻ Thống kê (Stat Cards) - 2x2 trên mobile (Hình 5.4) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-8">
+      {/* 4 Thẻ Thống kê (Stat Cards) - 2 cột x 2 dòng trên mobile <= 991px */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {/* Card 1: Tổng số thành viên */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100/80 shadow-xs flex flex-col justify-between">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#2563eb]">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#2563eb] shrink-0">
               <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-[11px] sm:text-xs font-medium text-slate-500">Tổng số thành viên</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Tổng số thành viên</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.totalMembers}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.totalMembers}</div>
         </div>
 
         {/* Card 2: Thành viên hoạt động */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <UserCheck className="w-5 h-5" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+              <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Thành viên hoạt động</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Thành viên hoạt động</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.activeMembers}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.activeMembers}</div>
         </div>
 
         {/* Card 3: Thành viên mới (tháng này) */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-              <UserPlus className="w-5 h-5" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+              <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Thành viên mới (tháng này)</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Thành viên mới (tháng này)</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.newMembers}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.newMembers}</div>
         </div>
 
         {/* Card 4: Thành viên không hoạt động */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] flex flex-col justify-between">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <UserX className="w-5 h-5" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+              <UserX className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Thành viên không hoạt động</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Thành viên không hoạt động</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 pl-1">{stats.inactiveMembers}</div>
+          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.inactiveMembers}</div>
         </div>
       </div>
 

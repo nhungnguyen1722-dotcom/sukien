@@ -29,11 +29,11 @@ export default async function PublicLayout({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f8fafc]">
-      {/* Header */}
+      {/* Header (Mục 11 - Hình 12) */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-2.5">
-          {/* Logo Nghiêng Complex - Kích thước lớn, rõ ràng, không có text lặp lại */}
-          <Link href="/" className="flex items-center gap-2 group py-1">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
+          {/* Logo Nghiêng Complex - Kích thước lớn, rõ ràng, object-fit: contain, căn giữa theo chiều dọc */}
+          <Link href="/" className="flex items-center group py-0 shrink-0">
             <div className="h-11 flex items-center">
               <SystemLogo className="h-10 sm:h-11 w-auto max-h-11 object-contain transition-transform group-hover:scale-105 duration-200" />
             </div>

@@ -142,7 +142,8 @@ export async function PUT(
       expected_guests,
       location,
       manager_id,
-      status,
+      status: rawStatus,
+      approval_status,
       mc_fee,
       speaker_fee,
       support_fee,
@@ -154,6 +155,7 @@ export async function PUT(
       start_time,
       end_time,
     } = body;
+    const status = rawStatus === 'Đang thực hiện' ? 'Đang diễn ra' : (rawStatus || 'Sắp diễn ra');
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Tên sự kiện là bắt buộc' }, { status: 400 });
@@ -182,8 +184,9 @@ export async function PUT(
         detail_description = CASE WHEN $14::text IS NOT NULL THEN $14 ELSE detail_description END,
         start_time = CASE WHEN $15::text IS NOT NULL THEN $15::time ELSE start_time END,
         end_time = CASE WHEN $16::text IS NOT NULL THEN $16::time ELSE end_time END,
+        approval_status = CASE WHEN $17::text IS NOT NULL THEN $17 ELSE approval_status END,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $17
+      WHERE id = $18
       RETURNING *`,
       [
         name.trim(),
@@ -191,7 +194,7 @@ export async function PUT(
         expected_guests !== undefined ? parseInt(expected_guests, 10) : 0,
         location ? location.trim() : null,
         manager_id ? parseInt(manager_id, 10) : null,
-        status || 'Sắp diễn ra',
+        status,
         mc_fee !== undefined ? parseFloat(mc_fee) : 0,
         speaker_fee !== undefined ? parseFloat(speaker_fee) : 0,
         support_fee !== undefined ? parseFloat(support_fee) : 0,
@@ -202,12 +205,25 @@ export async function PUT(
         content !== undefined ? content : null,
         start_time && start_time.trim() ? start_time.trim() : null,
         end_time && end_time.trim() ? end_time.trim() : null,
+        approval_status !== undefined ? approval_status : null,
         eventId,
       ]
     );
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'Không tìm thấy sự kiện' }, { status: 404 });
+    }
+
+    if (approval_status === 'Đã duyệt') {
+      await pool.query(
+        `UPDATE events SET approved_at = CURRENT_TIMESTAMP WHERE id = $1 AND approved_at IS NULL`,
+        [eventId]
+      );
+    } else if (approval_status === 'Chờ duyệt') {
+      await pool.query(
+        `UPDATE events SET approved_at = NULL, approved_by = NULL WHERE id = $1`,
+        [eventId]
+      );
     }
 
     // Also update or add event log record
@@ -281,7 +297,8 @@ export async function PATCH(
     }
 
     if (status !== undefined) {
-      values.push(status);
+      const normalizedStatus = status === 'Đang thực hiện' ? 'Đang diễn ra' : status;
+      values.push(normalizedStatus);
       updates.push(`status = $${values.length}`);
     }
 

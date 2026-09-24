@@ -69,7 +69,10 @@ export async function GET(request: NextRequest) {
     };
 
     return Response.json({
-      events: eventsRes.rows,
+      events: eventsRes.rows.map((row) => ({
+        ...row,
+        status: row.status === 'Đang thực hiện' ? 'Đang diễn ra' : row.status,
+      })),
       stats: {
         totalEvents: statsRow.total_events,
         upcomingEvents: statsRow.upcoming_events,
@@ -93,7 +96,8 @@ export async function POST(request: NextRequest) {
       expected_guests,
       location,
       manager_id,
-      status,
+      status: rawStatus,
+      approval_status,
       mc_fee,
       speaker_fee,
       support_fee,
@@ -104,6 +108,9 @@ export async function POST(request: NextRequest) {
       content,
       in_charges,
     } = body;
+
+    const status = rawStatus === 'Đang thực hiện' ? 'Đang diễn ra' : (rawStatus || 'Sắp diễn ra');
+    const finalApprovalStatus = approval_status || 'Chờ duyệt';
 
     if (!name || !name.trim()) {
       return Response.json({ error: 'Tên sự kiện là bắt buộc' }, { status: 400 });
@@ -133,7 +140,7 @@ export async function POST(request: NextRequest) {
         content,
         detail_description,
         approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, 'Chờ duyệt')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15)
       RETURNING *`,
       [
         name.trim(),
@@ -141,7 +148,7 @@ export async function POST(request: NextRequest) {
         expected_guests ? parseInt(expected_guests) : inChargeList.length,
         location ? location.trim() : null,
         manager_id ? parseInt(manager_id) : null,
-        status || 'Sắp diễn ra',
+        status,
         mc_fee ? parseFloat(mc_fee) : 0,
         speaker_fee ? parseFloat(speaker_fee) : 0,
         support_fee ? parseFloat(support_fee) : 0,
@@ -150,6 +157,7 @@ export async function POST(request: NextRequest) {
         notes ? notes.trim() : null,
         image_url ? image_url.trim() : '/events/event-1.jpg',
         content ? content.trim() : null,
+        finalApprovalStatus,
       ]
     );
 

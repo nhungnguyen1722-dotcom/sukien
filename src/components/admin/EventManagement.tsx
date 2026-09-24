@@ -24,7 +24,37 @@ import {
   FileSpreadsheet,
   Upload,
   Image as LucideImage,
+  Calendar,
+  MapPin,
+  Trash2,
+  ChevronDown,
 } from 'lucide-react';
+
+export interface FixedFeeField {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+export const DEFAULT_FIXED_FIELDS: FixedFeeField[] = [
+  { id: 'support_fee', name: 'Thù lao phụng sự', amount: 300000 },
+  { id: 'mc_fee', name: 'Thù lao MC', amount: 200000 },
+  { id: 'speaker_fee', name: 'Thù lao thuyết trình', amount: 300000 },
+  { id: 'closer_fee', name: 'Chốt sự kiện', amount: 200000 },
+  { id: 'tea_break_fee', name: 'Chi phí tiệc trà (50đ, TĐ hỗ trợ)', amount: 50000 },
+];
+
+export function formatNumberWithDots(val: number | string | undefined | null): string {
+  if (val === undefined || val === null || val === '') return '';
+  const num = typeof val === 'number' ? val : parseInt(String(val).replace(/\D/g, ''), 10);
+  if (isNaN(num)) return '';
+  return num.toLocaleString('vi-VN');
+}
+
+export function parseNumberFromDots(val: string): number {
+  const digits = String(val).replace(/\D/g, '');
+  return digits ? parseInt(digits, 10) : 0;
+}
 
 const PRESET_EVENT_IMAGES = [
   { url: '/events/event-1.jpg', title: 'Hội thảo Doanh nghiệp' },
@@ -101,7 +131,12 @@ export default function EventManagement({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
 
-  // 5 Trường giá cố định (Mục 6 & 7)
+  // Cập nhật các trường sự kiện (Mục 6 & 7)
+  const [fixedFeeFields, setFixedFeeFields] = useState<FixedFeeField[]>(DEFAULT_FIXED_FIELDS);
+  const [tempFeeFields, setTempFeeFields] = useState<FixedFeeField[]>(DEFAULT_FIXED_FIELDS);
+  const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldAmount, setNewFieldAmount] = useState<number>(0);
+
   const [fixedFees, setFixedFees] = useState({
     support_fee: 200000,
     mc_fee: 200000,
@@ -119,6 +154,7 @@ export default function EventManagement({
     event_date: '',
     location: '',
     status: 'Sắp diễn ra',
+    approval_status: 'Chờ duyệt',
     mc_fee: 200000,
     speaker_fee: 300000,
     support_fee: 200000,
@@ -216,30 +252,60 @@ export default function EventManagement({
     }
   };
 
-  // Tải cấu hình 5 trường cố định từ hệ thống
+  // Tải cấu hình các trường cố định từ hệ thống (Mục 6)
   useEffect(() => {
     fetch('/api/admin/settings')
       .then(res => res.json())
       .then(data => {
         if (data.settings?.fixed_fees) {
-          setFixedFees(data.settings.fixed_fees);
-          setTempFixedFees(data.settings.fixed_fees);
+          const raw = data.settings.fixed_fees;
+          let parsedFields: FixedFeeField[] = [];
+          if (Array.isArray(raw)) {
+            parsedFields = raw;
+          } else if (raw && Array.isArray(raw.fields)) {
+            parsedFields = raw.fields;
+          } else if (raw && typeof raw === 'object') {
+            parsedFields = [
+              { id: 'support_fee', name: 'Thù lao phụng sự', amount: Number(raw.support_fee) || 300000 },
+              { id: 'mc_fee', name: 'Thù lao MC', amount: Number(raw.mc_fee) || 200000 },
+              { id: 'speaker_fee', name: 'Thù lao thuyết trình', amount: Number(raw.speaker_fee) || 300000 },
+              { id: 'closer_fee', name: 'Chốt sự kiện', amount: Number(raw.closer_fee) || 200000 },
+              { id: 'tea_break_fee', name: 'Chi phí tiệc trà (50đ, TĐ hỗ trợ)', amount: Number(raw.tea_break_fee) || 50000 },
+            ];
+          }
+          if (parsedFields.length > 0) {
+            setFixedFeeFields(parsedFields);
+            setTempFeeFields(parsedFields);
+          }
+          if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+            setFixedFees(raw);
+            setTempFixedFees(raw);
+          }
         }
       })
       .catch(err => console.error('Error fetching settings:', err));
   }, []);
 
-  // Lưu cập nhật 5 trường cố định (Mục 6)
+  // Lưu cập nhật các trường cố định (Mục 6 & 7)
   const handleSaveFixedFees = async () => {
     setIsSavingFixedFees(true);
     try {
+      const payload: any = {
+        fields: tempFeeFields,
+        support_fee: tempFeeFields.find(f => f.id === 'support_fee')?.amount ?? 0,
+        mc_fee: tempFeeFields.find(f => f.id === 'mc_fee')?.amount ?? 0,
+        speaker_fee: tempFeeFields.find(f => f.id === 'speaker_fee')?.amount ?? 0,
+        closer_fee: tempFeeFields.find(f => f.id === 'closer_fee')?.amount ?? 0,
+        tea_break_fee: tempFeeFields.find(f => f.id === 'tea_break_fee')?.amount ?? 0,
+      };
+
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: 'fixed_fees',
-          value: tempFixedFees,
-          description: '5 trường chi phí cố định cho sự kiện mới',
+          value: payload,
+          description: 'Danh sách các trường chi phí cho sự kiện mới',
         }),
       });
       const data = await res.json();
@@ -247,13 +313,56 @@ export default function EventManagement({
         throw new Error(data.error || 'Cập nhật thất bại');
       }
 
-      setFixedFees(tempFixedFees);
+      setFixedFeeFields(tempFeeFields);
+      setFixedFees({
+        support_fee: payload.support_fee,
+        mc_fee: payload.mc_fee,
+        speaker_fee: payload.speaker_fee,
+        closer_fee: payload.closer_fee,
+        tea_break_fee: payload.tea_break_fee,
+      });
       setIsFixedFeesDrawerOpen(false);
-      showToast('success', 'Đã cập nhật giá 5 trường cố định cho các sự kiện tạo mới!');
+      showToast('success', 'Đã cập nhật danh sách trường chi phí cho các sự kiện tạo mới!');
     } catch (err: any) {
-      showToast('error', err.message || 'Lỗi khi lưu 5 trường cố định');
+      showToast('error', err.message || 'Lỗi khi lưu cấu hình');
     } finally {
       setIsSavingFixedFees(false);
+    }
+  };
+
+  // Thay đổi trực tiếp Trạng thái từ bảng (Mục 9 - Hình 10)
+  const handleDirectStatusChange = async (eventId: number, newStatus: string) => {
+    setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, status: newStatus } : ev));
+    try {
+      const res = await fetch(`/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật trạng thái');
+      showToast('success', `Đã cập nhật trạng thái thành "${newStatus}"!`);
+    } catch (err: any) {
+      showToast('error', err.message || 'Không thể lưu trạng thái mới');
+      refreshData();
+    }
+  };
+
+  // Thay đổi trực tiếp Duyệt từ bảng (Mục 9 - Hình 10)
+  const handleDirectApprovalChange = async (eventId: number, newApproval: string) => {
+    setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, approval_status: newApproval } : ev));
+    try {
+      const res = await fetch(`/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approval_status: newApproval }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật trạng thái duyệt');
+      showToast('success', `Đã cập nhật trạng thái duyệt thành "${newApproval}"!`);
+    } catch (err: any) {
+      showToast('error', err.message || 'Không thể lưu trạng thái duyệt mới');
+      refreshData();
     }
   };
 
@@ -348,6 +457,7 @@ export default function EventManagement({
       event_date: '',
       location: '',
       status: 'Sắp diễn ra',
+      approval_status: 'Chờ duyệt',
       mc_fee: Number(fixedFees.mc_fee) || 200000,
       speaker_fee: Number(fixedFees.speaker_fee) || 300000,
       support_fee: Number(fixedFees.support_fee) || 200000,
@@ -375,7 +485,8 @@ export default function EventManagement({
       name: event.name || '',
       event_date: dateFormatted,
       location: event.location || '',
-      status: event.status || 'Sắp diễn ra',
+      status: event.status === 'Đang thực hiện' ? 'Đang diễn ra' : (event.status || 'Sắp diễn ra'),
+      approval_status: event.approval_status || 'Chờ duyệt',
       mc_fee: Number(event.mc_fee) || 0,
       speaker_fee: Number(event.speaker_fee) || 0,
       support_fee: Number(event.support_fee) || 0,
@@ -482,7 +593,7 @@ export default function EventManagement({
   };
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50">
+    <div className="px-[15px] py-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50">
       {/* Toast */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-200">
@@ -504,49 +615,54 @@ export default function EventManagement({
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sự kiện</h1>
-          <p className="text-sm text-slate-500 mt-1 font-normal">
-            Tạo & quản lý sự kiện — 5 trường giá cố định, duyệt sự kiện (Admin)
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Sự kiện</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
+            Tạo & quản lý sự kiện, trường chi phí, duyệt sự kiện (Admin)
           </p>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Nút Đồng bộ Google Sheet: trên mobile đổi thành "Đồng bộ" */}
           <button
             type="button"
             onClick={handleSyncSheet}
             disabled={isSyncingSheet}
-            className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             title="Đồng bộ danh sách sự kiện sang Google Sheet"
           >
             <FileSpreadsheet className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Sheet'}</span>
-            <span className="sm:hidden">{isSyncingSheet ? 'Đang...' : 'Đồng bộ'}</span>
+            <span className="hidden lg:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
+            <span className="lg:hidden">{isSyncingSheet ? 'Đang...' : 'Đồng bộ'}</span>
           </button>
 
           {isAdmin && (
             <>
+              {/* Nút Cập nhật các trường cố định (Mục 6 - Hình 6) */}
               <button
                 type="button"
                 onClick={() => {
-                  setTempFixedFees(fixedFees);
+                  setTempFeeFields([...fixedFeeFields]);
+                  setNewFieldName('');
+                  setNewFieldAmount(0);
                   setIsFixedFeesDrawerOpen(true);
                 }}
-                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all active:scale-[0.98]"
               >
                 <Settings2 className="w-4 h-4 text-blue-600" />
-                <span className="hidden sm:inline">Cập nhật giá 5 trường cố định</span>
-                <span className="sm:hidden">Cập nhật</span>
+                <span className="hidden lg:inline">Cập nhật các trường cố định</span>
+                <span className="lg:hidden">Cập nhật</span>
               </button>
 
+              {/* Nút Tạo sự kiện mới: trên mobile đổi thành icon dấu "+" */}
               <button
                 onClick={handleOpenAddModal}
                 className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+                title="Tạo sự kiện mới"
               >
                 <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Tạo sự kiện mới</span>
-                <span className="sm:hidden font-bold text-base">+</span>
+                <span className="hidden lg:inline">Tạo sự kiện mới</span>
               </button>
             </>
           )}
@@ -554,45 +670,45 @@ export default function EventManagement({
       </div>
 
       {/* Stats Cards (Mobile 2x2 grid, smaller font) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-8">
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
               <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Tổng sự kiện</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Tổng sự kiện</span>
           </div>
-          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.totalEvents}</div>
+          <div className="text-sm sm:text-lg lg:text-2xl font-bold text-slate-900 pl-1">{stats.totalEvents}</div>
         </div>
 
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Sắp diễn ra</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Sắp diễn ra</span>
           </div>
-          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.upcomingEvents}</div>
+          <div className="text-sm sm:text-lg lg:text-2xl font-bold text-slate-900 pl-1">{stats.upcomingEvents}</div>
         </div>
 
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
               <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Tổng khách</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Tổng khách</span>
           </div>
-          <div className="text-lg sm:text-2xl font-bold text-slate-900 pl-1">{stats.totalGuests}</div>
+          <div className="text-sm sm:text-lg lg:text-2xl font-bold text-slate-900 pl-1">{stats.totalGuests}</div>
         </div>
 
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
               <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xs font-medium text-slate-500">Tổng chi phí</span>
+            <span className="text-[11px] sm:text-xs font-medium text-slate-500 leading-tight">Tổng chi phí</span>
           </div>
-          <div className="text-sm sm:text-2xl font-bold text-slate-900 pl-1 truncate" title={formatCurrency(stats.totalCost)}>{formatCurrency(stats.totalCost)}</div>
+          <div className="text-[11px] sm:text-base lg:text-2xl font-bold text-slate-900 pl-1 truncate" title={formatCurrency(stats.totalCost)}>{formatCurrency(stats.totalCost)}</div>
         </div>
       </div>
 
@@ -689,12 +805,10 @@ export default function EventManagement({
       {/* Table (Items 13 & 17: Thumbnail image + link to /admin/su-kien/[id]) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600 border-collapse min-w-[1000px]">
+          <table className="w-full text-left text-sm text-slate-600 border-collapse min-w-[900px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-medium text-xs">
                 <th className="py-4 px-5">Tên sự kiện</th>
-                <th className="py-4 px-5">Ngày</th>
-                <th className="py-4 px-5 max-w-[170px]">Địa điểm</th>
                 <th className="py-4 px-5 text-center">Khách dự kiến</th>
                 <th className="py-4 px-5">Người phụ trách</th>
                 <th className="py-4 px-5">Trạng thái</th>
@@ -705,51 +819,118 @@ export default function EventManagement({
             <tbody className="divide-y divide-slate-100">
               {filteredEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
                     {searchQuery ? 'Không tìm thấy sự kiện phù hợp' : 'Chưa có sự kiện nào'}
                   </td>
                 </tr>
               ) : (
                 filteredEvents.map((event) => (
                   <tr key={event.id} className="hover:bg-slate-50 transition-colors">
-                    {/* Item 13 & 17: Thumbnail and clickable name */}
-                    <td className="py-3 px-5">
+                    {/* Item 1, 2, 4: Ảnh lớn + Gạch chân khi hover + Ngày & Địa điểm dưới tên */}
+                    <td className="py-3.5 px-5">
                       <Link
                         href={`/admin/su-kien/${event.id}`}
-                        className="flex items-center gap-3 group"
+                        className="flex items-center gap-3.5 group"
                       >
-                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
+                        {/* Cột ảnh lớn hơn, object-fit: cover, giữ đúng tỷ lệ (Mục 2 - Hình 3) */}
+                        <div className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={event.image_url || '/events/event-1.jpg'}
                             alt={event.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         </div>
-                        <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
-                          {event.name}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          {/* Gạch chân khi hover ảnh hoặc tên sự kiện (Mục 4 - Hình 4) */}
+                          <span className="font-semibold text-slate-900 group-hover:underline group-hover:text-blue-600 transition-colors line-clamp-2">
+                            {event.name}
+                          </span>
+                          {/* Ngày và Địa điểm nằm ngay dưới tên sự kiện (Mục 1 - Hình 2) */}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500 font-normal">
+                            {event.event_date && (
+                              <span className="flex items-center gap-1 shrink-0">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                {formatDate(event.event_date)}
+                              </span>
+                            )}
+                            {event.location && (
+                              <span className="flex items-center gap-1 min-w-0" title={event.location}>
+                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate max-w-[240px]">{event.location}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </Link>
                     </td>
-                    <td className="py-4 px-5 text-slate-600">{event.event_date ? formatDate(event.event_date) : '—'}</td>
-                    <td className="py-4 px-5 text-slate-600 max-w-[170px] truncate" title={event.location || ''}>{event.location || '—'}</td>
+
                     <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.registration_count ?? 0}</td>
                     <td className="py-4 px-5 text-slate-600">{event.manager_name || '—'}</td>
-                    <td className="py-4 px-5">{getStatusBadge(event.status)}</td>
-                    <td className="py-4 px-5">{getApprovalBadge(event.approval_status)}</td>
+
+                    {/* Cột Trạng thái: Admin thay đổi trực tiếp (Mục 8 & 9 - Hình 9 & 10) */}
+                    <td className="py-4 px-5">
+                      {isAdmin ? (
+                        <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={event.status === 'Đang thực hiện' ? 'Đang diễn ra' : (event.status || 'Sắp diễn ra')}
+                            onChange={(e) => handleDirectStatusChange(event.id, e.target.value)}
+                            className={`appearance-none font-semibold text-xs rounded-full pl-3 pr-6 py-1 cursor-pointer transition-all border outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                              (event.status === 'Đang thực hiện' || event.status === 'Đang diễn ra')
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                : (event.status === 'Đã diễn ra' || event.status === 'Đã hoàn thành')
+                                ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                            }`}
+                            title="Admin thay đổi trực tiếp trạng thái"
+                          >
+                            <option value="Đang diễn ra">Đang diễn ra</option>
+                            <option value="Sắp diễn ra">Sắp diễn ra</option>
+                            <option value="Đã diễn ra">Đã diễn ra</option>
+                          </select>
+                          <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                        </div>
+                      ) : (
+                        getStatusBadge(event.status)
+                      )}
+                    </td>
+
+                    {/* Cột Duyệt: Admin thay đổi trực tiếp (Mục 9 - Hình 10) */}
+                    <td className="py-4 px-5">
+                      {isAdmin ? (
+                        <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={event.approval_status || 'Chờ duyệt'}
+                            onChange={(e) => handleDirectApprovalChange(event.id, e.target.value)}
+                            className={`appearance-none font-semibold text-xs rounded-full pl-3 pr-6 py-1 cursor-pointer transition-all border outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                              event.approval_status === 'Đã duyệt'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                : event.approval_status === 'Từ chối'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                                : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                            }`}
+                            title="Admin thay đổi trực tiếp duyệt"
+                          >
+                            <option value="Đã duyệt">Đã duyệt</option>
+                            <option value="Chờ duyệt">Chờ duyệt</option>
+                            <option value="Từ chối">Từ chối</option>
+                          </select>
+                          <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                        </div>
+                      ) : (
+                        getApprovalBadge(event.approval_status)
+                      )}
+                    </td>
+
+                    {/* Cột Thao tác: Xóa cột Chi tiết, chỉ giữ nút Sửa (Mục 5 - Hình 5) */}
                     <td className="py-4 px-5 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link
-                          href={`/admin/su-kien/${event.id}`}
-                          className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-colors"
-                        >
-                          Chi tiết <ChevronRight className="w-3 h-3" />
-                        </Link>
+                      <div className="flex items-center justify-end">
                         {isAdmin && (
                           <button
                             onClick={() => handleOpenEditModal(event)}
-                            className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50"
-                            title="Sửa"
+                            className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50 cursor-pointer"
+                            title="Sửa sự kiện"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
@@ -926,7 +1107,7 @@ export default function EventManagement({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Ngày tổ chức */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -940,17 +1121,32 @@ export default function EventManagement({
                     required
                   />
                 </div>
-                {/* Trạng thái (Item 14: 4 trạng thái Sắp diễn ra, Kế hoạch, Đang thực hiện, Đã diễn ra) */}
+                {/* Trạng thái (Mục 8: Đang diễn ra thay vì Đang thực hiện) */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Trạng thái
                   </label>
                   <select
-                    value={formData.status}
+                    value={formData.status === 'Đang thực hiện' ? 'Đang diễn ra' : formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   >
                     {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                {/* Trường Duyệt trong Popup sửa chi tiết sự kiện (Mục 10 - Hình 11) */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Duyệt
+                  </label>
+                  <select
+                    value={formData.approval_status || 'Chờ duyệt'}
+                    onChange={(e) => setFormData({ ...formData, approval_status: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                  >
+                    <option value="Đã duyệt">Đã duyệt</option>
+                    <option value="Chờ duyệt">Chờ duyệt</option>
+                    <option value="Từ chối">Từ chối</option>
                   </select>
                 </div>
               </div>
@@ -968,65 +1164,30 @@ export default function EventManagement({
                 />
               </div>
 
-              {/* 5 trường giá cố định (Mục 7: Read-only / Không cho chỉnh sửa) */}
+              {/* Các trường giá cố định (Mục 6, 7: Dynamic fields with dot formatting) */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-slate-800">5 trường giá cố định (chỉ áp dụng sự kiện mới)</h3>
+                  <h3 className="text-sm font-bold text-slate-800">Các trường giá cố định (chỉ áp dụng sự kiện mới)</h3>
                   <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
                     Cố định (Không thể sửa)
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Giá MC</label>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={new Intl.NumberFormat('vi-VN').format(formData.mc_fee) + ' đ'}
-                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Giá Thuyết trình</label>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={new Intl.NumberFormat('vi-VN').format(formData.speaker_fee) + ' đ'}
-                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Giá Phụng sự</label>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={new Intl.NumberFormat('vi-VN').format(formData.support_fee) + ' đ'}
-                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Giá Chốt sự kiện</label>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={new Intl.NumberFormat('vi-VN').format(formData.closer_fee) + ' đ'}
-                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
-                    />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Giá Tiệc trà</label>
-                    <input
-                      type="text"
-                      readOnly
-                      disabled
-                      value={new Intl.NumberFormat('vi-VN').format(formData.tea_break_fee) + ' đ'}
-                      className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
-                    />
-                  </div>
+                  {fixedFeeFields.map((field) => {
+                    const val = (formData as any)[field.id] !== undefined ? (formData as any)[field.id] : field.amount;
+                    return (
+                      <div key={field.id}>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">{field.name}</label>
+                        <input
+                          type="text"
+                          readOnly
+                          disabled
+                          value={formatNumberWithDots(val) + ' đ'}
+                          className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 cursor-not-allowed select-none"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1289,20 +1450,23 @@ export default function EventManagement({
       )}
 
       {/* ============================================================ */}
-      {/* DRAWER: CẬP NHẬT 5 TRƯỜNG CỐ ĐỊNH (Mục 6 - Hình 9 & 10)       */}
+      {/* DRAWER: CẬP NHẬT CÁC TRƯỜNG SỰ KIỆN (Mục 6 & 7 - Hình 6, 7, 8) */}
       {/* ============================================================ */}
       {isFixedFeesDrawerOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex justify-end animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+          <div className="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
             {/* Drawer Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
-                Cập nhật 5 trường cố định
-              </h2>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 uppercase tracking-tight">
+                  Cập nhật các trường trong các sự kiện mới nhất
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Số lượng: {tempFeeFields.length} trường</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsFixedFeesDrawerOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1313,127 +1477,111 @@ export default function EventManagement({
               {/* Notice */}
               <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-100 flex items-start gap-3 text-xs text-blue-900">
                 <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <p>5 trường dưới đây được áp dụng cố định cho tất cả sự kiện mới.</p>
+                <p>Các trường dưới đây được áp dụng cho các sự kiện mới. Admin có thể tăng hoặc giảm số lượng trường, bổ sung trường mới tùy theo nhu cầu.</p>
               </div>
 
               {/* Table / List */}
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                 <div className="grid grid-cols-12 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-600 border-b border-slate-200">
-                  <div className="col-span-6">Trường cố định</div>
-                  <div className="col-span-6 text-right">Giá hiện tại (VNĐ)</div>
+                  <div className="col-span-6">Trường cập nhật</div>
+                  <div className="col-span-5 text-right">Giá hiện tại (VNĐ)</div>
+                  <div className="col-span-1 text-center">Xóa</div>
                 </div>
 
                 <div className="divide-y divide-slate-100 bg-white text-sm">
-                  {/* 1. Thù lao phụng sự */}
-                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
-                    <div className="col-span-6 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                        <UserCheck className="w-4 h-4" />
+                  {tempFeeFields.map((field, idx) => (
+                    <div key={field.id} className="grid grid-cols-12 items-center px-4 py-3 gap-2 hover:bg-slate-50/50 transition-colors">
+                      <div className="col-span-6">
+                        <input
+                          type="text"
+                          value={field.name}
+                          onChange={(e) => {
+                            const next = [...tempFeeFields];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setTempFeeFields(next);
+                          }}
+                          className="w-full px-2.5 py-1.5 border border-transparent hover:border-slate-200 focus:border-blue-500 rounded-lg text-xs sm:text-sm font-medium text-slate-800 bg-transparent focus:bg-white outline-none"
+                          placeholder="Tên trường..."
+                        />
                       </div>
-                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Thù lao phụng sự</span>
+                      <div className="col-span-5">
+                        <input
+                          type="text"
+                          value={formatNumberWithDots(field.amount)}
+                          onChange={(e) => {
+                            const next = [...tempFeeFields];
+                            next[idx] = { ...next[idx], amount: parseNumberFromDots(e.target.value) };
+                            setTempFeeFields(next);
+                          }}
+                          className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (tempFeeFields.length <= 1) {
+                              showToast('error', 'Cần giữ lại ít nhất 1 trường');
+                              return;
+                            }
+                            setTempFeeFields(tempFeeFields.filter((_, i) => i !== idx));
+                          }}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                          title="Xóa trường này"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="col-span-6">
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={tempFixedFees.support_fee}
-                        onChange={(e) =>
-                          setTempFixedFees({ ...tempFixedFees, support_fee: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
+                  ))}
+                </div>
+              </div>
 
-                  {/* 2. Thù lao MC */}
-                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
-                    <div className="col-span-6 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                        <Mic className="w-4 h-4" />
-                      </div>
-                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Thù lao MC</span>
-                    </div>
-                    <div className="col-span-6">
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={tempFixedFees.mc_fee}
-                        onChange={(e) =>
-                          setTempFixedFees({ ...tempFixedFees, mc_fee: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
+              {/* Bổ sung thêm trường mới (Mục 6 - Hình 6, 7) */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-300 space-y-3">
+                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-blue-600" />
+                  Bổ sung thêm trường mới
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-7">
+                    <input
+                      type="text"
+                      value={newFieldName}
+                      onChange={(e) => setNewFieldName(e.target.value)}
+                      placeholder="Tên trường mới (ví dụ: Chi phí quà tặng)"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    />
                   </div>
-
-                  {/* 3. Thù lao thuyết trình */}
-                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
-                    <div className="col-span-6 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                        <Presentation className="w-4 h-4" />
-                      </div>
-                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Thù lao thuyết trình</span>
-                    </div>
-                    <div className="col-span-6">
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={tempFixedFees.speaker_fee}
-                        onChange={(e) =>
-                          setTempFixedFees({ ...tempFixedFees, speaker_fee: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 4. Chốt sự kiện */}
-                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
-                    <div className="col-span-6 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                        <Handshake className="w-4 h-4" />
-                      </div>
-                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Chốt sự kiện</span>
-                    </div>
-                    <div className="col-span-6">
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={tempFixedFees.closer_fee}
-                        onChange={(e) =>
-                          setTempFixedFees({ ...tempFixedFees, closer_fee: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 5. Chi phí tiệc trà (50đ, TD hỗ trợ) */}
-                  <div className="grid grid-cols-12 items-center px-4 py-3 gap-3">
-                    <div className="col-span-6 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                        <Coffee className="w-4 h-4" />
-                      </div>
-                      <span className="font-medium text-slate-800 text-xs sm:text-sm">Chi phí tiệc trà (50đ, TD hỗ trợ)</span>
-                    </div>
-                    <div className="col-span-6">
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={tempFixedFees.tea_break_fee}
-                        onChange={(e) =>
-                          setTempFixedFees({ ...tempFixedFees, tea_break_fee: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full text-right px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
+                  <div className="sm:col-span-5">
+                    <input
+                      type="text"
+                      value={formatNumberWithDots(newFieldAmount)}
+                      onChange={(e) => setNewFieldAmount(parseNumberFromDots(e.target.value))}
+                      placeholder="Giá trị (VNĐ)"
+                      className="w-full text-right px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    />
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newFieldName.trim()) {
+                      showToast('error', 'Vui lòng nhập tên trường mới');
+                      return;
+                    }
+                    const id = 'custom_' + Date.now();
+                    setTempFeeFields([...tempFeeFields, { id, name: newFieldName.trim(), amount: newFieldAmount }]);
+                    setNewFieldName('');
+                    setNewFieldAmount(0);
+                    showToast('success', `Đã thêm trường "${newFieldName.trim()}"!`);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Thêm trường mới
+                </button>
               </div>
 
               {/* Lưu ý quan trọng */}
@@ -1455,7 +1603,7 @@ export default function EventManagement({
                 type="button"
                 onClick={() => setIsFixedFeesDrawerOpen(false)}
                 disabled={isSavingFixedFees}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
               >
                 Hủy
               </button>
@@ -1463,7 +1611,7 @@ export default function EventManagement({
                 type="button"
                 onClick={handleSaveFixedFees}
                 disabled={isSavingFixedFees}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isSavingFixedFees ? (
                   <>

@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 
-const NEON_CONN_STRING = 'postgresql://neondb_owner:npg_Gy2mBY4leKgb@ep-snowy-forest-ax0u3mls.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const NEON_CONN_STRING = process.env.NEON_CONN_STRING || 'postgresql://neondb_owner:npg_Gy2mBY4leKgb@ep-snowy-forest-ax0u3mls-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
 const LOCAL_CONFIG = {
   user: process.env.DB_USER || 'postgres',

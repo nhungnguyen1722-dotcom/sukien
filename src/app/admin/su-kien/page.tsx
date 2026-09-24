@@ -53,6 +53,7 @@ async function getInitialData(): Promise<{
     return {
       events: eventsRes.rows.map((row) => ({
         ...row,
+        status: row.status === 'Đang thực hiện' ? 'Đang diễn ra' : row.status,
         event_date: row.event_date ? new Date(row.event_date).toISOString() : null,
         created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
         updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
