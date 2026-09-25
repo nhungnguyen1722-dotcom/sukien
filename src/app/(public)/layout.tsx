@@ -29,21 +29,25 @@ export default async function PublicLayout({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f8fafc]">
-      {/* Header (Mục 11 - Hình 12) */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
-          {/* Logo Nghiêng Complex - Kích thước lớn, rõ ràng, object-fit: contain, căn giữa theo chiều dọc */}
-          <Link href="/" className="flex items-center group py-0 shrink-0">
-            <div className="h-11 flex items-center">
-              <SystemLogo className="h-10 sm:h-11 w-auto max-h-11 object-contain transition-transform group-hover:scale-105 duration-200" />
+      {/* Header (Mục 11 - Hình 12: Chiều cao gọn gàng, padding cân đối, căn giữa theo chiều dọc, logo contain) */}
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
+          {/* Logo Nghiêng Complex - Căn giữa theo chiều dọc, object-fit: contain, không méo */}
+          <Link href="/" className="flex items-center group py-1 shrink-0">
+            <div className="h-10 sm:h-11 flex items-center justify-center">
+              <SystemLogo className="h-9 sm:h-10 w-auto max-h-10 object-contain transition-transform group-hover:scale-105 duration-200" />
             </div>
           </Link>
 
-          {/* Menu Điều Hướng */}
-          <PublicHeaderNav />
+          {/* Menu Điều Hướng - Căn giữa theo chiều dọc */}
+          <div className="flex items-center">
+            <PublicHeaderNav />
+          </div>
 
-          {/* Công cụ bên phải (3 trạng thái theo Hình 3: image3.png) */}
-          <PublicHeaderAuth initialRole={initialRole} />
+          {/* Công cụ bên phải (Search, Bell, Account) - Cùng một hàng, căn giữa theo chiều dọc */}
+          <div className="flex items-center">
+            <PublicHeaderAuth initialRole={initialRole} />
+          </div>
         </div>
       </header>
 

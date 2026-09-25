@@ -2532,13 +2532,15 @@ export default function EventDetail({
               </p>
             </div>
 
-            <button
-              onClick={handleOpenAddSchedule}
-              className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Thêm mốc lịch trình</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleOpenAddSchedule}
+                className="inline-flex items-center gap-2 bg-[#2563eb] hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Thêm mốc lịch trình</span>
+              </button>
+            )}
           </div>
 
           <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -2555,24 +2557,26 @@ export default function EventDetail({
                     <p className="text-xs text-slate-500 mt-0.5 font-medium">Người phụ trách / Diễn giả: <span className="text-slate-800">{item.speaker}</span></p>
                     {item.description && <p className="text-xs text-slate-600 mt-1">{item.description}</p>}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditSchedule(item)}
-                      className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-                      title="Sửa mốc lịch trình"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSchedule(item.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
-                      title="Xóa mốc lịch trình"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditSchedule(item)}
+                        className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                        title="Sửa mốc lịch trình"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSchedule(item.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Xóa mốc lịch trình"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

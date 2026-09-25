@@ -178,11 +178,11 @@ export default function AdminSidebar({
           isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Brand Header (Mục 11 - Hình 13) */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-800/60">
+        {/* Brand Header (Mục 12 - Hình 13: Căn giữa logo, object-fit contain, không méo, không padding dư thừa) */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/60">
           <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center flex-1 group">
-            <div className="bg-white px-2 py-1 rounded-xl shadow-xs flex items-center justify-center w-full max-w-[210px] h-12 hover:shadow-md transition-all">
-              <SystemLogo className="h-10 w-auto max-h-10 max-w-full object-contain transition-transform group-hover:scale-105 duration-200" />
+            <div className="bg-white px-3 py-1.5 rounded-2xl shadow-sm flex items-center justify-center w-full max-w-[200px] h-12 hover:shadow-md transition-all">
+              <SystemLogo className="h-9 w-auto max-h-9 max-w-full object-contain transition-transform group-hover:scale-105 duration-200" />
             </div>
           </Link>
           <button

@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import QRCheckinClient from '@/components/QRCheckinClient';
 import { EventData } from '@/components/EventHomePage';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -46,7 +47,7 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
       if (userRes.rows.length > 0) {
         const u = userRes.rows[0];
         inviter = {
-          name: u.full_name,
+          name: safeDecodeURI(u.full_name),
           refCode: u.ref_code || (refCode.startsWith('N_') ? refCode : `N_${u.phone || refCode}`),
           id: u.id,
         };

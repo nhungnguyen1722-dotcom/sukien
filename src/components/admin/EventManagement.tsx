@@ -28,6 +28,8 @@ import {
   MapPin,
   Trash2,
   ChevronDown,
+  Share2,
+  Copy,
 } from 'lucide-react';
 
 export interface FixedFeeField {
@@ -184,6 +186,48 @@ export default function EventManagement({
       // Ignore
     }
   }, []);
+
+  // Chia sẻ sự kiện (Mục 3 - Hình 3)
+  const [currentUserRef, setCurrentUserRef] = useState<string>('N_0914556677');
+  const [shareOrigin, setShareOrigin] = useState<string>('https://sukien-rouge.vercel.app');
+  const [shareEvent, setShareEvent] = useState<Event | null>(null);
+  const [copiedLine1, setCopiedLine1] = useState(false);
+  const [copiedLine2, setCopiedLine2] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setShareOrigin(window.location.origin);
+      try {
+        const getCookie = (name: string) => {
+          const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+          return match ? decodeURIComponent(match[2]) : null;
+        };
+        const cRef = getCookie('user_ref_code') || getCookie('ref_code') || getCookie('user_ref') || getCookie('user_phone');
+        if (cRef) {
+          const formatted = cRef.startsWith('N_') ? cRef : `N_${cRef}`;
+          setCurrentUserRef(formatted);
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }, []);
+
+  const copyToClipboard = async (text: string, isLine1: boolean) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (isLine1) {
+        setCopiedLine1(true);
+        setTimeout(() => setCopiedLine1(false), 2000);
+      } else {
+        setCopiedLine2(true);
+        setTimeout(() => setCopiedLine2(false), 2000);
+      }
+      showToast('success', 'Đã sao chép liên kết vào bộ nhớ tạm');
+    } catch {
+      showToast('error', 'Không thể sao chép liên kết');
+    }
+  };
 
   // Image upload & Media library state
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
@@ -455,7 +499,7 @@ export default function EventManagement({
     setFormData({
       name: '',
       event_date: '',
-      location: '',
+      location: 'ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội',
       status: 'Sắp diễn ra',
       approval_status: 'Chờ duyệt',
       mc_fee: Number(fixedFees.mc_fee) || 200000,
@@ -809,8 +853,7 @@ export default function EventManagement({
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-medium text-xs">
                 <th className="py-4 px-5">Tên sự kiện</th>
-                <th className="py-4 px-5 text-center">Khách dự kiến</th>
-                <th className="py-4 px-5">Người phụ trách</th>
+                <th className="py-4 px-5 text-center">Khách tham dự</th>
                 <th className="py-4 px-5">Trạng thái</th>
                 <th className="py-4 px-5">Duyệt</th>
                 <th className="py-4 px-5 text-right">Thao tác</th>
@@ -819,55 +862,72 @@ export default function EventManagement({
             <tbody className="divide-y divide-slate-100">
               {filteredEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={5} className="py-12 text-center text-slate-400 text-sm">
                     {searchQuery ? 'Không tìm thấy sự kiện phù hợp' : 'Chưa có sự kiện nào'}
                   </td>
                 </tr>
               ) : (
                 filteredEvents.map((event) => (
                   <tr key={event.id} className="hover:bg-slate-50 transition-colors">
-                    {/* Item 1, 2, 4: Ảnh lớn + Gạch chân khi hover + Ngày & Địa điểm dưới tên */}
+                    {/* Item 1, 2, 3, 4: Ảnh lớn + Nút Share + Gạch chân khi hover + Ngày & Địa điểm dưới tên */}
                     <td className="py-3.5 px-5">
-                      <Link
-                        href={`/admin/su-kien/${event.id}`}
-                        className="flex items-center gap-3.5 group"
-                      >
-                        {/* Cột ảnh lớn hơn, object-fit: cover, giữ đúng tỷ lệ (Mục 2 - Hình 3) */}
-                        <div className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/30 transition-all">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={event.image_url || '/events/event-1.jpg'}
-                            alt={event.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
+                      <div className="flex items-center gap-4">
+                        {/* Cột ảnh lớn hơn, object-fit: cover, giữ đúng tỷ lệ (Mục 2 - Hình 2) + Nút Share (Mục 3 - Hình 3) */}
+                        <div className="relative w-32 h-20 sm:w-40 sm:h-26 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/30 transition-all shadow-2xs">
+                          <Link href={`/admin/su-kien/${event.id}`} className="block w-full h-full">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={event.image_url || '/events/event-1.jpg'}
+                              alt={event.name}
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </Link>
+                          {/* Nút Share sự kiện (Mục 3 - Hình 3) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShareEvent(event);
+                            }}
+                            className="absolute top-1.5 right-1.5 p-1.5 bg-black/60 hover:bg-blue-600 text-white rounded-lg backdrop-blur-xs transition-all z-10 hover:scale-110 shadow-sm cursor-pointer"
+                            title="Chia sẻ sự kiện"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
+
                         <div className="min-w-0 flex-1">
-                          {/* Gạch chân khi hover ảnh hoặc tên sự kiện (Mục 4 - Hình 4) */}
-                          <span className="font-semibold text-slate-900 group-hover:underline group-hover:text-blue-600 transition-colors line-clamp-2">
-                            {event.name}
-                          </span>
-                          {/* Ngày và Địa điểm nằm ngay dưới tên sự kiện (Mục 1 - Hình 2) */}
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500 font-normal">
-                            {event.event_date && (
-                              <span className="flex items-center gap-1 shrink-0">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                {formatDate(event.event_date)}
-                              </span>
-                            )}
-                            {event.location && (
-                              <span className="flex items-center gap-1 min-w-0" title={event.location}>
-                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate max-w-[240px]">{event.location}</span>
-                              </span>
-                            )}
-                          </div>
+                          <Link
+                            href={`/admin/su-kien/${event.id}`}
+                            className="group block"
+                          >
+                            {/* Gạch chân khi hover tên sự kiện (Mục 4 - Hình 4) */}
+                            <span className="font-semibold text-slate-900 group-hover:underline group-hover:text-blue-600 transition-colors line-clamp-2">
+                              {event.name}
+                            </span>
+                            {/* Ngày và Địa điểm nằm ngay dưới tên sự kiện */}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500 font-normal">
+                              {event.event_date && (
+                                <span className="flex items-center gap-1 shrink-0">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  {formatDate(event.event_date)}
+                                </span>
+                              )}
+                              {event.location && (
+                                <span className="flex items-center gap-1 min-w-0" title={event.location}>
+                                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[240px]">{event.location}</span>
+                                </span>
+                              )}
+                            </div>
+                          </Link>
                         </div>
-                      </Link>
+                      </div>
                     </td>
 
                     <td className="py-4 px-5 text-slate-600 text-center font-medium">{event.registration_count ?? 0}</td>
-                    <td className="py-4 px-5 text-slate-600">{event.manager_name || '—'}</td>
 
                     {/* Cột Trạng thái: Admin thay đổi trực tiếp (Mục 8 & 9 - Hình 9 & 10) */}
                     <td className="py-4 px-5">
@@ -1151,17 +1211,30 @@ export default function EventManagement({
                 </div>
               </div>
 
-              {/* Địa điểm */}
+              {/* Địa điểm (Mục 7: Mặc định địa điểm & nút x xóa) */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Địa điểm
                 </label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="Nhập địa điểm sự kiện..."
+                    className="w-full pl-3.5 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                  />
+                  {formData.location && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, location: '' })}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                      title="Xóa địa điểm"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Các trường giá cố định (Mục 6, 7: Dynamic fields with dot formatting) */}
@@ -1621,6 +1694,95 @@ export default function EventManagement({
                 ) : (
                   <span>Lưu cập nhật</span>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHIA SẺ SỰ KIỆN (MỤC 3 - HÌNH 3) */}
+      {shareEvent && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Chia sẻ sự kiện</h3>
+                  <p className="text-xs text-slate-500 truncate max-w-[320px]">{shareEvent.name}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShareEvent(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              {/* Dòng 1: ID sự kiện */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span>Dòng 1 : ID sự kiện</span>
+                  <span className="text-[11px] text-slate-400 font-normal">Link đăng ký chung của sự kiện</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${shareOrigin}/qr-checkin?ref&event=${shareEvent.id}`}
+                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 focus:outline-none select-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(`${shareOrigin}/qr-checkin?ref&event=${shareEvent.id}`, true)}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    {copiedLine1 ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedLine1 ? 'Đã chép' : 'Sao chép'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Dòng 2 : ID sự kiện + ID cá nhân */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span>Dòng 2 : ID sự kiện + ID cá nhân</span>
+                  <span className="text-[11px] text-blue-600 font-medium">Kèm ID cá nhân: {currentUserRef}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${shareOrigin}/qr-checkin?ref=${currentUserRef}&event=${shareEvent.id}`}
+                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 focus:outline-none select-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(`${shareOrigin}/qr-checkin?ref=${currentUserRef}&event=${shareEvent.id}`, false)}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    {copiedLine2 ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedLine2 ? 'Đã chép' : 'Sao chép'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShareEvent(null)}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Đóng
               </button>
             </div>
           </div>

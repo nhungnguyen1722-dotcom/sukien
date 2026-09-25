@@ -28,6 +28,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 interface InviterInfo {
   name: string;
@@ -103,7 +104,7 @@ export default function QRCheckinModal({
       const getCookie = (name: string) => {
         if (typeof document === 'undefined') return '';
         const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
-        return match ? decodeURIComponent(match[1]) : '';
+        return match ? safeDecodeURI(match[1]) : '';
       };
 
       let savedData: any = null;
@@ -112,10 +113,10 @@ export default function QRCheckinModal({
         if (raw) savedData = JSON.parse(raw);
       } catch {}
 
-      const savedFullName = getCookie('reg_fullname') || getCookie('user_name') || savedData?.fullName || '';
-      const savedPhone = getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '';
-      const savedReferrer = getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '';
-      const savedNotes = getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '';
+      const savedFullName = safeDecodeURI(getCookie('reg_fullname') || getCookie('user_name') || savedData?.fullName || '');
+      const savedPhone = safeDecodeURI(getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '');
+      const savedReferrer = safeDecodeURI(getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '');
+      const savedNotes = safeDecodeURI(getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '');
 
       if (savedFullName) setFullName(savedFullName);
       if (savedPhone) setPhone(savedPhone);
@@ -620,7 +621,7 @@ export default function QRCheckinModal({
                           title="Xóa trắng 4 trường thông tin đã lưu"
                         >
                           <RotateCcw className="w-3 h-3" />
-                          <span>Clear</span>
+                          <span>Xóa</span>
                         </button>
                       )}
                     </div>
@@ -695,7 +696,7 @@ export default function QRCheckinModal({
                           }
                         }}
                         placeholder="Nhập họ và tên"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs font-sans"
                       />
                     </div>
                   </div>
@@ -763,7 +764,7 @@ export default function QRCheckinModal({
                       htmlFor="teaBreakCheckbox"
                       className="text-xs text-amber-950 font-semibold cursor-pointer select-none"
                     >
-                      Đăng ký suất ăn trưa tiệc trà (50.000 đ/suất)
+                      Đăng ký suất ăn trưa tiệc trà
                     </label>
                   </div>
 

@@ -24,6 +24,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export interface RegistrationEventData {
   id: number;
@@ -100,7 +101,7 @@ export default function EventRegistrationModal({
       const getCookie = (name: string) => {
         if (typeof document === 'undefined') return '';
         const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
-        return match ? decodeURIComponent(match[1]) : '';
+        return match ? safeDecodeURI(match[1]) : '';
       };
 
       let savedData: any = null;
@@ -109,10 +110,10 @@ export default function EventRegistrationModal({
         if (raw) savedData = JSON.parse(raw);
       } catch {}
 
-      const savedFullName = getCookie('reg_fullname') || getCookie('user_name') || savedData?.fullName || '';
-      const savedPhone = getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '';
-      const savedReferrer = getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '';
-      const savedNotes = getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '';
+      const savedFullName = safeDecodeURI(getCookie('reg_fullname') || getCookie('user_name') || savedData?.fullName || '');
+      const savedPhone = safeDecodeURI(getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '');
+      const savedReferrer = safeDecodeURI(getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '');
+      const savedNotes = safeDecodeURI(getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '');
 
       if (savedFullName) setFullName(savedFullName);
       if (savedPhone) setPhone(savedPhone);
@@ -729,7 +730,7 @@ export default function EventRegistrationModal({
                           title="Xóa trắng 4 trường thông tin đã lưu"
                         >
                           <RotateCcw className="w-3 h-3" />
-                          <span>Clear</span>
+                          <span>Xóa</span>
                         </button>
                       )}
                     </div>
@@ -807,7 +808,7 @@ export default function EventRegistrationModal({
                           }
                         }}
                         placeholder="Nhập họ và tên"
-                        className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-sans"
                       />
                     </div>
                   </div>
@@ -907,7 +908,7 @@ export default function EventRegistrationModal({
                       className="w-4 h-4 rounded border-amber-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                     <label htmlFor="teaBreakCheckbox" className="text-xs text-amber-950 font-semibold cursor-pointer select-none">
-                      Đăng ký suất ăn trưa tiệc trà (50.000 đ/suất)
+                      Đăng ký suất ăn trưa tiệc trà
                     </label>
                   </div>
 
