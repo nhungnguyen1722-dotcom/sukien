@@ -562,6 +562,33 @@ export default function EventManagement({
     setIsModalOpen(true);
   };
 
+  const handleDeleteEvent = async (id: number, name: string) => {
+    if (!isAdmin) {
+      showToast('error', 'Chỉ tài khoản Admin mới có quyền xóa sự kiện');
+      return;
+    }
+    if (!confirm(`Bạn có chắc chắn muốn xóa sự kiện "${name}" không? Thao tác này sẽ xóa sự kiện khỏi hệ thống.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/events/${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Có lỗi xảy ra khi xóa sự kiện');
+      }
+      showToast('success', 'Đã xóa sự kiện thành công');
+      await refreshData();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        showToast('error', err.message);
+      } else {
+        showToast('error', 'Lỗi khi xóa sự kiện');
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -983,17 +1010,26 @@ export default function EventManagement({
                       )}
                     </td>
 
-                    {/* Cột Thao tác: Xóa cột Chi tiết, chỉ giữ nút Sửa (Mục 5 - Hình 5) */}
+                    {/* Cột Thao tác: Nút Sửa & Nút Xóa (cho tài khoản Admin) */}
                     <td className="py-4 px-5 text-right">
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-end gap-1.5">
                         {isAdmin && (
-                          <button
-                            onClick={() => handleOpenEditModal(event)}
-                            className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50 cursor-pointer"
-                            title="Sửa sự kiện"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleOpenEditModal(event)}
+                              className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50 cursor-pointer"
+                              title="Sửa sự kiện"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(event.id, event.name)}
+                              className="text-slate-400 hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                              title="Xóa sự kiện"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

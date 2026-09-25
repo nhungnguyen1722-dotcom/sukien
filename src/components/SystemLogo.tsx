@@ -8,11 +8,13 @@ interface SystemLogoProps {
   alt?: string;
   height?: number | string;
   width?: number | string;
+  style?: React.CSSProperties;
 }
 
 export default function SystemLogo({
   className = 'h-9 w-auto object-contain',
   alt = 'Nghiêng Complex',
+  style,
 }: SystemLogoProps) {
   const { logoUrl } = useSystemSettings();
 
@@ -22,6 +24,7 @@ export default function SystemLogo({
       src={logoUrl || '/logo-nghieng.png'}
       alt={alt}
       className={className}
+      style={style}
       onError={(e) => {
         const target = e.currentTarget;
         if (target.src !== '/logo-nghieng.png') {

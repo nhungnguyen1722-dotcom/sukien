@@ -29,13 +29,28 @@ export default async function PublicLayout({
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f8fafc]">
-      {/* Header (Mục 11 - Hình 12: Chiều cao gọn gàng, padding cân đối, căn giữa theo chiều dọc, logo contain) */}
+      {/* Header (Mục 11 - Hình 12: Chiều cao 90px, logo contain) */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
-          {/* Logo Nghiêng Complex - Căn giữa theo chiều dọc, object-fit: contain, không méo */}
+        <div
+          className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16"
+          style={{ height: '90px' }}
+        >
+          {/* Logo Nghiêng Complex */}
           <Link href="/" className="flex items-center group py-1 shrink-0">
-            <div className="h-10 sm:h-11 flex items-center justify-center">
-              <SystemLogo className="h-9 sm:h-10 w-auto max-h-10 object-contain transition-transform group-hover:scale-105 duration-200" />
+            <div
+              className="h-10 sm:h-11 flex items-center justify-center"
+              style={{
+                maxHeight: '100%',
+                height: '90px',
+              }}
+            >
+              <SystemLogo
+                className="h-9 sm:h-10 w-auto max-h-10 object-contain transition-transform group-hover:scale-105 duration-200"
+                style={{
+                  maxHeight: '100%',
+                  height: '100%',
+                }}
+              />
             </div>
           </Link>
 
