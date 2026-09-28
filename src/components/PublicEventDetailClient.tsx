@@ -20,10 +20,12 @@ import {
   GraduationCap,
   Award,
   X,
+  UserPlus,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
 import { safeDecodeURI } from '@/lib/authUtils';
+import GuestProxyRegistrationModal from './GuestProxyRegistrationModal';
 
 export interface PublicScheduleItem {
   id?: number | string;
@@ -48,6 +50,7 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id?: string; phone?: string; name?: string; ref_code?: string } | null>(null);
   const [origin, setOrigin] = useState<string>('');
+  const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location?.origin) {
@@ -324,6 +327,16 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                     )}
                   </button>
                 </div>
+
+                {/* Nút Mời bạn bè (Hình 7.1) */}
+                <button
+                  type="button"
+                  onClick={() => setIsProxyModalOpen(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Mời bạn bè</span>
+                </button>
               </div>
             </div>
           </div>
@@ -768,6 +781,19 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
           status: event.status,
           image_url: event.image_url,
           short_description: event.short_description,
+        }}
+      />
+
+      {/* POPUP ĐĂNG KÝ HỘ BẠN BÈ / KHÁCH HÀNG (Hình 7) */}
+      <GuestProxyRegistrationModal
+        isOpen={isProxyModalOpen}
+        onClose={() => setIsProxyModalOpen(false)}
+        event={{
+          id: event.id,
+          name: event.name,
+          code: event.code,
+          location: event.location,
+          event_date: event.event_date,
         }}
       />
     </div>

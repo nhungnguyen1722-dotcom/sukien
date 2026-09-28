@@ -30,28 +30,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Không có dữ liệu sự kiện để đồng bộ', count: 0 });
     }
 
-    let successCount = 0;
-    for (const row of rows) {
-      const ok = await sendToGoogleSheet({
-        type: 'event',
-        event_id: row.id,
-        event_name: row.event_name,
-        event_date: row.event_date ? row.event_date.substring(0, 10) : '',
-        location: row.location || '',
-        expected_guests: row.expected_guests || 0,
-        manager_name: row.manager_name || '',
-        status: row.status || 'Kế hoạch',
-        approval_status: row.approval_status || 'Chờ duyệt',
-        total_cost: Number(row.total_cost) || 0,
-        notes: row.notes || '',
-      });
-      if (ok) successCount++;
-    }
+    const items = rows.map((row) => ({
+      event_id: row.id,
+      event_name: row.event_name,
+      event_date: row.event_date ? row.event_date.substring(0, 10) : '',
+      location: row.location || '',
+      expected_guests: row.expected_guests || 0,
+      manager_name: row.manager_name || '',
+      status: row.status || 'Kế hoạch',
+      approval_status: row.approval_status || 'Chờ duyệt',
+      total_cost: Number(row.total_cost) || 0,
+      notes: row.notes || '',
+    }));
+
+    const ok = await sendToGoogleSheet({
+      type: 'events_batch',
+      items: items,
+    });
 
     return NextResponse.json({
-      message: `Đã đồng bộ ${successCount}/${rows.length} sự kiện lên Google Sheet thành công!`,
-      total: rows.length,
-      successCount,
+      message: ok
+        ? `Đã đồng bộ toàn bộ ${items.length} sự kiện lên Google Sheet thành công!`
+        : 'Lỗi khi đồng bộ sự kiện sang Google Sheet',
+      total: items.length,
+      successCount: ok ? items.length : 0,
     });
   } catch (error) {
     console.error('Failed to sync events to Google Sheet:', error);

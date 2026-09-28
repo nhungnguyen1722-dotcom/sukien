@@ -17,6 +17,7 @@ import {
   Calendar,
   Users,
   Check,
+  Share2,
 } from 'lucide-react';
 
 import { safeDecodeURI } from '@/lib/authUtils';
@@ -273,6 +274,15 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
                 </Link>
 
                 <Link
+                  href="/cai-dat?role=member&tab=invites"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                >
+                  <Share2 className="w-4 h-4 text-slate-400" />
+                  <span>Mời bạn bè</span>
+                </Link>
+
+                <Link
                   href="/cai-dat?role=member&tab=security"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors"
@@ -378,6 +388,15 @@ export default function PublicHeaderAuth({ initialRole = 'guest' }: PublicHeader
                 >
                   <Settings className="w-4 h-4 text-slate-400" />
                   <span>Cài đặt hệ thống</span>
+                </Link>
+
+                <Link
+                  href="/cai-dat?role=admin&tab=invites"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                >
+                  <Share2 className="w-4 h-4 text-slate-400" />
+                  <span>Mời bạn bè</span>
                 </Link>
 
                 <Link

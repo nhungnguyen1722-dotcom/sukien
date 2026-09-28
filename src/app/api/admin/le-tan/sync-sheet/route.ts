@@ -42,27 +42,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Không có dữ liệu để đồng bộ', count: 0 });
     }
 
-    let successCount = 0;
-    for (const row of rows) {
-      const ok = await sendToGoogleSheet({
-        guest_code: row.guest_code,
-        guest_name: row.guest_name,
-        guest_phone: row.guest_phone,
-        guest_email: row.guest_email,
-        event_name: row.event_name,
-        event_date: row.event_date,
-        sale_name: row.sale_name,
-        source: row.source,
-        attendance_status: row.attendance_status,
-        notes: row.notes,
-      });
-      if (ok) successCount++;
-    }
+    const items = rows.map((row) => ({
+      guest_code: row.guest_code,
+      guest_name: row.guest_name,
+      guest_phone: row.guest_phone,
+      guest_email: row.guest_email,
+      event_name: row.event_name,
+      event_date: row.event_date,
+      sale_name: row.sale_name,
+      source: row.source,
+      attendance_status: row.attendance_status,
+      notes: row.notes,
+    }));
+
+    const ok = await sendToGoogleSheet({
+      type: 'registrations_batch',
+      items: items,
+    });
 
     return NextResponse.json({
-      message: `Đã đồng bộ ${successCount}/${rows.length} bản ghi lên Google Sheet thành công!`,
-      total: rows.length,
-      successCount,
+      message: ok
+        ? `Đã đồng bộ toàn bộ ${items.length} bản ghi lên Google Sheet thành công!`
+        : 'Lỗi khi đồng bộ dữ liệu sang Google Sheet',
+      total: items.length,
+      successCount: ok ? items.length : 0,
     });
   } catch (error) {
     console.error('Failed batch sync to Google Sheet:', error);

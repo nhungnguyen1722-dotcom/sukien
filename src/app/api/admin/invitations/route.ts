@@ -100,23 +100,26 @@ export async function POST(request: NextRequest) {
       invitee_name,
       invitee_email,
       invitee_phone,
-      inviter_id = 1, // Default Admin
-      status = 'Đang chờ',
+      inviter_id,
+      status = 'pending',
       reward_points = 0,
     } = body;
+    const cookieUserId = request.cookies.get('user_id')?.value;
+    const finalInviterId = inviter_id && inviter_id !== 1
+      ? parseInt(String(inviter_id), 10)
+      : cookieUserId
+      ? parseInt(cookieUserId, 10)
+      : 1;
 
-    if (!invitee_email || !invitee_email.trim()) {
-      return NextResponse.json(
-        { error: 'Vui lòng nhập địa chỉ email bạn bè' },
-        { status: 400 }
-      );
+    let finalEmail = invitee_email ? invitee_email.trim().toLowerCase() : '';
+    if (!finalEmail && invitee_phone && invitee_phone.trim()) {
+      const cleanDigits = invitee_phone.replace(/\D/g, '');
+      finalEmail = `${cleanDigits || 'guest'}@guest.local`;
     }
 
-    // Email regex validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(invitee_email.trim())) {
+    if (!finalEmail && (!invitee_phone || !invitee_phone.trim())) {
       return NextResponse.json(
-        { error: 'Địa chỉ email không hợp lệ' },
+        { error: 'Vui lòng nhập họ và tên cùng số điện thoại người nhận' },
         { status: 400 }
       );
     }
@@ -136,9 +139,9 @@ export async function POST(request: NextRequest) {
       RETURNING *
       `,
       [
-        parseInt(inviter_id, 10),
+        finalInviterId,
         invitee_name?.trim() || null,
-        invitee_email.trim().toLowerCase(),
+        finalEmail,
         invitee_phone?.trim() || null,
         status,
         reward_points,

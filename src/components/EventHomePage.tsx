@@ -24,9 +24,11 @@ import {
   Copy,
   Check,
   X,
+  UserPlus,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
+import GuestProxyRegistrationModal from './GuestProxyRegistrationModal';
 import { safeDecodeURI } from '@/lib/authUtils';
 
 export type EventData = {
@@ -78,6 +80,7 @@ export default function EventHomePage({ events }: EventHomePageProps) {
 
   // Share Modal & Referral State (Item 12 & 13)
   const [selectedShareEvent, setSelectedShareEvent] = useState<EventData | null>(null);
+  const [proxyModalEvent, setProxyModalEvent] = useState<EventData | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; phone: string; email: string; ref_code: string } | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
 
@@ -403,8 +406,20 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                     {getStatusBadge(event.status)}
                   </div>
 
-                  {/* Share Button (Item 12) */}
-                  <div className="absolute top-2.5 right-2.5 z-10">
+                  {/* Share & Invite Buttons (Item 12 & Mục 7 Hình 7) */}
+                  <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setProxyModalEvent(event);
+                      }}
+                      className="w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center transition-all cursor-pointer hover:scale-105"
+                      title="Mời bạn bè"
+                    >
+                      <UserPlus className="w-4 h-4 text-blue-600" />
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -579,8 +594,20 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                           {getStatusBadge(event.status)}
                         </div>
 
-                        {/* Share Button on Top-Right of Image */}
-                        <div className="absolute top-2.5 right-2.5 z-10">
+                        {/* Share & Invite Buttons on Top-Right of Image (Mục 7 Hình 7) */}
+                        <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setProxyModalEvent(event);
+                            }}
+                            className="w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center transition-all cursor-pointer hover:scale-105"
+                            title="Mời bạn bè"
+                          >
+                            <UserPlus className="w-4 h-4 text-blue-600" />
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -647,27 +674,39 @@ export default function EventHomePage({ events }: EventHomePageProps) {
                         </div>
                       </div>
 
-                      {/* Action Buttons: 2 buttons side by side */}
-                      <div className="flex items-center gap-2 flex-shrink-0 w-full lg:w-auto">
-                        <Link
-                          href={`/su-kien/${event.id}`}
-                          className="flex-1 lg:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-gray-700 text-xs font-semibold rounded-xl transition-all"
-                        >
-                          <span>Chi tiết</span>
-                          <span className="text-xs">→</span>
-                        </Link>
+                      {/* Action Buttons */}
+                      <div className="flex flex-col gap-2 flex-shrink-0 w-full lg:w-auto">
+                        <div className="flex items-center gap-2 w-full lg:w-auto">
+                          <Link
+                            href={`/su-kien/${event.id}`}
+                            className="flex-1 lg:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 border border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-gray-700 text-xs font-semibold rounded-xl transition-all"
+                          >
+                            <span>Chi tiết</span>
+                            <span className="text-xs">→</span>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRegister(event)}
+                            className={`flex-1 lg:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
+                              isEnded
+                                ? 'bg-[#4f46e5] hover:bg-[#4338ca]'
+                                : isRegisterOpen
+                                ? 'bg-[#059669] hover:bg-[#047857]'
+                                : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+                            }`}
+                          >
+                            <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký'}</span>
+                          </button>
+                        </div>
+
+                        {/* Mobile Only: Nút "Mời bạn bè" bên dưới nút "Đăng ký" (Hình 7.2) */}
                         <button
                           type="button"
-                          onClick={() => handleOpenRegister(event)}
-                          className={`flex-1 lg:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
-                            isEnded
-                              ? 'bg-[#4f46e5] hover:bg-[#4338ca]'
-                              : isRegisterOpen
-                              ? 'bg-[#059669] hover:bg-[#047857]'
-                              : 'bg-[#2563eb] hover:bg-[#1d4ed8]'
-                          }`}
+                          onClick={() => setProxyModalEvent(event)}
+                          className="lg:hidden w-full inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
                         >
-                          <span>{isEnded ? 'Xem lại sự kiện' : 'Đăng ký'}</span>
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Mời bạn bè</span>
                         </button>
                       </div>
                     </div>
@@ -949,6 +988,13 @@ export default function EventHomePage({ events }: EventHomePageProps) {
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
         event={selectedEventForRegister}
+      />
+
+      {/* POPUP ĐĂNG KÝ HỘ BẠN BÈ / KHÁCH HÀNG (Hình 7) */}
+      <GuestProxyRegistrationModal
+        isOpen={!!proxyModalEvent}
+        onClose={() => setProxyModalEvent(null)}
+        event={proxyModalEvent}
       />
     </div>
   );

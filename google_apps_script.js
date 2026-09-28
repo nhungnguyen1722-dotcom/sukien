@@ -114,7 +114,89 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 2. ĐỒNG BỘ SỰ KIỆN
+    // 2. ĐỒNG BỘ SỰ KIỆN THEO BATCH
+    if (data.type === 'events_batch' && Array.isArray(data.items)) {
+      var sheet = getOrCreateSheet(ss, 'Sự kiện', [
+        'ID', 'Tên sự kiện', 'Ngày tổ chức', 'Địa điểm', 'Số khách dự kiến',
+        'Người quản lý', 'Trạng thái', 'Trạng thái duyệt', 'Tổng chi phí', 'Ghi chú', 'Thời gian đồng bộ'
+      ]);
+
+      // Xóa dữ liệu cũ từ dòng 2 trở đi để cập nhật mới nhất
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, 11).clearContent();
+      }
+
+      var now = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy HH:mm:ss');
+      var rows = data.items.map(function(item) {
+        return [
+          item.event_id || '',
+          item.event_name || '',
+          item.event_date || '',
+          item.location || '',
+          item.expected_guests || 0,
+          item.manager_name || '',
+          item.status || '',
+          item.approval_status || '',
+          item.total_cost || 0,
+          item.notes || '',
+          now
+        ];
+      });
+
+      if (rows.length > 0) {
+        sheet.getRange(2, 1, rows.length, 11).setValues(rows);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'success',
+        type: 'events_batch',
+        count: rows.length
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. ĐỒNG BỘ LỄ TÂN / KHÁCH THAM DỰ THEO BATCH
+    if (data.type === 'registrations_batch' && Array.isArray(data.items)) {
+      var sheet = getOrCreateSheet(ss, 'Lễ tân', [
+        'Mã khách', 'Họ và tên', 'Số điện thoại', 'Email', 'Tên sự kiện',
+        'Ngày sự kiện', 'Người mời/Sale', 'Nguồn', 'Tình trạng', 'Ghi chú', 'Thời gian đồng bộ'
+      ]);
+
+      // Xóa dữ liệu cũ từ dòng 2 trở đi để cập nhật mới nhất
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, 11).clearContent();
+      }
+
+      var now = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy HH:mm:ss');
+      var rows = data.items.map(function(item) {
+        return [
+          item.guest_code || '',
+          item.guest_name || '',
+          item.guest_phone ? "'" + item.guest_phone : '',
+          item.guest_email || '',
+          item.event_name || '',
+          item.event_date || '',
+          item.sale_name || '',
+          item.source || '',
+          item.attendance_status || '',
+          item.notes || '',
+          now
+        ];
+      });
+
+      if (rows.length > 0) {
+        sheet.getRange(2, 1, rows.length, 11).setValues(rows);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'success',
+        type: 'registrations_batch',
+        count: rows.length
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Tương thích ngược: Đồng bộ Sự kiện lẻ
     if (data.type === 'event') {
       var sheet = getOrCreateSheet(ss, 'Sự kiện', [
         'ID', 'Tên sự kiện', 'Ngày tổ chức', 'Địa điểm', 'Số khách dự kiến',
@@ -142,8 +224,8 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 3. ĐỒNG BỘ LỄ TÂN / KHÁCH THAM DỰ
-    if (data.guest_name || data.attendance_status) {
+    // Tương thích ngược: Đồng bộ Khách lẻ
+    if (data.type === 'registration' || data.guest_name || data.attendance_status) {
       var sheet = getOrCreateSheet(ss, 'Lễ tân', [
         'Mã khách', 'Họ và tên', 'Số điện thoại', 'Email', 'Tên sự kiện',
         'Ngày sự kiện', 'Người mời/Sale', 'Nguồn', 'Tình trạng', 'Ghi chú', 'Thời gian đồng bộ'
@@ -196,17 +278,16 @@ function getOrCreateSheet(ss, name, headers) {
     }
   }
 
-  // Nếu sheet chưa có header dòng 1, tạo header với style đẹp
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(headers);
-    var headerRange = sheet.getRange(1, 1, 1, headers.length);
-    headerRange.setBackground('#2563eb');
-    headerRange.setFontColor('#ffffff');
-    headerRange.setFontWeight('bold');
-    sheet.setFrozenRows(1);
-    for (var i = 1; i <= headers.length; i++) {
-      sheet.autoResizeColumn(i);
-    }
+  // Đảm bảo dòng 1 luôn luôn có tiêu đề đầy đủ và định dạng đẹp
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  var headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setBackground('#2563eb');
+  headerRange.setFontColor('#ffffff');
+  headerRange.setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  for (var i = 1; i <= headers.length; i++) {
+    sheet.autoResizeColumn(i);
   }
+
   return sheet;
 }

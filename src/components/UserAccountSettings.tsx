@@ -124,6 +124,49 @@ export default function UserAccountSettings() {
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [eventInputVal, setEventInputVal] = useState<string>('');
 
+  // Form mời bạn bè trực tiếp bằng Họ và tên + SĐT (Mục 9 - Hình 9)
+  const [inviteInputName, setInviteInputName] = useState('');
+  const [inviteInputPhone, setInviteInputPhone] = useState('');
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
+
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteInputName.trim() || !inviteInputPhone.trim()) {
+      showToast('Vui lòng nhập đầy đủ họ và tên và số điện thoại người được mời');
+      return;
+    }
+    setIsSubmittingInvite(true);
+    try {
+      const res = await fetch('/api/admin/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invitee_name: inviteInputName.trim(),
+          invitee_phone: inviteInputPhone.trim(),
+          status: 'Đang chờ',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.invitation) {
+        showToast('Đã gửi lời mời thành công!');
+        setUserInvitations((prev) => [data.invitation, ...prev]);
+        setInviteStats((prev) => ({
+          ...prev,
+          totalInvites: prev.totalInvites + 1,
+          pendingCount: prev.pendingCount + 1,
+        }));
+        setInviteInputName('');
+        setInviteInputPhone('');
+      } else {
+        showToast(data.error || 'Có lỗi xảy ra khi gửi lời mời');
+      }
+    } catch {
+      showToast('Không thể kết nối máy chủ');
+    } finally {
+      setIsSubmittingInvite(false);
+    }
+  };
+
   // Member Notification Toggles
   const [memberNotifications, setMemberNotifications] = useState({
     newEvent: true,
@@ -602,6 +645,86 @@ export default function UserAccountSettings() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Form nhập thông tin người được mời (Mục 9 - Hình 9) */}
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-600" />
+                      <span>Mời bạn bè tham dự sự kiện (Mục 9)</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Nhập thông tin người được mời để tài khoản cá nhân có thể mời người khác tham dự sự kiện
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSendInvite} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Họ và tên <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={inviteInputName}
+                        onChange={(e) => setInviteInputName(e.target.value)}
+                        placeholder="Nhập họ và tên..."
+                        className="w-full px-3.5 py-2.5 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                        required
+                      />
+                      {inviteInputName && (
+                        <button
+                          type="button"
+                          onClick={() => setInviteInputName('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                          title="Xóa nội dung"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-4">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Số điện thoại (SĐT) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={inviteInputPhone}
+                        onChange={(e) => setInviteInputPhone(e.target.value)}
+                        placeholder="Nhập số điện thoại..."
+                        className="w-full px-3.5 py-2.5 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-mono"
+                        required
+                      />
+                      {inviteInputPhone && (
+                        <button
+                          type="button"
+                          onClick={() => setInviteInputPhone('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                          title="Xóa nội dung"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingInvite}
+                      className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:scale-98 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span>{isSubmittingInvite ? 'Đang gửi...' : 'Gửi lời mời'}</span>
+                    </button>
+                  </div>
+                </form>
               </div>
 
               {/* 4 Stat Cards (Hình 9.3) */}

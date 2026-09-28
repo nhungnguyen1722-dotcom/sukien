@@ -75,10 +75,13 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
           m.full_name AS manager_name,
           m.phone AS manager_phone,
           m.email AS manager_email,
-          ab.full_name AS approved_by_name
+          ab.full_name AS approved_by_name,
+          cr.full_name AS creator_name,
+          cr.email AS creator_email
         FROM events e
         LEFT JOIN users m ON e.manager_id = m.id
         LEFT JOIN users ab ON e.approved_by = ab.id
+        LEFT JOIN users cr ON e.creator_id = cr.id
         WHERE e.id = $1
       `,
         [eventId]

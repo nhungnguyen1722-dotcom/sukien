@@ -31,6 +31,7 @@ import {
   Share2,
   Copy,
 } from 'lucide-react';
+import ImageLibraryModal from '@/components/admin/ImageLibraryModal';
 
 export interface FixedFeeField {
   id: string;
@@ -243,6 +244,7 @@ export default function EventManagement({
   const [newInChargeName, setNewInChargeName] = useState<string>('');
   const [newInChargeRole, setNewInChargeRole] = useState<string>('MC');
   const [contentHtml, setContentHtml] = useState<string>('');
+  const [showContentImageLibrary, setShowContentImageLibrary] = useState(false);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1461,6 +1463,16 @@ export default function EventManagement({
                   <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 border-b border-slate-200 text-xs">
                     <button
                       type="button"
+                      onClick={() => setShowContentImageLibrary(true)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Chọn ảnh từ thư viện"
+                    >
+                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Chọn ảnh từ thư viện</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => {
                         const url = prompt('Nhập URL hình ảnh:');
                         if (url) {
@@ -1470,7 +1482,7 @@ export default function EventManagement({
                       className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
                       title="Chèn ảnh từ liên kết URL"
                     >
-                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                      <LucideImage className="w-3.5 h-3.5 text-slate-500" />
                       <span>Chèn ảnh URL</span>
                     </button>
 
@@ -1824,6 +1836,15 @@ export default function EventManagement({
           </div>
         </div>
       )}
+
+      {/* Image Library Modal for Content Editor (Mục 5) */}
+      <ImageLibraryModal
+        isOpen={showContentImageLibrary}
+        onClose={() => setShowContentImageLibrary(false)}
+        onSelectImage={(url) => {
+          setContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+        }}
+      />
     </div>
   );
 }

@@ -121,6 +121,12 @@ export async function POST(request: NextRequest) {
     }
 
     const inChargeList = Array.isArray(in_charges) ? in_charges : [];
+    const cookieUserId = request.cookies.get('user_id')?.value;
+    const finalCreatorId = body.creator_id
+      ? parseInt(body.creator_id, 10)
+      : cookieUserId
+      ? parseInt(cookieUserId, 10)
+      : 15;
 
     const result = await pool.query(
       `INSERT INTO events (
@@ -139,8 +145,9 @@ export async function POST(request: NextRequest) {
         image_url,
         content,
         detail_description,
-        approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15)
+        approval_status,
+        creator_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)
       RETURNING *`,
       [
         name.trim(),
@@ -158,6 +165,7 @@ export async function POST(request: NextRequest) {
         image_url ? image_url.trim() : '/events/event-1.jpg',
         content ? content.trim() : null,
         finalApprovalStatus,
+        finalCreatorId,
       ]
     );
 

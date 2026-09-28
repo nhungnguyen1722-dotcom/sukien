@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         COALESCE(u.full_name, r.referrer_group, '') AS sale_name,
         u.phone AS sale_phone,
         COALESCE(r.attendance_status, 'Đã đăng ký') AS attendance_status,
+        COALESCE(r.business_unit, 'Khối kinh doanh') AS business_unit,
         r.notes,
         r.registered_at,
         r.created_at,
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
       referrer_id,
       guest_role = 'MC',
       source = 'Lễ tân nhập',
+      business_unit = 'Khối kinh doanh',
       attendance_status = 'Đã đăng ký',
       notes = '',
     } = body;
@@ -160,9 +162,10 @@ export async function POST(request: NextRequest) {
         guest_role,
         source,
         attendance_status,
-        notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, event_id, guest_code, guest_name, guest_phone, referrer_id, guest_role, source, attendance_status, notes, created_at
+        notes,
+        business_unit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, event_id, guest_code, guest_name, guest_phone, referrer_id, guest_role, source, attendance_status, notes, business_unit, created_at
       `,
       [
         parseInt(event_id, 10),
@@ -174,6 +177,7 @@ export async function POST(request: NextRequest) {
         source || 'Lễ tân nhập',
         attendance_status || 'Đã đăng ký',
         notes?.trim() || null,
+        business_unit || 'Khối kinh doanh',
       ]
     );
 
