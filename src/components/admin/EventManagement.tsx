@@ -244,7 +244,15 @@ export default function EventManagement({
   const [newInChargeName, setNewInChargeName] = useState<string>('');
   const [newInChargeRole, setNewInChargeRole] = useState<string>('MC');
   const [contentHtml, setContentHtml] = useState<string>('');
+  const [contentEditorTab, setContentEditorTab] = useState<'visual' | 'code'>('visual');
+  const visualContentRef = React.useRef<HTMLDivElement>(null);
   const [showContentImageLibrary, setShowContentImageLibrary] = useState(false);
+
+  useEffect(() => {
+    if (contentEditorTab === 'visual' && visualContentRef.current && document.activeElement !== visualContentRef.current) {
+      visualContentRef.current.innerHTML = contentHtml;
+    }
+  }, [contentEditorTab, contentHtml]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1459,89 +1467,169 @@ export default function EventManagement({
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
-                  {/* Toolbar */}
-                  <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 border-b border-slate-200 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setShowContentImageLibrary(true)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Chọn ảnh từ thư viện"
-                    >
-                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Chọn ảnh từ thư viện</span>
-                    </button>
+                  {/* Toolbar & Tabs */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border-b border-slate-200 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowContentImageLibrary(true)}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Chọn ảnh từ thư viện"
+                      >
+                        <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Chọn ảnh từ thư viện</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = prompt('Nhập URL hình ảnh:');
-                        if (url) {
-                          setContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
-                        }
-                      }}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Chèn ảnh từ liên kết URL"
-                    >
-                      <LucideImage className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Chèn ảnh URL</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = async (e: any) => {
-                          const file = e.target?.files?.[0];
-                          if (!file) return;
-                          const uploadData = new FormData();
-                          uploadData.append('file', file);
-                          try {
-                            const res = await fetch('/api/admin/upload', { method: 'POST', body: uploadData });
-                            const d = await res.json();
-                            if (d.url) {
-                              setContentHtml((prev) => `${prev}\n<img src="${d.url}" alt="${file.name}" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
-                            }
-                          } catch {
-                            alert('Lỗi khi tải ảnh');
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = prompt('Nhập URL hình ảnh:');
+                          if (url) {
+                            setContentHtml((prev) => {
+                              const next = `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`;
+                              if (visualContentRef.current) visualContentRef.current.innerHTML = next;
+                              return next;
+                            });
                           }
-                        };
-                        input.click();
-                      }}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Tải ảnh từ máy và chèn vào nội dung"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Tải ảnh từ máy</span>
-                    </button>
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Chèn ảnh từ liên kết URL"
+                      >
+                        <LucideImage className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Chèn ảnh URL</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setContentHtml((prev) => `${prev}\n<h4 class="font-bold text-slate-900 mt-3 mb-1">Tiêu đề đoạn</h4>\n`)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-bold text-slate-700 cursor-pointer shadow-2xs"
-                      title="Tiêu đề đoạn"
-                    >
-                      Tiêu đề H4
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = async (e: any) => {
+                            const file = e.target?.files?.[0];
+                            if (!file) return;
+                            const uploadData = new FormData();
+                            uploadData.append('file', file);
+                            try {
+                              const res = await fetch('/api/admin/upload', { method: 'POST', body: uploadData });
+                              const d = await res.json();
+                              if (d.url) {
+                                setContentHtml((prev) => {
+                                  const next = `${prev}\n<img src="${d.url}" alt="${file.name}" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`;
+                                  if (visualContentRef.current) visualContentRef.current.innerHTML = next;
+                                  return next;
+                                });
+                              }
+                            } catch {
+                              alert('Lỗi khi tải ảnh');
+                            }
+                          };
+                          input.click();
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Tải ảnh từ máy và chèn vào nội dung"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Tải ảnh từ máy</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setContentHtml((prev) => `${prev}\n<p class="text-slate-600 leading-relaxed my-2">Nội dung chi tiết đoạn văn bản...</p>\n`)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-medium text-slate-700 cursor-pointer shadow-2xs"
-                      title="Đoạn văn"
-                    >
-                      Đoạn văn
-                    </button>
+                      {/* Dropdown Tiêu đề H1 - H5 (Hình 5.1) */}
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          const tagNames: Record<string, string> = {
+                            h1: 'Tiêu đề H1',
+                            h2: 'Tiêu đề H2',
+                            h3: 'Tiêu đề H3',
+                            h4: 'Tiêu đề H4',
+                            h5: 'Tiêu đề H5',
+                          };
+                          const newBlock = `\n<${val} class="font-bold text-slate-900 mt-3 mb-1">${tagNames[val] || 'Tiêu đề'}</${val}>\n`;
+                          setContentHtml((prev) => {
+                            const next = prev ? `${prev}${newBlock}` : newBlock;
+                            if (visualContentRef.current) visualContentRef.current.innerHTML = next;
+                            return next;
+                          });
+                          e.target.value = '';
+                        }}
+                        defaultValue=""
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-bold text-slate-700 cursor-pointer shadow-2xs text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Chọn cấp thẻ tiêu đề"
+                      >
+                        <option value="" disabled>Tiêu đề (H1 - H5)</option>
+                        <option value="h1">Tiêu đề H1</option>
+                        <option value="h2">Tiêu đề H2</option>
+                        <option value="h3">Tiêu đề H3</option>
+                        <option value="h4">Tiêu đề H4</option>
+                        <option value="h5">Tiêu đề H5</option>
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newBlock = `\n<p class="text-slate-600 leading-relaxed my-2">Nội dung chi tiết đoạn văn bản...</p>\n`;
+                          setContentHtml((prev) => {
+                            const next = prev ? `${prev}${newBlock}` : newBlock;
+                            if (visualContentRef.current) visualContentRef.current.innerHTML = next;
+                            return next;
+                          });
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-medium text-slate-700 cursor-pointer shadow-2xs"
+                        title="Đoạn văn"
+                      >
+                        Đoạn văn
+                      </button>
+                    </div>
+
+                    {/* WordPress-style Visual vs Code tabs */}
+                    <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shrink-0 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContentEditorTab('visual');
+                          if (visualContentRef.current) visualContentRef.current.innerHTML = contentHtml;
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                          contentEditorTab === 'visual'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Trực quan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContentEditorTab('code')}
+                        className={`px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                          contentEditorTab === 'code'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Mã Code
+                      </button>
+                    </div>
                   </div>
 
-                  <textarea
-                    rows={6}
-                    value={contentHtml}
-                    onChange={(e) => setContentHtml(e.target.value)}
-                    placeholder="Nhập nội dung bài viết và chèn hình ảnh tại đây..."
-                    className="w-full p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans leading-relaxed"
-                  />
+                  {contentEditorTab === 'visual' ? (
+                    <div
+                      ref={visualContentRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) => setContentHtml(e.currentTarget.innerHTML)}
+                      onBlur={(e) => setContentHtml(e.currentTarget.innerHTML)}
+                      className="w-full min-h-[180px] max-h-[400px] overflow-y-auto p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans leading-relaxed bg-white prose prose-sm max-w-none"
+                    />
+                  ) : (
+                    <textarea
+                      rows={8}
+                      value={contentHtml}
+                      onChange={(e) => setContentHtml(e.target.value)}
+                      placeholder="Nhập mã HTML hoặc nội dung bài viết..."
+                      className="w-full p-3.5 text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed resize-y bg-slate-50"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1842,7 +1930,11 @@ export default function EventManagement({
         isOpen={showContentImageLibrary}
         onClose={() => setShowContentImageLibrary(false)}
         onSelectImage={(url) => {
-          setContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+          setContentHtml((prev) => {
+            const next = `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`;
+            if (visualContentRef.current) visualContentRef.current.innerHTML = next;
+            return next;
+          });
         }}
       />
     </div>

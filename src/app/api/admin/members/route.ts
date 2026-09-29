@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
         u.full_name,
         u.phone,
         u.email,
+        u.avatar_url,
         u.identity_card,
         u.bank_account,
         u.role,
@@ -131,6 +132,7 @@ export async function POST(request: NextRequest) {
       status,
       notes,
       is_team_leader_eligible,
+      avatar_url,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -173,8 +175,9 @@ export async function POST(request: NextRequest) {
         status,
         is_team_leader_eligible,
         guest_count,
-        notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        notes,
+        avatar_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *`,
       [
         full_name.trim(),
@@ -194,6 +197,7 @@ export async function POST(request: NextRequest) {
         !!is_team_leader_eligible,
         guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
         notes ? notes.trim() : null,
+        avatar_url ? avatar_url.trim() : null,
       ]
     );
 

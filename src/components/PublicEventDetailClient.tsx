@@ -227,8 +227,16 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center p-8 bg-blue-50">
-                    <SystemLogo className="max-h-32 w-auto object-contain" />
+                  <div className="w-full h-full flex items-center justify-center p-0 bg-blue-50" style={{ padding: 0 }}>
+                    <SystemLogo
+                      className="w-full h-full min-h-full object-cover"
+                      style={{
+                        width: '100%',
+                        objectFit: 'cover',
+                        height: '100%',
+                        minHeight: '100%',
+                      }}
+                    />
                   </div>
                 )}
                 <span className="absolute top-4 left-4 px-3.5 py-1 rounded-lg text-xs font-bold bg-[#2563eb] text-white shadow-md">

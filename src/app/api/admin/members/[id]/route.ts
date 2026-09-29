@@ -67,6 +67,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       status,
       notes,
       is_team_leader_eligible,
+      avatar_url,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -117,8 +118,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         is_team_leader_eligible = $15,
         guest_count = $16,
         notes = $17,
+        avatar_url = $18,
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $18
+       WHERE id = $19
        RETURNING *`,
       [
         full_name.trim(),
@@ -138,6 +140,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         !!is_team_leader_eligible,
         guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
         notes ? notes.trim() : null,
+        avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
         memberId,
       ]
     );

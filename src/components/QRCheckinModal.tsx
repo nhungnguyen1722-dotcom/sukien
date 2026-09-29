@@ -28,6 +28,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
+import GuestProxyRegistrationModal from './GuestProxyRegistrationModal';
 import { safeDecodeURI } from '@/lib/authUtils';
 
 interface InviterInfo {
@@ -73,6 +74,7 @@ export default function QRCheckinModal({
   const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   // Dynamic Client Origin to prevent SSR Hydration Mismatch
   const [origin, setOrigin] = useState<string>('');
@@ -237,10 +239,17 @@ export default function QRCheckinModal({
         setCookie('reg_fullname', fullName.trim());
         setCookie('user_phone', cleanPhone);
         setCookie('reg_phone', cleanPhone);
+        setCookie('user_role', 'member');
         setCookie('user_referrer', finalReferrerVal);
         setCookie('reg_referrer', finalReferrerVal);
         setCookie('user_notes', notes.trim());
         setCookie('reg_notes', notes.trim());
+        if (email.trim()) setCookie('user_email', email.trim());
+
+        localStorage.setItem('nghieng_auth_role', 'member');
+        localStorage.setItem('nghieng_user_name', fullName.trim());
+        localStorage.setItem('nghieng_user_phone', cleanPhone);
+        if (email.trim()) localStorage.setItem('nghieng_user_email', email.trim());
 
         localStorage.setItem(
           STORAGE_KEY,
@@ -255,6 +264,9 @@ export default function QRCheckinModal({
             registeredAt: new Date().toISOString(),
           })
         );
+
+        window.dispatchEvent(new Event('nghieng-auth-change'));
+        window.dispatchEvent(new Event('storage'));
       } catch {
         // Ignore
       }
@@ -377,7 +389,8 @@ export default function QRCheckinModal({
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="w-8 h-8 rounded-full bg-black/40 border border-white/20 hover:bg-black/60 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+                style={{ position: 'absolute', right: '10px', top: '10px' }}
+                className="w-8 h-8 rounded-full bg-black/40 border border-white/20 hover:bg-black/60 text-white flex items-center justify-center transition-colors shadow-sm cursor-pointer z-20"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1021,11 +1034,19 @@ export default function QRCheckinModal({
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsProxyModalOpen(true)}
+                className="w-full sm:flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4 text-white" />
+                <span>Mời bạn bè</span>
+              </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                className="w-full sm:flex-1 py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Download className="w-4 h-4 text-slate-500" />
                 <span>Tải vé</span>
@@ -1033,7 +1054,7 @@ export default function QRCheckinModal({
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm shadow-blue-500/20 cursor-pointer"
+                className="w-full sm:flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm shadow-blue-500/20 cursor-pointer"
               >
                 Đóng
               </button>
@@ -1041,6 +1062,21 @@ export default function QRCheckinModal({
           </div>
         )}
       </div>
+
+      {/* Modal Mời bạn bè / Đăng ký hộ */}
+      {isProxyModalOpen && (
+        <GuestProxyRegistrationModal
+          isOpen={isProxyModalOpen}
+          onClose={() => setIsProxyModalOpen(false)}
+          event={{
+            id: defaultEvent.id,
+            name: defaultEvent.name,
+            code: defaultEvent.code,
+            location: defaultEvent.location,
+            event_date: defaultEvent.event_date,
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -60,6 +60,8 @@ export default function GuestProxyRegistrationModal({
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('Vũ Thị Cúc');
+  const [userPhone, setUserPhone] = useState('0889225989');
+  const [userId, setUserId] = useState<string | null>(null);
   const [userRefCode, setUserRefCode] = useState('EVT20240530-001');
 
   // Login form state (Step 1)
@@ -89,12 +91,16 @@ export default function GuestProxyRegistrationModal({
 
       const cName = getCookie('user_name') || localStorage.getItem('nghieng_user_name');
       const cRole = getCookie('user_role') || localStorage.getItem('nghieng_auth_role');
+      const cPhone = getCookie('user_phone') || localStorage.getItem('nghieng_user_phone');
+      const cId = getCookie('user_id') || localStorage.getItem('nghieng_user_id');
       let cRef = getCookie('user_ref_code') || localStorage.getItem('nghieng_user_ref_code');
 
       if (cName && cRole && cRole !== 'guest') {
         setIsLoggedIn(true);
         setUserName(cName);
-        if (!cRef) cRef = 'EVT20240530-001';
+        if (cPhone) setUserPhone(cPhone);
+        if (cId) setUserId(cId);
+        if (!cRef) cRef = cPhone || 'EVT20240530-001';
         setUserRefCode(cRef);
         setCurrentStep(2);
       } else {
@@ -196,9 +202,13 @@ export default function GuestProxyRegistrationModal({
           guest_name: guestName.trim(),
           guest_phone: guestPhone.trim(),
           source: 'Đăng ký hộ',
+          referrer_id: userId ? parseInt(userId, 10) : undefined,
+          referrer_name: userName,
+          referrer_phone: userPhone || userRefCode,
+          referrer_group: `${userName}${userPhone ? ` (${userPhone})` : ''}`,
           business_unit: 'Khối kinh doanh',
           attendance_status: 'Đã đăng ký',
-          notes: `Đăng ký hộ bởi ${userName} (${userRefCode})`,
+          notes: `Đăng ký hộ bởi ${userName} (${userPhone || userRefCode})`,
         }),
       });
 

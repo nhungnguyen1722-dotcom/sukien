@@ -15,9 +15,15 @@ async function getInitialReceptionData(): Promise<{
   defaultEventId?: number;
 }> {
   try {
-    // 1. Fetch events
+    // 1. Fetch events ordered by nearest upcoming event first
     const eventsRes = await pool.query(
-      `SELECT id, name, event_date::text AS event_date, location FROM events ORDER BY id ASC`
+      `SELECT id, name, event_date::text AS event_date, location 
+       FROM events 
+       ORDER BY 
+         CASE WHEN event_date >= CURRENT_DATE THEN 0 ELSE 1 END ASC,
+         CASE WHEN event_date >= CURRENT_DATE THEN event_date END ASC,
+         event_date DESC,
+         id DESC`
     );
 
     const events: EventItem[] = eventsRes.rows.map((row) => ({
@@ -27,9 +33,8 @@ async function getInitialReceptionData(): Promise<{
       location: row.location,
     }));
 
-    // Find "Sự kiện 1" or default to first event
-    const defaultEvent =
-      events.find((e) => e.name.toLowerCase().includes('sự kiện 1')) || events[0];
+    // Default to the nearest upcoming event
+    const defaultEvent = events[0] || null;
     const defaultEventId = defaultEvent?.id;
 
     // 2. Fetch sales / users

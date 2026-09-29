@@ -311,6 +311,15 @@ export default function EventDetail({
   const [editContentHtml, setEditContentHtml] = useState<string>(
     (event as any).content || event.detail_description || ''
   );
+  const [editEditorTab, setEditEditorTab] = useState<'visual' | 'code'>('visual');
+  const editVisualContentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editEditorTab === 'visual' && editVisualContentRef.current && document.activeElement !== editVisualContentRef.current) {
+      editVisualContentRef.current.innerHTML = editContentHtml;
+    }
+  }, [editEditorTab, editContentHtml]);
+
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -2303,7 +2312,7 @@ export default function EventDetail({
                     <th className="py-3 px-4 w-12 text-center">STT</th>
                     <th className="py-3 px-4">Tên khách</th>
                     <th className="py-3 px-4">Người giới thiệu</th>
-                    <th className="py-3 px-4">Khối kinh doanh / BNV</th>
+                    <th className="py-3 px-4">Khối kinh doanh / Ban nguồn vốn</th>
                     <th className="py-3 px-4 text-center">Suất ăn tiệc trà (50k)</th>
                     <th className="py-3 px-4">Trạng thái tham dự</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
@@ -2360,12 +2369,12 @@ export default function EventDetail({
                           <td className="py-3.5 px-4">
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                                guest.business_unit === 'BNV'
+                                guest.business_unit === 'Ban nguồn vốn' || guest.business_unit === 'BNV'
                                   ? 'bg-purple-100 text-purple-800'
                                   : 'bg-blue-100 text-blue-800'
                               }`}
                             >
-                              {guest.business_unit || 'Khối kinh doanh'}
+                              {guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
@@ -2471,7 +2480,7 @@ export default function EventDetail({
                               )}
                             </div>
                             <span className="text-[11px] text-slate-500 block">
-                              Khối kinh doanh / BNV: <strong className="text-slate-700">{guest.business_unit || 'Khối kinh doanh'}</strong>
+                              Khối kinh doanh / Ban nguồn vốn: <strong className="text-slate-700">{guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}</strong>
                             </span>
                           </div>
                         </div>
@@ -3301,14 +3310,14 @@ export default function EventDetail({
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Khối kinh doanh / BNV</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Khối kinh doanh / Ban nguồn vốn</label>
                   <select
                     value={guestForm.business_unit}
                     onChange={(e) => setGuestForm({ ...guestForm, business_unit: e.target.value })}
                     className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   >
                     <option value="Khối kinh doanh">Khối kinh doanh</option>
-                    <option value="BNV">BNV</option>
+                    <option value="Ban nguồn vốn">Ban nguồn vốn</option>
                   </select>
                 </div>
                 <div>
@@ -3861,89 +3870,169 @@ export default function EventDetail({
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
-                  {/* Toolbar */}
-                  <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 border-b border-slate-200 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setIsImageLibraryOpen(true)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Chọn ảnh từ thư viện"
-                    >
-                      <LucideImage className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Chọn ảnh từ thư viện</span>
-                    </button>
+                  {/* Toolbar & Tabs */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border-b border-slate-200 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsImageLibraryOpen(true)}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Chọn ảnh từ thư viện"
+                      >
+                        <LucideImage className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Chọn ảnh từ thư viện</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = prompt('Nhập URL hình ảnh:');
-                        if (url) {
-                          setEditContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
-                        }
-                      }}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Chèn ảnh từ liên kết URL"
-                    >
-                      <LucideImage className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Chèn ảnh URL</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = async (e: any) => {
-                          const file = e.target?.files?.[0];
-                          if (!file) return;
-                          const uploadData = new FormData();
-                          uploadData.append('file', file);
-                          try {
-                            const res = await fetch('/api/admin/upload', { method: 'POST', body: uploadData });
-                            const d = await res.json();
-                            if (d.url) {
-                              setEditContentHtml((prev) => `${prev}\n<img src="${d.url}" alt="${file.name}" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
-                            }
-                          } catch {
-                            alert('Lỗi khi tải ảnh');
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = prompt('Nhập URL hình ảnh:');
+                          if (url) {
+                            setEditContentHtml((prev) => {
+                              const next = `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`;
+                              if (editVisualContentRef.current) editVisualContentRef.current.innerHTML = next;
+                              return next;
+                            });
                           }
-                        };
-                        input.click();
-                      }}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      title="Tải ảnh từ máy và chèn vào nội dung"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Tải ảnh từ máy</span>
-                    </button>
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Chèn ảnh từ liên kết URL"
+                      >
+                        <LucideImage className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Chèn ảnh URL</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setEditContentHtml((prev) => `${prev}\n<h4 class="font-bold text-slate-900 mt-3 mb-1">Tiêu đề đoạn</h4>\n`)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-bold text-slate-700 cursor-pointer shadow-2xs"
-                      title="Tiêu đề đoạn"
-                    >
-                      Tiêu đề H4
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = async (e: any) => {
+                            const file = e.target?.files?.[0];
+                            if (!file) return;
+                            const uploadData = new FormData();
+                            uploadData.append('file', file);
+                            try {
+                              const res = await fetch('/api/admin/upload', { method: 'POST', body: uploadData });
+                              const d = await res.json();
+                              if (d.url) {
+                                setEditContentHtml((prev) => {
+                                  const next = `${prev}\n<img src="${d.url}" alt="${file.name}" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`;
+                                  if (editVisualContentRef.current) editVisualContentRef.current.innerHTML = next;
+                                  return next;
+                                });
+                              }
+                            } catch {
+                              alert('Lỗi khi tải ảnh');
+                            }
+                          };
+                          input.click();
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Tải ảnh từ máy và chèn vào nội dung"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Tải ảnh từ máy</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setEditContentHtml((prev) => `${prev}\n<p class="text-slate-600 leading-relaxed my-2">Nội dung chi tiết đoạn văn bản...</p>\n`)}
-                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-medium text-slate-700 cursor-pointer shadow-2xs"
-                      title="Đoạn văn"
-                    >
-                      Đoạn văn
-                    </button>
+                      {/* Dropdown Tiêu đề H1 - H5 (Hình 5.1) */}
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          const tagNames: Record<string, string> = {
+                            h1: 'Tiêu đề H1',
+                            h2: 'Tiêu đề H2',
+                            h3: 'Tiêu đề H3',
+                            h4: 'Tiêu đề H4',
+                            h5: 'Tiêu đề H5',
+                          };
+                          const newBlock = `\n<${val} class="font-bold text-slate-900 mt-3 mb-1">${tagNames[val] || 'Tiêu đề'}</${val}>\n`;
+                          setEditContentHtml((prev) => {
+                            const next = prev ? `${prev}${newBlock}` : newBlock;
+                            if (editVisualContentRef.current) editVisualContentRef.current.innerHTML = next;
+                            return next;
+                          });
+                          e.target.value = '';
+                        }}
+                        defaultValue=""
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-bold text-slate-700 cursor-pointer shadow-2xs text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Chọn cấp thẻ tiêu đề"
+                      >
+                        <option value="" disabled>Tiêu đề (H1 - H5)</option>
+                        <option value="h1">Tiêu đề H1</option>
+                        <option value="h2">Tiêu đề H2</option>
+                        <option value="h3">Tiêu đề H3</option>
+                        <option value="h4">Tiêu đề H4</option>
+                        <option value="h5">Tiêu đề H5</option>
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newBlock = `\n<p class="text-slate-600 leading-relaxed my-2">Nội dung chi tiết đoạn văn bản...</p>\n`;
+                          setEditContentHtml((prev) => {
+                            const next = prev ? `${prev}${newBlock}` : newBlock;
+                            if (editVisualContentRef.current) editVisualContentRef.current.innerHTML = next;
+                            return next;
+                          });
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 font-medium text-slate-700 cursor-pointer shadow-2xs"
+                        title="Đoạn văn"
+                      >
+                        Đoạn văn
+                      </button>
+                    </div>
+
+                    {/* WordPress-style Visual vs Code tabs */}
+                    <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shrink-0 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditEditorTab('visual');
+                          if (editVisualContentRef.current) editVisualContentRef.current.innerHTML = editContentHtml;
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                          editEditorTab === 'visual'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Trực quan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditEditorTab('code')}
+                        className={`px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                          editEditorTab === 'code'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Mã Code
+                      </button>
+                    </div>
                   </div>
 
-                  <textarea
-                    rows={6}
-                    value={editContentHtml}
-                    onChange={(e) => setEditContentHtml(e.target.value)}
-                    placeholder="Nhập nội dung bài viết và chèn hình ảnh tại đây..."
-                    className="w-full p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans leading-relaxed resize-y"
-                  />
+                  {editEditorTab === 'visual' ? (
+                    <div
+                      ref={editVisualContentRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) => setEditContentHtml(e.currentTarget.innerHTML)}
+                      onBlur={(e) => setEditContentHtml(e.currentTarget.innerHTML)}
+                      className="w-full min-h-[180px] max-h-[400px] overflow-y-auto p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans leading-relaxed bg-white prose prose-sm max-w-none"
+                    />
+                  ) : (
+                    <textarea
+                      rows={8}
+                      value={editContentHtml}
+                      onChange={(e) => setEditContentHtml(e.target.value)}
+                      placeholder="Nhập mã HTML hoặc nội dung bài viết..."
+                      className="w-full p-3.5 text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed resize-y bg-slate-50"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -4548,7 +4637,11 @@ export default function EventDetail({
         isOpen={isImageLibraryOpen}
         onClose={() => setIsImageLibraryOpen(false)}
         onSelectImage={(url) => {
-          setEditContentHtml((prev) => `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`);
+          setEditContentHtml((prev) => {
+            const next = `${prev}\n<img src="${url}" alt="Hình ảnh bài viết" class="rounded-xl my-3 max-h-96 object-cover w-full shadow-sm" />\n`;
+            if (editVisualContentRef.current) editVisualContentRef.current.innerHTML = next;
+            return next;
+          });
         }}
       />
     </div>

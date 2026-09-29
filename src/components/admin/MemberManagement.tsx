@@ -13,13 +13,17 @@ import {
   X,
   Check,
   AlertCircle,
+  Upload,
+  Image as LucideImage,
 } from 'lucide-react';
+import ImageLibraryModal from '@/components/admin/ImageLibraryModal';
 
 export interface Member {
   id: number;
   full_name: string;
   phone: string;
   email?: string | null;
+  avatar_url?: string | null;
   identity_card?: string | null;
   bank_account?: string | null;
   role?: string | null;
@@ -140,15 +144,18 @@ export default function MemberManagement({
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Delete Confirmation Modal
   const [deleteConfirmMember, setDeleteConfirmMember] = useState<Member | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Form State - Đầy đủ 16 trường theo đúng giao diện Base44
+  // Form State - Đầy đủ các trường kèm avatar_url
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
+    avatar_url: '',
     referral_group: 'Khách vãng lai',
     ref_code: '',
     role: 'Khác',
@@ -175,6 +182,35 @@ export default function MemberManagement({
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Upload Avatar từ máy tính
+  const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+
+    try {
+      setIsUploadingAvatar(true);
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+      const data = await res.json();
+      if (data && data.url) {
+        setFormData((prev) => ({ ...prev, avatar_url: data.url }));
+        showToast('success', 'Tải ảnh đại diện thành công');
+      } else {
+        showToast('error', data.error || 'Lỗi tải ảnh lên máy chủ');
+      }
+    } catch {
+      showToast('error', 'Không thể kết nối máy chủ để tải ảnh');
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = '';
+    }
   };
 
   // Đồng bộ Google Sheet (Mục 10 - Hình 13)
@@ -219,6 +255,7 @@ export default function MemberManagement({
     setFormData({
       full_name: '',
       phone: '',
+      avatar_url: '',
       referral_group: 'Khách vãng lai',
       ref_code: '',
       role: 'Khác',
@@ -249,6 +286,7 @@ export default function MemberManagement({
     setFormData({
       full_name: member.full_name || '',
       phone: member.phone || '',
+      avatar_url: member.avatar_url || '',
       referral_group: member.referral_group || 'Khách vãng lai',
       ref_code: member.ref_code || '',
       role: member.role || 'Khác',
@@ -513,12 +551,28 @@ export default function MemberManagement({
                     key={member.id}
                     className="hover:bg-slate-50/70 transition-colors group"
                   >
-                    {/* Họ và tên (kèm số điện thoại nhỏ phía dưới theo Hình 5.1) */}
+                    {/* Họ và tên (kèm avatar + số điện thoại nhỏ phía dưới) */}
                     <td className="py-4 px-5 font-medium text-slate-800">
-                      <div className="font-medium text-slate-900">{member.full_name}</div>
-                      {member.phone && (
-                        <div className="text-xs text-slate-400 font-normal mt-0.5">{member.phone}</div>
-                      )}
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                          {member.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={member.avatar_url}
+                              alt={member.full_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Users className="w-4 h-4 text-slate-400" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-slate-900">{member.full_name}</div>
+                          {member.phone && (
+                            <div className="text-xs text-slate-400 font-normal mt-0.5">{member.phone}</div>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     {/* Người mời (di chuyển sang cạnh Họ và tên theo Hình 5, format theo Hình 5.2 & 5.3) */}
@@ -635,6 +689,61 @@ export default function MemberManagement({
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 0. Ảnh đại diện Avatar (Mục 3 - Hình 3 & 3.1) */}
+                <div className="md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="relative w-16 h-16 rounded-full overflow-hidden bg-slate-200 border-2 border-slate-300 flex items-center justify-center shrink-0 shadow-xs">
+                    {formData.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={formData.avatar_url}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Users className="w-7 h-7 text-slate-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-800">Ảnh đại diện (Avatar)</span>
+                      <span className="text-[11px] text-slate-500 font-normal">Hỗ trợ JPG, PNG, WEBP</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsImageLibraryOpen(true)}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-100 text-blue-600 border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                      >
+                        <LucideImage className="w-3.5 h-3.5" />
+                        <span>Lấy ảnh từ thư viện</span>
+                      </button>
+
+                      <label className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{isUploadingAvatar ? 'Đang tải lên...' : 'Tải ảnh từ máy tính'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isUploadingAvatar}
+                          onChange={handleAvatarFileUpload}
+                        />
+                      </label>
+
+                      {formData.avatar_url && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, avatar_url: '' }))}
+                          className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Xóa ảnh
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* 1. Họ và tên * */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -978,6 +1087,13 @@ export default function MemberManagement({
           </div>
         </div>
       )}
+
+      {/* Modal Thư viện ảnh chọn Avatar */}
+      <ImageLibraryModal
+        isOpen={isImageLibraryOpen}
+        onClose={() => setIsImageLibraryOpen(false)}
+        onSelectImage={(url) => setFormData((prev) => ({ ...prev, avatar_url: url }))}
+      />
     </div>
   );
 }

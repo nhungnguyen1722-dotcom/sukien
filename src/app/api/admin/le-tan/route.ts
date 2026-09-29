@@ -73,6 +73,18 @@ export async function GET(request: NextRequest) {
 // POST: Thêm khách mời mới từ lễ tân
 export async function POST(request: NextRequest) {
   try {
+    // Safely ensure necessary columns exist in database
+    try {
+      await pool.query(`
+        ALTER TABLE event_registrations 
+        ADD COLUMN IF NOT EXISTS business_unit VARCHAR(100) DEFAULT 'Khối kinh doanh',
+        ADD COLUMN IF NOT EXISTS guest_code VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS guest_role VARCHAR(100) DEFAULT 'MC'
+      `);
+    } catch {
+      // Column might already exist or neon permissions
+    }
+
     const body = await request.json();
     const {
       event_id,
@@ -80,6 +92,9 @@ export async function POST(request: NextRequest) {
       guest_name,
       guest_phone,
       referrer_id,
+      referrer_name,
+      referrer_phone,
+      referrer_group,
       guest_role = 'MC',
       source = 'Lễ tân nhập',
       business_unit = 'Khối kinh doanh',
@@ -99,6 +114,49 @@ export async function POST(request: NextRequest) {
         { error: 'Vui lòng nhập họ tên khách' },
         { status: 400 }
       );
+    }
+
+    // Resolve referrer info if not passed directly by ID
+    let resolvedReferrerId = referrer_id ? parseInt(referrer_id, 10) : null;
+    let resolvedReferrerGroup = referrer_group || null;
+
+    if (!resolvedReferrerId && (referrer_phone || referrer_name)) {
+      try {
+        if (referrer_phone) {
+          const cleanRefPhone = referrer_phone.replace(/[^0-9]/g, '');
+          const uRes = await pool.query(
+            `SELECT id, full_name, phone FROM users 
+             WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = $1 
+                OR ref_code = $2 LIMIT 1`,
+            [cleanRefPhone, referrer_phone.trim()]
+          );
+          if (uRes.rows.length > 0) {
+            resolvedReferrerId = uRes.rows[0].id;
+            if (!resolvedReferrerGroup) {
+              resolvedReferrerGroup = `${uRes.rows[0].full_name} (${uRes.rows[0].phone})`;
+            }
+          }
+        }
+        if (!resolvedReferrerId && referrer_name) {
+          const uRes = await pool.query(
+            `SELECT id, full_name, phone FROM users 
+             WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) LIMIT 1`,
+            [referrer_name.trim()]
+          );
+          if (uRes.rows.length > 0) {
+            resolvedReferrerId = uRes.rows[0].id;
+            if (!resolvedReferrerGroup) {
+              resolvedReferrerGroup = `${uRes.rows[0].full_name} (${uRes.rows[0].phone || ''})`.trim();
+            }
+          }
+        }
+      } catch (refErr) {
+        console.warn('Error resolving referrer:', refErr);
+      }
+    }
+
+    if (!resolvedReferrerGroup && (referrer_name || referrer_phone)) {
+      resolvedReferrerGroup = `${referrer_name || ''} ${referrer_phone ? `(${referrer_phone})` : ''}`.trim();
     }
 
     // Duplicate check: Kiểm tra trùng SĐT và trùng cả tên + SĐT cho sự kiện
@@ -151,40 +209,82 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const insertResult = await pool.query(
-      `
-      INSERT INTO event_registrations (
-        event_id,
-        guest_code,
-        guest_name,
-        guest_phone,
-        referrer_id,
-        guest_role,
-        source,
-        attendance_status,
-        notes,
-        business_unit
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, event_id, guest_code, guest_name, guest_phone, referrer_id, guest_role, source, attendance_status, notes, business_unit, created_at
-      `,
-      [
-        parseInt(event_id, 10),
-        guest_code?.trim() || null,
-        guest_name.trim(),
-        guest_phone?.trim() || null,
-        referrer_id ? parseInt(referrer_id, 10) : null,
-        guest_role || 'MC',
-        source || 'Lễ tân nhập',
-        attendance_status || 'Đã đăng ký',
-        notes?.trim() || null,
-        business_unit || 'Khối kinh doanh',
-      ]
-    );
+    const finalGuestCode = guest_code?.trim() || `KH${Date.now().toString().slice(-6)}`;
+
+    let insertResult;
+    try {
+      insertResult = await pool.query(
+        `
+        INSERT INTO event_registrations (
+          event_id,
+          guest_code,
+          guest_name,
+          guest_phone,
+          referrer_id,
+          referrer_group,
+          guest_role,
+          source,
+          attendance_status,
+          notes,
+          business_unit
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, event_id, guest_code, guest_name, guest_phone, referrer_id, referrer_group, guest_role, source, attendance_status, notes, business_unit, created_at
+        `,
+        [
+          parseInt(event_id, 10),
+          finalGuestCode,
+          guest_name.trim(),
+          guest_phone?.trim() || null,
+          resolvedReferrerId,
+          resolvedReferrerGroup,
+          guest_role || 'MC',
+          source || 'Lễ tân nhập',
+          attendance_status || 'Đã đăng ký',
+          notes?.trim() || null,
+          business_unit || 'Khối kinh doanh',
+        ]
+      );
+    } catch (insertErr: any) {
+      // Fallback if business_unit column is somehow missing
+      if (insertErr?.message?.includes('business_unit')) {
+        insertResult = await pool.query(
+          `
+          INSERT INTO event_registrations (
+            event_id,
+            guest_code,
+            guest_name,
+            guest_phone,
+            referrer_id,
+            referrer_group,
+            guest_role,
+            source,
+            attendance_status,
+            notes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING id, event_id, guest_code, guest_name, guest_phone, referrer_id, referrer_group, guest_role, source, attendance_status, notes, created_at
+          `,
+          [
+            parseInt(event_id, 10),
+            finalGuestCode,
+            guest_name.trim(),
+            guest_phone?.trim() || null,
+            resolvedReferrerId,
+            resolvedReferrerGroup,
+            guest_role || 'MC',
+            source || 'Lễ tân nhập',
+            attendance_status || 'Đã đăng ký',
+            notes?.trim() || null,
+          ]
+        );
+      } else {
+        throw insertErr;
+      }
+    }
 
     const newReg = insertResult.rows[0];
 
     // Fetch joined sale info & event info for Google Sheet sync
-    let saleName = '';
+    let saleName = resolvedReferrerGroup || '';
     if (newReg.referrer_id) {
       const userRes = await pool.query('SELECT full_name FROM users WHERE id = $1', [newReg.referrer_id]);
       if (userRes.rows.length > 0) {
@@ -217,7 +317,6 @@ export async function POST(request: NextRequest) {
       }).catch((err) => console.error('Google Sheet background sync error:', err));
     });
 
-
     // Sync expected_guests to actual registration count
     await pool.query(
       `UPDATE events SET expected_guests = (SELECT COUNT(*) FROM event_registrations WHERE event_id = $1) WHERE id = $1`,
@@ -235,10 +334,10 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to create registration:', error);
     return NextResponse.json(
-      { error: 'Lỗi khi tạo khách mời mới' },
+      { error: error?.message || 'Lỗi khi tạo khách mời mới' },
       { status: 500 }
     );
   }
