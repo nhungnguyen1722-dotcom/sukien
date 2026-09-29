@@ -227,10 +227,16 @@ export default function UserAccountSettings() {
       const email = getCookie('user_email');
       const role = getCookie('user_role');
 
-      let refCode = getCookie('user_ref_code');
-      if (!refCode && typeof window !== 'undefined') {
-        refCode = localStorage.getItem('nghieng_user_ref_code') || '';
-      }
+      const refCodeCandidates = [
+        localStorage.getItem('nghieng_user_ref_code'),
+        localStorage.getItem('ref_code'),
+        getCookie('user_ref_code'),
+        getCookie('ref_code'),
+        getCookie('user_ref'),
+      ];
+      let refCode = refCodeCandidates.find(
+        (value) => value?.trim() && !/^EVT\d+/i.test(value.trim())
+      )?.trim() || '';
       if (!refCode && id) {
         refCode = 'N_' + String(id).padStart(10, '0');
       }
