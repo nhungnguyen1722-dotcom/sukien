@@ -16,3 +16,7 @@ export function safeDecodeURI(str: string | null | undefined): string {
   }
   return decoded.trim();
 }
+
+export function getValidReferralCode(...values: Array<string | null | undefined>): string {
+  return values.find((value) => value?.trim() && !/^EVT\d+/i.test(value.trim()))?.trim() || '';
+}
