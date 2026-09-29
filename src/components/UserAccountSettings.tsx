@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { getValidReferralCode, safeDecodeURI } from '@/lib/authUtils';
 import {
   User,
   Settings,
@@ -219,21 +220,20 @@ export default function UserAccountSettings() {
       setBaseUrl(window.location.origin);
       const getCookie = (name: string) => {
         const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-        return match ? decodeURIComponent(match[2]) : '';
+        return match ? safeDecodeURI(match[2]) : '';
       };
       const phone = getCookie('user_phone');
-      const id = getCookie('user_id');
       const name = getCookie('user_name');
       const email = getCookie('user_email');
       const role = getCookie('user_role');
 
-      let refCode = getCookie('user_ref_code');
-      if (!refCode && typeof window !== 'undefined') {
-        refCode = localStorage.getItem('nghieng_user_ref_code') || '';
-      }
-      if (!refCode && id) {
-        refCode = 'N_' + String(id).padStart(10, '0');
-      }
+      const refCode = getValidReferralCode(
+        localStorage.getItem('nghieng_user_ref_code'),
+        localStorage.getItem('ref_code'),
+        getCookie('user_ref_code'),
+        getCookie('ref_code'),
+        getCookie('user_ref')
+      );
       setReferralCode(refCode || 'N_0000000001');
 
       if (name) {

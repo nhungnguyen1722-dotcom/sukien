@@ -15,7 +15,7 @@ import {
   Info,
   Check,
 } from 'lucide-react';
-import { safeDecodeURI } from '@/lib/authUtils';
+import { getValidReferralCode, safeDecodeURI } from '@/lib/authUtils';
 
 export interface ProxyEventInfo {
   id: number;
@@ -55,20 +55,20 @@ export default function GuestProxyRegistrationModal({
   // Step 1: Login (if not logged in)
   // Step 2: Proxy Registration
   // Step 3: Success
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(2);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('Vũ Thị Cúc');
-  const [userPhone, setUserPhone] = useState('0889225989');
+  const [userName, setUserName] = useState('');
+  const [userPhone, setUserPhone] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
-  const [userRefCode, setUserRefCode] = useState('EVT20240530-001');
+  const [userRefCode, setUserRefCode] = useState('');
 
   // Login form state (Step 1)
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberCookies, setRememberCookies] = useState(true);
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
 
   // Step 2 form state
   const [guestName, setGuestName] = useState('');
@@ -91,22 +91,33 @@ export default function GuestProxyRegistrationModal({
       };
 
       const cName = getCookie('user_name') || localStorage.getItem('nghieng_user_name');
+      const cEmail = getCookie('user_email') || localStorage.getItem('nghieng_user_email');
       const cRole = getCookie('user_role') || localStorage.getItem('nghieng_auth_role');
       const cPhone = getCookie('user_phone') || localStorage.getItem('nghieng_user_phone');
       const cId = getCookie('user_id') || localStorage.getItem('nghieng_user_id');
-      let cRef = getCookie('user_ref_code') || localStorage.getItem('nghieng_user_ref_code');
+      const cRef = getValidReferralCode(
+        localStorage.getItem('nghieng_user_ref_code'),
+        localStorage.getItem('ref_code'),
+        getCookie('user_ref_code'),
+        getCookie('ref_code'),
+        getCookie('user_ref')
+      );
 
-      if (cName && cRole && cRole !== 'guest') {
+      if (cName && cRole && cRole.toLowerCase() !== 'guest' && cRef) {
         setIsLoggedIn(true);
         setUserName(cName);
         if (cPhone) setUserPhone(cPhone);
         if (cId) setUserId(cId);
-        if (!cRef) cRef = cPhone || 'EVT20240530-001';
         setUserRefCode(cRef);
         setCurrentStep(2);
       } else {
         setIsLoggedIn(false);
         setCurrentStep(1);
+        setUserName('');
+        setUserPhone('');
+        setUserId(null);
+        setUserRefCode('');
+        setLoginUsername(cEmail || (cName?.includes('@') ? cName : ''));
       }
     } catch {
       setIsLoggedIn(false);
@@ -117,31 +128,61 @@ export default function GuestProxyRegistrationModal({
   if (!isOpen || !event) return null;
 
   // Step 1: Submit Login
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginUsername.trim()) {
-      setErrorMsg('Vui lòng nhập họ và tên');
+      setErrorMsg('Vui lòng nhập email hoặc số điện thoại');
+      return;
+    }
+    if (!loginPassword.trim()) {
+      setErrorMsg('Vui lòng nhập mật khẩu');
       return;
     }
     setErrorMsg(null);
+    setIsSubmittingLogin(true);
 
-    const name = loginUsername.trim();
-    const mockRef = 'EVT' + Math.floor(100000000 + Math.random() * 900000000);
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginUsername.trim(), password: loginPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.user) {
+        setErrorMsg(data.error || 'Thông tin đăng nhập không chính xác');
+        return;
+      }
 
-    if (rememberCookies) {
-      document.cookie = `user_name=${encodeURIComponent(name)}; path=/; max-age=2592000`;
-      document.cookie = `user_role=member; path=/; max-age=2592000`;
-      document.cookie = `user_ref_code=${mockRef}; path=/; max-age=2592000`;
+      const user = data.user;
+      const role = data.role || user.role || 'Thành viên';
+      const refCode = user.ref_code || data.ref_code || (user.id ? `N_${String(user.id).padStart(10, '0')}` : '');
+      if (!refCode || /^EVT\d+/i.test(refCode)) {
+        setErrorMsg('Tài khoản chưa có mã giới thiệu hợp lệ. Vui lòng liên hệ quản trị viên.');
+        return;
+      }
+
+      const name = user.full_name || loginUsername.trim();
+      setUserName(name);
+      setUserPhone(user.phone || '');
+      setUserId(user.id ? String(user.id) : null);
+      setUserRefCode(refCode);
+      setIsLoggedIn(true);
+      setCurrentStep(2);
+      setLoginPassword('');
+
+      localStorage.setItem('nghieng_auth_role', role);
       localStorage.setItem('nghieng_user_name', name);
-      localStorage.setItem('nghieng_auth_role', 'member');
-      localStorage.setItem('nghieng_user_ref_code', mockRef);
+      localStorage.setItem('nghieng_user_phone', user.phone || '');
+      localStorage.setItem('nghieng_user_email', user.email || '');
+      localStorage.setItem('nghieng_user_ref_code', refCode);
+      localStorage.setItem('ref_code', refCode);
+      if (user.id) localStorage.setItem('nghieng_user_id', String(user.id));
       window.dispatchEvent(new Event('nghieng-auth-change'));
+    } catch {
+      setErrorMsg('Không thể kết nối máy chủ');
+    } finally {
+      setIsSubmittingLogin(false);
     }
-
-    setUserName(name);
-    setUserRefCode(mockRef);
-    setIsLoggedIn(true);
-    setCurrentStep(2);
   };
 
   // Step 2: Filter customers
@@ -308,7 +349,7 @@ export default function GuestProxyRegistrationModal({
                   type="text"
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="Họ và tên"
+                  placeholder="Email hoặc số điện thoại"
                   className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                   required
                 />
@@ -347,16 +388,7 @@ export default function GuestProxyRegistrationModal({
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={rememberCookies}
-                  onChange={(e) => setRememberCookies(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                />
-                <span>Ghi nhớ đăng nhập (cookies)</span>
-              </label>
+            <div className="flex justify-end text-xs pt-1">
               <button
                 type="button"
                 onClick={() => alert('Vui lòng liên hệ ban quản trị để được hỗ trợ cấp lại mật khẩu.')}
@@ -368,9 +400,10 @@ export default function GuestProxyRegistrationModal({
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-98 cursor-pointer mt-2"
+              disabled={isSubmittingLogin}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-98 cursor-pointer mt-2"
             >
-              Đăng nhập
+              {isSubmittingLogin ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </form>
         </div>

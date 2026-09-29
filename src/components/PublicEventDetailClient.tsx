@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
-import { safeDecodeURI } from '@/lib/authUtils';
+import { getValidReferralCode, safeDecodeURI } from '@/lib/authUtils';
 import GuestProxyRegistrationModal from './GuestProxyRegistrationModal';
 
 export interface PublicScheduleItem {
@@ -77,10 +77,13 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
         const cId = getCookie('user_id') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_id') : '');
         const cPhone = getCookie('user_phone') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_phone') : '');
         const cName = getCookie('user_name') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_name') : '');
-        let cRef = getCookie('user_ref_code') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_ref_code') : '');
-        if (!cRef && cId) {
-          cRef = 'N_' + String(cId).padStart(10, '0');
-        }
+        const cRef = getValidReferralCode(
+          typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_ref_code') : '',
+          typeof window !== 'undefined' ? localStorage.getItem('ref_code') : '',
+          getCookie('user_ref_code'),
+          getCookie('ref_code'),
+          getCookie('user_ref')
+        );
         if (cId || cPhone || cRef) {
           setCurrentUser({
             id: cId || undefined,

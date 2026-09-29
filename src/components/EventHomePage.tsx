@@ -29,7 +29,7 @@ import {
 import SystemLogo from './SystemLogo';
 import EventRegistrationModal, { RegistrationEventData } from './EventRegistrationModal';
 import GuestProxyRegistrationModal from './GuestProxyRegistrationModal';
-import { safeDecodeURI } from '@/lib/authUtils';
+import { getValidReferralCode, safeDecodeURI } from '@/lib/authUtils';
 
 export type EventData = {
   id: number;
@@ -104,10 +104,13 @@ export default function EventHomePage({ events }: EventHomePageProps) {
         const name = getCookie('user_name') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_name') : '');
         const phone = getCookie('user_phone') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_phone') : '');
         const email = getCookie('user_email') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_email') : '');
-        let refCode = getCookie('user_ref_code') || (typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_ref_code') : '');
-        if (!refCode && id) {
-          refCode = 'N_' + String(id).padStart(10, '0');
-        }
+        const refCode = getValidReferralCode(
+          typeof window !== 'undefined' ? localStorage.getItem('nghieng_user_ref_code') : '',
+          typeof window !== 'undefined' ? localStorage.getItem('ref_code') : '',
+          getCookie('user_ref_code'),
+          getCookie('ref_code'),
+          getCookie('user_ref')
+        );
 
         if (id || name || phone || email || refCode) {
           setCurrentUser({
