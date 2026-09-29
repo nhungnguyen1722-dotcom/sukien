@@ -80,9 +80,29 @@ export default async function EventDetailPage({ params }: EventDetailProps) {
     ]);
     
     if (result.rows.length > 0) {
+      const rawEvent = result.rows[0];
+      let currentStatus = rawEvent.status;
+
+      // Real-time status auto-check: if past end time according to real timezone, change to 'Đã diễn ra'
+      if (rawEvent.event_date && currentStatus !== 'Đã hủy' && currentStatus !== 'Hủy' && currentStatus !== 'Đã diễn ra') {
+        try {
+          const eDate = new Date(rawEvent.event_date);
+          const endTimeStr = rawEvent.end_time || '23:59:59';
+          const [h, m] = endTimeStr.split(':').map(Number);
+          eDate.setHours(isNaN(h) ? 23 : h, isNaN(m) ? 59 : m, 59, 999);
+          if (new Date() > eDate) {
+            currentStatus = 'Đã diễn ra';
+            pool.query(`UPDATE events SET status = 'Đã diễn ra', updated_at = NOW() WHERE id = $1`, [eventId]).catch(() => {});
+          }
+        } catch (err) {
+          console.error('Error auto-updating event status:', err);
+        }
+      }
+
       event = {
-        ...result.rows[0],
-        event_date: result.rows[0].event_date ? new Date(result.rows[0].event_date).toISOString() : null,
+        ...rawEvent,
+        status: currentStatus,
+        event_date: rawEvent.event_date ? new Date(rawEvent.event_date).toISOString() : null,
       };
     }
     schedules = schedRes.rows;
