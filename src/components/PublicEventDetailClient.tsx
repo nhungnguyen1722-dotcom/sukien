@@ -242,15 +242,25 @@ export default function PublicEventDetailClient({ event, initialSchedules, inCha
                 <span className="absolute top-4 left-4 px-3.5 py-1 rounded-lg text-xs font-bold bg-[#2563eb] text-white shadow-md">
                   {event.status === 'Đang thực hiện' ? 'Đang diễn ra' : (event.status || 'Sắp diễn ra')}
                 </span>
-                {/* Nút share trên ảnh cover trên mobile (Mục 12/13) */}
-                <button
-                  type="button"
-                  onClick={() => setIsShareMenuOpen(true)}
-                  className="absolute top-4 right-4 sm:hidden w-9 h-9 rounded-full bg-white/90 backdrop-blur-xs text-slate-700 hover:text-blue-600 flex items-center justify-center shadow-md active:scale-95 transition-all cursor-pointer"
-                  title="Chia sẻ sự kiện"
-                >
-                  <Share2 className="w-4 h-4" />
-                </button>
+                {/* Nút mời bạn bè + share trên ảnh cover (Mục 12/13) */}
+                <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsProxyModalOpen(true)}
+                    className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-xs text-slate-700 hover:text-blue-600 flex items-center justify-center shadow-md active:scale-95 transition-all cursor-pointer"
+                    title="Mời bạn bè"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsShareMenuOpen(true)}
+                    className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-xs text-slate-700 hover:text-blue-600 flex items-center justify-center shadow-md active:scale-95 transition-all cursor-pointer"
+                    title="Chia sẻ sự kiện"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 

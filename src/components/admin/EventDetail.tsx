@@ -1283,6 +1283,30 @@ export default function EventDetail({
     }
   };
 
+  // Handler: Change business unit (Khối kinh doanh / Ban nguồn vốn)
+  const handleChangeBusinessUnit = async (reg: Registration, newValue: string) => {
+    try {
+      const res = await fetch('/api/admin/le-tan', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: reg.id,
+          business_unit: newValue,
+        }),
+      });
+      if (res.ok) {
+        setRegistrations(
+          registrations.map((r) => (r.id === reg.id ? { ...r, business_unit: newValue } : r))
+        );
+        showToast('success', `Đã cập nhật "${newValue}" cho ${safeDecodeURI(reg.guest_name)}`);
+      } else {
+        showToast('error', 'Lỗi khi cập nhật khối/ban');
+      }
+    } catch {
+      showToast('error', 'Lỗi kết nối khi cập nhật khối/ban');
+    }
+  };
+
   // Handler: Toggle food approval for tea break
   const handleToggleFood = async (reg: Registration) => {
     if (reg.attendance_status === 'Đã hủy' || reg.attendance_status === 'Hủy') {
@@ -2367,15 +2391,30 @@ export default function EventDetail({
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                                guest.business_unit === 'Ban nguồn vốn' || guest.business_unit === 'BNV'
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}
-                            >
-                              {guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}
-                            </span>
+                            {isAdmin ? (
+                              <select
+                                value={guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}
+                                onChange={(e) => handleChangeBusinessUnit(guest, e.target.value)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 outline-none appearance-none ${
+                                  guest.business_unit === 'Ban nguồn vốn' || guest.business_unit === 'BNV'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                <option value="Khối kinh doanh">Khối kinh doanh</option>
+                                <option value="Ban nguồn vốn">Ban nguồn vốn</option>
+                              </select>
+                            ) : (
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                                  guest.business_unit === 'Ban nguồn vốn' || guest.business_unit === 'BNV'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             <input
@@ -2480,7 +2519,23 @@ export default function EventDetail({
                               )}
                             </div>
                             <span className="text-[11px] text-slate-500 block">
-                              Khối kinh doanh / Ban nguồn vốn: <strong className="text-slate-700">{guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}</strong>
+                              Khối kinh doanh / Ban nguồn vốn:{' '}
+                              {isAdmin ? (
+                                <select
+                                  value={guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}
+                                  onChange={(e) => handleChangeBusinessUnit(guest, e.target.value)}
+                                  className={`ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 outline-none ${
+                                    guest.business_unit === 'Ban nguồn vốn' || guest.business_unit === 'BNV'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}
+                                >
+                                  <option value="Khối kinh doanh">Khối kinh doanh</option>
+                                  <option value="Ban nguồn vốn">Ban nguồn vốn</option>
+                                </select>
+                              ) : (
+                                <strong className="text-slate-700">{guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}</strong>
+                              )}
                             </span>
                           </div>
                         </div>

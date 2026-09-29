@@ -357,6 +357,7 @@ export async function PATCH(request: NextRequest) {
       guest_phone,
       referrer_id,
       referrer_group,
+      business_unit,
     } = body;
 
     if (!id) {
@@ -504,6 +505,11 @@ export async function PATCH(request: NextRequest) {
       const cleanRefGroup = referrer_group ? String(referrer_group).trim() : null;
       params.push(cleanRefGroup);
       updates.push(`referrer_group = $${params.length}`);
+    }
+
+    if (business_unit !== undefined) {
+      params.push(String(business_unit).trim());
+      updates.push(`business_unit = $${params.length}`);
     }
 
     if (updates.length === 0) {

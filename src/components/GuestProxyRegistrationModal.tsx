@@ -74,10 +74,11 @@ export default function GuestProxyRegistrationModal({
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<number>>(new Set());
   const [customerList, setCustomerList] = useState<CustomerItem[]>(INITIAL_CUSTOMERS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [registeredCount, setRegisteredCount] = useState(0);
 
   // Check login cookies on open
   useEffect(() => {
@@ -150,15 +151,23 @@ export default function GuestProxyRegistrationModal({
       c.phone.includes(customerSearch)
   );
 
-  // Select customer from table
+  // Toggle customer selection (multi-select)
   const handleSelectCustomer = (c: CustomerItem) => {
-    setSelectedCustomerId(c.id);
+    setSelectedCustomerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(c.id)) {
+        next.delete(c.id);
+      } else {
+        next.add(c.id);
+      }
+      return next;
+    });
     setGuestName(c.name);
     setGuestPhone(c.phone);
     setErrorMsg(null);
   };
 
-  // Add new customer to table
+  // Add new customer to table and auto-select
   const handleAddNewCustomer = () => {
     if (!guestName.trim()) {
       setErrorMsg('Vui lòng nhập họ và tên khách trước khi thêm');
@@ -177,51 +186,71 @@ export default function GuestProxyRegistrationModal({
       phone: guestPhone.trim(),
     };
     setCustomerList([newCust, ...customerList]);
-    setSelectedCustomerId(newId);
+    setSelectedCustomerIds(prev => new Set(prev).add(newId));
+    // Clear inputs for next person
+    setGuestName('');
+    setGuestPhone('');
   };
 
-  // Submit proxy registration
+  // Submit proxy registration for ALL selected customers
   const handleConfirmRegistration = async () => {
-    if (!guestName.trim()) {
-      setErrorMsg('Vui lòng nhập hoặc chọn họ và tên người tham dự');
-      return;
-    }
-    if (!guestPhone.trim()) {
-      setErrorMsg('Vui lòng nhập hoặc chọn số điện thoại người tham dự');
+    // Gather selected customers
+    const selectedGuests = customerList.filter(c => selectedCustomerIds.has(c.id));
+
+    if (selectedGuests.length === 0) {
+      setErrorMsg('Vui lòng chọn ít nhất 1 khách từ danh sách hoặc thêm khách mới');
       return;
     }
     setErrorMsg(null);
     setIsSubmitting(true);
 
-    try {
-      const res = await fetch('/api/admin/le-tan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: event.id,
-          guest_name: guestName.trim(),
-          guest_phone: guestPhone.trim(),
-          source: 'Đăng ký hộ',
-          referrer_id: userId ? parseInt(userId, 10) : undefined,
-          referrer_name: userName,
-          referrer_phone: userPhone || userRefCode,
-          referrer_group: `${userName}${userPhone ? ` (${userPhone})` : ''}`,
-          business_unit: 'Khối kinh doanh',
-          attendance_status: 'Đã đăng ký',
-          notes: `Đăng ký hộ bởi ${userName} (${userPhone || userRefCode})`,
-        }),
-      });
+    let successCount = 0;
+    const errors: string[] = [];
 
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Có lỗi xảy ra khi đăng ký hộ');
-        setIsSubmitting(false);
-        return;
+    try {
+      for (const guest of selectedGuests) {
+        try {
+          const res = await fetch('/api/admin/le-tan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_id: event.id,
+              guest_name: guest.name.trim(),
+              guest_phone: guest.phone.trim(),
+              source: 'Đăng ký hộ',
+              referrer_id: userId ? parseInt(userId, 10) : undefined,
+              referrer_name: userName,
+              referrer_phone: userPhone || userRefCode,
+              referrer_group: `${userName}${userPhone ? ` (${userPhone})` : ''}`,
+              business_unit: 'Khối kinh doanh',
+              attendance_status: 'Đã đăng ký',
+              notes: `Đăng ký hộ bởi ${userName} (${userPhone || userRefCode})`,
+            }),
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            successCount++;
+          } else {
+            errors.push(`${guest.name}: ${data.error || 'Thất bại'}`);
+          }
+        } catch {
+          errors.push(`${guest.name}: Lỗi kết nối`);
+        }
       }
 
       setIsSubmitting(false);
-      setCurrentStep(3);
-      if (onSuccess) onSuccess();
+      setRegisteredCount(successCount);
+
+      if (successCount > 0) {
+        if (errors.length > 0) {
+          setErrorMsg(`Đã đăng ký ${successCount}/${selectedGuests.length} khách. Lỗi: ${errors.join('; ')}`);
+        }
+        setCurrentStep(3);
+        if (onSuccess) onSuccess();
+      } else {
+        setErrorMsg(errors.join('; ') || 'Có lỗi xảy ra khi đăng ký hộ');
+      }
     } catch {
       setErrorMsg('Lỗi kết nối máy chủ');
       setIsSubmitting(false);
@@ -232,7 +261,8 @@ export default function GuestProxyRegistrationModal({
     setCurrentStep(isLoggedIn ? 2 : 1);
     setGuestName('');
     setGuestPhone('');
-    setSelectedCustomerId(null);
+    setSelectedCustomerIds(new Set());
+    setRegisteredCount(0);
     setErrorMsg(null);
     onClose();
   };
@@ -513,12 +543,12 @@ export default function GuestProxyRegistrationModal({
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || selectedCustomerIds.size === 0}
                   onClick={handleConfirmRegistration}
                   className="py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-98 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? '...' : 'Xác nhận'}</span>
+                  <span>{isSubmitting ? '...' : `Xác nhận${selectedCustomerIds.size > 0 ? ` (${selectedCustomerIds.size})` : ''}`}</span>
                 </button>
               </div>
 
@@ -541,7 +571,7 @@ export default function GuestProxyRegistrationModal({
                       </tr>
                     ) : (
                       filteredCustomers.map((cust, idx) => {
-                        const isSelected = selectedCustomerId === cust.id;
+                        const isSelected = selectedCustomerIds.has(cust.id);
                         return (
                           <tr
                             key={cust.id}
@@ -623,7 +653,7 @@ export default function GuestProxyRegistrationModal({
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-left flex items-start gap-2.5 mb-6">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div className="text-xs">
-              <div className="font-bold text-emerald-900">Đã đăng ký 1 khách hàng</div>
+              <div className="font-bold text-emerald-900">Đã đăng ký {registeredCount} khách hàng</div>
               <div className="text-emerald-700 text-[11px]">Thông tin đã được lưu vào danh sách tham dự.</div>
             </div>
           </div>
