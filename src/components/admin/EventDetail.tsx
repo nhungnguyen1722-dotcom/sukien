@@ -35,6 +35,7 @@ import {
   Copy,
   QrCode,
   ExternalLink,
+  Coffee,
 } from 'lucide-react';
 import { safeDecodeURI } from '@/lib/authUtils';
 import ImageLibraryModal from '@/components/admin/ImageLibraryModal';
@@ -402,6 +403,7 @@ export default function EventDetail({
 
   // Guest search/filter
   const [guestSearch, setGuestSearch] = useState('');
+  const [guestBusinessUnitFilter, setGuestBusinessUnitFilter] = useState('');
   const [guestStatusFilter, setGuestStatusFilter] = useState('');
   const [guestFoodFilter, setGuestFoodFilter] = useState('');
 
@@ -567,6 +569,38 @@ export default function EventDetail({
     }).length;
   }, [registrations]);
 
+  // Helper chuẩn hóa Khối kinh doanh / Ban nguồn vốn
+  const getGuestBusinessUnit = (guest: Registration): 'Ban nguồn vốn' | 'Khối kinh doanh' => {
+    if (guest.business_unit === 'BNV' || guest.business_unit === 'Ban nguồn vốn') {
+      return 'Ban nguồn vốn';
+    }
+    return 'Khối kinh doanh';
+  };
+
+  // Thống kê theo Khối kinh doanh
+  const kkdGuests = useMemo(() => {
+    return registrations.filter((r) => getGuestBusinessUnit(r) === 'Khối kinh doanh');
+  }, [registrations]);
+
+  const kkdFoodCount = useMemo(() => {
+    return kkdGuests.filter((r) => {
+      const isCanceled = r.attendance_status === 'Đã hủy' || r.attendance_status === 'Hủy';
+      return !isCanceled && isGuestFoodApproved(r.is_food_approved);
+    }).length;
+  }, [kkdGuests]);
+
+  // Thống kê theo Ban nguồn vốn
+  const bnvGuests = useMemo(() => {
+    return registrations.filter((r) => getGuestBusinessUnit(r) === 'Ban nguồn vốn');
+  }, [registrations]);
+
+  const bnvFoodCount = useMemo(() => {
+    return bnvGuests.filter((r) => {
+      const isCanceled = r.attendance_status === 'Đã hủy' || r.attendance_status === 'Hủy';
+      return !isCanceled && isGuestFoodApproved(r.is_food_approved);
+    }).length;
+  }, [bnvGuests]);
+
   const inChargeFoodCount = useMemo(() => {
     return inChargePersons.filter((p) => {
       const isCanceled = p.status === 'Đã hủy' || p.status === 'Hủy';
@@ -680,6 +714,9 @@ export default function EventDetail({
         (r.guest_phone && r.guest_phone.includes(q));
       const matchStatus = guestStatusFilter ? r.attendance_status === guestStatusFilter : true;
 
+      const unit = getGuestBusinessUnit(r);
+      const matchBusinessUnit = guestBusinessUnitFilter ? unit === guestBusinessUnitFilter : true;
+
       const isCanceled = r.attendance_status === 'Đã hủy' || r.attendance_status === 'Hủy';
       const hasFood = !isCanceled && isGuestFoodApproved(r.is_food_approved);
 
@@ -690,9 +727,17 @@ export default function EventDetail({
         matchFood = !hasFood;
       }
 
-      return matchSearch && matchStatus && matchFood;
+      return matchSearch && matchStatus && matchBusinessUnit && matchFood;
     });
-  }, [registrations, guestSearch, guestStatusFilter, guestFoodFilter]);
+  }, [registrations, guestSearch, guestBusinessUnitFilter, guestStatusFilter, guestFoodFilter]);
+
+  // Thống kê Suất ăn & Tiệc trà sau khi lọc
+  const filteredFoodCount = useMemo(() => {
+    return filteredGuests.filter((r) => {
+      const isCanceled = r.attendance_status === 'Đã hủy' || r.attendance_status === 'Hủy';
+      return !isCanceled && isGuestFoodApproved(r.is_food_approved);
+    }).length;
+  }, [filteredGuests]);
 
   // Handler: Save Edit Event
   const handleSaveEditEvent = async (e: React.FormEvent) => {
@@ -2256,9 +2301,9 @@ export default function EventDetail({
               <div className="flex items-center gap-3">
                 {isAdmin && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900 font-semibold flex items-center gap-2">
-                    <span>Khách ăn: {regFoodCount}/{registrations.length}</span>
+                    <span>Khách ăn: {filteredFoodCount}/{filteredGuests.length}</span>
                     <span className="text-amber-300">•</span>
-                    <span>Tiệc trà: {formatCurrency(regFoodCount * 50000)}</span>
+                    <span>Tiệc trà: {formatCurrency(filteredFoodCount * 50000)}</span>
                   </div>
                 )}
 
@@ -2289,6 +2334,16 @@ export default function EventDetail({
 
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                 <select
+                  value={guestBusinessUnitFilter}
+                  onChange={(e) => setGuestBusinessUnitFilter(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 cursor-pointer font-medium"
+                >
+                  <option value="">Tất cả khối / ban</option>
+                  <option value="Khối kinh doanh">Khối kinh doanh</option>
+                  <option value="Ban nguồn vốn">Ban nguồn vốn</option>
+                </select>
+
+                <select
                   value={guestStatusFilter}
                   onChange={(e) => setGuestStatusFilter(e.target.value)}
                   className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 cursor-pointer"
@@ -2310,11 +2365,12 @@ export default function EventDetail({
                   <option value="no_eat">Người không tham gia suất ăn</option>
                 </select>
 
-                {(guestSearch || guestStatusFilter || guestFoodFilter) && (
+                {(guestSearch || guestBusinessUnitFilter || guestStatusFilter || guestFoodFilter) && (
                   <button
                     type="button"
                     onClick={() => {
                       setGuestSearch('');
+                      setGuestBusinessUnitFilter('');
                       setGuestStatusFilter('');
                       setGuestFoodFilter('');
                     }}
@@ -2325,6 +2381,61 @@ export default function EventDetail({
                     <span className="hidden md:inline">Đặt lại</span>
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Thống kê Khách ăn và Tiệc trà theo Khối kinh doanh / Ban nguồn vốn */}
+            <div className="mb-4 p-3 bg-gradient-to-r from-amber-50/90 via-amber-50/50 to-orange-50/70 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                  <Coffee className="w-3.5 h-3.5 text-amber-600" />
+                  {guestBusinessUnitFilter ? (
+                    <span>Theo {guestBusinessUnitFilter}:</span>
+                  ) : (
+                    <span>Suất ăn tiệc trà:</span>
+                  )}
+                </span>
+                <div className="bg-white px-3 py-1 rounded-xl border border-amber-200 text-slate-800 font-semibold flex items-center gap-2 shadow-2xs">
+                  <span>
+                    Khách ăn: <span className="text-blue-700 font-bold">{filteredFoodCount}</span>
+                    <span className="text-slate-400 font-normal">/{filteredGuests.length}</span>
+                  </span>
+                  <span className="text-amber-300">•</span>
+                  <span>
+                    Tiệc trà: <span className="text-amber-700 font-bold">{formatCurrency(filteredFoodCount * 50000)}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Lọc nhanh theo Khối kinh doanh / Ban nguồn vốn */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGuestBusinessUnitFilter(guestBusinessUnitFilter === 'Khối kinh doanh' ? '' : 'Khối kinh doanh')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    guestBusinessUnitFilter === 'Khối kinh doanh'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white hover:bg-blue-50/70 text-blue-800 border-blue-200'
+                  }`}
+                  title="Lọc theo Khối kinh doanh"
+                >
+                  <span className={`w-2 h-2 rounded-full ${guestBusinessUnitFilter === 'Khối kinh doanh' ? 'bg-white' : 'bg-blue-600'}`}></span>
+                  <span>Khối kinh doanh: {kkdFoodCount}/{kkdGuests.length} ăn • {formatCurrency(kkdFoodCount * 50000)}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setGuestBusinessUnitFilter(guestBusinessUnitFilter === 'Ban nguồn vốn' ? '' : 'Ban nguồn vốn')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    guestBusinessUnitFilter === 'Ban nguồn vốn'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                      : 'bg-white hover:bg-purple-50/70 text-purple-800 border-purple-200'
+                  }`}
+                  title="Lọc theo Ban nguồn vốn"
+                >
+                  <span className={`w-2 h-2 rounded-full ${guestBusinessUnitFilter === 'Ban nguồn vốn' ? 'bg-white' : 'bg-purple-600'}`}></span>
+                  <span>Ban nguồn vốn: {bnvFoodCount}/{bnvGuests.length} ăn • {formatCurrency(bnvFoodCount * 50000)}</span>
+                </button>
               </div>
             </div>
 
@@ -2475,6 +2586,22 @@ export default function EventDetail({
                     })
                   )}
                 </tbody>
+                {filteredGuests.length > 0 && (
+                  <tfoot className="bg-slate-50/90 font-semibold border-t border-slate-200 text-slate-700">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-4 text-slate-600">
+                        Tổng cộng: {filteredGuests.length} khách {guestBusinessUnitFilter ? `(${guestBusinessUnitFilter})` : ''}
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-600 font-medium">
+                        {guestBusinessUnitFilter || 'Tất cả đơn vị'}
+                      </td>
+                      <td className="py-2.5 px-4 text-center text-amber-900 font-bold">
+                        {filteredFoodCount} suất ({formatCurrency(filteredFoodCount * 50000)})
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-4"></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 
