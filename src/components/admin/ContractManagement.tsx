@@ -25,24 +25,38 @@ import {
   Share2,
   Handshake,
   PiggyBank,
+  Heart,
+  GraduationCap,
+  Trophy,
+  Plane,
+  Crown,
+  Settings,
+  type LucideIcon,
 } from 'lucide-react';
 
 export interface Contract {
   id: number;
-  contract_code: string;
+  contract_code: string | null;
   contract_date: string;
   customer_name: string;
   value: number | string;
+  allocated_value?: number | string | null;
   closer_id: number | null;
   closer_name?: string | null;
+  closer_phone?: string | null;
   referrer_id: number | null;
   referrer_name?: string | null;
+  referrer_phone?: string | null;
   supporter_id: number | null;
   supporter_name?: string | null;
-  closer_fee: number | string;
-  referrer_fee: number | string;
-  supporter_fee: number | string;
+  supporter_phone?: string | null;
+  closer_fee: number | string | null;
+  referrer_fee: number | string | null;
+  supporter_fee: number | string | null;
   status: string;
+  team_name?: string | null;
+  contract_type?: string | null;
+  approved_date?: string | null;
   file_url?: string | null;
   notes?: string | null;
   created_at?: string;
@@ -51,6 +65,7 @@ export interface Contract {
 export interface Stats {
   totalContracts: number;
   totalValue: number;
+  totalAllocatedValue: number;
   totalCommission: number;
   approvedContracts: number;
 }
@@ -59,6 +74,213 @@ export interface UserOption {
   id: number;
   full_name: string;
   phone?: string;
+}
+
+interface BudgetAllocationRow {
+  id: string;
+  name: string;
+  rate: number;
+  paid: number;
+  icon: LucideIcon;
+  iconClass: string;
+  rateClass: string;
+}
+
+const defaultBudgetAllocations: BudgetAllocationRow[] = [
+  { id: 'direct_sales', name: 'Sale trực tiếp - Pro sale (Nguồn khách)', rate: 6, paid: 40200000, icon: User, iconClass: 'bg-blue-50 text-blue-600', rateClass: 'bg-blue-50 text-blue-700' },
+  { id: 'sales_connection', name: 'Tri ân kết nối sale trực tiếp', rate: 1, paid: 6700000, icon: Share2, iconClass: 'bg-emerald-50 text-emerald-600', rateClass: 'bg-emerald-50 text-emerald-700' },
+  { id: 'sales_support', name: 'Tri ân hỗ trợ sale', rate: 0.5, paid: 3350000, icon: Handshake, iconClass: 'bg-amber-50 text-amber-600', rateClass: 'bg-amber-50 text-amber-700' },
+  { id: 'contract_event_fund', name: 'Quỹ sự kiện - Chốt hợp đồng', rate: 0.5, paid: 0, icon: PiggyBank, iconClass: 'bg-purple-50 text-purple-600', rateClass: 'bg-purple-50 text-purple-700' },
+  { id: 'customer_care', name: 'Quỹ Chăm sóc khách hàng', rate: 0.2, paid: 0, icon: Heart, iconClass: 'bg-rose-50 text-rose-600', rateClass: 'bg-rose-50 text-rose-700' },
+  { id: 'training', name: 'Quỹ Đào tạo Chuyên môn & Kỹ năng', rate: 0.3, paid: 0, icon: GraduationCap, iconClass: 'bg-indigo-50 text-indigo-600', rateClass: 'bg-indigo-50 text-indigo-700' },
+  { id: 'incentives', name: 'Quỹ Thi đua & Chương trình thúc đẩy', rate: 0.8, paid: 0, icon: Trophy, iconClass: 'bg-orange-50 text-orange-600', rateClass: 'bg-orange-50 text-orange-700' },
+  { id: 'travel', name: 'Chi phí Công tác phí', rate: 0.3, paid: 0, icon: Plane, iconClass: 'bg-cyan-50 text-cyan-600', rateClass: 'bg-cyan-50 text-cyan-700' },
+  { id: 'team_leader', name: 'Leader team - giám đốc Kd', rate: 2.9, paid: 13601000, icon: Crown, iconClass: 'bg-yellow-50 text-yellow-600', rateClass: 'bg-yellow-50 text-yellow-700' },
+  { id: 'operations_support', name: 'Quỹ Vận hành & Bộ phận hỗ trợ', rate: 2.5, paid: 16080000, icon: Settings, iconClass: 'bg-slate-100 text-slate-600', rateClass: 'bg-slate-100 text-slate-700' },
+];
+
+function ContractBudgetAllocation({
+  totalAllocatedValue,
+  isAdmin,
+  onSave,
+}: {
+  totalAllocatedValue: number;
+  isAdmin: boolean;
+  onSave: () => void;
+}) {
+  const [rows, setRows] = useState<BudgetAllocationRow[]>(defaultBudgetAllocations);
+  const [editRows, setEditRows] = useState<BudgetAllocationRow[]>(defaultBudgetAllocations);
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('nghieng_contract_budget_allocation');
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as BudgetAllocationRow[];
+      if (!Array.isArray(parsed)) return;
+      setRows(defaultBudgetAllocations.map((defaultRow) => {
+        const savedRow = parsed.find((row) => row.id === defaultRow.id);
+        if (!savedRow) return defaultRow;
+        const rate = Number(savedRow.rate);
+        const paid = Number(savedRow.paid);
+        return {
+          ...defaultRow,
+          rate: Number.isFinite(rate) ? rate : defaultRow.rate,
+          paid: Number.isFinite(paid) ? paid : defaultRow.paid,
+        };
+      }));
+    } catch {}
+  }, []);
+
+  const formatCurrency = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
+  const formatRate = (value: number) => `${new Intl.NumberFormat('vi-VN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)}%`;
+  const calculatedRows = rows.map((row) => {
+    const amount = Math.round(totalAllocatedValue * row.rate / 100);
+    return { ...row, amount, balance: amount - row.paid };
+  });
+  const totalRate = rows.reduce((sum, row) => sum + row.rate, 0);
+  const totalAmount = Math.round(totalAllocatedValue * totalRate / 100);
+  const totalPaid = rows.reduce((sum, row) => sum + row.paid, 0);
+  const totalBalance = totalAmount - totalPaid;
+
+  const saveEditor = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setRows(editRows);
+    try {
+      localStorage.setItem('nghieng_contract_budget_allocation', JSON.stringify(editRows));
+    } catch {}
+    setIsEditing(false);
+    onSave();
+  };
+
+  return (
+    <section className="col-span-1 xl:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/50 px-5 py-3.5">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-900">
+            Phân tích phân bổ ngân sách hợp đồng (15%) - Giai đoạn 1
+          </h2>
+          <Info className="h-4 w-4 shrink-0 cursor-help text-slate-400" />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditRows(rows.map((row) => ({ ...row })));
+                setIsEditing(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
+            >
+              <Pencil className="h-3 w-3" />
+              Cập nhật
+            </button>
+          )}
+          <span className="rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-600">Tự động tính</span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto p-4">
+        <table className="w-full min-w-[740px] border-collapse text-xs tabular-nums">
+          <thead>
+            <tr className="border-b border-slate-200 font-medium text-slate-400">
+              <th className="pb-2 text-left">Tên Quỹ / Bộ phận</th>
+              <th className="pb-2 text-center">Tỷ lệ (%)</th>
+              <th className="pb-2 text-right">Thêm từ<br />Chốt HĐ</th>
+              <th className="pb-2 text-right">Đã thực chi<br />thực tế</th>
+              <th className="pb-2 pl-3 text-right">Tổng tồn<br />quỹ sau cộng</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-slate-200 bg-slate-50/40 font-bold text-slate-900">
+              <td className="px-3 py-1.5">TỔNG NGÂN SÁCH (15%)</td>
+              <td className="px-2 py-2 text-center">
+                <span className="rounded bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white">{formatRate(totalRate)}</span>
+              </td>
+              <td className="px-2 py-2 text-right font-bold text-blue-700 whitespace-nowrap">{formatCurrency(totalAmount)}</td>
+              <td className="px-2 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{formatCurrency(totalPaid)}</td>
+              <td className="px-2 py-2 pl-3 text-right font-semibold text-slate-700 whitespace-nowrap">{formatCurrency(totalBalance)}</td>
+            </tr>
+            {calculatedRows.map((row) => {
+              const RowIcon = row.icon;
+              return (
+                <tr key={row.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
+                  <td className="py-2.5 pr-2 font-medium text-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${row.iconClass}`}>
+                        <RowIcon className="h-3.5 w-3.5" />
+                      </div>
+                      <span>{row.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2.5 text-center">
+                    <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${row.rateClass}`}>{formatRate(row.rate)}</span>
+                  </td>
+                  <td className="px-2 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">{formatCurrency(row.amount)}</td>
+                  <td className="px-2 py-2.5 text-right font-medium text-emerald-700 whitespace-nowrap">{formatCurrency(row.paid)}</td>
+                  <td className="py-2.5 pl-3 text-right font-medium text-slate-600 whitespace-nowrap">{formatCurrency(row.balance)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {isEditing && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Cập nhật phân bổ ngân sách</h3>
+                <p className="mt-1 text-xs text-slate-500">Tỷ lệ tính trên tổng giá trị hợp đồng phân bổ.</p>
+              </div>
+              <button type="button" onClick={() => setIsEditing(false)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Đóng">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={saveEditor} className="flex-1 overflow-y-auto p-5">
+              <div className="space-y-2">
+                {editRows.map((row, index) => (
+                  <div key={row.id} className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_120px_170px]">
+                    <div className="self-center text-xs font-semibold text-slate-700">{row.name}</div>
+                    <label className="text-[11px] text-slate-500">
+                      Tỷ lệ (%)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row.rate}
+                        onChange={(event) => setEditRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, rate: Number(event.target.value) || 0 } : item))}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-900"
+                      />
+                    </label>
+                    <label className="text-[11px] text-slate-500">
+                      Đã thực chi (VNĐ)
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={row.paid}
+                        onChange={(event) => setEditRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, paid: Number(event.target.value) || 0 } : item))}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-900"
+                      />
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <button type="button" onClick={() => setIsEditing(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700">Hủy</button>
+                <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Lưu thay đổi</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
 
 interface ContractManagementProps {
@@ -102,10 +324,14 @@ export default function ContractManagement({
     contract_date: '',
     customer_name: '',
     value: 0,
+    allocated_value: 0,
     closer_id: '',
     referrer_id: '',
     supporter_id: '',
     status: 'Đã duyệt',
+    team_name: '',
+    contract_type: '',
+    approved_date: '',
     notes: '',
   });
 
@@ -160,15 +386,19 @@ export default function ContractManagement({
   }, [contracts, currentPage, pageSize]);
 
   // Computed commissions for form
-  const computedCloserFee = useMemo(() => Math.round((Number(formData.value) || 0) * 0.06), [formData.value]);
-  const computedReferrerFee = useMemo(() => Math.round((Number(formData.value) || 0) * 0.01), [formData.value]);
-  const computedSupporterFee = useMemo(() => Math.round((Number(formData.value) || 0) * 0.005), [formData.value]);
+  const computedCloserFee = useMemo(() => Math.round((Number(formData.allocated_value) || 0) * 0.06), [formData.allocated_value]);
+  const computedReferrerFee = useMemo(() => Math.round((Number(formData.allocated_value) || 0) * 0.01), [formData.allocated_value]);
+  const computedSupporterFee = useMemo(() => Math.round((Number(formData.allocated_value) || 0) * 0.005), [formData.allocated_value]);
 
   // Form Value formatting and custom commission state (Item 8)
   const [valueFormatted, setValueFormatted] = useState('50.000.000');
+  const [allocatedValueFormatted, setAllocatedValueFormatted] = useState('50.000.000');
   const [closerInput, setCloserInput] = useState('');
+  const [closerPhoneInput, setCloserPhoneInput] = useState('');
   const [referrerInput, setReferrerInput] = useState('');
+  const [referrerPhoneInput, setReferrerPhoneInput] = useState('');
   const [supporterInput, setSupporterInput] = useState('');
+  const [supporterPhoneInput, setSupporterPhoneInput] = useState('');
   const [isCustomCommission, setIsCustomCommission] = useState(false);
   const [customCloserFee, setCustomCloserFee] = useState(3000000);
   const [customReferrerFee, setCustomReferrerFee] = useState(500000);
@@ -184,7 +414,26 @@ export default function ContractManagement({
     const raw = e.target.value.replace(/\D/g, '');
     const num = Number(raw) || 0;
     setValueFormatted(raw ? new Intl.NumberFormat('vi-VN').format(num) : '');
-    setFormData((prev) => ({ ...prev, value: num }));
+    setFormData((prev) => ({
+      ...prev,
+      value: num,
+      allocated_value: Number(prev.allocated_value) === Number(prev.value) ? num : prev.allocated_value,
+    }));
+    if (Number(formData.allocated_value) === Number(formData.value)) {
+      setAllocatedValueFormatted(raw ? new Intl.NumberFormat('vi-VN').format(num) : '');
+      if (!isCustomCommission) {
+        setCustomCloserFee(Math.round(num * 0.06));
+        setCustomReferrerFee(Math.round(num * 0.01));
+        setCustomSupporterFee(Math.round(num * 0.005));
+      }
+    }
+  };
+
+  const handleAllocatedValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '');
+    const num = Number(raw) || 0;
+    setAllocatedValueFormatted(raw ? new Intl.NumberFormat('vi-VN').format(num) : '');
+    setFormData((prev) => ({ ...prev, allocated_value: num }));
     if (!isCustomCommission) {
       setCustomCloserFee(Math.round(num * 0.06));
       setCustomReferrerFee(Math.round(num * 0.01));
@@ -201,91 +450,36 @@ export default function ContractManagement({
     } catch {}
   }, []);
   const isAdmin = currentUserRole.toUpperCase() === 'ADMIN' || currentUserRole.toUpperCase().includes('QUẢN TRỊ');
-
-  // Budget breakdown calculations & custom rates/prices (Item 11)
-  const [allocationRates, setAllocationRates] = useState({
-    proSaleRate: 6,
-    referralRate: 1,
-    supportRate: 0.5,
-    fundRate: 0.5,
-  });
-  const [customPrices, setCustomPrices] = useState<{
-    proSalePrice?: number;
-    referralPrice?: number;
-    supportPrice?: number;
-    fundPrice?: number;
-  }>({});
-  const [isEditAllocationModalOpen, setIsEditAllocationModalOpen] = useState(false);
-  const [allocationEditForm, setAllocationEditForm] = useState({
-    proSaleRate: 6,
-    referralRate: 1,
-    supportRate: 0.5,
-    fundRate: 0.5,
-    proSalePrice: '',
-    referralPrice: '',
-    supportPrice: '',
-    fundPrice: '',
-  });
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('nghieng_contract_allocation');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.rates) setAllocationRates(parsed.rates);
-        if (parsed.prices) setCustomPrices(parsed.prices);
-      }
-    } catch {}
-  }, []);
-
-  const totalContractVal = Number(stats.totalValue) || 0;
-  const breakdownProSale = customPrices.proSalePrice !== undefined
-    ? customPrices.proSalePrice
-    : Math.round(totalContractVal * (allocationRates.proSaleRate / 100));
-  const breakdownReferral = customPrices.referralPrice !== undefined
-    ? customPrices.referralPrice
-    : Math.round(totalContractVal * (allocationRates.referralRate / 100));
-  const breakdownSupport = customPrices.supportPrice !== undefined
-    ? customPrices.supportPrice
-    : Math.round(totalContractVal * (allocationRates.supportRate / 100));
-  const breakdownFund = customPrices.fundPrice !== undefined
-    ? customPrices.fundPrice
-    : Math.round(totalContractVal * (allocationRates.fundRate / 100));
-  const totalRatePercent = Number(
-    (
-      allocationRates.proSaleRate +
-      allocationRates.referralRate +
-      allocationRates.supportRate +
-      allocationRates.fundRate
-    ).toFixed(2)
-  );
-  const breakdownTotal = breakdownProSale + breakdownReferral + breakdownSupport + breakdownFund;
-
   const handleOpenAddModal = () => {
     setEditingContract(null);
     const initialVal = 50000000;
     setValueFormatted('50.000.000');
+    setAllocatedValueFormatted('50.000.000');
     setIsCustomCommission(false);
     setCustomCloserFee(Math.round(initialVal * 0.06));
     setCustomReferrerFee(Math.round(initialVal * 0.01));
     setCustomSupporterFee(Math.round(initialVal * 0.005));
 
-    const firstU = users[0];
-    const secondU = users[1];
-    const thirdU = users[2];
-    setCloserInput(firstU ? `${firstU.full_name} (${firstU.phone || firstU.id})` : '');
-    setReferrerInput(secondU ? `${secondU.full_name} (${secondU.phone || secondU.id})` : '');
-    setSupporterInput(thirdU ? `${thirdU.full_name} (${thirdU.phone || thirdU.id})` : '');
+    setCloserInput('');
+    setCloserPhoneInput('');
+    setReferrerInput('');
+    setReferrerPhoneInput('');
+    setSupporterInput('');
+    setSupporterPhoneInput('');
 
     setFormData({
       contract_code: `HD00${contracts.length + 1}`,
       contract_date: new Date().toISOString().split('T')[0],
       customer_name: '',
       value: initialVal,
-      closer_id: firstU?.id ? String(firstU.id) : '',
-      referrer_id: secondU?.id ? String(secondU.id) : '',
-      supporter_id: thirdU?.id ? String(thirdU.id) : '',
+      allocated_value: initialVal,
+      closer_id: '',
+      referrer_id: '',
+      supporter_id: '',
       status: 'Đã duyệt',
+      team_name: '',
+      contract_type: '',
+      approved_date: '',
       notes: '',
     });
     setFormError('');
@@ -300,19 +494,25 @@ export default function ContractManagement({
     }
     const valNum = Number(c.value) || 0;
     setValueFormatted(formatNumberWithDots(valNum));
+    const allocatedValue = Number(c.allocated_value ?? c.value) || 0;
+    setAllocatedValueFormatted(formatNumberWithDots(allocatedValue));
 
     const cCloser = users.find(u => u.id === c.closer_id);
     const cReferrer = users.find(u => u.id === c.referrer_id);
     const cSupporter = users.find(u => u.id === c.supporter_id);
-    setCloserInput(cCloser ? `${cCloser.full_name} (${cCloser.phone || cCloser.id})` : (c.closer_name || ''));
-    setReferrerInput(cReferrer ? `${cReferrer.full_name} (${cReferrer.phone || cReferrer.id})` : (c.referrer_name || ''));
-    setSupporterInput(cSupporter ? `${cSupporter.full_name} (${cSupporter.phone || cSupporter.id})` : (c.supporter_name || ''));
+    setCloserInput(c.closer_name || cCloser?.full_name || '');
+    setCloserPhoneInput(c.closer_phone || cCloser?.phone || '');
+    setReferrerInput(c.referrer_name || cReferrer?.full_name || '');
+    setReferrerPhoneInput(c.referrer_phone || cReferrer?.phone || '');
+    setSupporterInput(c.supporter_name || cSupporter?.full_name || '');
+    setSupporterPhoneInput(c.supporter_phone || cSupporter?.phone || '');
 
-    const stdCloser = Math.round(valNum * 0.06);
-    const stdReferrer = Math.round(valNum * 0.01);
-    const stdSupporter = Math.round(valNum * 0.005);
-    const isCustom = (Number(c.closer_fee) !== stdCloser && c.closer_fee !== undefined) ||
-                     (Number(c.referrer_fee) !== stdReferrer && c.referrer_fee !== undefined);
+    const stdCloser = Math.round(allocatedValue * 0.06);
+    const stdReferrer = Math.round(allocatedValue * 0.01);
+    const stdSupporter = Math.round(allocatedValue * 0.005);
+    const isCustom = (c.closer_fee != null && Number(c.closer_fee) !== stdCloser) ||
+                     (c.referrer_fee != null && Number(c.referrer_fee) !== stdReferrer) ||
+                     (c.supporter_fee != null && Number(c.supporter_fee) !== stdSupporter);
     setIsCustomCommission(isCustom);
     setCustomCloserFee(Number(c.closer_fee) || stdCloser);
     setCustomReferrerFee(Number(c.referrer_fee) || stdReferrer);
@@ -323,10 +523,14 @@ export default function ContractManagement({
       contract_date: dateStr,
       customer_name: c.customer_name || '',
       value: valNum,
+      allocated_value: allocatedValue,
       closer_id: c.closer_id ? String(c.closer_id) : '',
       referrer_id: c.referrer_id ? String(c.referrer_id) : '',
       supporter_id: c.supporter_id ? String(c.supporter_id) : '',
       status: c.status || 'Đã duyệt',
+      team_name: c.team_name || '',
+      contract_type: c.contract_type || '',
+      approved_date: c.approved_date ? new Date(c.approved_date).toISOString().split('T')[0] : '',
       notes: c.notes || '',
     });
     setFormError('');
@@ -337,10 +541,6 @@ export default function ContractManagement({
     e.preventDefault();
     setFormError('');
 
-    if (!formData.contract_code.trim()) {
-      setFormError('Vui lòng nhập mã hợp đồng');
-      return;
-    }
     if (!formData.customer_name.trim()) {
       setFormError('Vui lòng nhập tên khách hàng');
       return;
@@ -364,6 +564,13 @@ export default function ContractManagement({
       const payload = {
         ...formData,
         value: Number(formData.value) || 0,
+        allocated_value: Number(formData.allocated_value) || 0,
+        closer_name: closerInput.trim(),
+        closer_phone: closerPhoneInput.trim(),
+        referrer_name: referrerInput.trim(),
+        referrer_phone: referrerPhoneInput.trim(),
+        supporter_name: supporterInput.trim(),
+        supporter_phone: supporterPhoneInput.trim(),
         closer_fee: finalCloserFee,
         referrer_fee: finalReferrerFee,
         supporter_fee: finalSupporterFee,
@@ -422,7 +629,7 @@ export default function ContractManagement({
   };
 
   return (
-    <div className="p-[15px] sm:p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50 text-slate-900">
+    <div className="contract-log-page font-[family-name:var(--font-geist-sans)] p-[15px] sm:p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50 text-slate-900">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-200">
@@ -617,29 +824,36 @@ export default function ContractManagement({
       {/* Bảng Danh sách Hợp đồng (Khớp 100% cột trong Hình 13) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden mb-6">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1200px]">
+          <table className="w-full min-w-[2240px] text-left text-xs border-collapse tabular-nums">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                <th className="py-3.5 px-4 text-center w-12">STT</th>
-                <th className="py-3.5 px-4">Mã hợp đồng</th>
-                <th className="py-3.5 px-4">Ngày ký</th>
-                <th className="py-3.5 px-4">Tên khách hàng</th>
-                <th className="py-3.5 px-4 text-right">Giá trị hợp đồng</th>
-                <th className="py-3.5 px-4">Người chốt</th>
-                <th className="py-3.5 px-4">Người giới thiệu</th>
-                <th className="py-3.5 px-4">Người hỗ trợ</th>
-                <th className="py-3.5 px-4 text-right">Thù lao người chốt (6%)</th>
-                <th className="py-3.5 px-4 text-right">Thù lao người GT (1%)</th>
-                <th className="py-3.5 px-4 text-right">Thù lao hỗ trợ (0,5%)</th>
-                <th className="py-3.5 px-4 text-center">Trạng thái</th>
-                <th className="py-3.5 px-4 text-center">Hợp đồng</th>
-                <th className="py-3.5 px-4 text-center">Thao tác</th>
+              <tr className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 tracking-wide">
+                <th className="py-3 px-4 text-center w-12 whitespace-nowrap">STT</th>
+                <th className="py-3 px-4 whitespace-nowrap">Mã hợp đồng</th>
+                <th className="py-3 px-4 whitespace-nowrap">Ngày ký</th>
+                <th className="py-3 px-4 min-w-[190px]">Tên khách hàng</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Giá trị hợp đồng</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Giá trị phân bổ</th>
+                <th className="py-3 px-4 min-w-[170px]">Họ tên người chốt</th>
+                <th className="py-3 px-4 min-w-[140px] whitespace-nowrap">SĐT người chốt</th>
+                <th className="py-3 px-4 min-w-[170px]">Họ tên người giới thiệu</th>
+                <th className="py-3 px-4 min-w-[140px] whitespace-nowrap">SĐT người giới thiệu</th>
+                <th className="py-3 px-4 min-w-[170px]">Họ tên người hỗ trợ</th>
+                <th className="py-3 px-4 min-w-[140px] whitespace-nowrap">SĐT người hỗ trợ</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Thù lao người chốt (6%)</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Thù lao người GT (1%)</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Thù lao hỗ trợ (0,5%)</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Trạng thái</th>
+                <th className="py-3 px-4 whitespace-nowrap">Đội nhóm</th>
+                <th className="py-3 px-4 whitespace-nowrap">Loại hợp đồng</th>
+                <th className="py-3 px-4 whitespace-nowrap">Duyệt chi ngày</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Hợp đồng</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
+            <tbody className="divide-y divide-slate-100 text-[13px]">
               {paginatedContracts.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-12 text-center text-slate-400">
+                  <td colSpan={21} className="py-12 text-center text-slate-400">
                     <FileSpreadsheet className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                     Không tìm thấy hợp đồng nào phù hợp
                   </td>
@@ -648,19 +862,23 @@ export default function ContractManagement({
                 paginatedContracts.map((c, index) => {
                   const itemIndex = (currentPage - 1) * pageSize + index + 1;
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={c.id} className="hover:bg-blue-50/40 transition-colors">
                       <td className="py-3.5 px-4 text-center text-slate-400 font-medium">{itemIndex}</td>
-                      <td className="py-3.5 px-4 font-bold text-blue-600">{c.contract_code}</td>
-                      <td className="py-3.5 px-4 text-slate-600">{formatDate(c.contract_date)}</td>
+                      <td className="py-3.5 px-4 font-bold text-blue-600 whitespace-nowrap">{c.contract_code || '—'}</td>
+                      <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">{formatDate(c.contract_date)}</td>
                       <td className="py-3.5 px-4 font-medium text-slate-800">{c.customer_name}</td>
-                      <td className="py-3.5 px-4 text-right font-bold text-slate-900">{formatCurrency(c.value)}</td>
-                      <td className="py-3.5 px-4 text-slate-700">{c.closer_name || '—'}</td>
-                      <td className="py-3.5 px-4 text-slate-700">{c.referrer_name || '—'}</td>
-                      <td className="py-3.5 px-4 text-slate-700">{c.supporter_name || '—'}</td>
-                      <td className="py-3.5 px-4 text-right font-semibold text-emerald-700">{formatCurrency(c.closer_fee)}</td>
-                      <td className="py-3.5 px-4 text-right font-semibold text-blue-700">{formatCurrency(c.referrer_fee)}</td>
-                      <td className="py-3.5 px-4 text-right font-semibold text-purple-700">{formatCurrency(c.supporter_fee)}</td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-4 text-right font-bold text-slate-900 whitespace-nowrap">{formatCurrency(c.value)}</td>
+                      <td className="py-3.5 px-4 text-right font-semibold text-slate-700 whitespace-nowrap">{c.allocated_value == null ? '—' : formatCurrency(c.allocated_value)}</td>
+                      <td className="py-3.5 px-4 min-w-[170px] font-medium text-slate-800">{c.closer_name || '—'}</td>
+                      <td className="py-3.5 px-4 whitespace-nowrap text-blue-700">{c.closer_phone || '—'}</td>
+                      <td className="py-3.5 px-4 min-w-[170px] font-medium text-slate-800">{c.referrer_name || '—'}</td>
+                      <td className="py-3.5 px-4 whitespace-nowrap text-blue-700">{c.referrer_phone || '—'}</td>
+                      <td className="py-3.5 px-4 min-w-[170px] font-medium text-slate-800">{c.supporter_name || '—'}</td>
+                      <td className="py-3.5 px-4 whitespace-nowrap text-blue-700">{c.supporter_phone || '—'}</td>
+                      <td className="py-3.5 px-4 text-right font-semibold text-emerald-700 whitespace-nowrap">{c.closer_fee == null ? '—' : formatCurrency(c.closer_fee)}</td>
+                      <td className="py-3.5 px-4 text-right font-semibold text-blue-700 whitespace-nowrap">{c.referrer_fee == null ? '—' : formatCurrency(c.referrer_fee)}</td>
+                      <td className="py-3.5 px-4 text-right font-semibold text-purple-700 whitespace-nowrap">{c.supporter_fee == null ? '—' : formatCurrency(c.supporter_fee)}</td>
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <span
                           className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                             c.status === 'Đã duyệt'
@@ -673,6 +891,9 @@ export default function ContractManagement({
                           {c.status}
                         </span>
                       </td>
+                      <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">{c.team_name || '—'}</td>
+                      <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">{c.contract_type || '—'}</td>
+                      <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">{c.approved_date ? formatDate(c.approved_date) : '—'}</td>
                       <td className="py-3.5 px-4 text-center">
                         <a
                           href={c.file_url || '#'}
@@ -722,9 +943,9 @@ export default function ContractManagement({
       </div>
 
       {/* Bottom Area: Phân trang bên trái & Bảng phân tích phân bổ ngân sách 15% bên phải (Khớp Hình 13) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Phân trang */}
-        <div className="lg:col-span-6 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+        <div className="col-span-1 xl:col-span-6 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
             Hiển thị <span className="font-semibold text-slate-800">{contracts.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span>–
             <span className="font-semibold text-slate-800">{Math.min(currentPage * pageSize, contracts.length)}</span> trong tổng số{' '}
@@ -777,386 +998,12 @@ export default function ContractManagement({
           </div>
         </div>
 
-        {/* Khung Phân tích phân bổ ngân sách hợp đồng (15%) (Khớp 100% Hình 13 & Mục 11) */}
-        <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                Phân tích phân bổ ngân sách hợp đồng (15%)
-              </h3>
-              <Info className="w-4 h-4 text-slate-400 cursor-help" />
-            </div>
-            <div className="flex items-center gap-2">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAllocationEditForm({
-                      proSaleRate: allocationRates.proSaleRate,
-                      referralRate: allocationRates.referralRate,
-                      supportRate: allocationRates.supportRate,
-                      fundRate: allocationRates.fundRate,
-                      proSalePrice: customPrices.proSalePrice !== undefined ? String(customPrices.proSalePrice) : '',
-                      referralPrice: customPrices.referralPrice !== undefined ? String(customPrices.referralPrice) : '',
-                      supportPrice: customPrices.supportPrice !== undefined ? String(customPrices.supportPrice) : '',
-                      fundPrice: customPrices.fundPrice !== undefined ? String(customPrices.fundPrice) : '',
-                    });
-                    setIsEditAllocationModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
-                >
-                  <Pencil className="w-3 h-3" />
-                  <span>Cập nhật</span>
-                </button>
-              )}
-              <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                Tự động tính
-              </span>
-            </div>
-          </div>
-
-          <div className="p-4">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-400 font-medium">
-                  <th className="pb-2">Hạng mục</th>
-                  <th className="pb-2 text-center">Tỷ lệ</th>
-                  <th className="pb-2 text-right">Số tiền (VNĐ)</th>
-                  <th className="pb-2 pl-4">Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {/* 1. Sale trực tiếp - Pro sale */}
-                <tr>
-                  <td className="py-2.5 font-medium text-slate-800 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                      <User className="w-3.5 h-3.5" />
-                    </div>
-                    <span>Sale trực tiếp - Pro sale</span>
-                  </td>
-                  <td className="py-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[11px]">
-                      {allocationRates.proSaleRate}%
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right font-bold text-slate-900">
-                    {formatCurrency(breakdownProSale)}
-                  </td>
-                  <td className="py-2.5 pl-4 text-slate-500 text-[11px]">
-                    Thù lao cho người chốt hợp đồng
-                  </td>
-                </tr>
-
-                {/* 2. Tri ấn kết nối sale trực tiếp */}
-                <tr>
-                  <td className="py-2.5 font-medium text-slate-800 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                      <Share2 className="w-3.5 h-3.5" />
-                    </div>
-                    <span>Tri ân kết nối sale trực tiếp</span>
-                  </td>
-                  <td className="py-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[11px]">
-                      {allocationRates.referralRate}%
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right font-bold text-slate-900">
-                    {formatCurrency(breakdownReferral)}
-                  </td>
-                  <td className="py-2.5 pl-4 text-slate-500 text-[11px]">
-                    Thù lao cho người giới thiệu
-                  </td>
-                </tr>
-
-                {/* 3. Tri ấn hỗ trợ sale */}
-                <tr>
-                  <td className="py-2.5 font-medium text-slate-800 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                      <Handshake className="w-3.5 h-3.5" />
-                    </div>
-                    <span>Tri ân hỗ trợ sale</span>
-                  </td>
-                  <td className="py-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[11px]">
-                      {allocationRates.supportRate}%
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right font-bold text-slate-900">
-                    {formatCurrency(breakdownSupport)}
-                  </td>
-                  <td className="py-2.5 pl-4 text-slate-500 text-[11px]">
-                    Thù lao cho người hỗ trợ
-                  </td>
-                </tr>
-
-                {/* 4. Quỹ Sự kiện & Chốt hợp đồng */}
-                <tr>
-                  <td className="py-2.5 font-medium text-slate-800 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                      <PiggyBank className="w-3.5 h-3.5" />
-                    </div>
-                    <span>Quỹ Sự kiện & Chốt hợp đồng</span>
-                  </td>
-                  <td className="py-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[11px]">
-                      {allocationRates.fundRate}%
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right font-bold text-slate-900">
-                    {formatCurrency(breakdownFund)}
-                  </td>
-                  <td className="py-2.5 pl-4 text-slate-500 text-[11px]">
-                    Quỹ dùng cho sự kiện & chốt hợp đồng
-                  </td>
-                </tr>
-
-                {/* Tổng cộng */}
-                <tr className="border-t border-slate-200 bg-slate-50/40 font-bold">
-                  <td className="py-2.5 text-slate-900">Tổng cộng</td>
-                  <td className="py-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[11px]">
-                      {totalRatePercent}%
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right text-blue-700 text-sm">
-                    {formatCurrency(breakdownTotal)}
-                  </td>
-                  <td className="py-2.5 pl-4 text-slate-400 text-[11px]">
-                    Tổng thù lao & quỹ
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ContractBudgetAllocation
+          totalAllocatedValue={Number(stats.totalAllocatedValue) || 0}
+          isAdmin={isAdmin}
+          onSave={() => showToast('success', 'Đã cập nhật bảng phân bổ ngân sách')}
+        />
       </div>
-
-      {/* ============================================================ */}
-      {/* MODAL: CẬP NHẬT TỶ LỆ VÀ GIÁ PHÂN BỔ NGÂN SÁCH (Item 11)     */}
-      {/* ============================================================ */}
-      {isEditAllocationModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Cập nhật Tỷ lệ và Giá phân bổ ngân sách hợp đồng (15%)
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Tùy chỉnh tỷ lệ phần trăm (%) và giá tiền cố định. Dữ liệu hiện có không bị thay đổi.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsEditAllocationModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const newRates = {
-                  proSaleRate: Number(allocationEditForm.proSaleRate) || 0,
-                  referralRate: Number(allocationEditForm.referralRate) || 0,
-                  supportRate: Number(allocationEditForm.supportRate) || 0,
-                  fundRate: Number(allocationEditForm.fundRate) || 0,
-                };
-                const newPrices: { [k: string]: number } = {};
-                if (allocationEditForm.proSalePrice !== '') newPrices.proSalePrice = Number(allocationEditForm.proSalePrice);
-                if (allocationEditForm.referralPrice !== '') newPrices.referralPrice = Number(allocationEditForm.referralPrice);
-                if (allocationEditForm.supportPrice !== '') newPrices.supportPrice = Number(allocationEditForm.supportPrice);
-                if (allocationEditForm.fundPrice !== '') newPrices.fundPrice = Number(allocationEditForm.fundPrice);
-
-                setAllocationRates(newRates);
-                setCustomPrices(newPrices);
-                try {
-                  localStorage.setItem(
-                    'nghieng_contract_allocation',
-                    JSON.stringify({ rates: newRates, prices: newPrices })
-                  );
-                } catch {}
-                setIsEditAllocationModalOpen(false);
-                showToast('success', 'Cập nhật tỷ lệ và giá phân bổ ngân sách thành công');
-              }}
-              className="p-6 overflow-y-auto space-y-6 flex-1"
-            >
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-900 flex items-center justify-between">
-                <div>
-                  <span className="font-bold">Tổng giá trị hợp đồng hiện hành: </span>
-                  <span className="font-black text-blue-700">{formatCurrency(totalContractVal)}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAllocationEditForm({
-                      ...allocationEditForm,
-                      proSalePrice: '',
-                      referralPrice: '',
-                      supportPrice: '',
-                      fundPrice: '',
-                    });
-                  }}
-                  className="px-3 py-1.5 bg-white border border-blue-300 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg text-xs transition-all cursor-pointer"
-                >
-                  Tự động tính theo tỷ lệ %
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. Sale trực tiếp - Pro sale */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
-                    <User className="w-4 h-4 text-blue-600" />
-                    <span>1. Sale trực tiếp - Pro sale</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={allocationEditForm.proSaleRate}
-                        onChange={(e) =>
-                          setAllocationEditForm({ ...allocationEditForm, proSaleRate: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-blue-700"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
-                      <input
-                        type="number"
-                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.proSaleRate / 100))}`}
-                        value={allocationEditForm.proSalePrice}
-                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, proSalePrice: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Tri ân kết nối sale trực tiếp */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
-                    <Share2 className="w-4 h-4 text-emerald-600" />
-                    <span>2. Tri ân kết nối sale trực tiếp</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={allocationEditForm.referralRate}
-                        onChange={(e) =>
-                          setAllocationEditForm({ ...allocationEditForm, referralRate: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-emerald-700"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
-                      <input
-                        type="number"
-                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.referralRate / 100))}`}
-                        value={allocationEditForm.referralPrice}
-                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, referralPrice: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Tri ân hỗ trợ sale */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
-                    <Handshake className="w-4 h-4 text-amber-600" />
-                    <span>3. Tri ân hỗ trợ sale</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={allocationEditForm.supportRate}
-                        onChange={(e) =>
-                          setAllocationEditForm({ ...allocationEditForm, supportRate: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-amber-700"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
-                      <input
-                        type="number"
-                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.supportRate / 100))}`}
-                        value={allocationEditForm.supportPrice}
-                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, supportPrice: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. Quỹ Sự kiện & Chốt hợp đồng */}
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                  <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
-                    <PiggyBank className="w-4 h-4 text-purple-600" />
-                    <span>4. Quỹ Sự kiện & Chốt hợp đồng</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Tỷ lệ (%)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={allocationEditForm.fundRate}
-                        onChange={(e) =>
-                          setAllocationEditForm({ ...allocationEditForm, fundRate: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-purple-700"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-600 block mb-1">Giá cố định (VNĐ)</label>
-                      <input
-                        type="number"
-                        placeholder={`Tự tính: ${Math.round(totalContractVal * (allocationEditForm.fundRate / 100))}`}
-                        value={allocationEditForm.fundPrice}
-                        onChange={(e) => setAllocationEditForm({ ...allocationEditForm, fundPrice: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsEditAllocationModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all cursor-pointer"
-                >
-                  Lưu thay đổi
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ============================================================ */}
       {/* MODAL: THÊM MỚI / CHỈNH SỬA HỢP ĐỒNG                          */}
@@ -1188,7 +1035,7 @@ export default function ContractManagement({
                 {/* Mã hợp đồng */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Mã hợp đồng <span className="text-rose-500">*</span>
+                    Mã hợp đồng
                   </label>
                   <input
                     type="text"
@@ -1196,7 +1043,6 @@ export default function ContractManagement({
                     onChange={(e) => setFormData({ ...formData, contract_code: e.target.value })}
                     className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                     placeholder="VD: HD005"
-                    required
                   />
                 </div>
 
@@ -1230,23 +1076,35 @@ export default function ContractManagement({
                 />
               </div>
 
-              {/* Giá trị hợp đồng (Item 8: Có định dạng ngăn cách hàng nghìn) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Giá trị hợp đồng (VNĐ) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={valueFormatted}
-                    onChange={handleValueChange}
-                    placeholder="VD: 50.000.000"
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
-                    VNĐ
-                  </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Giá trị hợp đồng (VNĐ) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={valueFormatted}
+                      onChange={handleValueChange}
+                      placeholder="VD: 50.000.000"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">VNĐ</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Giá trị hợp đồng phân bổ (VNĐ)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={allocatedValueFormatted}
+                      onChange={handleAllocatedValueChange}
+                      placeholder="Mặc định bằng giá trị hợp đồng"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">VNĐ</span>
+                  </div>
                 </div>
               </div>
 
@@ -1313,92 +1171,129 @@ export default function ContractManagement({
                 )}
               </div>
 
-              {/* Searchable dropdowns cho Người chốt, Người GT, Người hỗ trợ (Item 8) */}
-              <div className="grid grid-cols-3 gap-3">
-                {/* Người chốt */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Người chốt
-                  </label>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">Người chốt hợp đồng</label>
                   <input
                     type="text"
                     list="closer-datalist"
                     value={closerInput}
                     onChange={(e) => {
                       const val = e.target.value;
+                      const found = users.find((u) => u.full_name === val || `${u.full_name} (${u.phone || u.id})` === val);
                       setCloserInput(val);
-                      const found = users.find(
-                        (u) => `${u.full_name} (${u.phone || u.id})` === val || u.full_name === val || String(u.id) === val
-                      );
-                      setFormData({ ...formData, closer_id: found ? String(found.id) : val });
+                      setFormData((prev) => ({ ...prev, closer_id: found ? String(found.id) : '' }));
+                      if (found) setCloserPhoneInput(found.phone || '');
                     }}
-                    placeholder="Tìm người chốt..."
+                    placeholder="Họ tên người chốt"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   />
-                  <datalist id="closer-datalist">
-                    {users.map((u) => (
-                      <option key={u.id} value={`${u.full_name} (${u.phone || u.id})`} />
-                    ))}
-                  </datalist>
+                  <datalist id="closer-datalist">{users.map((u) => <option key={u.id} value={u.full_name} />)}</datalist>
+                  <input
+                    type="tel"
+                    value={closerPhoneInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const found = users.find((u) => u.phone === val);
+                      setCloserPhoneInput(val);
+                      setFormData((prev) => ({ ...prev, closer_id: found ? String(found.id) : '' }));
+                      if (found) setCloserInput(found.full_name);
+                    }}
+                    placeholder="SĐT / mã thành viên"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  />
                 </div>
 
-                {/* Người giới thiệu */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Người giới thiệu
-                  </label>
+                <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">Người giới thiệu</label>
                   <input
                     type="text"
                     list="referrer-datalist"
                     value={referrerInput}
                     onChange={(e) => {
                       const val = e.target.value;
+                      const found = users.find((u) => u.full_name === val || `${u.full_name} (${u.phone || u.id})` === val);
                       setReferrerInput(val);
-                      const found = users.find(
-                        (u) => `${u.full_name} (${u.phone || u.id})` === val || u.full_name === val || String(u.id) === val
-                      );
-                      setFormData({ ...formData, referrer_id: found ? String(found.id) : val });
+                      setFormData((prev) => ({ ...prev, referrer_id: found ? String(found.id) : '' }));
+                      if (found) setReferrerPhoneInput(found.phone || '');
                     }}
-                    placeholder="Tìm người GT..."
+                    placeholder="Họ tên người giới thiệu"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   />
-                  <datalist id="referrer-datalist">
-                    {users.map((u) => (
-                      <option key={u.id} value={`${u.full_name} (${u.phone || u.id})`} />
-                    ))}
-                  </datalist>
+                  <datalist id="referrer-datalist">{users.map((u) => <option key={u.id} value={u.full_name} />)}</datalist>
+                  <input
+                    type="tel"
+                    value={referrerPhoneInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const found = users.find((u) => u.phone === val);
+                      setReferrerPhoneInput(val);
+                      setFormData((prev) => ({ ...prev, referrer_id: found ? String(found.id) : '' }));
+                      if (found) setReferrerInput(found.full_name);
+                    }}
+                    placeholder="SĐT người giới thiệu"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  />
                 </div>
 
-                {/* Người hỗ trợ */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Người hỗ trợ
-                  </label>
+                <div className="p-3 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">Người hỗ trợ</label>
                   <input
                     type="text"
                     list="supporter-datalist"
                     value={supporterInput}
                     onChange={(e) => {
                       const val = e.target.value;
+                      const found = users.find((u) => u.full_name === val || `${u.full_name} (${u.phone || u.id})` === val);
                       setSupporterInput(val);
-                      const found = users.find(
-                        (u) => `${u.full_name} (${u.phone || u.id})` === val || u.full_name === val || String(u.id) === val
-                      );
-                      setFormData({ ...formData, supporter_id: found ? String(found.id) : val });
+                      setFormData((prev) => ({ ...prev, supporter_id: found ? String(found.id) : '' }));
+                      if (found) setSupporterPhoneInput(found.phone || '');
                     }}
-                    placeholder="Tìm người hỗ trợ..."
+                    placeholder="Họ tên người hỗ trợ"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                   />
-                  <datalist id="supporter-datalist">
-                    {users.map((u) => (
-                      <option key={u.id} value={`${u.full_name} (${u.phone || u.id})`} />
-                    ))}
-                  </datalist>
+                  <datalist id="supporter-datalist">{users.map((u) => <option key={u.id} value={u.full_name} />)}</datalist>
+                  <input
+                    type="tel"
+                    value={supporterPhoneInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const found = users.find((u) => u.phone === val);
+                      setSupporterPhoneInput(val);
+                      setFormData((prev) => ({ ...prev, supporter_id: found ? String(found.id) : '' }));
+                      if (found) setSupporterInput(found.full_name);
+                    }}
+                    placeholder="SĐT người hỗ trợ"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  />
                 </div>
               </div>
 
-              {/* Trạng thái */}
-              <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Đội nhóm</label>
+                  <input
+                    type="text"
+                    value={formData.team_name}
+                    onChange={(e) => setFormData({ ...formData, team_name: e.target.value })}
+                    placeholder="Tên đội nhóm"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Loại hợp đồng</label>
+                  <input
+                    type="text"
+                    value={formData.contract_type}
+                    onChange={(e) => setFormData({ ...formData, contract_type: e.target.value })}
+                    placeholder="VD: BĐS"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Trạng thái
                 </label>
@@ -1411,6 +1306,16 @@ export default function ContractManagement({
                   <option value="Chờ duyệt">Chờ duyệt</option>
                   <option value="Từ chối">Từ chối</option>
                 </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Duyệt chi ngày</label>
+                  <input
+                    type="date"
+                    value={formData.approved_date}
+                    onChange={(e) => setFormData({ ...formData, approved_date: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  />
+                </div>
               </div>
 
               {/* Ghi chú */}
@@ -1487,6 +1392,18 @@ export default function ContractManagement({
                   <span className="font-bold text-blue-700 text-base">{formatCurrency(viewingContract.value)}</span>
                 </div>
                 <div>
+                  <span className="text-slate-400 block text-xs">Giá trị hợp đồng phân bổ</span>
+                  <span className="font-semibold text-slate-800">{viewingContract.allocated_value == null ? '—' : formatCurrency(viewingContract.allocated_value)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs">Đội nhóm / Loại hợp đồng</span>
+                  <span className="font-semibold text-slate-800">{[viewingContract.team_name, viewingContract.contract_type].filter(Boolean).join(' · ') || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs">Duyệt chi ngày</span>
+                  <span className="font-semibold text-slate-800">{viewingContract.approved_date ? formatDate(viewingContract.approved_date) : '—'}</span>
+                </div>
+                <div>
                   <span className="text-slate-400 block text-xs">Trạng thái</span>
                   <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
                     {viewingContract.status}
@@ -1498,16 +1415,16 @@ export default function ContractManagement({
               <div className="p-4 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
                 <span className="font-bold text-slate-800 block text-xs uppercase">Phân bổ hoa hồng</span>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-600">Người chốt (6%): {viewingContract.closer_name || '—'}</span>
-                  <span className="font-bold text-emerald-700">{formatCurrency(viewingContract.closer_fee)}</span>
+                  <span className="text-slate-600">Người chốt (6%): {viewingContract.closer_name || '—'} {viewingContract.closer_phone && `· ${viewingContract.closer_phone}`}</span>
+                  <span className="font-bold text-emerald-700">{viewingContract.closer_fee == null ? '—' : formatCurrency(viewingContract.closer_fee)}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-600">Người giới thiệu (1%): {viewingContract.referrer_name || '—'}</span>
-                  <span className="font-bold text-blue-700">{formatCurrency(viewingContract.referrer_fee)}</span>
+                  <span className="text-slate-600">Người giới thiệu (1%): {viewingContract.referrer_name || '—'} {viewingContract.referrer_phone && `· ${viewingContract.referrer_phone}`}</span>
+                  <span className="font-bold text-blue-700">{viewingContract.referrer_fee == null ? '—' : formatCurrency(viewingContract.referrer_fee)}</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-slate-600">Người hỗ trợ (0.5%): {viewingContract.supporter_name || '—'}</span>
-                  <span className="font-bold text-purple-700">{formatCurrency(viewingContract.supporter_fee)}</span>
+                  <span className="text-slate-600">Người hỗ trợ (0.5%): {viewingContract.supporter_name || '—'} {viewingContract.supporter_phone && `· ${viewingContract.supporter_phone}`}</span>
+                  <span className="font-bold text-purple-700">{viewingContract.supporter_fee == null ? '—' : formatCurrency(viewingContract.supporter_fee)}</span>
                 </div>
               </div>
 

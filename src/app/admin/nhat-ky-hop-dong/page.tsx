@@ -14,9 +14,14 @@ async function getContractsData(): Promise<{
       pool.query(`
         SELECT 
           c.*,
-          u_closer.full_name as closer_name,
-          u_referrer.full_name as referrer_name,
-          u_supporter.full_name as supporter_name
+          c.contract_date::text AS contract_date_text,
+          c.approved_date::text AS approved_date_text,
+          COALESCE(NULLIF(BTRIM(c.closer_name), ''), u_closer.full_name) as closer_name,
+          COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone) as closer_phone,
+          COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name) as referrer_name,
+          COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone) as referrer_phone,
+          COALESCE(NULLIF(BTRIM(c.supporter_name), ''), u_supporter.full_name) as supporter_name,
+          COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone) as supporter_phone
         FROM contracts c
         LEFT JOIN users u_closer ON c.closer_id = u_closer.id
         LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
@@ -27,6 +32,7 @@ async function getContractsData(): Promise<{
         SELECT 
           COUNT(*)::int AS total_contracts,
           COALESCE(SUM(value), 0)::numeric AS total_value,
+          COALESCE(SUM(COALESCE(allocated_value, value, 0)), 0)::numeric AS total_allocated_value,
           COALESCE(SUM(COALESCE(closer_fee, 0) + COALESCE(referrer_fee, 0) + COALESCE(supporter_fee, 0)), 0)::numeric AS total_commission,
           COUNT(CASE WHEN status = 'Đã duyệt' THEN 1 END)::int AS approved_contracts
         FROM contracts
@@ -43,13 +49,15 @@ async function getContractsData(): Promise<{
     const statsRow = statsRes.rows[0] || {
       total_contracts: 0,
       total_value: 0,
+        total_allocated_value: 0,
       total_commission: 0,
       approved_contracts: 0,
     };
 
     const contracts = contractsRes.rows.map(row => ({
       ...row,
-      contract_date: row.contract_date ? new Date(row.contract_date).toISOString().split('T')[0] : '',
+      contract_date: row.contract_date_text || '',
+      approved_date: row.approved_date_text || '',
       created_at: row.created_at ? new Date(row.created_at).toISOString() : '',
     }));
 
@@ -58,6 +66,7 @@ async function getContractsData(): Promise<{
       stats: {
         totalContracts: statsRow.total_contracts,
         totalValue: Number(statsRow.total_value),
+        totalAllocatedValue: Number(statsRow.total_allocated_value),
         totalCommission: Number(statsRow.total_commission),
         approvedContracts: statsRow.approved_contracts,
       },
@@ -71,6 +80,7 @@ async function getContractsData(): Promise<{
       stats: {
         totalContracts: 0,
         totalValue: 0,
+        totalAllocatedValue: 0,
         totalCommission: 0,
         approvedContracts: 0,
       },

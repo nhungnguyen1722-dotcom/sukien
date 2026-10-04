@@ -30,3 +30,12 @@ h1, h2, h3, h4, h5 {
   font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif !important;
   font-weight: 700 !important;
 }
+
+.contract-log-page {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.contract-log-page :is(h1, h2, h3, h4, h5) {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+  letter-spacing: -0.02em;
+}

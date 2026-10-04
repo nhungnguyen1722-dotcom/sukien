@@ -70,9 +70,12 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT 
         c.*,
-        u_closer.full_name as closer_name,
-        u_referrer.full_name as referrer_name,
-        u_supporter.full_name as supporter_name
+        COALESCE(c.closer_name, u_closer.full_name) as closer_name,
+        COALESCE(c.closer_phone, u_closer.phone) as closer_phone,
+        COALESCE(c.referrer_name, u_referrer.full_name) as referrer_name,
+        COALESCE(c.referrer_phone, u_referrer.phone) as referrer_phone,
+        COALESCE(c.supporter_name, u_supporter.full_name) as supporter_name,
+        COALESCE(c.supporter_phone, u_supporter.phone) as supporter_phone
       FROM contracts c
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
@@ -90,13 +93,20 @@ export async function GET(request: NextRequest) {
       'Ngày ký',
       'Khách hàng',
       'Giá trị hợp đồng (VNĐ)',
+      'Giá trị hợp đồng phân bổ (VNĐ)',
       'Người chốt sale (6%)',
+      'SĐT người chốt',
       'Hoa hồng chốt (VNĐ)',
       'Người giới thiệu (1%)',
+      'SĐT người giới thiệu',
       'Hoa hồng GT (VNĐ)',
       'Người hỗ trợ (0.5%)',
+      'SĐT người hỗ trợ',
       'Hoa hồng HT (VNĐ)',
       'Trạng thái',
+      'Đội nhóm',
+      'Loại hợp đồng',
+      'Duyệt chi ngày',
       'Ghi chú',
     ];
 
@@ -110,13 +120,20 @@ export async function GET(request: NextRequest) {
           formatDate(c.contract_date),
           c.customer_name || '',
           c.value || 0,
+          c.allocated_value ?? c.value ?? 0,
           c.closer_name || '',
+          c.closer_phone || '',
           c.closer_fee || 0,
           c.referrer_name || '',
+          c.referrer_phone || '',
           c.referrer_fee || 0,
           c.supporter_name || '',
+          c.supporter_phone || '',
           c.supporter_fee || 0,
           c.status || '',
+          c.team_name || '',
+          c.contract_type || '',
+          formatDate(c.approved_date),
           c.notes || '',
         ]
           .map(escapeCsvField)

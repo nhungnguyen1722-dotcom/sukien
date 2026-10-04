@@ -20,9 +20,14 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       `
       SELECT 
         c.*,
-        u_closer.full_name as closer_name,
-        u_referrer.full_name as referrer_name,
-        u_supporter.full_name as supporter_name
+        c.contract_date::text AS contract_date_text,
+        c.approved_date::text AS approved_date_text,
+        COALESCE(c.closer_name, u_closer.full_name) as closer_name,
+        COALESCE(c.closer_phone, u_closer.phone) as closer_phone,
+        COALESCE(c.referrer_name, u_referrer.full_name) as referrer_name,
+        COALESCE(c.referrer_phone, u_referrer.phone) as referrer_phone,
+        COALESCE(c.supporter_name, u_supporter.full_name) as supporter_name,
+        COALESCE(c.supporter_phone, u_supporter.phone) as supporter_phone
       FROM contracts c
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
@@ -36,7 +41,14 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       return Response.json({ success: false, error: 'Không tìm thấy hợp đồng' }, { status: 404 });
     }
 
-    return Response.json({ success: true, contract: res.rows[0] });
+    return Response.json({
+      success: true,
+      contract: {
+        ...res.rows[0],
+        contract_date: res.rows[0].contract_date_text || '',
+        approved_date: res.rows[0].approved_date_text || '',
+      },
+    });
   } catch (error: any) {
     console.error('Error in GET /api/admin/contracts/[id]:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
@@ -59,15 +71,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       customer_name,
       value,
       closer_id,
+      closer_name,
+      closer_phone,
       referrer_id,
+      referrer_name,
+      referrer_phone,
       supporter_id,
+      supporter_name,
+      supporter_phone,
+      allocated_value,
+      team_name,
+      contract_type,
+      approved_date,
       status,
       notes,
     } = body;
 
-    if (!contract_code || !contract_code.trim()) {
-      return Response.json({ success: false, error: 'Mã hợp đồng không được để trống' }, { status: 400 });
-    }
     if (!customer_name || !customer_name.trim()) {
       return Response.json({ success: false, error: 'Tên khách hàng không được để trống' }, { status: 400 });
     }
@@ -76,6 +95,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const numValue = Number(value) || 0;
+    const allocatedValue = allocated_value === undefined || allocated_value === null || allocated_value === ''
+      ? numValue
+      : Number(allocated_value) || 0;
     const closer_fee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(numValue * 0.06);
     const referrer_fee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(numValue * 0.01);
     const supporter_fee = body.supporter_fee !== undefined ? Number(body.supporter_fee) : Math.round(numValue * 0.005);
@@ -89,28 +111,48 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         customer_name = $3,
         value = $4,
         closer_id = $5,
-        referrer_id = $6,
-        supporter_id = $7,
-        closer_fee = $8,
-        referrer_fee = $9,
-        supporter_fee = $10,
-        status = $11,
-        notes = $12
-      WHERE id = $13
-      RETURNING *
+        closer_name = $6,
+        closer_phone = $7,
+        referrer_id = $8,
+        referrer_name = $9,
+        referrer_phone = $10,
+        supporter_id = $11,
+        supporter_name = $12,
+        supporter_phone = $13,
+        allocated_value = $14,
+        closer_fee = $15,
+        referrer_fee = $16,
+        supporter_fee = $17,
+        status = $18,
+        team_name = $19,
+        contract_type = $20,
+        approved_date = $21,
+        notes = $22
+      WHERE id = $23
+      RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
-        contract_code.trim(),
+        typeof contract_code === 'string' && contract_code.trim() ? contract_code.trim() : null,
         contract_date,
         customer_name.trim(),
         numValue,
-        closer_id ? parseInt(closer_id, 10) : null,
-        referrer_id ? parseInt(referrer_id, 10) : null,
-        supporter_id ? parseInt(supporter_id, 10) : null,
+        closer_id && Number.isInteger(Number(closer_id)) ? Number(closer_id) : null,
+        closer_name || null,
+        closer_phone || null,
+        referrer_id && Number.isInteger(Number(referrer_id)) ? Number(referrer_id) : null,
+        referrer_name || null,
+        referrer_phone || null,
+        supporter_id && Number.isInteger(Number(supporter_id)) ? Number(supporter_id) : null,
+        supporter_name || null,
+        supporter_phone || null,
+        allocatedValue,
         closer_fee,
         referrer_fee,
         supporter_fee,
         status || 'Đã duyệt',
+        team_name || null,
+        contract_type || null,
+        approved_date || null,
         notes || '',
         contractId,
       ]
@@ -120,7 +162,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return Response.json({ success: false, error: 'Không tìm thấy hợp đồng để cập nhật' }, { status: 404 });
     }
 
-    return Response.json({ success: true, contract: res.rows[0] });
+    return Response.json({
+      success: true,
+      contract: {
+        ...res.rows[0],
+        contract_date: res.rows[0].contract_date_text || '',
+        approved_date: res.rows[0].approved_date_text || '',
+      },
+    });
   } catch (error: any) {
     console.error('Error in PUT /api/admin/contracts/[id]:', error);
     if (error.code === '23505') {

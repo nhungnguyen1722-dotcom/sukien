@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
         c.contract_code ILIKE $${idx} 
         OR c.customer_name ILIKE $${idx} 
         OR u_closer.full_name ILIKE $${idx}
+        OR c.closer_name ILIKE $${idx}
       )`);
       values.push(`%${search}%`);
       idx++;
@@ -55,9 +56,14 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT 
         c.*,
-        u_closer.full_name as closer_name,
-        u_referrer.full_name as referrer_name,
-        u_supporter.full_name as supporter_name
+        c.contract_date::text AS contract_date_text,
+        c.approved_date::text AS approved_date_text,
+        COALESCE(NULLIF(BTRIM(c.closer_name), ''), u_closer.full_name) as closer_name,
+        COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone) as closer_phone,
+        COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name) as referrer_name,
+        COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone) as referrer_phone,
+        COALESCE(NULLIF(BTRIM(c.supporter_name), ''), u_supporter.full_name) as supporter_name,
+        COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone) as supporter_phone
       FROM contracts c
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
@@ -72,6 +78,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           COUNT(*)::int AS total_contracts,
           COALESCE(SUM(value), 0)::numeric AS total_value,
+          COALESCE(SUM(COALESCE(allocated_value, value, 0)), 0)::numeric AS total_allocated_value,
           COALESCE(SUM(COALESCE(closer_fee, 0) + COALESCE(referrer_fee, 0) + COALESCE(supporter_fee, 0)), 0)::numeric AS total_commission,
           COUNT(CASE WHEN status = 'Đã duyệt' THEN 1 END)::int AS approved_contracts
         FROM contracts
@@ -88,13 +95,15 @@ export async function GET(request: NextRequest) {
     const statsRow = statsRes.rows[0] || {
       total_contracts: 0,
       total_value: 0,
+      total_allocated_value: 0,
       total_commission: 0,
       approved_contracts: 0,
     };
 
     const contracts = contractsRes.rows.map((row) => ({
       ...row,
-      contract_date: row.contract_date ? new Date(row.contract_date).toISOString().split('T')[0] : '',
+      contract_date: row.contract_date_text || '',
+      approved_date: row.approved_date_text || '',
       created_at: row.created_at ? new Date(row.created_at).toISOString() : '',
     }));
 
@@ -104,6 +113,7 @@ export async function GET(request: NextRequest) {
       stats: {
         totalContracts: statsRow.total_contracts,
         totalValue: Number(statsRow.total_value),
+        totalAllocatedValue: Number(statsRow.total_allocated_value),
         totalCommission: Number(statsRow.total_commission),
         approvedContracts: statsRow.approved_contracts,
       },
@@ -125,15 +135,22 @@ export async function POST(request: NextRequest) {
       customer_name,
       value,
       closer_id,
+      closer_name,
+      closer_phone,
       referrer_id,
+      referrer_name,
+      referrer_phone,
       supporter_id,
+      supporter_name,
+      supporter_phone,
+      allocated_value,
+      team_name,
+      contract_type,
+      approved_date,
       status,
       notes,
     } = body;
 
-    if (!contract_code || !contract_code.trim()) {
-      return Response.json({ success: false, error: 'Mã hợp đồng không được để trống' }, { status: 400 });
-    }
     if (!customer_name || !customer_name.trim()) {
       return Response.json({ success: false, error: 'Tên khách hàng không được để trống' }, { status: 400 });
     }
@@ -142,6 +159,9 @@ export async function POST(request: NextRequest) {
     }
 
     const numValue = Number(value) || 0;
+    const allocatedValue = allocated_value === undefined || allocated_value === null || allocated_value === ''
+      ? numValue
+      : Number(allocated_value) || 0;
     // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5%
     const closer_fee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(numValue * 0.06);
     const referrer_fee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(numValue * 0.01);
@@ -155,36 +175,60 @@ export async function POST(request: NextRequest) {
         customer_name,
         value,
         closer_id,
+        closer_name,
+        closer_phone,
         referrer_id,
+        referrer_name,
+        referrer_phone,
         supporter_id,
+        supporter_name,
+        supporter_phone,
+        allocated_value,
         closer_fee,
         referrer_fee,
         supporter_fee,
         status,
+        team_name,
+        contract_type,
+        approved_date,
         notes,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
-      RETURNING *
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, CURRENT_TIMESTAMP)
+      RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
-        contract_code.trim(),
+        typeof contract_code === 'string' && contract_code.trim() ? contract_code.trim() : null,
         contract_date,
         customer_name.trim(),
         numValue,
-        closer_id ? parseInt(closer_id, 10) : null,
-        referrer_id ? parseInt(referrer_id, 10) : null,
-        supporter_id ? parseInt(supporter_id, 10) : null,
+        closer_id && Number.isInteger(Number(closer_id)) ? Number(closer_id) : null,
+        closer_name || null,
+        closer_phone || null,
+        referrer_id && Number.isInteger(Number(referrer_id)) ? Number(referrer_id) : null,
+        referrer_name || null,
+        referrer_phone || null,
+        supporter_id && Number.isInteger(Number(supporter_id)) ? Number(supporter_id) : null,
+        supporter_name || null,
+        supporter_phone || null,
+        allocatedValue,
         closer_fee,
         referrer_fee,
         supporter_fee,
         status || 'Đã duyệt',
+        team_name || null,
+        contract_type || null,
+        approved_date || null,
         notes || '',
       ]
     );
 
     return Response.json({
       success: true,
-      contract: res.rows[0],
+      contract: {
+        ...res.rows[0],
+        contract_date: res.rows[0].contract_date_text || '',
+        approved_date: res.rows[0].approved_date_text || '',
+      },
     });
   } catch (error: any) {
     console.error('Error in POST /api/admin/contracts:', error);

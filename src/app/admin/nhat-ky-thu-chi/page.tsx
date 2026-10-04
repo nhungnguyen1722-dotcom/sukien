@@ -1,103 +1,69 @@
 import pool from '@/lib/db';
-import TransactionLogManagement, { TransactionLog } from '@/components/admin/TransactionLogManagement';
+import TransactionLogManagement, {
+  EventFundExpense,
+  FundContract,
+  TransactionLog,
+  WeeklyAllocation,
+} from '@/components/admin/TransactionLogManagement';
 
 export const revalidate = 0;
 
-const DEFAULT_FUNDS: Record<string, { percent: number; total: number; color: string }> = {
-  'Quỹ Chăm sóc khách hàng': { percent: 35, total: 52500000, color: '#2563eb' },
-  'Quỹ Sự kiện & Chốt HĐ': { percent: 20, total: 30000000, color: '#ec4899' },
-  'Quỹ Đào tạo Kỹ năng': { percent: 15, total: 22500000, color: '#8b5cf6' },
-  'Quỹ Thi đua & Thúc đẩy': { percent: 10, total: 15000000, color: '#f59e0b' },
-  'Quỹ Công tác phí': { percent: 10, total: 15000000, color: '#10b981' },
-  'Quỹ Vận hành gián tiếp': { percent: 10, total: 15000000, color: '#06b6d4' },
-};
-
 async function getTransactionsData() {
-  try {
-    const [logsRes, statsRes] = await Promise.all([
-      pool.query(`
-        SELECT 
-          id, request_code, request_date, fund_source, detail_content,
-          requester_id, requester_name, approver_id, approver_name,
-          beneficiary_name, proposed_amount, available_balance,
-          fund_alert, status, actual_expense, receipt_url, created_at
-        FROM transaction_logs
-        ORDER BY request_date DESC, id DESC
-      `),
-      pool.query(`
-        SELECT 
-          fund_source,
-          COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN proposed_amount ELSE 0 END), 0)::numeric as used_amount
-        FROM transaction_logs
-        GROUP BY fund_source
-      `),
-    ]);
+  const [logsRes, weeklyRes, contractsRes, eventExpensesRes] = await Promise.all([
+    pool.query(`
+      SELECT id, request_code, request_date::text AS request_date, fund_source, detail_content,
+        requester_id, requester_name, requester_phone, approver_id, approver_name, approver_phone,
+        beneficiary_name, beneficiary_phone, proposed_amount::float8 AS proposed_amount,
+        available_balance::float8 AS available_balance, fund_alert, status,
+        actual_expense::float8 AS actual_expense, receipt_url,
+        approval_date::text AS approval_date, payment_date::text AS payment_date, source_complete
+      FROM transaction_logs
+      ORDER BY request_date DESC NULLS LAST, id DESC
+    `),
+    pool.query(`
+      SELECT period_code, period_month, period_label, period_start::text AS period_start,
+        period_end::text AS period_end, fund_key, fund_source,
+        allocation_rate::float8 AS allocation_rate,
+        requested_amount::float8 AS requested_amount, source_sheet
+      FROM fund_weekly_allocations
+      ORDER BY period_start, id
+    `),
+    pool.query(`
+      SELECT id, contract_code, contract_date::text AS contract_date, customer_name,
+        value::float8 AS value, allocated_value::float8 AS allocated_value,
+        COALESCE(closer_name, '') AS closer_name, COALESCE(closer_phone, '') AS closer_phone,
+        COALESCE(closer_fee, 0)::float8 AS closer_fee,
+        COALESCE(referrer_name, '') AS referrer_name, COALESCE(referrer_phone, '') AS referrer_phone,
+        COALESCE(referrer_fee, 0)::float8 AS referrer_fee,
+        COALESCE(supporter_name, '') AS supporter_name, COALESCE(supporter_phone, '') AS supporter_phone,
+        COALESCE(supporter_fee, 0)::float8 AS supporter_fee, COALESCE(status, '') AS status
+      FROM contracts
+      ORDER BY contract_date, id
+    `),
+    pool.query(`
+      SELECT event_code, event_date::text AS event_date, COALESCE(beneficiary_phone, '') AS beneficiary_phone,
+        beneficiary_name, expense_role, proposed_amount::float8 AS proposed_amount, status
+      FROM fund_event_expenses
+      ORDER BY event_date, event_code, id
+    `),
+  ]);
 
-    const fundMap: Record<string, any> = {};
-    let totalUsed = 0;
-
-    Object.keys(DEFAULT_FUNDS).forEach((k) => {
-      fundMap[k] = {
-        name: k,
-        percent: DEFAULT_FUNDS[k].percent,
-        total: DEFAULT_FUNDS[k].total,
-        used: 0,
-        color: DEFAULT_FUNDS[k].color,
-      };
-    });
-
-    statsRes.rows.forEach((r) => {
-      const key = Object.keys(DEFAULT_FUNDS).find(
-        (k) => k.toLowerCase().includes(r.fund_source.toLowerCase()) || r.fund_source.toLowerCase().includes(k.toLowerCase())
-      ) || r.fund_source;
-      const amt = Number(r.used_amount || 0);
-      if (fundMap[key]) {
-        fundMap[key].used += amt;
-      }
-      totalUsed += amt;
-    });
-
-    const totalBudget = 150000000;
-    const remaining = Math.max(0, totalBudget - totalUsed);
-
-    const logs: TransactionLog[] = logsRes.rows.map((row) => ({
-      ...row,
-      proposed_amount: Number(row.proposed_amount || 0),
-      available_balance: Number(row.available_balance || 0),
-      actual_expense: Number(row.actual_expense || 0),
-      request_date: row.request_date ? new Date(row.request_date).toISOString().split('T')[0] : '',
-    }));
-
-    return {
-      logs,
-      stats: {
-        totalBudget,
-        totalUsed,
-        totalRemaining: remaining,
-        fundMap,
-      },
-    };
-  } catch (error) {
-    console.error('Error fetching transaction logs:', error);
-    return {
-      logs: [],
-      stats: {
-        totalBudget: 150000000,
-        totalUsed: 0,
-        totalRemaining: 150000000,
-        fundMap: {},
-      },
-    };
-  }
+  return {
+    logs: logsRes.rows as TransactionLog[],
+    weeklyAllocations: weeklyRes.rows as WeeklyAllocation[],
+    contracts: contractsRes.rows as FundContract[],
+    eventExpenses: eventExpensesRes.rows as EventFundExpense[],
+  };
 }
 
 export default async function NhatKyThuChiPage() {
   const data = await getTransactionsData();
-
   return (
     <TransactionLogManagement
       initialLogs={data.logs}
-      initialStats={data.stats}
+      weeklyAllocations={data.weeklyAllocations}
+      contracts={data.contracts}
+      eventExpenses={data.eventExpenses}
     />
   );
 }

@@ -128,11 +128,29 @@ CREATE TABLE IF NOT EXISTS contracts (
     id SERIAL PRIMARY KEY,
     contract_code VARCHAR(100) UNIQUE,
     contract_date DATE,
-    value DECIMAL(12, 2) DEFAULT 0,
+    customer_name VARCHAR(255),
+    value DECIMAL(15, 2) DEFAULT 0,
+    allocated_value DECIMAL(15, 2),
     seller_id INT REFERENCES users(id) ON DELETE SET NULL,
     referrer_id INT REFERENCES users(id) ON DELETE SET NULL,
     closer_id INT REFERENCES users(id) ON DELETE SET NULL,
+    supporter_id INT REFERENCES users(id) ON DELETE SET NULL,
     event_id INT REFERENCES events(id) ON DELETE SET NULL,
+    closer_name VARCHAR(255),
+    closer_phone VARCHAR(50),
+    referrer_name VARCHAR(255),
+    referrer_phone VARCHAR(50),
+    supporter_name VARCHAR(255),
+    supporter_phone VARCHAR(50),
+    closer_fee DECIMAL(15, 3) DEFAULT 0,
+    referrer_fee DECIMAL(15, 3) DEFAULT 0,
+    supporter_fee DECIMAL(15, 3) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'Chờ duyệt',
+    team_name VARCHAR(255),
+    contract_type VARCHAR(100),
+    approved_date DATE,
+    file_url VARCHAR(500),
+    notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -145,4 +163,61 @@ CREATE TABLE IF NOT EXISTS event_attachments (
     file_name VARCHAR(255) NOT NULL,
     file_type VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9. Nhật ký đề xuất thu chi và báo cáo phân bổ quỹ theo kỳ.
+CREATE TABLE IF NOT EXISTS transaction_logs (
+    id SERIAL PRIMARY KEY,
+    request_code VARCHAR(50) NOT NULL,
+    request_date DATE,
+    fund_source VARCHAR(150) NOT NULL,
+    detail_content TEXT NOT NULL DEFAULT '',
+    requester_id VARCHAR(50),
+    requester_name VARCHAR(255) NOT NULL DEFAULT '',
+    requester_phone VARCHAR(32),
+    approver_id VARCHAR(50),
+    approver_name VARCHAR(255) NOT NULL DEFAULT '',
+    approver_phone VARCHAR(32),
+    beneficiary_name VARCHAR(255) NOT NULL DEFAULT '',
+    beneficiary_phone VARCHAR(32),
+    proposed_amount NUMERIC(18, 2),
+    available_balance NUMERIC(18, 2),
+    fund_alert VARCHAR(100) NOT NULL DEFAULT 'Chưa đối soát',
+    status VARCHAR(40) NOT NULL DEFAULT 'Chờ duyệt',
+    actual_expense NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    receipt_url TEXT,
+    approval_date DATE,
+    payment_date DATE,
+    source_row INTEGER,
+    source_complete BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS fund_weekly_allocations (
+    id SERIAL PRIMARY KEY,
+    period_code VARCHAR(32) NOT NULL,
+    period_month VARCHAR(7) NOT NULL,
+    period_label VARCHAR(80) NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    fund_key VARCHAR(48) NOT NULL,
+    fund_source VARCHAR(120) NOT NULL,
+    allocation_rate NUMERIC(7, 5) NOT NULL DEFAULT 0,
+    requested_amount NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    source_sheet VARCHAR(80) NOT NULL,
+    CONSTRAINT fund_weekly_allocations_period_fund_unique UNIQUE (period_code, fund_key)
+);
+
+CREATE TABLE IF NOT EXISTS fund_event_expenses (
+    id SERIAL PRIMARY KEY,
+    source_sheet VARCHAR(80) NOT NULL,
+    source_row INTEGER NOT NULL,
+    event_code VARCHAR(32) NOT NULL,
+    event_date DATE NOT NULL,
+    beneficiary_phone VARCHAR(32),
+    beneficiary_name VARCHAR(120) NOT NULL,
+    expense_role VARCHAR(120) NOT NULL,
+    proposed_amount NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    status VARCHAR(40) NOT NULL DEFAULT 'Chờ duyệt',
+    CONSTRAINT fund_event_expenses_source_unique UNIQUE (source_sheet, source_row)
 );
