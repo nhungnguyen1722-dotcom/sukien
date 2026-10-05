@@ -8,6 +8,17 @@ import TransactionLogManagement, {
 
 export const revalidate = 0;
 
+function getCurrentMonth() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  return year && month ? `${year}-${month}` : new Date().toISOString().slice(0, 7);
+}
+
 async function getTransactionsData() {
   const [logsRes, weeklyRes, contractsRes, eventExpensesRes] = await Promise.all([
     pool.query(`
@@ -64,6 +75,7 @@ export default async function NhatKyThuChiPage() {
       weeklyAllocations={data.weeklyAllocations}
       contracts={data.contracts}
       eventExpenses={data.eventExpenses}
+      currentMonth={getCurrentMonth()}
     />
   );
 }

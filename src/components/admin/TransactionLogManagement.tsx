@@ -89,7 +89,10 @@ interface Props {
   weeklyAllocations: WeeklyAllocation[];
   contracts: FundContract[];
   eventExpenses: EventFundExpense[];
+  currentMonth: string;
 }
+
+const MONTH_OVERVIEW = '__month_overview__';
 
 const FUND_ORDER = [
   'direct_sale',
@@ -175,13 +178,13 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
 }
 
-export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, eventExpenses }: Props) {
+export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, eventExpenses, currentMonth }: Props) {
   const [logs, setLogs] = useState(initialLogs);
   const months = useMemo(
-    () => Array.from(new Set(weeklyAllocations.map((row) => row.period_month))).sort(),
-    [weeklyAllocations]
+    () => Array.from(new Set([...weeklyAllocations.map((row) => row.period_month), currentMonth])).filter(Boolean).sort(),
+    [weeklyAllocations, currentMonth]
   );
-  const [selectedMonth, setSelectedMonth] = useState(months.at(-1) || '');
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth || months.at(-1) || '');
   const periodsForMonth = useMemo(() => {
     const unique = new Map<string, WeeklyAllocation>();
     weeklyAllocations
@@ -189,15 +192,22 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
       .forEach((row) => unique.set(row.period_code, row));
     return Array.from(unique.values()).sort((a, b) => a.period_start.localeCompare(b.period_start));
   }, [weeklyAllocations, selectedMonth]);
-  const [selectedPeriodCode, setSelectedPeriodCode] = useState(periodsForMonth.at(-1)?.period_code || '');
-  const selectedPeriod = periodsForMonth.find((period) => period.period_code === selectedPeriodCode) || periodsForMonth.at(-1);
+  const [selectedPeriodCode, setSelectedPeriodCode] = useState(MONTH_OVERVIEW);
+  const selectedPeriod = selectedPeriodCode === MONTH_OVERVIEW
+    ? undefined
+    : periodsForMonth.find((period) => period.period_code === selectedPeriodCode) || periodsForMonth.at(-1);
+  const isMonthOverview = selectedPeriodCode === MONTH_OVERVIEW;
 
   const periodBase = (period: WeeklyAllocation) =>
     contracts
       .filter((contract) => withinPeriod(contract.contract_date, period))
       .reduce((total, contract) => total + contract.allocated_value, 0);
 
-  const monthBase = periodsForMonth.reduce((total, period) => total + periodBase(period), 0);
+  const monthContracts = (periodsForMonth.length
+    ? contracts.filter((contract) => periodsForMonth.some((period) => withinPeriod(contract.contract_date, period)))
+    : contracts.filter((contract) => contract.contract_date.slice(0, 7) === selectedMonth))
+    .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
+  const monthBase = monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
   const selectedBase = selectedPeriod ? periodBase(selectedPeriod) : 0;
   const monthPool = Math.round(monthBase * 0.15);
   const monthEventRows = weeklyAllocations.filter((row) => row.period_month === selectedMonth && row.fund_key === 'event_close');
@@ -234,6 +244,41 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         .filter((row) => row.period_code === selectedPeriod.period_code && row.fund_key !== 'leader')
         .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
     : [];
+  const monthFundRows = Array.from(
+    weeklyAllocations
+      .filter((row) => row.period_month === selectedMonth && row.fund_key !== 'leader')
+      .reduce((summaries, row) => {
+        const period = periodsForMonth.find((item) => item.period_code === row.period_code);
+        const current = summaries.get(row.fund_key);
+        const allocationAmount = period ? Math.round(periodBase(period) * row.allocation_rate) : 0;
+        summaries.set(row.fund_key, current
+          ? {
+              ...current,
+              requested_amount: current.requested_amount + row.requested_amount,
+              allocation_amount: current.allocation_amount + allocationAmount,
+              periods: current.periods + 1,
+            }
+          : {
+              fund_key: row.fund_key,
+              fund_source: row.fund_source,
+              allocation_rate: row.allocation_rate,
+              requested_amount: row.requested_amount,
+              source_sheet: row.source_sheet,
+              allocation_amount: allocationAmount,
+              periods: 1,
+            });
+        return summaries;
+      }, new Map<string, {
+        fund_key: string;
+        fund_source: string;
+        allocation_rate: number;
+        requested_amount: number;
+        source_sheet: string;
+        allocation_amount: number;
+        periods: number;
+      }>())
+      .values()
+  ).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key));
   const sourceDirectSale = selectedRows.find((row) => row.fund_key === 'direct_sale');
   const reportedSalesBase = sourceDirectSale && sourceDirectSale.allocation_rate > 0
     ? sourceDirectSale.requested_amount / sourceDirectSale.allocation_rate
@@ -244,6 +289,9 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         .filter((row) => row.period_code === selectedPeriod.period_code)
         .reduce((sum, row) => sum + row.requested_amount, 0)
     : 0;
+  const monthRequests = weeklyAllocations
+    .filter((row) => row.period_month === selectedMonth)
+    .reduce((sum, row) => sum + row.requested_amount, 0);
   const selectedContracts = selectedPeriod
     ? contracts
         .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
@@ -333,8 +381,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
 
   const changeMonth = (month: string) => {
     setSelectedMonth(month);
-    const nextPeriod = weeklyAllocations.filter((row) => row.period_month === month).sort((a, b) => a.period_start.localeCompare(b.period_start)).at(-1);
-    setSelectedPeriodCode(nextPeriod?.period_code || '');
+    setSelectedPeriodCode(MONTH_OVERVIEW);
   };
 
   return (
@@ -363,7 +410,10 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Kỳ tuần</span>
+            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Xem theo</span>
+            <button onClick={() => setSelectedPeriodCode(MONTH_OVERVIEW)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+              Tổng quan tháng
+            </button>
             {periodsForMonth.map((period) => (
               <button key={period.period_code} onClick={() => setSelectedPeriodCode(period.period_code)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
                 {period.period_label}
@@ -374,18 +424,18 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
       </Panel>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Wallet className="h-5 w-5" />} label="Doanh số HĐ kỳ tuần" value={formatVND(selectedBase)} note={`${selectedContracts.length} hợp đồng trong kỳ`} tint="blue" />
-        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label="Quỹ phân bổ tuần (15%)" value={formatVND(selectedBase * 0.15)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
-        <StatCard icon={<Receipt className="h-5 w-5" />} label="Đề nghị chi theo bảng tuần" value={formatVND(selectedRequests)} note="Tổng cột đề nghị trong DNTT" tint="amber" />
+        <StatCard icon={<Wallet className="h-5 w-5" />} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthBase : selectedBase)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
+        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
+        <StatCard icon={<Receipt className="h-5 w-5" />} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
         <StatCard icon={<CalendarDays className="h-5 w-5" />} label="Quỹ tích lũy tháng" value={formatVND(monthPool)} note={`Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}`} tint="emerald" />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-12">
         <Panel className="overflow-hidden xl:col-span-8">
           <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
-            <p className="mt-1 text-xs text-slate-500">Chi tiết người chốt, người giới thiệu, người hỗ trợ và phí theo hợp đồng.</p>
-            {Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
+            <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
+            <p className="mt-1 text-xs text-slate-500">Chi tiết người chốt, người giới thiệu, người hỗ trợ và phí theo {isMonthOverview ? 'toàn bộ các tuần trong tháng' : 'hợp đồng'}.</p>
+            {!isMonthOverview && Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[980px] w-full text-left text-xs">
@@ -396,7 +446,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {selectedContracts.length ? selectedContracts.map((contract) => (
+                {(isMonthOverview ? monthContracts : selectedContracts).length ? (isMonthOverview ? monthContracts : selectedContracts).map((contract) => (
                   <tr key={contract.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
@@ -407,10 +457,10 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
                     <td className="px-3 py-3"><Payee name={contract.referrer_name} phone={contract.referrer_phone} amount={contract.referrer_fee} color="emerald" /></td>
                     <td className="px-3 py-3"><Payee name={contract.supporter_name} phone={contract.supporter_phone} amount={contract.supporter_fee} color="amber" /></td>
                   </tr>
-                )) : <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">Không có hợp đồng trong kỳ này.</td></tr>}
+                )) : <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
               </tbody>
               <tfoot className="bg-blue-50 font-bold text-slate-800">
-                <tr><td className="px-4 py-3">TỔNG CỘNG KỲ TUẦN</td><td className="px-3 py-3 text-right">{formatVND(selectedBase)}</td><td colSpan={3} className="px-3 py-3 text-slate-600">{selectedContracts.length} hợp đồng · phân bổ theo dữ liệu hợp đồng</td></tr>
+                <tr><td className="px-4 py-3">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td><td className="px-3 py-3 text-right">{formatVND(isMonthOverview ? monthBase : selectedBase)}</td><td colSpan={3} className="px-3 py-3 text-slate-600">{isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng · phân bổ theo dữ liệu hợp đồng</td></tr>
               </tfoot>
             </table>
           </div>
@@ -419,17 +469,18 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         <div className="space-y-5 xl:col-span-4">
           <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
-              <div><h2 className="font-bold text-slate-900">Phân bổ quỹ kỳ tuần</h2><p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p></div>
+              <div><h2 className="font-bold text-slate-900">{isMonthOverview ? 'Phân bổ quỹ trong tháng' : 'Phân bổ quỹ kỳ tuần'}</h2><p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p></div>
               <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
             </div>
             <div className="space-y-2">
-              {selectedRows.map((row) => {
-                const allocation = Math.round(selectedBase * row.allocation_rate);
+              {(isMonthOverview ? monthFundRows : selectedRows).map((row) => {
+                const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
+                const periodCount = 'periods' in row ? row.periods : 0;
                 const remaining = allocation - row.requested_amount;
                 return (
                   <div key={row.fund_key} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2"><span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><div><div className="text-[11px] font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</div><div className="mt-0.5 text-[10px] text-slate-500">{row.fund_key === 'event_close' ? 'Tích lũy tuần · quyết toán theo tháng' : row.fund_key === 'tribute_referral' ? 'Quỹ riêng · nguồn chưa có tỷ lệ và số tiền' : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}% · tổng hợp theo tuần`}</div></div></div>
+                      <div className="flex items-start gap-2"><span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><div><div className="text-[11px] font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</div><div className="mt-0.5 text-[10px] text-slate-500">{row.fund_key === 'event_close' ? 'Tích lũy tuần · quyết toán theo tháng' : row.fund_key === 'tribute_referral' ? 'Quỹ riêng · nguồn chưa có tỷ lệ và số tiền' : isMonthOverview ? `${periodCount} kỳ tuần · tổng hợp tháng` : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}% · tổng hợp theo tuần`}</div></div></div>
                       <div className="whitespace-nowrap text-right"><div className="text-[11px] font-bold text-slate-900">{formatVND(allocation)}</div><div className="text-[9px] text-slate-400">phân bổ</div></div>
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-2 text-[10px]">
@@ -441,8 +492,8 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
               })}
             </div>
             <div className="mt-3 rounded-xl bg-slate-900 p-3 text-white">
-              <div className="flex justify-between text-xs font-bold"><span>TỔNG QUỸ PHÂN BỔ TUẦN (15%)</span><span>{formatVND(selectedBase * 0.15)}</span></div>
-              <div className="mt-1 text-[10px] text-slate-300">Nguồn bảng: {selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}</div>
+              <div className="flex justify-between text-xs font-bold"><span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span><span>{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span></div>
+              <div className="mt-1 text-[10px] text-slate-300">{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</div>
             </div>
           </Panel>
 
