@@ -1,12 +1,12 @@
 const { Pool } = require('pg');
 
-const NEON_CONN_STRING = process.env.NEON_CONN_STRING || 'postgresql://neondb_owner:npg_Gy2mBY4leKgb@ep-snowy-forest-ax0u3mls-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const NEON_CONN_STRING = process.env.NEON_CONN_STRING;
 
 const LOCAL_CONFIG = {
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '1111222267',
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5433', 10),
+  port: parseInt(process.env.DB_PORT || '5432', 10),
   database: process.env.DB_NAME || 'postgismap',
 };
 
@@ -34,6 +34,10 @@ function mapType(udtName, dataType, charMaxLen) {
 async function syncDatabases() {
   console.log('=== BẮT ĐẦU ĐỒNG BỘ DỮ LIỆU TỪ NEON VỀ LOCALHOST POSTGRESQL ===\n');
 
+  if (!NEON_CONN_STRING) {
+    throw new Error('Thiếu biến môi trường NEON_CONN_STRING.');
+  }
+
   const neonPool = new Pool({
     connectionString: NEON_CONN_STRING,
     ssl: { rejectUnauthorized: false },
@@ -51,6 +55,8 @@ async function syncDatabases() {
     console.log('[Local DB] Đã kết nối:', localVer.rows[0].version.split(' on ')[0]);
     console.log('');
 
+    await localClient.query('BEGIN');
+
     const tablesRes = await neonPool.query(`
       SELECT table_name 
       FROM information_schema.tables 
@@ -58,9 +64,29 @@ async function syncDatabases() {
       ORDER BY table_name
     `);
 
-    const neonTables = tablesRes.rows
+    let neonTables = tablesRes.rows
       .map(r => r.table_name)
       .filter(t => !SKIP_TABLES.includes(t));
+
+    const geometryTypeRes = await localClient.query(
+      "SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'geometry') AS available"
+    );
+    if (!geometryTypeRes.rows[0].available) {
+      const geometryTables = [];
+      for (const tableName of neonTables) {
+        const geometryColRes = await neonPool.query(`
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = $1 AND udt_name = 'geometry'
+          LIMIT 1
+        `, [tableName]);
+        if (geometryColRes.rows.length > 0) geometryTables.push(tableName);
+      }
+      neonTables = neonTables.filter(t => !geometryTables.includes(t));
+      if (geometryTables.length > 0) {
+        console.warn(`[Cấu trúc] Bỏ qua bảng GIS vì local chưa cài PostGIS: ${geometryTables.join(', ')}`);
+      }
+    }
 
     console.log(`Tìm thấy ${neonTables.length} bảng dữ liệu trên Neon:`);
     console.log(neonTables.join(', '));
@@ -150,18 +176,24 @@ async function syncDatabases() {
     console.log('\n=== ĐỒNG BỘ CẤU TRÚC HOÀN TẤT. BẮT ĐẦU CHUYỂN DỮ LIỆU ===\n');
 
     // 2. Tạm tắt kiểm tra Foreign Key để import an toàn
-    await localClient.query("SET session_replication_role = 'replica'");
+    await localClient.query("SET LOCAL session_replication_role = 'replica'");
 
     // Check if table_tinh already populated locally
-    const localTinhCountRes = await localClient.query('SELECT COUNT(*) as cnt FROM table_tinh');
-    const localTinhCount = parseInt(localTinhCountRes.rows[0].cnt, 10);
-    const needSyncTinh = localTinhCount < 63;
+    let localTinhCount = 0;
+    let needSyncTinh = false;
+    if (neonTables.includes('table_tinh')) {
+      const localTinhCountRes = await localClient.query('SELECT COUNT(*) as cnt FROM table_tinh');
+      localTinhCount = parseInt(localTinhCountRes.rows[0].cnt, 10);
+      needSyncTinh = localTinhCount < 63;
+    }
 
     // Truncate target tables (keep table_tinh if already populated to avoid 50MB GIS download)
     const tablesToTruncate = neonTables.filter(t => t !== 'table_tinh' || needSyncTinh);
     const tableListStr = tablesToTruncate.map(t => `"${t}"`).join(', ');
-    console.log(`[Dữ liệu] Dọn sạch dữ liệu cũ các bảng đích: ${tableListStr}...`);
-    await localClient.query(`TRUNCATE TABLE ${tableListStr} CASCADE`);
+    if (tablesToTruncate.length > 0) {
+      console.log(`[Dữ liệu] Dọn sạch dữ liệu cũ các bảng đích: ${tableListStr}...`);
+      await localClient.query(`TRUNCATE TABLE ${tableListStr} CASCADE`);
+    }
 
     // 3. Sao chép dữ liệu từng bảng
     for (const tableName of neonTables) {
@@ -249,7 +281,6 @@ async function syncDatabases() {
     }
 
     // 4. Bật lại kiểm tra Foreign Key
-    await localClient.query("SET session_replication_role = 'origin'");
     console.log('\n[Dữ liệu] Đã kích hoạt lại kiểm tra Foreign Key.');
 
     // 5. Cập nhật Sequences
@@ -310,8 +341,12 @@ async function syncDatabases() {
       console.log('>>> THÀNH CÔNG RỰC RỠ: 100% DỮ LIỆU ĐÃ ĐƯỢC CHUYỂN VỀ POSTGRESQL LOCALHOST AN TOÀN VÀ CHÍNH XÁC! <<<');
     }
 
+    await localClient.query('COMMIT');
+
   } catch (err) {
+    await localClient.query('ROLLBACK').catch(() => {});
     console.error('\nLỗi khi đồng bộ:', err);
+    process.exitCode = 1;
   } finally {
     localClient.release();
     await neonPool.end();
@@ -320,4 +355,7 @@ async function syncDatabases() {
   }
 }
 
-syncDatabases();
+syncDatabases().catch((err) => {
+  console.error('\nLỗi khi đồng bộ:', err.message);
+  process.exitCode = 1;
+});

@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
+  ArrowLeftRight,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
@@ -74,6 +75,24 @@ export interface FundContract {
   status: string;
 }
 
+export interface WeeklyBeneficiary {
+  source_key: string;
+  source_row: number;
+  source_column: number;
+  period_code: string;
+  contract_ref: string | null;
+  contract_date: string | null;
+  customer_name: string | null;
+  contract_value: number;
+  beneficiary_name: string;
+  beneficiary_phone: string | null;
+  bank_account: string | null;
+  bank_name: string | null;
+  commission_rate: number;
+  fund_source: string;
+  allocated_amount: number;
+}
+
 export interface EventFundExpense {
   event_code: string;
   event_date: string;
@@ -88,8 +107,18 @@ interface Props {
   initialLogs: TransactionLog[];
   weeklyAllocations: WeeklyAllocation[];
   contracts: FundContract[];
+  weeklyBeneficiaries: WeeklyBeneficiary[];
   eventExpenses: EventFundExpense[];
   currentMonth: string;
+}
+
+interface WeeklyContractRow {
+  sourceRow: number;
+  contractRef: string | null;
+  contractDate: string | null;
+  customerName: string | null;
+  contractValue: number;
+  allocations: WeeklyBeneficiary[];
 }
 
 const MONTH_OVERVIEW = '__month_overview__';
@@ -104,6 +133,7 @@ const FUND_ORDER = [
   'training',
   'incentive',
   'travel',
+  'leader',
   'operations',
   'support_kt',
   'support_cn',
@@ -178,13 +208,17 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
 }
 
-export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, eventExpenses, currentMonth }: Props) {
+export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, weeklyBeneficiaries, eventExpenses, currentMonth }: Props) {
   const [logs, setLogs] = useState(initialLogs);
+  const [activeMainTab, setActiveMainTab] = useState<'contracts' | 'events' | 'transactions'>('contracts');
   const months = useMemo(
     () => Array.from(new Set([...weeklyAllocations.map((row) => row.period_month), currentMonth])).filter(Boolean).sort(),
     [weeklyAllocations, currentMonth]
   );
   const [selectedMonth, setSelectedMonth] = useState(currentMonth || months.at(-1) || '');
+  const selectedYear = selectedMonth.slice(0, 4);
+  const selectedMonthNumber = selectedMonth.slice(5, 7);
+  const availableYears = Array.from(new Set([...months, selectedMonth].map((month) => month.slice(0, 4)))).filter(Boolean).sort();
   const periodsForMonth = useMemo(() => {
     const unique = new Map<string, WeeklyAllocation>();
     weeklyAllocations
@@ -244,6 +278,15 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         .filter((row) => row.period_code === selectedPeriod.period_code && row.fund_key !== 'leader')
         .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
     : [];
+  const selectedWeeklyFundRows = selectedPeriod
+    ? weeklyAllocations
+        .filter((row) => row.period_code === selectedPeriod.period_code)
+        .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
+    : [];
+  const selectedDirectSaleFund = selectedWeeklyFundRows.find((row) => row.fund_key === 'direct_sale');
+  const reportedWeeklyBase = selectedDirectSaleFund?.allocation_rate
+    ? selectedDirectSaleFund.requested_amount / selectedDirectSaleFund.allocation_rate
+    : selectedBase;
   const monthFundRows = Array.from(
     weeklyAllocations
       .filter((row) => row.period_month === selectedMonth && row.fund_key !== 'leader')
@@ -297,6 +340,25 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
         .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
     : [];
+  const selectedWorkbookAllocations = selectedPeriod
+    ? weeklyBeneficiaries.filter((row) => row.period_code === selectedPeriod.period_code)
+    : [];
+  const weeklyPayees = Array.from(new Map(selectedWorkbookAllocations
+    .slice().sort((a, b) => a.source_column - b.source_column)
+    .map((row) => [row.source_column, row])).values());
+  const weeklyContractRows: WeeklyContractRow[] = Array.from(selectedWorkbookAllocations.reduce((groups, row) => {
+    const current = groups.get(row.source_row) || {
+      sourceRow: row.source_row,
+      contractRef: row.contract_ref,
+      contractDate: row.contract_date,
+      customerName: row.customer_name,
+      contractValue: Number(row.contract_value || 0),
+      allocations: [],
+    };
+    current.allocations.push(row);
+    groups.set(row.source_row, current);
+    return groups;
+  }, new Map<number, WeeklyContractRow>()).values()).sort((a, b) => a.sourceRow - b.sourceRow);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFund, setSelectedFund] = useState('all');
@@ -310,6 +372,8 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [viewLog, setViewLog] = useState<TransactionLog | null>(null);
+  const [viewWeeklyContract, setViewWeeklyContract] = useState<WeeklyContractRow | null>(null);
+  const [weeklyTableOrientation, setWeeklyTableOrientation] = useState<'contracts' | 'names'>('contracts');
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -385,29 +449,43 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
   };
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="contract-log-page min-w-0 w-full space-y-5 pb-8 md:px-5">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-500">
             <Link href="/admin" className="hover:text-blue-600">Trang chủ</Link><span>›</span><span>Nhật ký thu chi</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Nhật ký dòng tiền & phân bổ quỹ</h1>
-          <p className="mt-1 text-sm text-slate-600">Theo dõi hợp đồng theo tuần, quỹ sự kiện theo tháng và khoản chi theo trạng thái thực tế.</p>
         </div>
         <button onClick={() => setIsCreateOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
           <Plus className="h-4 w-4" /> Thêm phiếu chi
         </button>
       </header>
 
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
+        {[
+          { id: 'contracts', label: 'Nhật ký dòng tiền & Phân bổ quỹ' },
+          { id: 'events', label: 'Quỹ Sự kiện & Chốt hợp đồng — tổng hợp tháng' },
+          { id: 'transactions', label: 'Nhật ký phiếu thu chi' },
+        ].map((tab) => (
+          <button key={tab.id} type="button" onClick={() => setActiveMainTab(tab.id as typeof activeMainTab)}
+            className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold transition ${activeMainTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <Panel className="p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tháng</span>
-            {months.map((month) => (
-              <button key={month} onClick={() => changeMonth(month)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedMonth === month ? 'border-blue-700 bg-slate-900 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                Tháng {Number(month.slice(5))}/{month.slice(0, 4)}
-              </button>
-            ))}
+            <label className="text-xs font-semibold text-slate-500">Năm</label>
+            <select value={selectedYear} onChange={(event) => changeMonth(`${event.target.value}-${selectedMonthNumber}`)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+              {availableYears.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+            <label className="ml-1 text-xs font-semibold text-slate-500">Tháng</label>
+            <select value={selectedMonthNumber} onChange={(event) => changeMonth(`${selectedYear}-${event.target.value}`)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+              {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((month) => <option key={month} value={month}>Tháng {Number(month)}</option>)}
+            </select>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Xem theo</span>
@@ -423,6 +501,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         </div>
       </Panel>
 
+      {activeMainTab === 'contracts' && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Wallet className="h-5 w-5" />} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthBase : selectedBase)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
         <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
@@ -431,12 +510,78 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
       </div>
 
       <div className="grid gap-5 xl:grid-cols-12">
-        <Panel className="overflow-hidden xl:col-span-8">
+        <Panel className={`overflow-hidden ${isMonthOverview ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
           <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
+            <div className="mb-2 flex justify-end">{!isMonthOverview && ['2026-09-W3', '2026-09-W4', '2026-09-W5'].includes(selectedPeriod?.period_code || '') && <button type="button" onClick={() => setWeeklyTableOrientation((orientation) => orientation === 'contracts' ? 'names' : 'contracts')} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><ArrowLeftRight className="h-4 w-4" />{weeklyTableOrientation === 'contracts' ? 'Xem theo họ tên' : 'Xem theo hợp đồng'}</button>}</div><h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
             <p className="mt-1 text-xs text-slate-500">Chi tiết người chốt, người giới thiệu, người hỗ trợ và phí theo {isMonthOverview ? 'toàn bộ các tuần trong tháng' : 'hợp đồng'}.</p>
             {!isMonthOverview && Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
           </div>
+          {!isMonthOverview && weeklyContractRows.length > 0 ? (
+          <div className="overflow-x-auto">
+            {weeklyTableOrientation === 'contracts' ? (
+            <table className="min-w-[1800px] w-full text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="sticky left-0 bg-slate-50 px-3 py-3">STT</th>
+                  <th className="sticky left-12 min-w-64 bg-slate-50 px-3 py-3">Hợp đồng</th>
+                  {weeklyPayees.map((payee) => (
+                    <th key={payee.source_column} className="min-w-40 whitespace-pre-line px-3 py-3">
+                      {`${payee.beneficiary_name}\n${payee.bank_account || ''}\n${payee.bank_name || ''}`}
+                    </th>
+                  ))}
+                  <th className="min-w-36 px-3 py-3 text-right">Tổng quỹ chưa chia (15%)</th>
+                  <th className="min-w-36 px-3 py-3 text-right">Tổng hoa hồng chia</th>
+                  <th className="min-w-36 px-3 py-3 text-right">Tổng quỹ còn lại</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {weeklyContractRows.map((contract, index) => {
+                  const distributed = contract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0);
+                  const fund = Math.round(contract.contractValue * 0.15);
+                  return (
+                    <tr key={contract.sourceRow} onClick={() => setViewWeeklyContract(contract)} className="cursor-pointer hover:bg-blue-50/60">
+                      <td className="sticky left-0 bg-white px-3 py-3 font-semibold">{index + 1}</td>
+                      <td className="sticky left-12 min-w-64 bg-white px-3 py-3">
+                        <div className="whitespace-pre-line font-medium text-slate-800">{contract.contractRef || contract.contractDate}</div>
+                        <div className="mt-1 text-[10px] text-slate-500">Ngày {contract.contractDate ? formatDate(contract.contractDate) : '—'} · {contract.customerName || '—'}</div>
+                        <div className="text-[10px] text-slate-500">Giá trị HĐ {formatVND(contract.contractValue)}</div>
+                      </td>
+                      {weeklyPayees.map((payee) => {
+                        const allocation = contract.allocations.find((row) => row.source_column === payee.source_column);
+                        return <td key={payee.source_column} className="px-3 py-3 text-right">{formatVND(Number(allocation?.allocated_amount || 0))}</td>;
+                      })}
+                      <td className="px-3 py-3 text-right">{formatVND(fund)}</td>
+                      <td className="px-3 py-3 text-right font-semibold">{formatVND(distributed)}</td>
+                      <td className="px-3 py-3 text-right">{formatVND(fund - distributed)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-blue-50 font-bold text-slate-800">
+                <tr>
+                  <td className="sticky left-0 bg-blue-50 px-3 py-3" colSpan={2}>Tổng</td>
+                  {weeklyPayees.map((payee) => <td key={payee.source_column} className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Number(contract.allocations.find((row) => row.source_column === payee.source_column)?.allocated_amount || 0), 0))}</td>)}
+                  <td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15), 0))}</td>
+                  <td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td>
+                  <td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15) - contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+            ) : (
+            <table className="min-w-[1800px] w-full text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="sticky left-0 min-w-64 bg-slate-50 px-3 py-3">Họ tên</th>{weeklyContractRows.map((contract, index) => <th key={contract.sourceRow} className="min-w-44 whitespace-pre-line px-3 py-3">{`${contract.contractRef || `Hợp đồng ${index + 1}`}
+${contract.contractDate ? formatDate(contract.contractDate) : ''}
+${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-right">Tổng hoa hồng chia</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {weeklyPayees.map((payee) => <tr key={payee.source_column}><th className="sticky left-0 bg-white px-3 py-3 text-left font-semibold text-slate-800"><div>{payee.beneficiary_name}</div><div className="mt-1 whitespace-pre-line text-[10px] font-normal text-slate-500">{[payee.bank_account, payee.bank_name].filter(Boolean).join(' / ')}</div></th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(Number(contract.allocations.find((row) => row.source_column === payee.source_column)?.allocated_amount || 0))}</td>)}<td className="px-3 py-3 text-right font-semibold">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Number(contract.allocations.find((row) => row.source_column === payee.source_column)?.allocated_amount || 0), 0))}</td></tr>)}
+                <tr className="bg-blue-50 font-bold text-slate-800"><th className="sticky left-0 bg-blue-50 px-3 py-3 text-left">Tổng hoa hồng chia</th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(contract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0))}</td>)}<td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td></tr>
+                <tr><th className="sticky left-0 bg-white px-3 py-3 text-left">Tổng quỹ chưa chia (15%)</th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(Math.round(contract.contractValue * 0.15))}</td>)}<td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15), 0))}</td></tr>
+                <tr><th className="sticky left-0 bg-white px-3 py-3 text-left">Tổng quỹ còn lại</th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(Math.round(contract.contractValue * 0.15) - contract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0))}</td>)}<td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15) - contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td></tr>
+              </tbody>
+            </table>
+            )}
+          </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[980px] w-full text-left text-xs">
               <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
@@ -464,10 +609,11 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
               </tfoot>
             </table>
           </div>
+          )}
         </Panel>
 
-        <div className="space-y-5 xl:col-span-4">
-          <Panel className="p-4">
+        {isMonthOverview && <div className="space-y-5 xl:col-span-4">
+          {isMonthOverview && <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
               <div><h2 className="font-bold text-slate-900">{isMonthOverview ? 'Phân bổ quỹ trong tháng' : 'Phân bổ quỹ kỳ tuần'}</h2><p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p></div>
               <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
@@ -495,9 +641,9 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
               <div className="flex justify-between text-xs font-bold"><span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span><span>{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span></div>
               <div className="mt-1 text-[10px] text-slate-300">{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</div>
             </div>
-          </Panel>
+          </Panel>}
 
-          <Panel className="p-4">
+          {isMonthOverview && <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <div><h2 className="font-bold text-slate-900">Leader Team & Giám đốc KD</h2><p className="mt-1 text-[11px] text-slate-500">Tổng hợp tháng, chia tỷ lệ 30% / 70%.</p></div>
               <span className="rounded-full bg-pink-50 px-2 py-1 text-[10px] font-bold text-pink-700">2,9%</span>
@@ -508,10 +654,50 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold"><span>Tổng quỹ lũy kế tháng</span><span>{formatVND(monthlyLeaderPool)}</span></div>
               <div className="flex justify-between text-[11px] text-slate-500"><span>Đề nghị chi trong DNTT tuần</span><span>{formatVND(monthlyLeaderRequests)}</span></div>
             </div>
-          </Panel>
-        </div>
+          </Panel>}
+        </div>}
       </div>
 
+      {!isMonthOverview && <Panel className="ml-auto min-w-0 w-full self-stretch overflow-hidden border-blue-100 shadow-md lg:w-1/2">
+        <div className="flex flex-col gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2"><span className="rounded-lg bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">{selectedPeriod?.period_label}</span><span className="text-xs font-medium text-slate-500">{selectedPeriod?.source_sheet}</span></div>
+            <h2 className="mt-2 text-lg font-bold text-slate-900">Ph&#226;n b&#7893; qu&#7929; k&#7923; tu&#7847;n</h2>
+            <p className="mt-1 text-xs text-slate-500">&#272;&#7889;i chi&#7871;u theo b&#7843;ng &#273;&#7873; ngh&#7883; thanh to&#225;n, t&#225;ch r&#245; qu&#7929; &#273;&#432;&#7907;c ph&#226;n b&#7893;, &#273;&#227; chi v&#224; c&#242;n l&#7841;i.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:min-w-[350px]">
+            <div className="rounded-xl border border-blue-100 bg-white px-4 py-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doanh s&#7889; H&#272;</div><div className="mt-1 text-base font-bold tabular-nums text-slate-900">{formatVND(reportedWeeklyBase)}</div></div>
+            <div className="rounded-xl bg-blue-600 px-4 py-3 text-white"><div className="text-[10px] font-semibold uppercase tracking-wide text-blue-100">T&#7893;ng qu&#7929; 15%</div><div className="mt-1 text-base font-bold tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + Math.round(reportedWeeklyBase * row.allocation_rate), 0))}</div></div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-5 py-3">Qu&#7929; / n&#7897;i dung</th><th className="px-4 py-3 text-right">T&#7927; l&#7879;</th><th className="px-4 py-3 text-right">Qu&#7929; ph&#226;n b&#7893;</th><th className="px-4 py-3 text-right">T&#7893;ng chi qu&#7929;</th><th className="px-5 py-3 text-right">C&#242;n l&#7841;i</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{selectedWeeklyFundRows.map((row) => {
+              const allocation = Math.round(reportedWeeklyBase * row.allocation_rate);
+              const remaining = allocation - row.requested_amount;
+              return <tr key={row.fund_key} className="transition-colors hover:bg-blue-50/50">
+                <td className="px-5 py-3"><div className="flex items-start gap-3"><span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><div><div className="font-semibold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</div><div className="mt-0.5 text-[11px] text-slate-500">{row.fund_source}</div></div></div></td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-600">{(row.allocation_rate * 100).toLocaleString('vi-VN')}%</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{formatVND(allocation)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-700">{formatVND(row.requested_amount)}</td>
+                <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums ${remaining <= 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatVND(remaining)}</td>
+              </tr>;
+            })}</tbody>
+            <tfoot className="border-t-2 border-blue-100 bg-blue-50/80 font-bold text-slate-900"><tr>
+              <td className="px-5 py-4">T&#7893;ng qu&#7929; tu&#7847;n</td><td className="px-4 py-4 text-right">15%</td>
+              <td className="px-4 py-4 text-right tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + Math.round(reportedWeeklyBase * row.allocation_rate), 0))}</td>
+              <td className="px-4 py-4 text-right tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + row.requested_amount, 0))}</td>
+              <td className="px-5 py-4 text-right tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + Math.round(reportedWeeklyBase * row.allocation_rate) - row.requested_amount, 0))}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"><span>Gi&#225; tr&#7883; ph&#226;n b&#7893; t&#237;nh theo doanh s&#7889; H&#272; v&#224; t&#7927; l&#7879; c&#7911;a t&#7915;ng qu&#7929;.</span><span>Kho&#7843;n ch&#432;a chi hi&#7875;n th&#7883; m&#224;u xanh.</span></div>
+      </Panel>}
+
+      </>}
+
+      {activeMainTab === 'events' && <>
       <Panel className="overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div><h2 className="font-bold text-slate-900">Quỹ Sự kiện & Chốt hợp đồng — tổng hợp tháng</h2><p className="mt-1 text-xs text-slate-500">Gồm thù lao nhân sự sự kiện, đề xuất chi và các khoản phát sinh cùng quỹ.</p></div>
@@ -532,6 +718,9 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         <p className="px-4 py-3 text-[11px] text-slate-500">Phiếu YC003 trong bảng thu chi chưa có ngày và số tiền; khoản đó được giữ ở trạng thái thiếu dữ liệu và chưa cộng vào tổng đề nghị.</p>
       </Panel>
 
+      </>}
+
+      {activeMainTab === 'transactions' && <>
       <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div><h2 className="font-bold text-slate-900">Nhật ký phiếu thu chi</h2><p className="mt-1 text-xs text-slate-500">Danh sách YC từ sheet 6. DSThu chi; dòng thiếu dữ liệu được giữ để đối soát.</p></div>
@@ -558,6 +747,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
           </table>
         </div>
       </Panel>
+      </>}
 
       {isCreateOpen && <Modal onClose={() => setIsCreateOpen(false)} title="Tạo phiếu đề xuất chi">
         <form onSubmit={handleCreate} className="space-y-3 p-5 text-xs">
@@ -569,6 +759,22 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
           <PersonFields title="Người thụ hưởng" name={form.beneficiaryName} phone={form.beneficiaryPhone} onName={(v) => setForm({ ...form, beneficiaryName: v })} onPhone={(v) => setForm({ ...form, beneficiaryPhone: v })} />
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2">Hủy</button><button disabled={isSubmitting} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{isSubmitting ? 'Đang lưu…' : 'Lưu phiếu'}</button></div>
         </form>
+      </Modal>}
+      {viewWeeklyContract && <Modal className="max-w-[1400px]" onClose={() => setViewWeeklyContract(null)} title={viewWeeklyContract.contractRef || `H\u1ee3p \u0111\u1ed3ng ng\u00e0y ${formatDate(viewWeeklyContract.contractDate)}`}>
+        <div className="space-y-4 p-5 text-xs">
+          <div className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-3">
+            <Detail label="Ng&#224;y k&#253;" value={formatDate(viewWeeklyContract.contractDate)} />
+            <Detail label="Kh&#225;ch h&#224;ng" value={viewWeeklyContract.customerName || '?'} />
+            <Detail label="Gi&#225; tr&#7883; h&#7907;p &#273;&#7891;ng" value={formatVND(viewWeeklyContract.contractValue)} />
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full min-w-[650px] text-left">
+              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Nh&#226;n s&#7921; th&#7909; h&#432;&#7903;ng</th><th className="px-3 py-2">T&#224;i kho&#7843;n / Ng&#226;n h&#224;ng</th><th className="px-3 py-2">Ngu&#7891;n qu&#7929;</th><th className="px-3 py-2 text-right">T&#7927; l&#7879;</th><th className="px-3 py-2 text-right">S&#7889; ti&#7873;n</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">{viewWeeklyContract.allocations.map((row) => <tr key={row.source_key}><td className="px-3 py-2"><div className="font-semibold">{row.beneficiary_name}</div><div className="text-[10px] text-slate-500">{row.beneficiary_phone || '?'}</div></td><td className="px-3 py-2"><div>{row.bank_account || '?'}</div><div className="text-[10px] text-slate-500">{row.bank_name || '?'}</div></td><td className="px-3 py-2">{row.fund_source || '?'}</td><td className="px-3 py-2 text-right">{Number(row.commission_rate).toLocaleString('vi-VN')}%</td><td className="px-3 py-2 text-right font-semibold">{formatVND(row.allocated_amount)}</td></tr>)}</tbody>
+              <tfoot className="bg-blue-50 font-bold"><tr><td colSpan={4} className="px-3 py-2 text-right">T&#7893;ng ph&#226;n b&#7893;</td><td className="px-3 py-2 text-right">{formatVND(viewWeeklyContract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0))}</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
       </Modal>}
       {viewLog && <Modal onClose={() => setViewLog(null)} title={`Chi tiết phiếu ${viewLog.request_code}`}><div className="grid gap-3 p-5 text-xs sm:grid-cols-2"><Detail label="Ngày đề xuất" value={formatDate(viewLog.request_date)} /><Detail label="Nguồn quỹ" value={viewLog.fund_source} /><Detail label="Số tiền đề xuất" value={viewLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(viewLog.proposed_amount)} /><Detail label="Số tiền thực chi" value={formatVND(viewLog.actual_expense)} /><Detail label="Người đề xuất" value={`${safeText(viewLog.requester_name)} · ${viewLog.requester_phone || '—'}`} /><Detail label="Người duyệt" value={`${safeText(viewLog.approver_name)} · ${viewLog.approver_phone || '—'}`} /><Detail label="Người thụ hưởng" value={`${safeText(viewLog.beneficiary_name)} · ${viewLog.beneficiary_phone || '—'}`} /><Detail label="Trạng thái" value={viewLog.status} /><div className="rounded-lg bg-slate-50 p-3 sm:col-span-2"><div className="mb-1 text-slate-500">Nội dung</div>{safeText(viewLog.detail_content)}</div>{viewLog.receipt_url && <a href={viewLog.receipt_url} target="_blank" rel="noreferrer" className="text-blue-600 underline sm:col-span-2">Mở chứng từ</a>}</div></Modal>}
     </div>
@@ -598,8 +804,8 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${style}`}>{status === 'Thiếu dữ liệu' ? <AlertCircle className="h-3 w-3" /> : null}{status}</span>;
 }
 
-function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2><button onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>{children}</div></div>;
+function Modal({ children, onClose, title, className = 'max-w-2xl' }: { children: React.ReactNode; onClose: () => void; title: string; className?: string }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className={`max-h-[92vh] w-full ${className} overflow-y-auto rounded-2xl bg-white shadow-2xl`}><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2><button onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>{children}</div></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

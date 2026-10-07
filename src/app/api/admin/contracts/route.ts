@@ -128,11 +128,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50), ADD COLUMN IF NOT EXISTS customer_birth_date DATE`);
     const body = await request.json();
     const {
       contract_code,
       contract_date,
       customer_name,
+      customer_phone,
+      customer_birth_date,
       value,
       closer_id,
       closer_name,
@@ -173,6 +176,8 @@ export async function POST(request: NextRequest) {
         contract_code,
         contract_date,
         customer_name,
+        customer_phone,
+        customer_birth_date,
         value,
         closer_id,
         closer_name,
@@ -193,13 +198,15 @@ export async function POST(request: NextRequest) {
         approved_date,
         notes,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, CURRENT_TIMESTAMP)
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
         typeof contract_code === 'string' && contract_code.trim() ? contract_code.trim() : null,
         contract_date,
         customer_name.trim(),
+        customer_phone?.trim() || null,
+        customer_birth_date || null,
         numValue,
         closer_id && Number.isInteger(Number(closer_id)) ? Number(closer_id) : null,
         closer_name || null,

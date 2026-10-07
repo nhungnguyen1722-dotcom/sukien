@@ -47,6 +47,7 @@ export interface RegistrationItem {
   sale_name: string;
   sale_phone?: string | null;
   attendance_status: string;
+  business_unit?: string | null;
   notes: string | null;
   registered_at?: string | null;
   created_at: string | null;
@@ -132,6 +133,7 @@ export default function ReceptionManagement({
   const [selectedSaleName, setSelectedSaleName] = useState('');
   const [isSaleDropdownOpen, setIsSaleDropdownOpen] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState('Đã check-in');
+  const [businessUnit, setBusinessUnit] = useState('Khối kinh doanh');
   const [notes, setNotes] = useState('');
   const saleDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -295,6 +297,7 @@ export default function ReceptionManagement({
         guest_role: 'Khách mời',
         source: 'Lễ tân nhập',
         attendance_status: attendanceStatus,
+        business_unit: businessUnit,
         notes: notes.trim() || null,
       };
 
@@ -321,6 +324,7 @@ export default function ReceptionManagement({
         setSelectedSaleName('');
         setSaleSearch('');
         setAttendanceStatus('Đã check-in');
+        setBusinessUnit('Khối kinh doanh');
         setNotes('');
       } else {
         setFormError(data.error || 'Có lỗi xảy ra khi thêm khách mời');
@@ -701,6 +705,14 @@ export default function ReceptionManagement({
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Khối / Ban</label>
+              <select value={businessUnit} onChange={(e) => setBusinessUnit(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800">
+                <option value="Khối kinh doanh">Khối kinh doanh</option>
+                <option value="Ban nguồn vốn">Ban nguồn vốn</option>
+              </select>
+            </div>
+
             {/* Notes */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -793,13 +805,14 @@ export default function ReceptionManagement({
                   <th className="pb-3 px-3 font-medium">SĐT</th>
                   <th className="pb-3 px-3 font-medium">Người mời (Sale)</th>
                   <th className="pb-3 px-3 font-medium">Tình trạng</th>
+                  <th className="pb-3 px-3 font-medium">Khối / Ban</th>
                   <th className="pb-3 pl-3 font-medium text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <UserPlus className="w-8 h-8 text-slate-300" />
                         <p className="text-sm">Chưa có khách mời nào được nhập cho sự kiện này</p>
@@ -839,6 +852,7 @@ export default function ReceptionManagement({
                             {guest.attendance_status || 'Đã check-in'}
                           </span>
                         </td>
+                        <td className="py-3.5 px-3">{guest.business_unit || 'Khối kinh doanh'}</td>
                         <td className="py-3.5 pl-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Quick Check-in Button */}

@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         u.classification,
         u.title,
         u.team_id,
+        t.name AS team_name,
         u.ref_code,
         u.referrer_id,
         u.referral_group,
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
         r.full_name AS referrer_name,
         r.phone AS referrer_phone
       FROM users u
+      LEFT JOIN teams t ON t.id = u.team_id
       LEFT JOIN users r ON u.referrer_id = r.id
       WHERE 1=1
     `;
@@ -133,6 +135,7 @@ export async function POST(request: NextRequest) {
       notes,
       is_team_leader_eligible,
       avatar_url,
+      team_name,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -176,8 +179,10 @@ export async function POST(request: NextRequest) {
         is_team_leader_eligible,
         guest_count,
         notes,
-        avatar_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        avatar_url,
+        team_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+        (SELECT id FROM teams WHERE name = $19 LIMIT 1))
       RETURNING *`,
       [
         full_name.trim(),
@@ -198,6 +203,7 @@ export async function POST(request: NextRequest) {
         guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
         notes ? notes.trim() : null,
         avatar_url ? avatar_url.trim() : null,
+        team_name || null,
       ]
     );
 

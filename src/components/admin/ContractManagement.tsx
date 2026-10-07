@@ -39,6 +39,8 @@ export interface Contract {
   contract_code: string | null;
   contract_date: string;
   customer_name: string;
+  customer_phone?: string | null;
+  customer_birth_date?: string | null;
   value: number | string;
   allocated_value?: number | string | null;
   closer_id: number | null;
@@ -323,6 +325,8 @@ export default function ContractManagement({
     contract_code: '',
     contract_date: '',
     customer_name: '',
+    customer_phone: '',
+    customer_birth_date: '',
     value: 0,
     allocated_value: 0,
     closer_id: '',
@@ -471,6 +475,8 @@ export default function ContractManagement({
       contract_code: `HD00${contracts.length + 1}`,
       contract_date: new Date().toISOString().split('T')[0],
       customer_name: '',
+      customer_phone: '',
+      customer_birth_date: '',
       value: initialVal,
       allocated_value: initialVal,
       closer_id: '',
@@ -522,6 +528,8 @@ export default function ContractManagement({
       contract_code: c.contract_code || '',
       contract_date: dateStr,
       customer_name: c.customer_name || '',
+      customer_phone: c.customer_phone || '',
+      customer_birth_date: c.customer_birth_date ? String(c.customer_birth_date).slice(0, 10) : '',
       value: valNum,
       allocated_value: allocatedValue,
       closer_id: c.closer_id ? String(c.closer_id) : '',
@@ -1074,6 +1082,17 @@ export default function ContractManagement({
                   placeholder="VD: Bác Nguyễn Văn Hải (Sở hữu)"
                   required
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Số điện thoại</label>
+                  <input type="tel" value={formData.customer_phone} onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })} className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Ngày tháng năm sinh</label>
+                  <input type="date" value={formData.customer_birth_date} onChange={(e) => setFormData({ ...formData, customer_birth_date: e.target.value })} className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900" />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

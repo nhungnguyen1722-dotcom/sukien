@@ -32,10 +32,10 @@ h1, h2, h3, h4, h5 {
 }
 
 .contract-log-page {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .contract-log-page :is(h1, h2, h3, h4, h5) {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
-  letter-spacing: -0.02em;
+  font-family: Arial, Helvetica, sans-serif !important;
+  letter-spacing: normal;
 }

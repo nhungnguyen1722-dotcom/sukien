@@ -65,6 +65,7 @@ async function getInitialReceptionData(): Promise<{
           COALESCE(u.full_name, r.referrer_group, '') AS sale_name,
           u.phone AS sale_phone,
           COALESCE(r.attendance_status, 'Đã đăng ký') AS attendance_status,
+          COALESCE(r.business_unit, 'Khối kinh doanh') AS business_unit,
           r.notes,
           r.registered_at,
           r.created_at,

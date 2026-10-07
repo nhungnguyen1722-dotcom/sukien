@@ -20,9 +20,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const result = await pool.query(
       `SELECT 
         u.*,
-        r.full_name AS referrer_name
+        r.full_name AS referrer_name,
+        t.name AS team_name
       FROM users u
       LEFT JOIN users r ON u.referrer_id = r.id
+      LEFT JOIN teams t ON t.id = u.team_id
       WHERE u.id = $1`,
       [memberId]
     );
@@ -67,7 +69,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       status,
       notes,
       is_team_leader_eligible,
-      avatar_url,
+        avatar_url,
+      team_name,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -119,8 +122,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         guest_count = $16,
         notes = $17,
         avatar_url = $18,
+        team_id = (SELECT id FROM teams WHERE name = $19 LIMIT 1),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $19
+       WHERE id = $20
        RETURNING *`,
       [
         full_name.trim(),
@@ -141,6 +145,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
         notes ? notes.trim() : null,
         avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
+        team_name || null,
         memberId,
       ]
     );

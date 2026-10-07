@@ -30,6 +30,7 @@ export interface Member {
   classification?: string | null;
   title?: string | null;
   team_id?: number | null;
+  team_name?: string | null;
   ref_code?: string | null;
   referrer_id?: number | null;
   referrer_name?: string | null;
@@ -161,6 +162,7 @@ export default function MemberManagement({
     role: 'Khác',
     classification: 'Nhân sự',
     title: 'Thành viên',
+    team_name: '',
     referrer_id: '',
     referrer_name: '',
     source: '',
@@ -261,6 +263,7 @@ export default function MemberManagement({
       role: 'Khác',
       classification: 'Nhân sự',
       title: 'Thành viên',
+      team_name: '',
       referrer_id: '',
       referrer_name: '',
       source: '',
@@ -292,6 +295,7 @@ export default function MemberManagement({
       role: member.role || 'Khác',
       classification: member.classification || 'Nhân sự',
       title: member.title || 'Thành viên',
+      team_name: member.team_name || '',
       referrer_id: member.referrer_id ? String(member.referrer_id) : '',
       referrer_name: member.referrer_name || '',
       source: member.source || '',
@@ -533,6 +537,7 @@ export default function MemberManagement({
                 <th className="py-4 px-5">Người mời</th>
                 <th className="py-4 px-5">Năng lực thực hiện</th>
                 <th className="py-4 px-5">Chức danh</th>
+                <th className="py-4 px-5">Đội nhóm</th>
                 <th className="py-4 px-5">Số lần làm khách</th>
                 <th className="py-4 px-5">Trạng thái</th>
                 <th className="py-4 px-5 text-right">Thao tác</th>
@@ -541,7 +546,7 @@ export default function MemberManagement({
             <tbody className="divide-y divide-slate-100">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
                     {searchQuery ? 'Không tìm thấy thành viên phù hợp với từ khóa' : 'Chưa có thành viên nào trong danh sách'}
                   </td>
                 </tr>
@@ -610,6 +615,7 @@ export default function MemberManagement({
                     <td className="py-4 px-5 text-slate-600">
                       {member.title || '—'}
                     </td>
+                    <td className="py-4 px-5 text-slate-600">{member.team_name || '—'}</td>
 
                     {/* Số lần làm khách */}
                     <td className="py-4 px-5 text-slate-600">
@@ -866,6 +872,14 @@ export default function MemberManagement({
                       {opt}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Đội nhóm</label>
+                <select value={formData.team_name} onChange={(e) => setFormData({ ...formData, team_name: e.target.value })} className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800">
+                  <option value="">Chưa phân đội</option>
+                  {['Kiến Vàng', 'Ong Vàng', 'Lộc Phát', 'Thành Công', 'Biệt đội Kim Cương', 'Happy'].map((team) => <option key={team} value={team}>{team}</option>)}
                 </select>
               </div>
 

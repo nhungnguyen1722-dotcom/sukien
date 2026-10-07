@@ -26,6 +26,7 @@ async function getInitialData(): Promise<{
           u.classification,
           u.title,
           u.team_id,
+          t.name AS team_name,
           u.ref_code,
           u.referrer_id,
           u.referral_group,
@@ -41,6 +42,7 @@ async function getInitialData(): Promise<{
           r.full_name AS referrer_name,
           r.phone AS referrer_phone
         FROM users u
+        LEFT JOIN teams t ON t.id = u.team_id
         LEFT JOIN users r ON u.referrer_id = r.id
         ORDER BY u.id ASC
       `),

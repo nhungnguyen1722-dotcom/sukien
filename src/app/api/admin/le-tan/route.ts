@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       referrer_group,
       guest_role = 'MC',
       source = 'Lễ tân nhập',
-      business_unit = 'Khối kinh doanh',
+      business_unit,
       attendance_status = 'Đã đăng ký',
       notes = '',
     } = body;
@@ -157,6 +157,21 @@ export async function POST(request: NextRequest) {
 
     if (!resolvedReferrerGroup && (referrer_name || referrer_phone)) {
       resolvedReferrerGroup = `${referrer_name || ''} ${referrer_phone ? `(${referrer_phone})` : ''}`.trim();
+    }
+
+    let assignedBusinessUnit = business_unit || 'Khối kinh doanh';
+    if (resolvedReferrerId) {
+      const inviter = await pool.query(
+        `SELECT u.classification, u.referral_group, u.title, t.name AS team_name
+         FROM users u LEFT JOIN teams t ON t.id = u.team_id WHERE u.id = $1`,
+        [resolvedReferrerId]
+      );
+      if (inviter.rows.length) {
+        const profile = [inviter.rows[0].classification, inviter.rows[0].referral_group, inviter.rows[0].title, inviter.rows[0].team_name]
+          .filter(Boolean).join(' ').toLocaleLowerCase('vi');
+        if (profile.includes('nguồn vốn')) assignedBusinessUnit = 'Ban Nguồn Vốn';
+        else if (profile.includes('kinh doanh')) assignedBusinessUnit = 'Khối kinh doanh';
+      }
     }
 
     // Duplicate check: Kiểm tra trùng SĐT và trùng cả tên + SĐT cho sự kiện
@@ -241,7 +256,7 @@ export async function POST(request: NextRequest) {
           source || 'Lễ tân nhập',
           attendance_status || 'Đã đăng ký',
           notes?.trim() || null,
-          business_unit || 'Khối kinh doanh',
+          assignedBusinessUnit,
         ]
       );
     } catch (insertErr: any) {

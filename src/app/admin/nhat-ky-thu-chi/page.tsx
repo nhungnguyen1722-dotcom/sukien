@@ -4,6 +4,7 @@ import TransactionLogManagement, {
   FundContract,
   TransactionLog,
   WeeklyAllocation,
+  WeeklyBeneficiary,
 } from '@/components/admin/TransactionLogManagement';
 
 export const revalidate = 0;
@@ -20,7 +21,7 @@ function getCurrentMonth() {
 }
 
 async function getTransactionsData() {
-  const [logsRes, weeklyRes, contractsRes, eventExpensesRes] = await Promise.all([
+  const [logsRes, weeklyRes, contractsRes, eventExpensesRes, beneficiaryRes] = await Promise.all([
     pool.query(`
       SELECT id, request_code, request_date::text AS request_date, fund_source, detail_content,
         requester_id, requester_name, requester_phone, approver_id, approver_name, approver_phone,
@@ -57,6 +58,16 @@ async function getTransactionsData() {
       FROM fund_event_expenses
       ORDER BY event_date, event_code, id
     `),
+    pool.query(`
+      SELECT source_key, source_row, split_part(source_key, ':', 3)::int AS source_column,
+        period_code, contract_ref, contract_date::text AS contract_date, customer_name,
+        contract_value::float8 AS contract_value, beneficiary_name, beneficiary_phone,
+        bank_account, bank_name, commission_rate::float8 AS commission_rate, fund_source,
+        allocated_amount::float8 AS allocated_amount
+      FROM fund_beneficiary_allocations
+      WHERE record_type = 'contract'
+      ORDER BY period_code, source_row, source_column
+    `),
   ]);
 
   return {
@@ -64,6 +75,7 @@ async function getTransactionsData() {
     weeklyAllocations: weeklyRes.rows as WeeklyAllocation[],
     contracts: contractsRes.rows as FundContract[],
     eventExpenses: eventExpensesRes.rows as EventFundExpense[],
+    weeklyBeneficiaries: beneficiaryRes.rows as WeeklyBeneficiary[],
   };
 }
 
@@ -74,6 +86,7 @@ export default async function NhatKyThuChiPage() {
       initialLogs={data.logs}
       weeklyAllocations={data.weeklyAllocations}
       contracts={data.contracts}
+      weeklyBeneficiaries={data.weeklyBeneficiaries}
       eventExpenses={data.eventExpenses}
       currentMonth={getCurrentMonth()}
     />

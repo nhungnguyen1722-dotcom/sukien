@@ -57,6 +57,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    await pool.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50), ADD COLUMN IF NOT EXISTS customer_birth_date DATE`);
     const { id } = await params;
     const contractId = parseInt(id, 10);
 
@@ -69,6 +70,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       contract_code,
       contract_date,
       customer_name,
+      customer_phone,
+      customer_birth_date,
       value,
       closer_id,
       closer_name,
@@ -109,32 +112,36 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         contract_code = $1,
         contract_date = $2,
         customer_name = $3,
-        value = $4,
-        closer_id = $5,
-        closer_name = $6,
-        closer_phone = $7,
-        referrer_id = $8,
-        referrer_name = $9,
-        referrer_phone = $10,
-        supporter_id = $11,
-        supporter_name = $12,
-        supporter_phone = $13,
-        allocated_value = $14,
-        closer_fee = $15,
-        referrer_fee = $16,
-        supporter_fee = $17,
-        status = $18,
-        team_name = $19,
-        contract_type = $20,
-        approved_date = $21,
-        notes = $22
-      WHERE id = $23
+        customer_phone = $4,
+        customer_birth_date = $5,
+        value = $6,
+        closer_id = $7,
+        closer_name = $8,
+        closer_phone = $9,
+        referrer_id = $10,
+        referrer_name = $11,
+        referrer_phone = $12,
+        supporter_id = $13,
+        supporter_name = $14,
+        supporter_phone = $15,
+        allocated_value = $16,
+        closer_fee = $17,
+        referrer_fee = $18,
+        supporter_fee = $19,
+        status = $20,
+        team_name = $21,
+        contract_type = $22,
+        approved_date = $23,
+        notes = $24
+      WHERE id = $25
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
         typeof contract_code === 'string' && contract_code.trim() ? contract_code.trim() : null,
         contract_date,
         customer_name.trim(),
+        customer_phone?.trim() || null,
+        customer_birth_date || null,
         numValue,
         closer_id && Number.isInteger(Number(closer_id)) ? Number(closer_id) : null,
         closer_name || null,
