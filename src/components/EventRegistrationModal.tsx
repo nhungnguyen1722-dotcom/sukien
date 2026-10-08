@@ -66,7 +66,6 @@ export default function EventRegistrationModal({
   const [referrer, setReferrer] = useState('');
   const [notes, setNotes] = useState('');
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
-  const [businessUnit, setBusinessUnit] = useState('Khối Doanh');
   const [agreeTerms, setAgreeTerms] = useState(true);
 
   const [hasSavedProfile, setHasSavedProfile] = useState(false);
@@ -243,7 +242,6 @@ export default function EventRegistrationModal({
           referrer: finalReferrer,
           notes,
           has_tea_break: hasTeaBreak,
-          business_unit: businessUnit,
           isTodayCheckin: isToday,
         }),
       });
@@ -957,17 +955,6 @@ export default function EventRegistrationModal({
                   </div>
 
                   {/* Checkbox Suất ăn trưa tiệc trà (Mục 10 - Hình 13.2 & 13.3) */}
-                  <fieldset className="rounded-xl border border-slate-200 bg-white p-3.5">
-                    <legend className="px-1 text-xs font-semibold text-slate-700">Khối/Ban</legend>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['Ban Nguồn Vốn', 'Khối Doanh'].map((unit) => (
-                        <label key={unit} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${businessUnit === unit ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                          <input type="radio" name="businessUnit" value={unit} checked={businessUnit === unit} onChange={() => setBusinessUnit(unit)} className="accent-blue-600" />
-                          <span>{unit}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
                   <div className="flex items-center gap-2.5 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl">
                     <input
                       type="checkbox"

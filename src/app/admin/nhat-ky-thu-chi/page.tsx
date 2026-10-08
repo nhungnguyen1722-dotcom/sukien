@@ -1,13 +1,14 @@
 import pool from '@/lib/db';
-import { cookies } from 'next/headers';
-import { safeDecodeURI } from '@/lib/authUtils';
 import TransactionLogManagement, {
   EventFundExpense,
   FundContract,
   TransactionLog,
+  TransactionMember,
   WeeklyAllocation,
-  WeeklyBeneficiary,
 } from '@/components/admin/TransactionLogManagement';
+import { loadSeptemberContractDistributions } from '@/lib/contractDistributionWorkbooks';
+import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
+import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
 
 export const revalidate = 0;
 
@@ -23,17 +24,9 @@ function getCurrentMonth() {
 }
 
 async function getTransactionsData() {
-  const [logsRes, weeklyRes, contractsRes, eventExpensesRes, beneficiaryRes] = await Promise.all([
-    pool.query(`
-      SELECT id, request_code, request_date::text AS request_date, fund_source, detail_content,
-        requester_id, requester_name, requester_phone, approver_id, approver_name, approver_phone,
-        beneficiary_name, beneficiary_phone, proposed_amount::float8 AS proposed_amount,
-        available_balance::float8 AS available_balance, fund_alert, status,
-        actual_expense::float8 AS actual_expense, receipt_url,
-        approval_date::text AS approval_date, payment_date::text AS payment_date, source_complete
-      FROM transaction_logs
-      ORDER BY request_date DESC NULLS LAST, id DESC
-    `),
+  await ensureMemberSchema();
+  const [logsRes, weeklyRes, contractsRes, eventExpensesRes, membersRes] = await Promise.all([
+    pool.query(`${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`),
     pool.query(`
       SELECT period_code, period_month, period_label, period_start::text AS period_start,
         period_end::text AS period_end, fund_key, fund_source,
@@ -61,47 +54,50 @@ async function getTransactionsData() {
       ORDER BY event_date, event_code, id
     `),
     pool.query(`
-      SELECT source_key, source_row, split_part(source_key, ':', 3)::int AS source_column,
-        period_code, contract_ref, contract_date::text AS contract_date, customer_name,
-        contract_value::float8 AS contract_value, beneficiary_name, beneficiary_phone,
-        bank_account, bank_name, commission_rate::float8 AS commission_rate, fund_source,
-        allocated_amount::float8 AS allocated_amount
-      FROM fund_beneficiary_allocations
-      WHERE record_type = 'contract'
-      ORDER BY period_code, source_row, source_column
+      SELECT 
+        u.id, 
+        u.full_name, 
+        u.phone, 
+        u.bank_account,
+        ${UNIFIED_TITLE_SQL} AS title,
+        ${UNIFIED_TEAM_NAME_SQL} AS team_name
+      FROM users u
+      LEFT JOIN teams t ON u.team_id = t.id
+      WHERE u.status IS DISTINCT FROM 'Tạm khóa'
+      ORDER BY u.full_name ASC
     `),
   ]);
+
+  const contracts = contractsRes.rows as FundContract[];
+  const members = membersRes.rows as TransactionMember[];
+  const workbookDistributions = loadSeptemberContractDistributions(
+    contracts,
+    members.map((member) => member.full_name),
+  );
 
   return {
     logs: logsRes.rows as TransactionLog[],
     weeklyAllocations: weeklyRes.rows as WeeklyAllocation[],
-    contracts: contractsRes.rows as FundContract[],
+    contracts,
+    workbookContracts: workbookDistributions.contracts,
+    workbookWarnings: workbookDistributions.warningsByPeriod,
     eventExpenses: eventExpensesRes.rows as EventFundExpense[],
-    weeklyBeneficiaries: beneficiaryRes.rows as WeeklyBeneficiary[],
+    members,
   };
 }
 
 export default async function NhatKyThuChiPage() {
-  const currentMonth = getCurrentMonth();
-  const cookieStore = await cookies();
-  const role = safeDecodeURI(cookieStore.get('user_role')?.value).toLocaleLowerCase('vi-VN');
-  const canManageTeamLeadFund = role.includes('admin') || role.includes('quản trị') || role.includes('quan tri');
-  const [data, splitResult] = await Promise.all([
-    getTransactionsData(),
-    pool.query('SELECT leader_percent FROM teamlead_fund_splits WHERE fund_month = $1', [currentMonth]),
-  ]);
-  const initialTeamLeadPercent: 30 | 70 = splitResult.rows[0]?.leader_percent === 70 ? 70 : 30;
+  const data = await getTransactionsData();
   return (
     <TransactionLogManagement
       initialLogs={data.logs}
+      initialMembers={data.members}
       weeklyAllocations={data.weeklyAllocations}
       contracts={data.contracts}
-      weeklyBeneficiaries={data.weeklyBeneficiaries}
+      workbookContracts={data.workbookContracts}
+      workbookWarnings={data.workbookWarnings}
       eventExpenses={data.eventExpenses}
-      currentMonth={currentMonth}
-      initialTeamLeadPercent={initialTeamLeadPercent}
-      initialTeamLeadSplitSaved={splitResult.rows.length > 0}
-      canManageTeamLeadFund={canManageTeamLeadFund}
+      currentMonth={getCurrentMonth()}
     />
   );
 }

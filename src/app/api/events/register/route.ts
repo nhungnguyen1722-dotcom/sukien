@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
     const referrer = body.referrer || body.referrer_name;
     const notes = body.notes;
     const isTodayCheckin = body.isTodayCheckin;
-    const businessUnit = body.business_unit === 'Ban Nguồn Vốn' ? 'Ban Nguồn Vốn' : 'Khối kinh doanh';
 
     if (!eventId) {
       return NextResponse.json(
@@ -250,12 +249,11 @@ export async function POST(request: NextRequest) {
         referrer_group,
         attendance_status,
         is_food_approved,
-        business_unit,
         source,
         notes,
         registered_at,
         checkin_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Trang chủ Web', $13, CURRENT_TIMESTAMP, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Trang chủ Web', $12, CURRENT_TIMESTAMP, $13)
       RETURNING *`,
       [
         parsedEventId,
@@ -269,7 +267,6 @@ export async function POST(request: NextRequest) {
         referrerGroup,
         attendanceStatus,
         isFoodApproved,
-        businessUnit,
         cleanNotes,
         isTodayCheckin ? new Date() : null,
       ]

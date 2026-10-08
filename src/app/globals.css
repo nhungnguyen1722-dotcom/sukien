@@ -32,10 +32,42 @@ h1, h2, h3, h4, h5 {
 }
 
 .contract-log-page {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 .contract-log-page :is(h1, h2, h3, h4, h5) {
-  font-family: Arial, Helvetica, sans-serif !important;
-  letter-spacing: normal;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+  letter-spacing: -0.02em;
+}
+/* Printable payment request sheet used by the transaction journal. */
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 18mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible !important;
+  }
+
+  .print-sheet {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    min-height: 100%;
+    padding: 12mm;
+    color: #0f172a;
+    background: #fff;
+    font-family: Arial, sans-serif;
+  }
 }

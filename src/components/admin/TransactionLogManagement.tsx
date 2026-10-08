@@ -4,13 +4,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
-  ArrowLeftRight,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
   Eye,
   MoreVertical,
   Plus,
+  Printer,
   Receipt,
   Search,
   Wallet,
@@ -41,6 +41,21 @@ export interface TransactionLog {
   approval_date?: string | null;
   payment_date?: string | null;
   source_complete?: boolean;
+  expense_type?: string;
+  beneficiary_user_id?: number | null;
+  beneficiary_bank_account?: string | null;
+  source_contract_id?: number | null;
+  beneficiary_role?: string | null;
+  beneficiary_team?: string | null;
+}
+
+export interface TransactionMember {
+  id: number;
+  full_name: string;
+  phone?: string | null;
+  bank_account?: string | null;
+  team_name?: string | null;
+  title?: string | null;
 }
 
 export interface WeeklyAllocation {
@@ -73,24 +88,18 @@ export interface FundContract {
   supporter_phone: string;
   supporter_fee: number;
   status: string;
+  source_period_code?: string;
+  source_excel_row?: number;
+  source_sheet?: string;
+  source_beneficiaries?: FundContractBeneficiary[];
+  unallocated_pool?: number;
+  distributed_commission?: number;
+  remaining_fund?: number;
 }
 
-export interface WeeklyBeneficiary {
-  source_key: string;
-  source_row: number;
-  source_column: number;
-  period_code: string;
-  contract_ref: string | null;
-  contract_date: string | null;
-  customer_name: string | null;
-  contract_value: number;
-  beneficiary_name: string;
-  beneficiary_phone: string | null;
-  bank_account: string | null;
-  bank_name: string | null;
-  commission_rate: number;
-  fund_source: string;
-  allocated_amount: number;
+export interface FundContractBeneficiary {
+  name: string;
+  amount: number;
 }
 
 export interface EventFundExpense {
@@ -105,23 +114,13 @@ export interface EventFundExpense {
 
 interface Props {
   initialLogs: TransactionLog[];
+  initialMembers: TransactionMember[];
   weeklyAllocations: WeeklyAllocation[];
   contracts: FundContract[];
-  weeklyBeneficiaries: WeeklyBeneficiary[];
+  workbookContracts: FundContract[];
+  workbookWarnings: Record<string, string[]>;
   eventExpenses: EventFundExpense[];
   currentMonth: string;
-  initialTeamLeadPercent: 30 | 70;
-  initialTeamLeadSplitSaved: boolean;
-  canManageTeamLeadFund: boolean;
-}
-
-interface WeeklyContractRow {
-  sourceRow: number;
-  contractRef: string | null;
-  contractDate: string | null;
-  customerName: string | null;
-  contractValue: number;
-  allocations: WeeklyBeneficiary[];
 }
 
 const MONTH_OVERVIEW = '__month_overview__';
@@ -136,7 +135,6 @@ const FUND_ORDER = [
   'training',
   'incentive',
   'travel',
-  'leader',
   'operations',
   'support_kt',
   'support_cn',
@@ -202,56 +200,109 @@ const formatDate = (date?: string | null) => {
 };
 
 const safeText = (value?: string | null) => value?.trim() || 'Chưa có dữ liệu';
+const isPaidStatus = (status: string) => ['Đã chi', 'Đã thanh toán', 'Đã thực hiện'].includes(status);
+const normalizeFund = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim().toLocaleLowerCase('vi');
 
 function withinPeriod(date: string, period: WeeklyAllocation) {
   return date >= period.period_start && date <= period.period_end;
+}
+
+function contractBeneficiaries(contract: FundContract): FundContractBeneficiary[] {
+  if (contract.source_beneficiaries) return contract.source_beneficiaries;
+  return [
+    { name: contract.closer_name, amount: contract.closer_fee },
+    { name: contract.referrer_name, amount: contract.referrer_fee },
+    { name: contract.supporter_name, amount: contract.supporter_fee },
+  ].filter((person) => person.name.trim());
+}
+
+function contractPool(contract: FundContract) {
+  return contract.unallocated_pool ?? Math.round(contract.allocated_value * 0.15);
+}
+
+function contractCommission(contract: FundContract) {
+  return contract.distributed_commission
+    ?? [contract.closer_fee, contract.referrer_fee, contract.supporter_fee].reduce((sum, amount) => sum + Number(amount || 0), 0);
+}
+
+function contractRemainingFund(contract: FundContract) {
+  return contract.remaining_fund ?? contractPool(contract) - contractCommission(contract);
+}
+
+function groupContractsByPerson(contracts: FundContract[]) {
+  const people = new Map<string, {
+    name: string;
+    total: number;
+    contracts: Map<number, { contract: FundContract; amount: number }>;
+  }>();
+
+  for (const contract of contracts) {
+    for (const beneficiary of contractBeneficiaries(contract)) {
+      const key = beneficiary.name.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/gi, 'd')
+        .toLocaleLowerCase('vi')
+        .replace(/[^a-z0-9 ]/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+      const person = people.get(key) || { name: beneficiary.name, total: 0, contracts: new Map() };
+      const contractAllocation = person.contracts.get(contract.id);
+      if (contractAllocation) contractAllocation.amount += beneficiary.amount;
+      else person.contracts.set(contract.id, { contract, amount: beneficiary.amount });
+      person.total += beneficiary.amount;
+      people.set(key, person);
+    }
+  }
+
+  return Array.from(people.values())
+    .map((person) => ({ ...person, contracts: Array.from(person.contracts.values()) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+}
+
+function formatPeriodRange(period: WeeklyAllocation) {
+  const start = period.period_start.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const end = period.period_end.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!start || !end) return '';
+  if (start[1] === end[1] && start[2] === end[2]) return `${start[3]}–${end[3]}/${end[2]}`;
+  return `${start[3]}/${start[2]}–${end[3]}/${end[2]}`;
+}
+
+function getPeriodWeekNumber(period: WeeklyAllocation, index: number) {
+  const label = period.period_label.trim();
+  const match = `${label} ${period.period_code}`.match(/(?:tuần|tuan|week|wk|w)[\s._-]*0?([1-5])\b/i)
+    || label.match(/^0?([1-5])\b/);
+  return match ? Number(match[1]) : index + 1;
 }
 
 function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
 }
 
-export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, weeklyBeneficiaries, eventExpenses, currentMonth, initialTeamLeadPercent, initialTeamLeadSplitSaved, canManageTeamLeadFund }: Props) {
+export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, currentMonth }: Props) {
   const [logs, setLogs] = useState(initialLogs);
-  const [activeMainTab, setActiveMainTab] = useState<'contracts' | 'teamlead' | 'events' | 'transactions'>('contracts');
-  const [teamLeadPercent, setTeamLeadPercent] = useState<30 | 70>(initialTeamLeadPercent);
-  const [savedTeamLeadMonth, setSavedTeamLeadMonth] = useState(currentMonth);
-  const [savedTeamLeadPercent, setSavedTeamLeadPercent] = useState<30 | 70>(initialTeamLeadPercent);
-  const [hasSavedTeamLeadSplit, setHasSavedTeamLeadSplit] = useState(initialTeamLeadSplitSaved);
-  const [isSavingTeamLeadSplit, setIsSavingTeamLeadSplit] = useState(false);
-  const [teamLeadSplitError, setTeamLeadSplitError] = useState('');
-  const months = useMemo(
-    () => Array.from(new Set([...weeklyAllocations.map((row) => row.period_month), currentMonth])).filter(Boolean).sort(),
-    [weeklyAllocations, currentMonth]
-  );
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth || months.at(-1) || '');
-  useEffect(() => {
-    if (!canManageTeamLeadFund) return;
-    let isCurrent = true;
-    fetch('/api/admin/teamlead-fund?month=' + encodeURIComponent(selectedMonth))
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Không thể tải tỷ lệ phân bổ');
-        if (isCurrent) {
-          setTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
-          setSavedTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
-          setSavedTeamLeadMonth(selectedMonth);
-          setHasSavedTeamLeadSplit(Boolean(data.is_saved));
-          setTeamLeadSplitError('');
-        }
-      })
-      .catch((error: unknown) => {
-        if (isCurrent) setTeamLeadSplitError(error instanceof Error ? error.message : 'Không thể tải tỷ lệ phân bổ');
-      });
-    return () => { isCurrent = false; };
-  }, [selectedMonth, canManageTeamLeadFund]);
-  const selectedYear = selectedMonth.slice(0, 4);
-  const selectedMonthNumber = selectedMonth.slice(5, 7);
-  const availableYears = Array.from(new Set([...months, selectedMonth].map((month) => month.slice(0, 4)))).filter(Boolean).sort();
+  const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers'>('cashflow');
+  const [selectedYear, setSelectedYear] = useState(currentMonth.slice(0, 4));
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    const dates = [
+      currentMonth,
+      ...weeklyAllocations.map((row) => row.period_month),
+      ...contracts.map((contract) => contract.contract_date),
+      ...eventExpenses.map((expense) => expense.event_date),
+      ...logs.map((log) => log.request_date || ''),
+    ];
+    for (const date of dates) {
+      const year = Number(date.slice(0, 4));
+      if (year >= 2000 && year <= 2200) years.add(year);
+    }
+    years.add(Number(selectedYear));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [contracts, currentMonth, eventExpenses, logs, selectedYear, weeklyAllocations]);
   const periodsForMonth = useMemo(() => {
     const unique = new Map<string, WeeklyAllocation>();
     weeklyAllocations
-      .filter((row) => row.period_month === selectedMonth)
+      .filter((row) => row.period_month === selectedMonth && !row.period_code.endsWith('-MONTH'))
       .forEach((row) => unique.set(row.period_code, row));
     return Array.from(unique.values()).sort((a, b) => a.period_start.localeCompare(b.period_start));
   }, [weeklyAllocations, selectedMonth]);
@@ -260,20 +311,27 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
     ? undefined
     : periodsForMonth.find((period) => period.period_code === selectedPeriodCode) || periodsForMonth.at(-1);
   const isMonthOverview = selectedPeriodCode === MONTH_OVERVIEW;
+  const periodCodesForMonth = new Set(periodsForMonth.map((period) => period.period_code));
+  const weeklyRowsForMonth = weeklyAllocations.filter((row) => (
+    row.period_month === selectedMonth && periodCodesForMonth.has(row.period_code)
+  ));
 
-  const periodBase = (period: WeeklyAllocation) =>
-    contracts
-      .filter((contract) => withinPeriod(contract.contract_date, period))
-      .reduce((total, contract) => total + contract.allocated_value, 0);
+  const periodBase = (period: WeeklyAllocation) => {
+    const sourceContracts = workbookContracts.filter((contract) => contract.source_period_code === period.period_code);
+    const sourceRows = sourceContracts.length ? sourceContracts : contracts.filter((contract) => withinPeriod(contract.contract_date, period));
+    return sourceRows.reduce((total, contract) => total + contract.allocated_value, 0);
+  };
 
-  const monthContracts = (periodsForMonth.length
-    ? contracts.filter((contract) => periodsForMonth.some((period) => withinPeriod(contract.contract_date, period)))
-    : contracts.filter((contract) => contract.contract_date.slice(0, 7) === selectedMonth))
+  const monthContracts = ((selectedMonth === '2026-09' && workbookContracts.length)
+    ? workbookContracts
+    : periodsForMonth.length
+      ? contracts.filter((contract) => periodsForMonth.some((period) => withinPeriod(contract.contract_date, period)))
+      : contracts.filter((contract) => contract.contract_date.slice(0, 7) === selectedMonth))
     .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   const monthBase = monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
   const selectedBase = selectedPeriod ? periodBase(selectedPeriod) : 0;
-  const monthPool = Math.round(monthBase * 0.15);
-  const monthEventRows = weeklyAllocations.filter((row) => row.period_month === selectedMonth && row.fund_key === 'event_close');
+  const monthPool = monthContracts.reduce((total, contract) => total + contractPool(contract), 0);
+  const monthEventRows = weeklyRowsForMonth.filter((row) => row.fund_key === 'event_close');
   const monthEventPool = Math.round(monthEventRows.reduce((sum, row) => {
     const period = periodsForMonth.find((item) => item.period_code === row.period_code);
     return sum + (period ? periodBase(period) * row.allocation_rate : 0);
@@ -281,7 +339,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
   const monthlyEventExpenses = eventExpenses.filter((item) => item.event_date.slice(0, 7) === selectedMonth);
   const staffProposed = monthlyEventExpenses.reduce((sum, item) => sum + item.proposed_amount, 0);
   const staffPaid = monthlyEventExpenses
-    .filter((item) => item.status === 'Đã chi')
+    .filter((item) => isPaidStatus(item.status))
     .reduce((sum, item) => sum + item.proposed_amount, 0);
   const otherEventRequests = logs.filter(
     (log) => log.fund_source.toLowerCase().includes('sự kiện')
@@ -291,36 +349,25 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
   );
   const otherEventProposed = otherEventRequests.reduce((sum, item) => sum + Number(item.proposed_amount || 0), 0);
   const otherEventPaid = otherEventRequests
-    .filter((item) => item.status === 'Đã chi')
+    .filter((item) => isPaidStatus(item.status))
     .reduce((sum, item) => sum + Number(item.actual_expense || 0), 0);
   const monthlyEventPaid = staffPaid + otherEventPaid;
 
-  const monthLeaderRows = weeklyAllocations.filter((row) => row.period_month === selectedMonth && row.fund_key === 'leader');
+  const monthLeaderRows = weeklyRowsForMonth.filter((row) => row.fund_key === 'leader');
   const monthlyLeaderPool = Math.round(monthLeaderRows.reduce((sum, row) => {
     const period = periodsForMonth.find((item) => item.period_code === row.period_code);
     return sum + (period ? periodBase(period) * row.allocation_rate : 0);
   }, 0));
   const monthlyLeaderRequests = monthLeaderRows.reduce((sum, row) => sum + row.requested_amount, 0);
-  const leaderAmount = Math.round(monthlyLeaderPool * teamLeadPercent / 100);
-  const directorAmount = monthlyLeaderPool - leaderAmount;
 
   const selectedRows = selectedPeriod
     ? weeklyAllocations
         .filter((row) => row.period_code === selectedPeriod.period_code && row.fund_key !== 'leader')
         .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
     : [];
-  const selectedWeeklyFundRows = selectedPeriod
-    ? weeklyAllocations
-        .filter((row) => row.period_code === selectedPeriod.period_code)
-        .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
-    : [];
-  const selectedDirectSaleFund = selectedWeeklyFundRows.find((row) => row.fund_key === 'direct_sale');
-  const reportedWeeklyBase = selectedDirectSaleFund?.allocation_rate
-    ? selectedDirectSaleFund.requested_amount / selectedDirectSaleFund.allocation_rate
-    : selectedBase;
   const monthFundRows = Array.from(
     weeklyAllocations
-      .filter((row) => row.period_month === selectedMonth && row.fund_key !== 'leader')
+      .filter((row) => periodCodesForMonth.has(row.period_code) && row.fund_key !== 'leader')
       .reduce((summaries, row) => {
         const period = periodsForMonth.find((item) => item.period_code === row.period_code);
         const current = summaries.get(row.fund_key);
@@ -364,51 +411,48 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
         .reduce((sum, row) => sum + row.requested_amount, 0)
     : 0;
   const monthRequests = weeklyAllocations
-    .filter((row) => row.period_month === selectedMonth)
+    .filter((row) => periodCodesForMonth.has(row.period_code))
     .reduce((sum, row) => sum + row.requested_amount, 0);
   const selectedContracts = selectedPeriod
-    ? contracts
-        .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
+    ? (workbookContracts.some((contract) => contract.source_period_code === selectedPeriod.period_code)
+        ? workbookContracts.filter((contract) => contract.source_period_code === selectedPeriod.period_code)
+        : contracts.filter((contract) => withinPeriod(contract.contract_date, selectedPeriod)))
         .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
     : [];
-  const selectedWorkbookAllocations = selectedPeriod
-    ? weeklyBeneficiaries.filter((row) => row.period_code === selectedPeriod.period_code)
+  const displayedContracts = isMonthOverview ? monthContracts : selectedContracts;
+  const displayedContractTotals = displayedContracts.reduce((totals, contract) => ({
+    pool: totals.pool + contractPool(contract),
+    commission: totals.commission + contractCommission(contract),
+    remaining: totals.remaining + contractRemainingFund(contract),
+  }), { pool: 0, commission: 0, remaining: 0 });
+  const peopleRows = groupContractsByPerson(displayedContracts);
+  const displayedWorkbookWarnings = selectedMonth === '2026-09'
+    ? (isMonthOverview
+        ? Object.values(workbookWarnings).flat()
+        : workbookWarnings[selectedPeriod?.period_code || ''] || [])
     : [];
-  const weeklyPayees = Array.from(new Map(selectedWorkbookAllocations
-    .slice().sort((a, b) => a.source_column - b.source_column)
-    .map((row) => [row.source_column, row])).values());
-  const weeklyContractRows: WeeklyContractRow[] = Array.from(selectedWorkbookAllocations.reduce((groups, row) => {
-    const current = groups.get(row.source_row) || {
-      sourceRow: row.source_row,
-      contractRef: row.contract_ref,
-      contractDate: row.contract_date,
-      customerName: row.customer_name,
-      contractValue: Number(row.contract_value || 0),
-      allocations: [],
-    };
-    current.allocations.push(row);
-    groups.set(row.source_row, current);
-    return groups;
-  }, new Map<number, WeeklyContractRow>()).values()).sort((a, b) => a.sourceRow - b.sourceRow);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFund, setSelectedFund] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedType, setSelectedType] = useState('all');
   const filteredLogs = logs.filter((log) => {
     const haystack = `${log.request_code} ${log.detail_content} ${log.requester_name} ${log.beneficiary_name} ${log.fund_source}`.toLocaleLowerCase('vi');
     return (!searchQuery || haystack.includes(searchQuery.toLocaleLowerCase('vi')))
       && (selectedFund === 'all' || log.fund_source === selectedFund)
-      && (selectedStatus === 'all' || log.status === selectedStatus);
+      && (selectedStatus === 'all' || log.status === selectedStatus)
+      && (selectedType === 'all' || (log.expense_type || 'Thủ công') === selectedType);
   });
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [viewLog, setViewLog] = useState<TransactionLog | null>(null);
-  const [viewWeeklyContract, setViewWeeklyContract] = useState<WeeklyContractRow | null>(null);
-  const [weeklyTableOrientation, setWeeklyTableOrientation] = useState<'contracts' | 'names'>('contracts');
+  const [viewContract, setViewContract] = useState<FundContract | null>(null);
+  const [distributionView, setDistributionView] = useState<'contract' | 'person'>('contract');
+  const [printLog, setPrintLog] = useState<TransactionLog | null>(null);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
-    requestCode: `YC${String(Date.now()).slice(-5)}`,
+    requestCode: 'YC',
     requestDate: new Date().toISOString().slice(0, 10),
     fundSource: FUND_SOURCE_BY_KEY.direct_sale,
     detailContent: '',
@@ -418,13 +462,48 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
     approverPhone: '',
     beneficiaryName: '',
     beneficiaryPhone: '',
+    beneficiaryUserId: '',
+    beneficiaryBankAccount: '',
     proposedAmount: '',
+    status: 'Chờ duyệt',
   });
+
+  const openCreateForm = () => {
+    setForm((current) => ({
+      ...current,
+      requestCode: `YC${String(Date.now()).slice(-5)}`,
+      requestDate: new Date().toISOString().slice(0, 10),
+    }));
+    setIsCreateOpen(true);
+  };
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/transaction-logs/generate', { method: 'POST' })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Không tạo được phiếu tự động.');
+        if (active) setLogs(result.logs || []);
+      })
+      .catch((error) => console.error('Automatic contract slip generation failed:', error));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!printLog) return;
+    const afterPrint = () => setPrintLog(null);
+    window.addEventListener('afterprint', afterPrint);
+    const timeoutId = window.setTimeout(() => window.print(), 100);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('afterprint', afterPrint);
+    };
+  }, [printLog]);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.detailContent.trim() || Number(form.proposedAmount) <= 0) {
-      alert('Nhập nội dung và số tiền đề xuất lớn hơn 0.');
+    if (!form.detailContent.trim() || !form.beneficiaryName.trim() || Number(form.proposedAmount) <= 0) {
+      alert('Nhập người thụ hưởng, nội dung và số tiền đề xuất lớn hơn 0.');
       return;
     }
     setIsSubmitting(true);
@@ -438,9 +517,9 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
       if (!response.ok || !result.success) throw new Error(result.message || 'Không tạo được phiếu.');
       setLogs((current) => [result.log, ...current]);
       setIsCreateOpen(false);
-      setForm((current) => ({ ...current, requestCode: `YC${String(Date.now()).slice(-5)}`, detailContent: '', proposedAmount: '', beneficiaryName: '', beneficiaryPhone: '' }));
-    } catch (error: any) {
-      alert(error.message || 'Có lỗi xảy ra.');
+      setForm((current) => ({ ...current, requestCode: `YC${String(Date.now()).slice(-5)}`, detailContent: '', proposedAmount: '', beneficiaryName: '', beneficiaryPhone: '', beneficiaryUserId: '', beneficiaryBankAccount: '', status: 'Chờ duyệt' }));
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Có lỗi xảy ra.');
     } finally {
       setIsSubmitting(false);
     }
@@ -457,8 +536,8 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
       if (!response.ok || !result.success) throw new Error(result.message || 'Không cập nhật được phiếu.');
       setLogs((current) => current.map((item) => item.id === log.id ? result.log : item));
       setActionMenuId(null);
-    } catch (error: any) {
-      alert(error.message || 'Có lỗi xảy ra.');
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Có lỗi xảy ra.');
     }
   };
 
@@ -474,35 +553,29 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
     setActionMenuId(null);
   };
 
-  const changeMonth = (month: string) => {
-    setSelectedMonth(month);
+  const changeYear = (year: string) => {
+    setSelectedYear(year);
+    setSelectedMonth(`${year}-${selectedMonth.slice(5, 7)}`);
     setSelectedPeriodCode(MONTH_OVERVIEW);
   };
 
-  const saveTeamLeadSplit = async () => {
-    setIsSavingTeamLeadSplit(true);
-    setTeamLeadSplitError('');
-    try {
-      const response = await fetch('/api/admin/teamlead-fund', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ month: selectedMonth, leader_percent: teamLeadPercent }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không thể lưu tỷ lệ phân bổ');
-      setTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
-      setSavedTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
-      setSavedTeamLeadMonth(selectedMonth);
-      setHasSavedTeamLeadSplit(true);
-    } catch (error: unknown) {
-      setTeamLeadSplitError(error instanceof Error ? error.message : 'Không thể lưu tỷ lệ phân bổ');
-    } finally {
-      setIsSavingTeamLeadSplit(false);
-    }
+  const changeMonth = (month: number) => {
+    setSelectedMonth(`${selectedYear}-${String(month).padStart(2, '0')}`);
+    setSelectedPeriodCode(MONTH_OVERVIEW);
   };
 
+  const paidAmountForFund = (fundKey: string, fundSource: string) => logs
+    .filter((log) => {
+      if (!isPaidStatus(log.status) || !log.request_date) return false;
+      if (isMonthOverview ? !log.request_date.startsWith(selectedMonth) : !selectedPeriod || !withinPeriod(log.request_date, selectedPeriod)) return false;
+      const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
+      return normalizeFund(log.fund_source) === normalizeFund(fundSource)
+        || normalizeFund(log.fund_source) === target;
+    })
+    .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
+
   return (
-    <div className="contract-log-page min-w-0 w-full space-y-5 pb-8 md:px-5">
+    <div className="space-y-5 px-[30px] pt-6 pb-8">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-500">
@@ -510,310 +583,245 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Nhật ký dòng tiền & phân bổ quỹ</h1>
         </div>
-        <button onClick={() => setIsCreateOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+        <button onClick={openCreateForm} className="hidden sm:inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
           <Plus className="h-4 w-4" /> Thêm phiếu chi
         </button>
       </header>
 
-      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
-        {[
-          { id: 'contracts', label: 'Nhật ký dòng tiền & Phân bổ quỹ' },
-          ...(canManageTeamLeadFund ? [{ id: 'teamlead' as const, label: 'Quỹ TeamLead' }] : []),
-          { id: 'events', label: 'Quỹ Sự kiện & Chốt hợp đồng — tổng hợp tháng' },
-          { id: 'transactions', label: 'Nhật ký phiếu thu chi' },
-        ].map((tab) => (
-          <button key={tab.id} type="button" onClick={() => setActiveMainTab(tab.id as typeof activeMainTab)}
-            className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-semibold transition ${activeMainTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Panel className="p-2">
+        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-3">
+          {[
+            { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
+            { id: 'event' as const, title: 'Quỹ Sự kiện & Chốt hợp đồng', subtitle: 'Tổng hợp tháng' },
+            { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-xl px-3 py-3 text-left transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-50'}`}
+            >
+              <span className="block text-xs font-bold sm:text-sm">{tab.title}</span>
+              <span className={`mt-1 block text-[10px] ${activeTab === tab.id ? 'text-blue-100' : 'text-slate-500'}`}>{tab.subtitle}</span>
+            </button>
+          ))}
+        </nav>
+      </Panel>
 
-      <Panel className="p-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs font-semibold text-slate-500">Năm</label>
-            <select value={selectedYear} onChange={(event) => changeMonth(`${event.target.value}-${selectedMonthNumber}`)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-              {availableYears.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
-            <label className="ml-1 text-xs font-semibold text-slate-500">Tháng</label>
-            <select value={selectedMonthNumber} onChange={(event) => changeMonth(`${selectedYear}-${event.target.value}`)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-              {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((month) => <option key={month} value={month}>Tháng {Number(month)}</option>)}
+      {activeTab !== 'vouchers' && <Panel className="p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2">
+            <label htmlFor="transaction-log-year" className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Năm</label>
+            <select
+              id="transaction-log-year"
+              aria-label="Chọn năm"
+              value={selectedYear}
+              onChange={(event) => changeYear(event.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+            >
+              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
           </div>
+          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Xem theo</span>
+            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tháng</span>
+            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+              <button key={month} onClick={() => changeMonth(month)} className={`min-w-9 rounded-lg border px-3 py-2 text-xs font-semibold ${Number(selectedMonth.slice(5, 7)) === month ? 'border-blue-700 bg-slate-900 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                {month}
+              </button>
+            ))}
+          </div>
+          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tuần</span>
             <button onClick={() => setSelectedPeriodCode(MONTH_OVERVIEW)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-              Tổng quan tháng
+              Cả tháng
             </button>
-            {periodsForMonth.filter((period) => !/^Tổng quan tháng\s+\d{1,2}\/\d{4}$/i.test(period.period_label.trim())).map((period) => (
+            {periodsForMonth.map((period, index) => (
               <button key={period.period_code} onClick={() => setSelectedPeriodCode(period.period_code)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                {period.period_label}
+                {getPeriodWeekNumber(period, index)} · {formatPeriodRange(period) || period.period_label}
               </button>
             ))}
           </div>
         </div>
-      </Panel>
+      </Panel>}
 
-      {activeMainTab === 'contracts' && <>
+      {activeTab === 'cashflow' && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Wallet className="h-5 w-5" />} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthBase : selectedBase)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
-        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
+        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
         <StatCard icon={<Receipt className="h-5 w-5" />} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
         <StatCard icon={<CalendarDays className="h-5 w-5" />} label="Quỹ tích lũy tháng" value={formatVND(monthPool)} note={`Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}`} tint="emerald" />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-12">
-        <Panel className={`overflow-hidden ${isMonthOverview ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
+        <Panel className="overflow-hidden xl:col-span-8">
           <div className="border-b border-slate-200 px-5 py-4">
-            <div className="mb-2 flex justify-end">{!isMonthOverview && ['2026-09-W3', '2026-09-W4', '2026-09-W5'].includes(selectedPeriod?.period_code || '') && <button type="button" onClick={() => setWeeklyTableOrientation((orientation) => orientation === 'contracts' ? 'names' : 'contracts')} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><ArrowLeftRight className="h-4 w-4" />{weeklyTableOrientation === 'contracts' ? 'Xem theo họ tên' : 'Xem theo hợp đồng'}</button>}</div><h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
-            <p className="mt-1 text-xs text-slate-500">Chi tiết người chốt, người giới thiệu, người hỗ trợ và phí theo {isMonthOverview ? 'toàn bộ các tuần trong tháng' : 'hợp đồng'}.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
+                <p className="mt-1 text-xs text-slate-500">Hiển thị danh sách nhân sự và số tiền phân bổ theo từng hợp đồng.</p>
+              </div>
+              <div role="group" aria-label="Chế độ xem bảng kê" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                <button type="button" aria-pressed={distributionView === 'contract'} onClick={() => setDistributionView('contract')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'contract' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+                  Xem theo hợp đồng
+                </button>
+                <button type="button" aria-pressed={distributionView === 'person'} onClick={() => setDistributionView('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+                  Xem theo Họ và tên
+                </button>
+              </div>
+            </div>
             {!isMonthOverview && Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
+            {displayedWorkbookWarnings.map((warning) => <p key={warning} className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-950">{warning}</p>)}
           </div>
-          {!isMonthOverview && weeklyContractRows.length > 0 ? (
           <div className="overflow-x-auto">
-            {weeklyTableOrientation === 'contracts' ? (
-            <table className="min-w-[1800px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="sticky left-0 bg-slate-50 px-3 py-3">STT</th>
-                  <th className="sticky left-12 min-w-64 bg-slate-50 px-3 py-3">Hợp đồng</th>
-                  {weeklyPayees.map((payee) => (
-                    <th key={payee.source_column} className="min-w-40 whitespace-pre-line px-3 py-3">
-                      {`${payee.beneficiary_name}\n${payee.bank_account || ''}\n${payee.bank_name || ''}`}
-                    </th>
-                  ))}
-                  <th className="min-w-36 px-3 py-3 text-right">Tổng quỹ chưa chia (15%)</th>
-                  <th className="min-w-36 px-3 py-3 text-right">Tổng hoa hồng chia</th>
-                  <th className="min-w-36 px-3 py-3 text-right">Tổng quỹ còn lại</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {weeklyContractRows.map((contract, index) => {
-                  const distributed = contract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0);
-                  const fund = Math.round(contract.contractValue * 0.15);
-                  return (
-                    <tr key={contract.sourceRow} onClick={() => setViewWeeklyContract(contract)} className="cursor-pointer hover:bg-blue-50/60">
-                      <td className="sticky left-0 bg-white px-3 py-3 font-semibold">{index + 1}</td>
-                      <td className="sticky left-12 min-w-64 bg-white px-3 py-3">
-                        <div className="whitespace-pre-line font-medium text-slate-800">{contract.contractRef || contract.contractDate}</div>
-                        <div className="mt-1 text-[10px] text-slate-500">Ngày {contract.contractDate ? formatDate(contract.contractDate) : '—'} · {contract.customerName || '—'}</div>
-                        <div className="text-[10px] text-slate-500">Giá trị HĐ {formatVND(contract.contractValue)}</div>
+            {distributionView === 'contract' ? (
+              <table className="min-w-[1120px] w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Ngày / HĐ / Khách hàng</th>
+                    <th className="px-3 py-3 text-right">Giá trị phân bổ</th>
+                    <th className="px-3 py-3">Danh sách nhân sự thụ hưởng</th>
+                    <th className="px-3 py-3 text-right">Quỹ chưa chia (15%)</th>
+                    <th className="px-3 py-3 text-right">Hoa hồng chia</th>
+                    <th className="px-3 py-3 text-right">Quỹ còn lại</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {displayedContracts.length ? displayedContracts.map((contract) => (
+                    <tr
+                      key={contract.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setViewContract(contract)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setViewContract(contract);
+                        }
+                      }}
+                      title="Xem chi tiết hợp đồng"
+                      className="cursor-pointer hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-800">{contract.contract_code || (contract.source_excel_row ? `Excel · dòng ${contract.source_excel_row}` : `HĐ #${contract.id}`)} · {contract.customer_name}</div>
+                        <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
                       </td>
-                      {weeklyPayees.map((payee) => {
-                        const allocation = contract.allocations.find((row) => row.source_column === payee.source_column);
-                        return <td key={payee.source_column} className="px-3 py-3 text-right">{formatVND(Number(allocation?.allocated_amount || 0))}</td>;
-                      })}
-                      <td className="px-3 py-3 text-right">{formatVND(fund)}</td>
-                      <td className="px-3 py-3 text-right font-semibold">{formatVND(distributed)}</td>
-                      <td className="px-3 py-3 text-right">{formatVND(fund - distributed)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex min-w-[330px] flex-wrap gap-1.5">
+                          {contractBeneficiaries(contract).map((person, index) => (
+                            <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
+                              <span className="font-semibold text-slate-700">{person.name}</span>
+                              <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
+                            </span>
+                          ))}
+                          {!contractBeneficiaries(contract).length && <span className="text-slate-400">Chưa có nhân sự</span>}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract))}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract))}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="bg-blue-50 font-bold text-slate-800">
-                <tr>
-                  <td className="sticky left-0 bg-blue-50 px-3 py-3" colSpan={2}>Tổng</td>
-                  {weeklyPayees.map((payee) => <td key={payee.source_column} className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Number(contract.allocations.find((row) => row.source_column === payee.source_column)?.allocated_amount || 0), 0))}</td>)}
-                  <td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15), 0))}</td>
-                  <td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td>
-                  <td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15) - contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td>
-                </tr>
-              </tfoot>
-            </table>
+                  )) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
+                </tbody>
+                <tfoot className="bg-blue-50 font-bold text-slate-800">
+                  <tr>
+                    <td colSpan={2} className="px-4 py-3">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
+                    <td className="px-3 py-3 text-slate-600">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.pool)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.commission)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.remaining)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             ) : (
-            <table className="min-w-[1800px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="sticky left-0 min-w-64 bg-slate-50 px-3 py-3">Họ tên</th>{weeklyContractRows.map((contract, index) => <th key={contract.sourceRow} className="min-w-44 whitespace-pre-line px-3 py-3">{`${contract.contractRef || `Hợp đồng ${index + 1}`}
-${contract.contractDate ? formatDate(contract.contractDate) : ''}
-${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-right">Tổng hoa hồng chia</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {weeklyPayees.map((payee) => <tr key={payee.source_column}><th className="sticky left-0 bg-white px-3 py-3 text-left font-semibold text-slate-800"><div>{payee.beneficiary_name}</div><div className="mt-1 whitespace-pre-line text-[10px] font-normal text-slate-500">{[payee.bank_account, payee.bank_name].filter(Boolean).join(' / ')}</div></th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(Number(contract.allocations.find((row) => row.source_column === payee.source_column)?.allocated_amount || 0))}</td>)}<td className="px-3 py-3 text-right font-semibold">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Number(contract.allocations.find((row) => row.source_column === payee.source_column)?.allocated_amount || 0), 0))}</td></tr>)}
-                <tr className="bg-blue-50 font-bold text-slate-800"><th className="sticky left-0 bg-blue-50 px-3 py-3 text-left">Tổng hoa hồng chia</th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(contract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0))}</td>)}<td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td></tr>
-                <tr><th className="sticky left-0 bg-white px-3 py-3 text-left">Tổng quỹ chưa chia (15%)</th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(Math.round(contract.contractValue * 0.15))}</td>)}<td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15), 0))}</td></tr>
-                <tr><th className="sticky left-0 bg-white px-3 py-3 text-left">Tổng quỹ còn lại</th>{weeklyContractRows.map((contract) => <td key={contract.sourceRow} className="px-3 py-3 text-right">{formatVND(Math.round(contract.contractValue * 0.15) - contract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0))}</td>)}<td className="px-3 py-3 text-right">{formatVND(weeklyContractRows.reduce((sum, contract) => sum + Math.round(contract.contractValue * 0.15) - contract.allocations.reduce((total, row) => total + Number(row.allocated_amount || 0), 0), 0))}</td></tr>
-              </tbody>
-            </table>
+              <table className="min-w-[900px] w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                  <tr><th className="px-4 py-3">Họ và tên</th><th className="px-3 py-3 text-right">Tổng hoa hồng chia</th><th className="px-3 py-3">Hợp đồng và phân bổ tương ứng</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {peopleRows.length ? peopleRows.map((person) => (
+                    <tr key={person.name}>
+                      <td className="px-4 py-3 font-semibold text-slate-800">{person.name}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatVND(person.total)}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          {person.contracts.map(({ contract, amount }) => (
+                            <button key={contract.id} type="button" onClick={() => setViewContract(contract)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] hover:border-blue-300 hover:bg-blue-50">
+                              <span className="block font-semibold text-slate-700">{contract.customer_name} · {formatDate(contract.contract_date)}</span>
+                              <span className="mt-0.5 block text-slate-500">{contract.contract_code || (contract.source_excel_row ? `Excel · dòng ${contract.source_excel_row}` : `HĐ #${contract.id}`)} · {formatVND(amount)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )) : <tr><td colSpan={3} className="px-4 py-12 text-center text-slate-500">Chưa có nhân sự thụ hưởng trong kỳ này.</td></tr>}
+                </tbody>
+                <tfoot className="bg-blue-50 font-bold text-slate-800">
+                  <tr><td className="px-4 py-3">TỔNG CỘNG</td><td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.commission)}</td><td className="px-3 py-3 text-slate-600">{peopleRows.length} nhân sự · {displayedContracts.length} hợp đồng</td></tr>
+                </tfoot>
+              </table>
             )}
           </div>
-          ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Ngày / HĐ / Khách hàng</th><th className="px-3 py-3 text-right">Giá trị phân bổ</th>
-                  <th className="px-3 py-3">Người chốt (6%)</th><th className="px-3 py-3">Người giới thiệu (1%)</th><th className="px-3 py-3">Người hỗ trợ (0,5%)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {(isMonthOverview ? monthContracts : selectedContracts).length ? (isMonthOverview ? monthContracts : selectedContracts).map((contract) => (
-                  <tr key={contract.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
-                      <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
-                    <td className="px-3 py-3"><Payee name={contract.closer_name} phone={contract.closer_phone} amount={contract.closer_fee} color="blue" /></td>
-                    <td className="px-3 py-3"><Payee name={contract.referrer_name} phone={contract.referrer_phone} amount={contract.referrer_fee} color="emerald" /></td>
-                    <td className="px-3 py-3"><Payee name={contract.supporter_name} phone={contract.supporter_phone} amount={contract.supporter_fee} color="amber" /></td>
-                  </tr>
-                )) : <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
-              </tbody>
-              <tfoot className="bg-blue-50 font-bold text-slate-800">
-                <tr><td className="px-4 py-3">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td><td className="px-3 py-3 text-right">{formatVND(isMonthOverview ? monthBase : selectedBase)}</td><td colSpan={3} className="px-3 py-3 text-slate-600">{isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng · phân bổ theo dữ liệu hợp đồng</td></tr>
-              </tfoot>
-            </table>
-          </div>
-          )}
         </Panel>
 
-        {isMonthOverview && <div className="space-y-5 xl:col-span-4">
-          {isMonthOverview && <Panel className="p-4">
+        <div className="space-y-5 xl:col-span-4">
+          <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
               <div><h2 className="font-bold text-slate-900">{isMonthOverview ? 'Phân bổ quỹ trong tháng' : 'Phân bổ quỹ kỳ tuần'}</h2><p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p></div>
               <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
             </div>
-            <div className="space-y-2">
+            <div className="overflow-x-auto">
+              <table className="min-w-[520px] w-full text-left text-[10px]">
+                <thead className="border-b border-slate-200 text-slate-500">
+                  <tr><th className="px-2 py-2">Quỹ</th><th className="px-2 py-2 text-right">Phân bổ</th><th className="px-2 py-2 text-right">Đã chi</th><th className="px-2 py-2 text-right">Còn tồn</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
               {(isMonthOverview ? monthFundRows : selectedRows).map((row) => {
                 const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
                 const periodCount = 'periods' in row ? row.periods : 0;
-                const remaining = allocation - row.requested_amount;
+                const paid = paidAmountForFund(row.fund_key, row.fund_source);
+                const remaining = allocation - paid;
                 return (
-                  <div key={row.fund_key} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2"><span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><div><div className="text-[11px] font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</div><div className="mt-0.5 text-[10px] text-slate-500">{row.fund_key === 'event_close' ? 'Tích lũy tuần · quyết toán theo tháng' : row.fund_key === 'tribute_referral' ? 'Quỹ riêng · nguồn chưa có tỷ lệ và số tiền' : isMonthOverview ? `${periodCount} kỳ tuần · tổng hợp tháng` : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}% · tổng hợp theo tuần`}</div></div></div>
-                      <div className="whitespace-nowrap text-right"><div className="text-[11px] font-bold text-slate-900">{formatVND(allocation)}</div><div className="text-[9px] text-slate-400">phân bổ</div></div>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-2 text-[10px]">
-                      <div><span className="text-slate-500">Đề nghị từ bảng:</span><div className="font-semibold text-slate-700">{formatVND(row.requested_amount)}</div></div>
-                      <div className="text-right"><span className="text-slate-500">Chênh lệch:</span><div className={`font-semibold ${remaining < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatVND(remaining)}</div></div>
-                    </div>
-                  </div>
+                  <tr key={row.fund_key}>
+                    <td className="px-2 py-2 align-top"><div className="flex items-start gap-1.5"><span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><span><span className="block font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</span><span className="mt-0.5 block text-[9px] text-slate-500">{isMonthOverview ? `${periodCount} kỳ tuần` : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}%`} · Đề nghị {formatVND(row.requested_amount)}</span></span></div></td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-slate-800">{formatVND(allocation)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-emerald-700">{formatVND(paid)}</td>
+                    <td className={`whitespace-nowrap px-2 py-2 text-right font-bold ${remaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatVND(remaining)}</td>
+                  </tr>
                 );
               })}
+              {!(isMonthOverview ? monthFundRows : selectedRows).length && <tr><td colSpan={4} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
+                </tbody>
+              </table>
             </div>
             <div className="mt-3 rounded-xl bg-slate-900 p-3 text-white">
               <div className="flex justify-between text-xs font-bold"><span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span><span>{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span></div>
               <div className="mt-1 text-[10px] text-slate-300">{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</div>
             </div>
-          </Panel>}
+          </Panel>
 
-          {isMonthOverview && <Panel className="p-4">
+          <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between">
-              <div><h2 className="font-bold text-slate-900">Leader Team & Giám đốc KD</h2><p className="mt-1 text-[11px] text-slate-500">Tổng hợp tháng, chia tỷ lệ {teamLeadPercent}% / {100 - teamLeadPercent}%.</p></div>
+              <div><h2 className="font-bold text-slate-900">Leader Team & Giám đốc KD</h2><p className="mt-1 text-[11px] text-slate-500">Tổng hợp tháng, chia tỷ lệ 30% / 70%.</p></div>
               <span className="rounded-full bg-pink-50 px-2 py-1 text-[10px] font-bold text-pink-700">2,9%</span>
             </div>
             <div className="space-y-2 text-xs">
-              <SplitRow label={'Quỹ Leader Team (' + teamLeadPercent + '%)'} amount={leaderAmount} color="text-pink-700" />
-              <SplitRow label={'Quỹ Giám đốc KD (' + (100 - teamLeadPercent) + '%)'} amount={directorAmount} color="text-blue-700" />
+              <SplitRow label="Quỹ Leader Team (30%)" amount={Math.round(monthlyLeaderPool * 0.3)} color="text-pink-700" />
+              <SplitRow label="Quỹ Giám đốc KD (70%)" amount={Math.round(monthlyLeaderPool * 0.7)} color="text-blue-700" />
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold"><span>Tổng quỹ lũy kế tháng</span><span>{formatVND(monthlyLeaderPool)}</span></div>
               <div className="flex justify-between text-[11px] text-slate-500"><span>Đề nghị chi trong DNTT tuần</span><span>{formatVND(monthlyLeaderRequests)}</span></div>
             </div>
-          </Panel>}
-        </div>}
+          </Panel>
+        </div>
       </div>
-
-      {!isMonthOverview && <Panel className="ml-auto min-w-0 w-full self-stretch overflow-hidden border-blue-100 shadow-md lg:w-1/2">
-        <div className="flex flex-col gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2"><span className="rounded-lg bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">{selectedPeriod?.period_label}</span><span className="text-xs font-medium text-slate-500">{selectedPeriod?.source_sheet}</span></div>
-            <h2 className="mt-2 text-lg font-bold text-slate-900">Ph&#226;n b&#7893; qu&#7929; k&#7923; tu&#7847;n</h2>
-            <p className="mt-1 text-xs text-slate-500">&#272;&#7889;i chi&#7871;u theo b&#7843;ng &#273;&#7873; ngh&#7883; thanh to&#225;n, t&#225;ch r&#245; qu&#7929; &#273;&#432;&#7907;c ph&#226;n b&#7893;, &#273;&#227; chi v&#224; c&#242;n l&#7841;i.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:min-w-[350px]">
-            <div className="rounded-xl border border-blue-100 bg-white px-4 py-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doanh s&#7889; H&#272;</div><div className="mt-1 text-base font-bold tabular-nums text-slate-900">{formatVND(reportedWeeklyBase)}</div></div>
-            <div className="rounded-xl bg-blue-600 px-4 py-3 text-white"><div className="text-[10px] font-semibold uppercase tracking-wide text-blue-100">T&#7893;ng qu&#7929; 15%</div><div className="mt-1 text-base font-bold tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + Math.round(reportedWeeklyBase * row.allocation_rate), 0))}</div></div>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr><th className="px-5 py-3">Qu&#7929; / n&#7897;i dung</th><th className="px-4 py-3 text-right">T&#7927; l&#7879;</th><th className="px-4 py-3 text-right">Qu&#7929; ph&#226;n b&#7893;</th><th className="px-4 py-3 text-right">T&#7893;ng chi qu&#7929;</th><th className="px-5 py-3 text-right">C&#242;n l&#7841;i</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{selectedWeeklyFundRows.map((row) => {
-              const allocation = Math.round(reportedWeeklyBase * row.allocation_rate);
-              const remaining = allocation - row.requested_amount;
-              return <tr key={row.fund_key} className="transition-colors hover:bg-blue-50/50">
-                <td className="px-5 py-3"><div className="flex items-start gap-3"><span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><div><div className="font-semibold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</div><div className="mt-0.5 text-[11px] text-slate-500">{row.fund_source}</div></div></div></td>
-                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-600">{(row.allocation_rate * 100).toLocaleString('vi-VN')}%</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{formatVND(allocation)}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-700">{formatVND(row.requested_amount)}</td>
-                <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums ${remaining <= 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatVND(remaining)}</td>
-              </tr>;
-            })}</tbody>
-            <tfoot className="border-t-2 border-blue-100 bg-blue-50/80 font-bold text-slate-900"><tr>
-              <td className="px-5 py-4">T&#7893;ng qu&#7929; tu&#7847;n</td><td className="px-4 py-4 text-right">15%</td>
-              <td className="px-4 py-4 text-right tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + Math.round(reportedWeeklyBase * row.allocation_rate), 0))}</td>
-              <td className="px-4 py-4 text-right tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + row.requested_amount, 0))}</td>
-              <td className="px-5 py-4 text-right tabular-nums">{formatVND(selectedWeeklyFundRows.reduce((sum, row) => sum + Math.round(reportedWeeklyBase * row.allocation_rate) - row.requested_amount, 0))}</td>
-            </tr></tfoot>
-          </table>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"><span>Gi&#225; tr&#7883; ph&#226;n b&#7893; t&#237;nh theo doanh s&#7889; H&#272; v&#224; t&#7927; l&#7879; c&#7911;a t&#7915;ng qu&#7929;.</span><span>Kho&#7843;n ch&#432;a chi hi&#7875;n th&#7883; m&#224;u xanh.</span></div>
-      </Panel>}
 
       </>}
 
-      {activeMainTab === 'teamlead' && canManageTeamLeadFund && <Panel className="overflow-hidden">
-        <div className="border-b border-slate-200 bg-gradient-to-r from-indigo-50 via-white to-blue-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Quỹ TeamLead · Tháng {Number(selectedMonth.slice(5))}/{selectedMonth.slice(0, 4)}</p>
-          <h2 className="mt-1 text-xl font-bold text-slate-900">Phân bổ quỹ TeamLead</h2>
-          <p className="mt-1 text-sm text-slate-600">Chọn tỷ lệ của Quỹ Leader Team. Phần còn lại được tính cho Quỹ Giám đốc KD.</p>
-        </div>
-        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-          <section>
-            <div className="mb-2 text-sm font-semibold text-slate-800">Chọn cách chia</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {([30, 70] as const).map((percent) => {
-                const selected = teamLeadPercent === percent;
-                const leadValue = Math.round(monthlyLeaderPool * percent / 100);
-                const directorValue = monthlyLeaderPool - leadValue;
-                return <button
-                  key={percent}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setTeamLeadPercent(percent)}
-                  className={'rounded-2xl border p-4 text-left transition ' + (selected ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-100' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50')}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">{percent}% cho Leader Team</span>
-                    <span className={'flex h-5 w-5 items-center justify-center rounded-full border ' + (selected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 text-transparent')}><CheckCircle2 className="h-4 w-4" /></span>
-                  </div>
-                  <div className="mt-3 space-y-1 text-xs text-slate-600">
-                    <div className="flex justify-between"><span>Leader Team ({percent}%)</span><strong className="text-slate-900">{formatVND(leadValue)}</strong></div>
-                    <div className="flex justify-between"><span>Giám đốc KD ({100 - percent}%)</span><strong className="text-slate-900">{formatVND(directorValue)}</strong></div>
-                  </div>
-                </button>;
-              })}
-            </div>
-            <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-100" aria-label={'Leader Team ' + teamLeadPercent + '%, Giám đốc KD ' + (100 - teamLeadPercent) + '%'}>
-              <div className="bg-indigo-600 transition-all" style={{ width: teamLeadPercent + '%' }} />
-              <div className="bg-blue-400 transition-all" style={{ width: (100 - teamLeadPercent) + '%' }} />
-            </div>
-            <div className="mt-2 flex justify-between text-[11px] font-semibold text-slate-600"><span>Leader Team · {teamLeadPercent}%</span><span>Giám đốc KD · {100 - teamLeadPercent}%</span></div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quỹ lũy kế tháng</div>
-            <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{formatVND(monthlyLeaderPool)}</div>
-            <div className="mt-4 space-y-2">
-              <SplitRow label={'Quỹ Leader Team (' + teamLeadPercent + '%)'} amount={leaderAmount} color="text-indigo-700" />
-              <SplitRow label={'Quỹ Giám đốc KD (' + (100 - teamLeadPercent) + '%)'} amount={directorAmount} color="text-blue-700" />
-              <div className="flex justify-between border-t border-slate-200 pt-2 text-xs font-bold text-slate-900"><span>Tổng đã đối chiếu</span><span>{formatVND(leaderAmount + directorAmount)}</span></div>
-            </div>
-            <button
-              type="button"
-              onClick={saveTeamLeadSplit}
-              disabled={isSavingTeamLeadSplit || (hasSavedTeamLeadSplit && savedTeamLeadMonth === selectedMonth && teamLeadPercent === savedTeamLeadPercent)}
-              className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSavingTeamLeadSplit ? 'Đang lưu…' : 'Lưu tỷ lệ phân bổ tháng'}
-            </button>
-            {hasSavedTeamLeadSplit && savedTeamLeadMonth === selectedMonth && <p className="mt-2 text-center text-[11px] text-emerald-700">Tỷ lệ tháng này đã được lưu.</p>}
-            {teamLeadSplitError && <p role="alert" className="mt-2 text-center text-[11px] text-red-600">{teamLeadSplitError}</p>}
-          </section>
-        </div>
-      </Panel>}
-
-      {activeMainTab === 'events' && <>
-      <Panel className="overflow-hidden">
+      {activeTab === 'event' && <Panel className="overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div><h2 className="font-bold text-slate-900">Quỹ Sự kiện & Chốt hợp đồng — tổng hợp tháng</h2><p className="mt-1 text-xs text-slate-500">Gồm thù lao nhân sự sự kiện, đề xuất chi và các khoản phát sinh cùng quỹ.</p></div>
           <div className="rounded-lg bg-violet-50 px-3 py-2 text-right"><div className="text-[10px] font-semibold uppercase text-violet-700">Quỹ tích lũy tháng</div><div className="font-bold text-violet-900">{formatVND(monthEventPool)}</div></div>
@@ -821,7 +829,7 @@ ${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-ri
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
           <MiniStat label="Thù lao sự kiện đề nghị" value={formatVND(staffProposed)} note={`${monthlyEventExpenses.length} dòng nhân sự`} />
           <MiniStat label="Đề xuất chi khác" value={formatVND(otherEventProposed)} note="Phiếu thuộc Quỹ Sự kiện" />
-          <MiniStat label="Đã chi có xác nhận" value={formatVND(monthlyEventPaid)} note="Chỉ tính phiếu trạng thái Đã chi" />
+          <MiniStat label="Đã thanh toán / thực hiện" value={formatVND(monthlyEventPaid)} note="Chỉ cộng trạng thái đã thanh toán" />
           <MiniStat label="Còn lại sau khi đã chi" value={formatVND(monthEventPool - monthlyEventPaid)} note="Không trừ các khoản còn chờ duyệt" />
         </div>
         <div className="overflow-x-auto border-t border-slate-100">
@@ -831,38 +839,47 @@ ${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-ri
           </table>
         </div>
         <p className="px-4 py-3 text-[11px] text-slate-500">Phiếu YC003 trong bảng thu chi chưa có ngày và số tiền; khoản đó được giữ ở trạng thái thiếu dữ liệu và chưa cộng vào tổng đề nghị.</p>
-      </Panel>
+      </Panel>}
 
-      </>}
-
-      {activeMainTab === 'transactions' && <>
-      <Panel className="overflow-hidden">
+      {activeTab === 'vouchers' && <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div><h2 className="font-bold text-slate-900">Nhật ký phiếu thu chi</h2><p className="mt-1 text-xs text-slate-500">Danh sách YC từ sheet 6. DSThu chi; dòng thiếu dữ liệu được giữ để đối soát.</p></div>
+          <div><h2 className="font-bold text-slate-900">Nhật ký phiếu thu chi</h2><p className="mt-1 text-xs text-slate-500">Phiếu tự động từ bảng kê hợp đồng và phiếu thủ công được quản lý cùng tại đây.</p></div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <label className="relative"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Tìm mã, quỹ, nội dung..." className="rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs" /></label>
             <select value={selectedFund} onChange={(event) => setSelectedFund(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><option value="all">Tất cả quỹ</option>{Array.from(new Set(logs.map((item) => item.fund_source))).map((fund) => <option key={fund} value={fund}>{fund}</option>)}</select>
             <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><option value="all">Tất cả trạng thái</option>{Array.from(new Set(logs.map((item) => item.status))).map((status) => <option key={status} value={status}>{status}</option>)}</select>
+            <select value={selectedType} onChange={(event) => setSelectedType(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><option value="all">Tất cả loại phiếu</option><option value="Tự động">Tự động</option><option value="Thủ công">Thủ công</option></select>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[1120px] w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-4 py-3">Mã / Ngày</th><th className="px-3 py-3">Quỹ / Nội dung</th><th className="px-3 py-3">Người đề xuất</th><th className="px-3 py-3">Người duyệt</th><th className="px-3 py-3">Người thụ hưởng</th><th className="px-3 py-3 text-right">Đề xuất / Thực chi</th><th className="px-3 py-3 text-center">Trạng thái</th><th className="px-3 py-3 text-center">Thao tác</th></tr></thead>
+            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-4 py-3">Mã / Ngày</th><th className="px-3 py-3">Phân loại</th><th className="px-3 py-3">Quỹ / Nội dung</th><th className="px-3 py-3">Người đề xuất</th><th className="px-3 py-3">Người duyệt</th><th className="px-3 py-3">Người thụ hưởng</th><th className="px-3 py-3 text-right">Đề xuất / Thực chi</th><th className="px-3 py-3 text-center">Trạng thái</th><th className="px-3 py-3 text-center">Thao tác</th></tr></thead>
             <tbody className="divide-y divide-slate-100">{filteredLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50/70">
               <td className="px-4 py-3"><div className="font-mono font-bold text-slate-800">{log.request_code}</div><div className="mt-1 text-[10px] text-slate-500">{formatDate(log.request_date)}</div></td>
+              <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${(log.expense_type || 'Thủ công') === 'Tự động' ? 'bg-violet-50 text-violet-700' : 'bg-slate-100 text-slate-700'}`}>{log.expense_type || 'Thủ công'}</span></td>
               <td className="max-w-[260px] px-3 py-3"><div className="font-semibold text-slate-800">{log.fund_source}</div><div className="mt-1 truncate text-[10px] text-slate-500" title={log.detail_content}>{safeText(log.detail_content)}</div></td>
               <td className="px-3 py-3"><div>{safeText(log.requester_name)}</div><div className="text-[10px] text-slate-500">{log.requester_phone || '—'}</div></td>
               <td className="px-3 py-3"><div>{safeText(log.approver_name)}</div><div className="text-[10px] text-slate-500">{log.approver_phone || '—'}</div></td>
-              <td className="px-3 py-3"><div>{safeText(log.beneficiary_name)}</div><div className="text-[10px] text-slate-500">{log.beneficiary_phone || '—'}</div></td>
+              <td className="px-3 py-3">
+                <div className="font-semibold text-slate-900">{safeText(log.beneficiary_name)}</div>
+                <div className="text-[10px] text-slate-500">{log.beneficiary_phone || '—'}</div>
+                <div className="text-[10px] text-slate-500">{log.beneficiary_bank_account || 'Chưa có tài khoản ngân hàng'}</div>
+                {log.beneficiary_team && (
+                  <div className="mt-1">
+                    <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                      Đội: {log.beneficiary_team}
+                    </span>
+                  </div>
+                )}
+              </td>
               <td className="px-3 py-3 text-right"><div className="font-semibold">{log.proposed_amount == null ? '—' : formatVND(log.proposed_amount)}</div><div className="text-[10px] text-slate-500">Thực chi {formatVND(log.actual_expense)}</div></td>
               <td className="px-3 py-3 text-center"><StatusBadge status={log.status} /></td>
-              <td className="relative px-3 py-3 text-center"><div className="inline-flex items-center gap-1"><button onClick={() => setViewLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="Chi tiết"><Eye className="h-4 w-4" /></button><button onClick={() => setActionMenuId(actionMenuId === log.id ? null : log.id)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" title="Thao tác"><MoreVertical className="h-4 w-4" /></button></div>
-                {actionMenuId === log.id && <div className="absolute right-5 top-10 z-20 w-40 rounded-xl border border-slate-200 bg-white py-1 text-left shadow-xl">{log.status !== 'Đã duyệt' && <button onClick={() => updateLogStatus(log, 'Đã duyệt')} className="flex w-full items-center gap-2 px-3 py-2 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="h-3.5 w-3.5" /> Duyệt phiếu</button>}{log.status !== 'Đã chi' && <button onClick={() => updateLogStatus(log, 'Đã chi')} className="flex w-full items-center gap-2 px-3 py-2 text-blue-700 hover:bg-blue-50"><Receipt className="h-3.5 w-3.5" /> Xác nhận đã chi</button>}{log.status !== 'Từ chối' && <button onClick={() => updateLogStatus(log, 'Từ chối')} className="flex w-full items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50"><XCircle className="h-3.5 w-3.5" /> Từ chối</button>}<button onClick={() => deleteLog(log)} className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-red-700 hover:bg-red-50"><X className="h-3.5 w-3.5" /> Xóa phiếu</button></div>}</td>
-            </tr>)}{!filteredLogs.length && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-500">Không có phiếu phù hợp.</td></tr>}</tbody>
+              <td className="relative px-3 py-3 text-center"><div className="inline-flex items-center gap-1"><button onClick={() => setViewLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="Chi tiết"><Eye className="h-4 w-4" /></button><button onClick={() => setPrintLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="In phiếu / Lưu PDF"><Printer className="h-4 w-4" /></button><button onClick={() => setActionMenuId(actionMenuId === log.id ? null : log.id)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" title="Thao tác"><MoreVertical className="h-4 w-4" /></button></div>
+                {actionMenuId === log.id && <div className="absolute right-5 top-10 z-20 w-48 rounded-xl border border-slate-200 bg-white py-1 text-left shadow-xl">{log.status !== 'Đã duyệt' && <button onClick={() => updateLogStatus(log, 'Đã duyệt')} className="flex w-full items-center gap-2 px-3 py-2 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="h-3.5 w-3.5" /> Duyệt phiếu</button>}{!isPaidStatus(log.status) && <button onClick={() => updateLogStatus(log, 'Đã thanh toán')} className="flex w-full items-center gap-2 px-3 py-2 text-blue-700 hover:bg-blue-50"><Receipt className="h-3.5 w-3.5" /> Đã thanh toán</button>}{!isPaidStatus(log.status) && <button onClick={() => updateLogStatus(log, 'Đã thực hiện')} className="flex w-full items-center gap-2 px-3 py-2 text-indigo-700 hover:bg-indigo-50"><CheckCircle2 className="h-3.5 w-3.5" /> Đã thực hiện</button>}{log.status !== 'Từ chối' && <button onClick={() => updateLogStatus(log, 'Từ chối')} className="flex w-full items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50"><XCircle className="h-3.5 w-3.5" /> Từ chối</button>}<button onClick={() => deleteLog(log)} className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-red-700 hover:bg-red-50"><X className="h-3.5 w-3.5" /> Xóa phiếu</button></div>}</td>
+            </tr>)}{!filteredLogs.length && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">Không có phiếu phù hợp.</td></tr>}</tbody>
           </table>
         </div>
-      </Panel>
-      </>}
+      </Panel>}
 
       {isCreateOpen && <Modal onClose={() => setIsCreateOpen(false)} title="Tạo phiếu đề xuất chi">
         <form onSubmit={handleCreate} className="space-y-3 p-5 text-xs">
@@ -870,28 +887,99 @@ ${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-ri
           <Field label="Nguồn quỹ"><select value={form.fundSource} onChange={(e) => setForm({ ...form, fundSource: e.target.value })} className={inputClass}>{[...Object.values(FUND_SOURCE_BY_KEY)].map((fund) => <option key={fund}>{fund}</option>)}</select></Field>
           <Field label="Nội dung chi tiết"><textarea required rows={3} value={form.detailContent} onChange={(e) => setForm({ ...form, detailContent: e.target.value })} className={inputClass} /></Field>
           <Field label="Số tiền đề xuất (VND)"><input required type="number" min="1" value={form.proposedAmount} onChange={(e) => setForm({ ...form, proposedAmount: e.target.value })} className={inputClass} /></Field>
+          <Field label="Trạng thái phiếu"><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}><option>Chờ duyệt</option><option>Đã duyệt</option><option>Đã thanh toán</option><option>Đã thực hiện</option><option>Từ chối</option></select></Field>
           <div className="grid gap-3 sm:grid-cols-2"><PersonFields title="Người đề xuất" name={form.requesterName} phone={form.requesterPhone} onName={(v) => setForm({ ...form, requesterName: v })} onPhone={(v) => setForm({ ...form, requesterPhone: v })} /><PersonFields title="Người duyệt" name={form.approverName} phone={form.approverPhone} onName={(v) => setForm({ ...form, approverName: v })} onPhone={(v) => setForm({ ...form, approverPhone: v })} /></div>
-          <PersonFields title="Người thụ hưởng" name={form.beneficiaryName} phone={form.beneficiaryPhone} onName={(v) => setForm({ ...form, beneficiaryName: v })} onPhone={(v) => setForm({ ...form, beneficiaryPhone: v })} />
+          <BeneficiaryFields
+            members={initialMembers}
+            name={form.beneficiaryName}
+            phone={form.beneficiaryPhone}
+            bankAccount={form.beneficiaryBankAccount}
+            onChange={(name, member) => setForm((current) => ({
+              ...current,
+              beneficiaryName: name,
+              beneficiaryUserId: member ? String(member.id) : '',
+              beneficiaryPhone: member ? (member.phone || '') : current.beneficiaryPhone,
+              beneficiaryBankAccount: member ? (member.bank_account || '') : current.beneficiaryBankAccount,
+            }))}
+            onPhone={(beneficiaryPhone) => setForm((current) => ({ ...current, beneficiaryPhone }))}
+            onBankAccount={(beneficiaryBankAccount) => setForm((current) => ({ ...current, beneficiaryBankAccount }))}
+          />
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2">Hủy</button><button disabled={isSubmitting} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{isSubmitting ? 'Đang lưu…' : 'Lưu phiếu'}</button></div>
         </form>
       </Modal>}
-      {viewWeeklyContract && <Modal className="max-w-[1400px]" onClose={() => setViewWeeklyContract(null)} title={viewWeeklyContract.contractRef || `H\u1ee3p \u0111\u1ed3ng ng\u00e0y ${formatDate(viewWeeklyContract.contractDate)}`}>
+      {viewLog && <Modal onClose={() => setViewLog(null)} title={`Chi tiết phiếu ${viewLog.request_code}`}>
+        <div className="grid gap-3 p-5 text-xs sm:grid-cols-2">
+          <Detail label="Ngày đề xuất" value={formatDate(viewLog.request_date)} />
+          <Detail label="Phân loại" value={viewLog.expense_type || 'Thủ công'} />
+          <Detail label="Nguồn quỹ" value={viewLog.fund_source} />
+          <Detail label="Trạng thái" value={viewLog.status} />
+          <Detail label="Số tiền đề xuất" value={viewLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(viewLog.proposed_amount)} />
+          <Detail label="Số tiền thực chi" value={formatVND(viewLog.actual_expense)} />
+          <Detail label="Người đề xuất" value={`${safeText(viewLog.requester_name)} · ${viewLog.requester_phone || '—'}`} />
+          <Detail label="Người duyệt" value={`${safeText(viewLog.approver_name)} · ${viewLog.approver_phone || '—'}`} />
+          <Detail label="Người thụ hưởng" value={`${safeText(viewLog.beneficiary_name)} · ${viewLog.beneficiary_phone || '—'}`} />
+          <Detail label="Đội nhóm thụ hưởng" value={viewLog.beneficiary_team || 'Chưa phân đội'} />
+          <Detail label="Ngân hàng nhận" value={viewLog.beneficiary_bank_account || '—'} />
+          <div className="rounded-lg bg-slate-50 p-3 sm:col-span-2"><div className="mb-1 text-slate-500">Nội dung</div>{safeText(viewLog.detail_content)}</div>
+          {viewLog.receipt_url && <a href={viewLog.receipt_url} target="_blank" rel="noreferrer" className="text-blue-600 underline sm:col-span-2">Mở chứng từ</a>}
+          <button type="button" onClick={() => setPrintLog(viewLog)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white sm:col-span-2"><Printer className="h-4 w-4" /> In / Lưu PDF</button>
+        </div>
+      </Modal>}
+      {viewContract && <Modal onClose={() => setViewContract(null)} title={`Chi tiết hợp đồng ${viewContract.contract_code || viewContract.customer_name}`}>
         <div className="space-y-4 p-5 text-xs">
-          <div className="grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-3">
-            <Detail label="Ng&#224;y k&#253;" value={formatDate(viewWeeklyContract.contractDate)} />
-            <Detail label="Kh&#225;ch h&#224;ng" value={viewWeeklyContract.customerName || '?'} />
-            <Detail label="Gi&#225; tr&#7883; h&#7907;p &#273;&#7891;ng" value={formatVND(viewWeeklyContract.contractValue)} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Detail label="Khách hàng" value={viewContract.customer_name} />
+            <Detail label="Ngày ký" value={formatDate(viewContract.contract_date)} />
+            <Detail label="Giá trị phân bổ" value={formatVND(viewContract.allocated_value)} />
+            <Detail label="Trạng thái hợp đồng" value={viewContract.status || '—'} />
           </div>
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full min-w-[650px] text-left">
-              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Nh&#226;n s&#7921; th&#7909; h&#432;&#7903;ng</th><th className="px-3 py-2">T&#224;i kho&#7843;n / Ng&#226;n h&#224;ng</th><th className="px-3 py-2">Ngu&#7891;n qu&#7929;</th><th className="px-3 py-2 text-right">T&#7927; l&#7879;</th><th className="px-3 py-2 text-right">S&#7889; ti&#7873;n</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">{viewWeeklyContract.allocations.map((row) => <tr key={row.source_key}><td className="px-3 py-2"><div className="font-semibold">{row.beneficiary_name}</div><div className="text-[10px] text-slate-500">{row.beneficiary_phone || '?'}</div></td><td className="px-3 py-2"><div>{row.bank_account || '?'}</div><div className="text-[10px] text-slate-500">{row.bank_name || '?'}</div></td><td className="px-3 py-2">{row.fund_source || '?'}</td><td className="px-3 py-2 text-right">{Number(row.commission_rate).toLocaleString('vi-VN')}%</td><td className="px-3 py-2 text-right font-semibold">{formatVND(row.allocated_amount)}</td></tr>)}</tbody>
-              <tfoot className="bg-blue-50 font-bold"><tr><td colSpan={4} className="px-3 py-2 text-right">T&#7893;ng ph&#226;n b&#7893;</td><td className="px-3 py-2 text-right">{formatVND(viewWeeklyContract.allocations.reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0))}</td></tr></tfoot>
-            </table>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Detail label="Tổng quỹ chưa chia (15%)" value={formatVND(contractPool(viewContract))} />
+            <Detail label="Tổng hoa hồng chia" value={formatVND(contractCommission(viewContract))} />
+            <Detail label="Tổng quỹ còn lại" value={formatVND(contractRemainingFund(viewContract))} />
+          </div>
+          <div>
+            <h3 className="mb-2 font-bold text-slate-800">Nhân sự thụ hưởng</h3>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-[420px] w-full text-left">
+                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Họ và tên</th><th className="px-3 py-2 text-right">Hoa hồng chia</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {contractBeneficiaries(viewContract).map((person, index) => (
+                    <tr key={index}>
+                      <td className="px-3 py-2 font-semibold text-slate-800">{person.name}</td>
+                      <td className="px-3 py-2 text-right font-bold">{formatVND(person.amount)}</td>
+                    </tr>
+                  ))}
+                  {!contractBeneficiaries(viewContract).length && <tr><td colSpan={2} className="px-3 py-6 text-center text-slate-500">Chưa có nhân sự thụ hưởng.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            {viewContract.source_sheet && <p className="mt-2 text-[10px] text-slate-500">Nguồn đối chiếu: {viewContract.source_sheet} · dòng Excel {viewContract.source_excel_row}</p>}
           </div>
         </div>
       </Modal>}
-      {viewLog && <Modal onClose={() => setViewLog(null)} title={`Chi tiết phiếu ${viewLog.request_code}`}><div className="grid gap-3 p-5 text-xs sm:grid-cols-2"><Detail label="Ngày đề xuất" value={formatDate(viewLog.request_date)} /><Detail label="Nguồn quỹ" value={viewLog.fund_source} /><Detail label="Số tiền đề xuất" value={viewLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(viewLog.proposed_amount)} /><Detail label="Số tiền thực chi" value={formatVND(viewLog.actual_expense)} /><Detail label="Người đề xuất" value={`${safeText(viewLog.requester_name)} · ${viewLog.requester_phone || '—'}`} /><Detail label="Người duyệt" value={`${safeText(viewLog.approver_name)} · ${viewLog.approver_phone || '—'}`} /><Detail label="Người thụ hưởng" value={`${safeText(viewLog.beneficiary_name)} · ${viewLog.beneficiary_phone || '—'}`} /><Detail label="Trạng thái" value={viewLog.status} /><div className="rounded-lg bg-slate-50 p-3 sm:col-span-2"><div className="mb-1 text-slate-500">Nội dung</div>{safeText(viewLog.detail_content)}</div>{viewLog.receipt_url && <a href={viewLog.receipt_url} target="_blank" rel="noreferrer" className="text-blue-600 underline sm:col-span-2">Mở chứng từ</a>}</div></Modal>}
+      {printLog && <div className="print-sheet">
+        <div className="mb-8 border-b-2 border-slate-900 pb-4 text-center">
+          <h1 className="text-sm font-bold uppercase">Công ty Cổ phần Tập đoàn Nghiêng Complex</h1>
+          <h2 className="mt-5 text-xl font-bold uppercase">Phiếu đề nghị thanh toán</h2>
+          <p className="mt-2 text-sm">Mã phiếu: {printLog.request_code} · Ngày: {formatDate(printLog.request_date)}</p>
+        </div>
+        <div className="space-y-4 text-sm">
+          <p><strong>Loại phiếu:</strong> {printLog.expense_type || 'Thủ công'}</p>
+          <p><strong>Nguồn quỹ:</strong> {printLog.fund_source}</p>
+          <p><strong>Nội dung thanh toán:</strong> {safeText(printLog.detail_content)}</p>
+          <p><strong>Số tiền đề nghị:</strong> {printLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(printLog.proposed_amount)}</p>
+          <p><strong>Người thụ hưởng:</strong> {safeText(printLog.beneficiary_name)} · {printLog.beneficiary_phone || '—'}</p>
+          <p><strong>Tài khoản / Ngân hàng:</strong> {printLog.beneficiary_bank_account || '—'}</p>
+          <p><strong>Người đề xuất:</strong> {safeText(printLog.requester_name)} · {printLog.requester_phone || '—'}</p>
+          <p><strong>Người duyệt:</strong> {safeText(printLog.approver_name)} · {printLog.approver_phone || '—'}</p>
+          <p><strong>Trạng thái:</strong> {printLog.status}</p>
+        </div>
+        <div className="mt-20 grid grid-cols-3 gap-6 text-center text-xs font-bold">
+          <div>NGƯỜI ĐỀ NGHỊ</div><div>PHỤ TRÁCH QUỸ</div><div>PHÊ DUYỆT</div>
+        </div>
+      </div>}
+      <button type="button" onClick={openCreateForm} aria-label="Tạo phiếu chi" title="Tạo phiếu chi" className="fixed bottom-5 right-5 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 sm:hidden"><Plus className="h-6 w-6" /></button>
     </div>
   );
 }
@@ -901,10 +989,6 @@ function StatCard({ icon, label, value, note, tint }: { icon: React.ReactNode; l
   return <Panel className="p-4"><div className="flex items-start justify-between"><div className="text-xs font-semibold text-slate-500">{label}</div><div className={`rounded-xl p-2 ${tints[tint]}`}>{icon}</div></div><div className="mt-3 text-xl font-bold tracking-tight text-slate-900">{value}</div><div className="mt-1 text-[10px] text-slate-500">{note}</div></Panel>;
 }
 
-function Payee({ name, phone, amount, color }: { name?: string | null; phone?: string | null; amount: number; color: string }) {
-  const colors: Record<string, string> = { blue: 'text-blue-700', emerald: 'text-emerald-700', amber: 'text-amber-700' };
-  return <><div className="font-medium text-slate-800">{safeText(name)}</div><div className="text-[10px] text-slate-500">{phone || '—'}</div><div className={`mt-1 font-bold ${colors[color]}`}>{formatVND(amount)}</div></>;
-}
 
 function SplitRow({ label, amount, color }: { label: string; amount: number; color: string }) {
   return <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"><span className="font-medium text-slate-700">{label}</span><span className={`font-bold ${color}`}>{formatVND(amount)}</span></div>;
@@ -915,12 +999,12 @@ function MiniStat({ label, value, note }: { label: string; value: string; note: 
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const style = status === 'Đã chi' ? 'bg-emerald-50 text-emerald-700' : status === 'Đã duyệt' ? 'bg-blue-50 text-blue-700' : status === 'Từ chối' ? 'bg-red-50 text-red-700' : status === 'Thiếu dữ liệu' ? 'bg-orange-50 text-orange-700' : 'bg-amber-50 text-amber-700';
+  const style = isPaidStatus(status) ? 'bg-emerald-50 text-emerald-700' : status === 'Đã duyệt' ? 'bg-blue-50 text-blue-700' : status === 'Từ chối' ? 'bg-red-50 text-red-700' : status === 'Thiếu dữ liệu' ? 'bg-orange-50 text-orange-700' : 'bg-amber-50 text-amber-700';
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${style}`}>{status === 'Thiếu dữ liệu' ? <AlertCircle className="h-3 w-3" /> : null}{status}</span>;
 }
 
-function Modal({ children, onClose, title, className = 'max-w-2xl' }: { children: React.ReactNode; onClose: () => void; title: string; className?: string }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className={`max-h-[92vh] w-full ${className} overflow-y-auto rounded-2xl bg-white shadow-2xl`}><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2><button onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>{children}</div></div>;
+function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2><button onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>{children}</div></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -929,6 +1013,71 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function PersonFields({ title, name, phone, onName, onPhone }: { title: string; name: string; phone: string; onName: (value: string) => void; onPhone: (value: string) => void }) {
   return <div className="grid gap-2 rounded-xl border border-slate-100 p-3 sm:grid-cols-2"><div className="font-bold text-slate-700 sm:col-span-2">{title}</div><Field label="Họ tên"><input value={name} onChange={(event) => onName(event.target.value)} className={inputClass} /></Field><Field label="Số điện thoại"><input value={phone} onChange={(event) => onPhone(event.target.value)} className={inputClass} /></Field></div>;
+}
+
+function BeneficiaryFields({
+  members,
+  name,
+  phone,
+  bankAccount,
+  onChange,
+  onPhone,
+  onBankAccount,
+}: {
+  members: TransactionMember[];
+  name: string;
+  phone: string;
+  bankAccount: string;
+  onChange: (name: string, member?: TransactionMember) => void;
+  onPhone: (phone: string) => void;
+  onBankAccount: (bankAccount: string) => void;
+}) {
+  const selectedMember = useMemo(() => {
+    return members.find((m) => m.full_name.toLocaleLowerCase('vi') === name.trim().toLocaleLowerCase('vi'));
+  }, [members, name]);
+
+  return (
+    <div className="grid gap-2 rounded-xl border border-slate-100 p-3 sm:grid-cols-2">
+      <div className="font-bold text-slate-700 sm:col-span-2">Người thụ hưởng</div>
+      <Field label="Thành viên hoặc đối tác">
+        <input
+          list="transaction-beneficiary-options"
+          value={name}
+          onChange={(event) => {
+            const nextName = event.target.value;
+            const selected = members.find((member) => member.full_name.toLocaleLowerCase('vi') === nextName.trim().toLocaleLowerCase('vi'));
+            onChange(nextName, selected);
+          }}
+          placeholder="Tìm thành viên hoặc nhập tên đối tác"
+          className={inputClass}
+        />
+        <datalist id="transaction-beneficiary-options">
+          {members.map((member) => (
+            <option key={member.id} value={member.full_name}>
+              {member.phone ? `${member.phone} · ` : ''}{member.team_name ? `Đội ${member.team_name}` : ''}{member.title ? ` (${member.title})` : ''}
+            </option>
+          ))}
+        </datalist>
+      </Field>
+      <Field label="Số điện thoại"><input value={phone} onChange={(event) => onPhone(event.target.value)} className={inputClass} /></Field>
+      <Field label="Tài khoản / Ngân hàng nhận"><input value={bankAccount} onChange={(event) => onBankAccount(event.target.value)} className={inputClass} /></Field>
+      {selectedMember && (
+        <div className="sm:col-span-2 flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-900">
+          <span className="font-semibold text-blue-700">Đội nhóm (TeamLead):</span>
+          <span className="inline-flex items-center rounded-md bg-white px-2 py-0.5 font-bold text-blue-700 shadow-2xs border border-blue-200">
+            {selectedMember.team_name || 'Chưa phân đội'}
+          </span>
+          {selectedMember.title && (
+            <>
+              <span className="text-slate-300">|</span>
+              <span className="text-slate-600">Chức vụ: <strong>{selectedMember.title}</strong></span>
+            </>
+          )}
+        </div>
+      )}
+      <p className="text-[10px] text-slate-500 sm:col-span-2">Chọn thành viên để tự động điền Đội nhóm, SĐT và thông tin ngân hàng thụ hưởng.</p>
+    </div>
+  );
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

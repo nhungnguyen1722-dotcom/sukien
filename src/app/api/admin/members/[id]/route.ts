@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
-import { getSelectedTeamNames, replaceUserTeams, resolveTeamIds } from '@/lib/memberTeams';
+import { resolveMemberTeamId, ensureMemberSchema, syncUserToTeamLead, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +11,7 @@ interface RouteParams {
 // GET: Lấy thông tin chi tiết của một thành viên
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
+    await ensureMemberSchema();
     const { id } = await params;
     const memberId = parseInt(id);
 
@@ -21,18 +22,37 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const result = await pool.query(
       `SELECT 
         u.*,
+        ${UNIFIED_TITLE_SQL} AS title,
+        ${UNIFIED_TEAM_NAME_SQL} AS team_name,
         r.full_name AS referrer_name,
-        COALESCE(member_team.team_names, ARRAY_REMOVE(ARRAY[t.name], NULL)) AS team_names,
-        COALESCE(array_to_string(member_team.team_names, ', '), t.name) AS team_name
+        r.phone AS referrer_phone,
+        COALESCE(cnt.contract_count, 0)::int AS contract_count,
+        COALESCE(cnt.total_contract_value, 0)::float8 AS total_contract_value,
+        COALESCE(cnt.total_commission, 0)::float8 AS total_commission,
+        COALESCE(tx.paid_amount, 0)::float8 AS total_paid_amount,
+        COALESCE(tx.pending_amount, 0)::float8 AS total_pending_amount
       FROM users u
       LEFT JOIN users r ON u.referrer_id = r.id
-      LEFT JOIN teams t ON t.id = u.team_id
-      LEFT JOIN LATERAL (
-        SELECT array_agg(member_team.name ORDER BY member_team.name) AS team_names
-        FROM user_teams ut
-        JOIN teams member_team ON member_team.id = ut.team_id
-        WHERE ut.user_id = u.id
-      ) member_team ON TRUE
+      LEFT JOIN teams t ON u.team_id = t.id
+      LEFT JOIN (
+        SELECT 
+          closer_id,
+          COUNT(*)::int AS contract_count,
+          SUM(value)::float8 AS total_contract_value,
+          SUM(COALESCE(closer_fee, 0))::float8 AS total_commission
+        FROM contracts
+        WHERE closer_id IS NOT NULL
+        GROUP BY closer_id
+      ) cnt ON cnt.closer_id = u.id
+      LEFT JOIN (
+        SELECT 
+          beneficiary_user_id,
+          SUM(CASE WHEN status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện') THEN COALESCE(actual_expense, proposed_amount, 0) ELSE 0 END)::float8 AS paid_amount,
+          SUM(CASE WHEN status IN ('Chờ duyệt', 'Đã duyệt') THEN COALESCE(proposed_amount, 0) ELSE 0 END)::float8 AS pending_amount
+        FROM transaction_logs
+        WHERE beneficiary_user_id IS NOT NULL
+        GROUP BY beneficiary_user_id
+      ) tx ON tx.beneficiary_user_id = u.id
       WHERE u.id = $1`,
       [memberId]
     );
@@ -67,6 +87,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       role,
       classification,
       title,
+      team_name,
       referrer_id,
       source,
       join_date,
@@ -78,8 +99,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       notes,
       is_team_leader_eligible,
       avatar_url,
-      team_name,
-      team_names,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -110,79 +129,74 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const selectedTeamNames = getSelectedTeamNames(team_names, team_name);
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const teamIds = await resolveTeamIds(client, selectedTeamNames);
-      if (!teamIds) {
-        await client.query('ROLLBACK');
-        return Response.json({ error: 'Một hoặc nhiều đội nhóm không còn tồn tại trong hệ thống' }, { status: 400 });
-      }
+    await ensureMemberSchema();
+    const teamId = await resolveMemberTeamId(team_name);
+    const normalizedTeamName = typeof team_name === 'string' && team_name.trim() ? team_name.trim() : null;
+    const result = await pool.query(
+      `UPDATE users
+       SET 
+        full_name = $1,
+        phone = $2,
+        email = $3,
+        identity_card = $4,
+        bank_account = $5,
+        role = $6,
+        classification = $7,
+        title = $8,
+        team_id = $9,
+        team_name = $10,
+        ref_code = $11,
+        referrer_id = $12,
+        referral_group = $13,
+        source = $14,
+        join_date = $15,
+        status = $16,
+        is_team_leader_eligible = $17,
+        guest_count = $18,
+        notes = $19,
+        avatar_url = $20,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $21
+       RETURNING *`,
+      [
+        full_name.trim(),
+        phone.trim(),
+        email ? email.trim() : null,
+        identity_card ? identity_card.trim() : null,
+        bank_account ? bank_account.trim() : null,
+        role || 'Khác',
+        classification || 'Nhân sự',
+        title || 'Thành viên',
+        teamId,
+        normalizedTeamName,
+        ref_code ? ref_code.trim() : null,
+        referrer_id ? parseInt(referrer_id) : null,
+        referral_group || 'Khách vãng lai',
+        source ? source.trim() : null,
+        join_date ? join_date : null,
+        status || 'Hoạt động',
+        !!is_team_leader_eligible,
+        guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
+        notes ? notes.trim() : null,
+        avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
+        memberId,
+      ]
+    );
 
-      const result = await client.query(
-        `UPDATE users
-         SET
-          full_name = $1,
-          phone = $2,
-          email = $3,
-          identity_card = $4,
-          bank_account = $5,
-          role = $6,
-          classification = $7,
-          title = $8,
-          ref_code = $9,
-          referrer_id = $10,
-          referral_group = $11,
-          source = $12,
-          join_date = $13,
-          status = $14,
-          is_team_leader_eligible = $15,
-          guest_count = $16,
-          notes = $17,
-          avatar_url = $18,
-          team_id = $19,
-          updated_at = CURRENT_TIMESTAMP
-         WHERE id = $20
-         RETURNING *`,
-        [
-          full_name.trim(),
-          phone.trim(),
-          email ? email.trim() : null,
-          identity_card ? identity_card.trim() : null,
-          bank_account ? bank_account.trim() : null,
-          role || 'Khác',
-          classification || 'Nhân sự',
-          title || 'Thành viên',
-          ref_code ? ref_code.trim() : null,
-          referrer_id ? parseInt(referrer_id) : null,
-          referral_group || 'Khách vãng lai',
-          source ? source.trim() : null,
-          join_date ? join_date : null,
-          status || 'Hoạt động',
-          !!is_team_leader_eligible,
-          guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
-          notes ? notes.trim() : null,
-          avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
-          teamIds[0] ?? null,
-          memberId,
-        ]
-      );
-
-      if (result.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return Response.json({ error: 'Không tìm thấy thành viên để cập nhật' }, { status: 404 });
-      }
-
-      await replaceUserTeams(client, memberId, teamIds);
-      await client.query('COMMIT');
-      return Response.json({ member: result.rows[0] });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    if (result.rows.length === 0) {
+      return Response.json({ error: 'Không tìm thấy thành viên để cập nhật' }, { status: 404 });
     }
+
+    const updatedUser = result.rows[0];
+
+    // Đồng bộ sang phân hệ TeamLead
+    try {
+      await syncUserToTeamLead(memberId);
+    } catch (syncErr) {
+      console.error('Failed to sync updated user to TeamLead:', syncErr);
+    }
+
+    return Response.json({ member: updatedUser });
   } catch (error) {
     console.error('Failed to update member:', error);
     return Response.json({ error: 'Có lỗi xảy ra khi cập nhật thông tin thành viên' }, { status: 500 });
@@ -202,6 +216,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     // Set null referrer_id cho các thành viên có người giới thiệu là member này
     await pool.query('UPDATE users SET referrer_id = NULL WHERE referrer_id = $1', [memberId]);
     await pool.query('UPDATE teams SET leader_id = NULL WHERE leader_id = $1', [memberId]);
+    await pool.query('DELETE FROM teamlead_members WHERE member_id = $1', [memberId]);
 
     const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [memberId]);
 

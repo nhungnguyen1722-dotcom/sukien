@@ -1,19 +1,16 @@
 import { Pool } from 'pg';
 
-const databaseUrl = process.env.DATABASE_URL;
-const isRemoteSsl = !!databaseUrl && /neon\.tech|sslmode=require|sslmode=verify-full/i.test(databaseUrl);
-
 const pool = new Pool(
-  databaseUrl
+  process.env.DATABASE_URL
     ? {
-        connectionString: databaseUrl,
-        ...(isRemoteSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
       }
     : {
         user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || '1111222267',
+        password: process.env.DB_PASSWORD,
         host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '5432', 10),
+        port: parseInt(process.env.DB_PORT || '5433', 10),
         database: process.env.DB_NAME || 'postgismap',
       }
 );

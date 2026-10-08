@@ -1,17 +1,11 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
 
 export const dynamic = 'force-dynamic';
 
-const SELECT_LOG = `
-  SELECT id, request_code, request_date::text AS request_date, fund_source, detail_content,
-    requester_id, requester_name, requester_phone, approver_id, approver_name, approver_phone,
-    beneficiary_name, beneficiary_phone, proposed_amount::float8 AS proposed_amount,
-    available_balance::float8 AS available_balance, fund_alert, status,
-    actual_expense::float8 AS actual_expense, receipt_url,
-    approval_date::text AS approval_date, payment_date::text AS payment_date, source_complete
-  FROM transaction_logs
-`;
+const SELECT_LOG = SELECT_TRANSACTION_LOGS;
+const ALLOWED_STATUSES = ['Chờ duyệt', 'Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi', 'Từ chối'];
 
 export async function GET(request: Request) {
   try {
@@ -55,13 +49,22 @@ export async function POST(request: Request) {
 
     const availableBalance = Number(body.availableBalance || 0);
     const fundAlert = amount > availableBalance ? 'Vượt quá tồn quỹ' : 'An toàn';
+    const status = ALLOWED_STATUSES.includes(body.status) ? body.status : 'Chờ duyệt';
+    const beneficiaryUserId = Number.isInteger(Number(body.beneficiaryUserId)) && Number(body.beneficiaryUserId) > 0
+      ? Number(body.beneficiaryUserId)
+      : null;
+    const beneficiaryBankAccount = String(body.beneficiaryBankAccount || '').trim() || null;
+    const paidImmediately = ['Đã thanh toán', 'Đã thực hiện', 'Đã chi'].includes(status);
     const inserted = await pool.query(
       `INSERT INTO transaction_logs (
         request_code, request_date, fund_source, detail_content,
         requester_id, requester_name, requester_phone, approver_id, approver_name, approver_phone,
-        beneficiary_name, beneficiary_phone, proposed_amount, available_balance,
-        fund_alert, status, actual_expense, receipt_url, source_complete
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,$17,TRUE)
+        beneficiary_name, beneficiary_phone, beneficiary_user_id, beneficiary_bank_account,
+        proposed_amount, available_balance, fund_alert, status, actual_expense, receipt_url,
+        source_complete, expense_type, approval_date, payment_date
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,TRUE,'Thủ công',
+        CASE WHEN $18 IN ('Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END,
+        CASE WHEN $18 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END)
       RETURNING id`,
       [
         code,
@@ -76,10 +79,13 @@ export async function POST(request: Request) {
         body.approverPhone || null,
         body.beneficiaryName || '',
         body.beneficiaryPhone || null,
+        beneficiaryUserId,
+        beneficiaryBankAccount,
         amount,
         availableBalance,
         fundAlert,
-        'Chờ duyệt',
+        status,
+        paidImmediately ? Number(body.actualExpense ?? amount) : 0,
         body.receiptUrl || null,
       ]
     );
@@ -95,13 +101,16 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ success: false, message: 'Thiếu mã phiếu.' }, { status: 400 });
+    if (body.status && !ALLOWED_STATUSES.includes(body.status)) {
+      return NextResponse.json({ success: false, message: 'Trạng thái phiếu không hợp lệ.' }, { status: 400 });
+    }
     const result = await pool.query(
       `UPDATE transaction_logs
        SET status = COALESCE($1, status),
            approver_name = COALESCE(NULLIF($2, ''), approver_name),
            approval_date = CASE WHEN $1 = 'Đã duyệt' AND approval_date IS NULL THEN CURRENT_DATE ELSE approval_date END,
-           payment_date = CASE WHEN $1 = 'Đã chi' AND payment_date IS NULL THEN CURRENT_DATE ELSE payment_date END,
-           actual_expense = CASE WHEN $1 = 'Đã chi' THEN COALESCE($3, proposed_amount, 0) ELSE actual_expense END
+           payment_date = CASE WHEN $1 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') AND payment_date IS NULL THEN CURRENT_DATE ELSE payment_date END,
+           actual_expense = CASE WHEN $1 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN COALESCE($3, proposed_amount, 0) ELSE actual_expense END
        WHERE id = $4
        RETURNING id`,
       [body.status || null, body.approverName || '', body.actualExpense == null ? null : Number(body.actualExpense), body.id]

@@ -3,6 +3,8 @@ import pool from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+const BUSINESS_UNIT_OPTIONS = ['Khối kinh doanh', 'Ban nguồn vốn'];
+
 // GET: Lấy danh sách khách mời đã nhập theo sự kiện hoặc tìm kiếm
 export async function GET(request: NextRequest) {
   try {
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
       referrer_group,
       guest_role = 'MC',
       source = 'Lễ tân nhập',
-      business_unit,
+      business_unit = 'Khối kinh doanh',
       attendance_status = 'Đã đăng ký',
       notes = '',
     } = body;
@@ -114,6 +116,10 @@ export async function POST(request: NextRequest) {
         { error: 'Vui lòng nhập họ tên khách' },
         { status: 400 }
       );
+    }
+
+    if (!BUSINESS_UNIT_OPTIONS.includes(business_unit)) {
+      return NextResponse.json({ error: 'Khối / Ban không hợp lệ' }, { status: 400 });
     }
 
     // Resolve referrer info if not passed directly by ID
@@ -157,21 +163,6 @@ export async function POST(request: NextRequest) {
 
     if (!resolvedReferrerGroup && (referrer_name || referrer_phone)) {
       resolvedReferrerGroup = `${referrer_name || ''} ${referrer_phone ? `(${referrer_phone})` : ''}`.trim();
-    }
-
-    let assignedBusinessUnit = business_unit || 'Khối kinh doanh';
-    if (resolvedReferrerId) {
-      const inviter = await pool.query(
-        `SELECT u.classification, u.referral_group, u.title, t.name AS team_name
-         FROM users u LEFT JOIN teams t ON t.id = u.team_id WHERE u.id = $1`,
-        [resolvedReferrerId]
-      );
-      if (inviter.rows.length) {
-        const profile = [inviter.rows[0].classification, inviter.rows[0].referral_group, inviter.rows[0].title, inviter.rows[0].team_name]
-          .filter(Boolean).join(' ').toLocaleLowerCase('vi');
-        if (profile.includes('nguồn vốn')) assignedBusinessUnit = 'Ban Nguồn Vốn';
-        else if (profile.includes('kinh doanh')) assignedBusinessUnit = 'Khối kinh doanh';
-      }
     }
 
     // Duplicate check: Kiểm tra trùng SĐT và trùng cả tên + SĐT cho sự kiện
@@ -256,7 +247,7 @@ export async function POST(request: NextRequest) {
           source || 'Lễ tân nhập',
           attendance_status || 'Đã đăng ký',
           notes?.trim() || null,
-          assignedBusinessUnit,
+          business_unit || 'Khối kinh doanh',
         ]
       );
     } catch (insertErr: any) {
@@ -374,6 +365,10 @@ export async function PATCH(request: NextRequest) {
       referrer_group,
       business_unit,
     } = body;
+
+    if (business_unit !== undefined && !BUSINESS_UNIT_OPTIONS.includes(String(business_unit).trim())) {
+      return NextResponse.json({ error: 'Khối / Ban không hợp lệ' }, { status: 400 });
+    }
 
     if (!id) {
       return NextResponse.json({ error: 'Thiếu ID khách mời' }, { status: 400 });

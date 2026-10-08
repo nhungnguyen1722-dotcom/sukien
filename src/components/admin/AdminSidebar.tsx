@@ -21,6 +21,7 @@ import {
   Sparkles,
   ChevronDown,
   Trophy,
+  ClipboardList,
 } from 'lucide-react';
 import SystemLogo from '@/components/SystemLogo';
 import { safeDecodeURI } from '@/lib/authUtils';
@@ -32,7 +33,8 @@ const menuItems = [
   { label: 'Danh sách khách hàng', href: '/admin/nguoi-moi', icon: UserPlus },
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
-  { label: 'Nhật ký hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
+  { label: 'Quản lý TeamLead', href: '/admin/teamlead', icon: Users },
+  { label: 'Danh sách hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
   { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },
   { label: 'Tài khoản & Phân quyền', href: '/admin/tai-khoan', icon: ShieldCheck },
@@ -44,6 +46,12 @@ const luckyWheelSubItems = [
   { label: 'Quay vòng trúng thưởng', href: '/admin/vong-quay/quay' },
   { label: 'Lịch sử quay thưởng', href: '/admin/vong-quay/lich-su' },
   { label: 'Hướng dẫn', href: '/admin/vong-quay/huong-dan' },
+];
+
+const teamLeadSubItems = [
+  { label: 'Danh sách TeamLead', href: '/admin/teamlead' },
+  { label: 'Phân bổ quỹ', href: '/admin/teamlead/phan-bo' },
+  { label: 'Nhật ký & báo cáo', href: '/admin/teamlead/bao-cao' },
 ];
 
 interface AdminSidebarProps {
@@ -62,13 +70,19 @@ export default function AdminSidebar({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const isWheelRoute = pathname?.startsWith('/admin/vong-quay');
+  const isTeamLeadRoute = pathname?.startsWith('/admin/teamlead');
   const [isWheelMenuOpen, setIsWheelMenuOpen] = useState(isWheelRoute);
+  const [isTeamLeadMenuOpen, setIsTeamLeadMenuOpen] = useState(isTeamLeadRoute);
 
   useEffect(() => {
     if (isWheelRoute) {
       setIsWheelMenuOpen(true);
     }
   }, [isWheelRoute]);
+
+  useEffect(() => {
+    if (isTeamLeadRoute) setIsTeamLeadMenuOpen(true);
+  }, [isTeamLeadRoute]);
 
   useEffect(() => {
     if (defaultAdminRole) setCurrentRole(safeDecodeURI(defaultAdminRole));
@@ -219,19 +233,21 @@ export default function AdminSidebar({
 
             return (
               <React.Fragment key={item.href}>
-                <li>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-[14px] font-medium transition-all ${
-                      isActive
-                        ? 'bg-[#2563eb] text-white shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
+                {item.href !== '/admin/teamlead' && (
+                  <li>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-[14px] font-medium transition-all ${
+                        isActive
+                          ? 'bg-[#2563eb] text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </li>
+                )}
 
                 {/* Vòng quay sự kiện - Chỉ có tài khoản Admin mới nhìn thấy (Mục 16.1) */}
                 {isAdmin && item.href === '/admin/nhat-ky-thu-chi' && (
@@ -279,6 +295,45 @@ export default function AdminSidebar({
                                     isSubActive ? 'bg-white' : 'bg-slate-500'
                                   }`}
                                 />
+                                <span>{sub.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                )}
+                {isAdmin && item.href === '/admin/teamlead' && (
+                  <li className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsTeamLeadMenuOpen(!isTeamLeadMenuOpen)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
+                        isTeamLeadRoute
+                          ? 'bg-slate-800 text-blue-300 font-semibold shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <ClipboardList className={`w-5 h-5 flex-shrink-0 ${isTeamLeadRoute ? 'text-blue-300' : 'text-slate-400'}`} />
+                        <span>Phân hệ TeamLead</span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isTeamLeadMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                    </button>
+                    {isTeamLeadMenuOpen && (
+                      <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {teamLeadSubItems.map((sub) => {
+                          const isSubActive = pathname === sub.href;
+                          return (
+                            <li key={sub.href}>
+                              <Link
+                                href={sub.href}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                  isSubActive ? 'bg-[#2563eb] text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${isSubActive ? 'bg-white' : 'bg-slate-500'}`} />
                                 <span>{sub.label}</span>
                               </Link>
                             </li>

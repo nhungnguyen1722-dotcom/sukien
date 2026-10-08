@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
-import { getSelectedTeamNames, replaceUserTeams, resolveTeamIds } from '@/lib/memberTeams';
+import { resolveMemberTeamId, ensureMemberSchema, syncUserToTeamLead, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
 
 export const dynamic = 'force-dynamic';
 
 // GET: Lấy danh sách thành viên, thống kê và danh sách người giới thiệu
 export async function GET(request: NextRequest) {
   try {
+    await ensureMemberSchema();
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search') || '';
     const role = searchParams.get('role') || '';
@@ -25,33 +26,58 @@ export async function GET(request: NextRequest) {
         u.bank_account,
         u.role,
         u.classification,
-        u.title,
+        ${UNIFIED_TITLE_SQL} AS title,
         u.team_id,
-        COALESCE(member_team.team_names, ARRAY_REMOVE(ARRAY[t.name], NULL)) AS team_names,
-        COALESCE(array_to_string(member_team.team_names, ', '), t.name) AS team_name,
+        ${UNIFIED_TEAM_NAME_SQL} AS team_name,
         u.ref_code,
         u.referrer_id,
         u.referral_group,
         u.source,
         u.join_date,
         u.status,
-        u.is_team_leader_eligible,
+        COALESCE(
+          u.is_team_leader_eligible,
+          EXISTS(
+            SELECT 1 FROM teamlead_members tm
+            WHERE (tm.member_id = u.id OR (NULLIF(REGEXP_REPLACE(tm.member_phone, '[^0-9]', '', 'g'), '') IS NOT NULL AND REGEXP_REPLACE(tm.member_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g')))
+              AND (tm.include_30 = TRUE OR EXISTS(SELECT 1 FROM teamlead_member_teams tmt WHERE tmt.member_id = tm.id))
+          ),
+          FALSE
+        ) AS is_team_leader_eligible,
         u.invite_count,
         u.guest_count,
         u.notes,
         u.created_at,
         u.updated_at,
         r.full_name AS referrer_name,
-        r.phone AS referrer_phone
+        r.phone AS referrer_phone,
+        COALESCE(cnt.contract_count, 0)::int AS contract_count,
+        COALESCE(cnt.total_contract_value, 0)::float8 AS total_contract_value,
+        COALESCE(cnt.total_commission, 0)::float8 AS total_commission,
+        COALESCE(tx.paid_amount, 0)::float8 AS total_paid_amount,
+        COALESCE(tx.pending_amount, 0)::float8 AS total_pending_amount
       FROM users u
-      LEFT JOIN teams t ON t.id = u.team_id
-      LEFT JOIN LATERAL (
-        SELECT array_agg(member_team.name ORDER BY member_team.name) AS team_names
-        FROM user_teams ut
-        JOIN teams member_team ON member_team.id = ut.team_id
-        WHERE ut.user_id = u.id
-      ) member_team ON TRUE
       LEFT JOIN users r ON u.referrer_id = r.id
+      LEFT JOIN teams t ON u.team_id = t.id
+      LEFT JOIN (
+        SELECT 
+          closer_id,
+          COUNT(*)::int AS contract_count,
+          SUM(value)::float8 AS total_contract_value,
+          SUM(COALESCE(closer_fee, 0))::float8 AS total_commission
+        FROM contracts
+        WHERE closer_id IS NOT NULL
+        GROUP BY closer_id
+      ) cnt ON cnt.closer_id = u.id
+      LEFT JOIN (
+        SELECT 
+          beneficiary_user_id,
+          SUM(CASE WHEN status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện') THEN COALESCE(actual_expense, proposed_amount, 0) ELSE 0 END)::float8 AS paid_amount,
+          SUM(CASE WHEN status IN ('Chờ duyệt', 'Đã duyệt') THEN COALESCE(proposed_amount, 0) ELSE 0 END)::float8 AS pending_amount
+        FROM transaction_logs
+        WHERE beneficiary_user_id IS NOT NULL
+        GROUP BY beneficiary_user_id
+      ) tx ON tx.beneficiary_user_id = u.id
       WHERE 1=1
     `;
     const params: (string | number)[] = [];
@@ -64,6 +90,7 @@ export async function GET(request: NextRequest) {
         OR u.email ILIKE $${params.length}
         OR u.ref_code ILIKE $${params.length}
         OR u.role ILIKE $${params.length}
+        OR u.team_name ILIKE $${params.length}
       )`;
     }
 
@@ -84,7 +111,7 @@ export async function GET(request: NextRequest) {
 
     query += ' ORDER BY u.id ASC';
 
-    const [membersRes, statsRes, referrersRes, teamsRes] = await Promise.all([
+    const [membersRes, statsRes, referrersRes] = await Promise.all([
       pool.query(query, params),
       pool.query(`
         SELECT 
@@ -95,7 +122,6 @@ export async function GET(request: NextRequest) {
         FROM users
       `),
       pool.query(`SELECT id, full_name, phone, ref_code FROM users ORDER BY full_name ASC`),
-      pool.query('SELECT name FROM teams ORDER BY name ASC'),
     ]);
 
     const statsRow = statsRes.rows[0] || {
@@ -114,7 +140,6 @@ export async function GET(request: NextRequest) {
         inactiveMembers: statsRow.inactive_members,
       },
       referrers: referrersRes.rows,
-      teams: teamsRes.rows.map((row) => row.name),
     });
   } catch (error) {
     console.error('Failed to fetch members:', error);
@@ -134,6 +159,7 @@ export async function POST(request: NextRequest) {
       role,
       classification,
       title,
+      team_name,
       referrer_id,
       source,
       join_date,
@@ -145,8 +171,6 @@ export async function POST(request: NextRequest) {
       notes,
       is_team_leader_eligible,
       avatar_url,
-      team_name,
-      team_names,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -171,71 +195,67 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const selectedTeamNames = getSelectedTeamNames(team_names, team_name);
-    const client = await pool.connect();
+    await ensureMemberSchema();
+    const teamId = await resolveMemberTeamId(team_name);
+    const normalizedTeamName = typeof team_name === 'string' && team_name.trim() ? team_name.trim() : null;
+    const result = await pool.query(
+      `INSERT INTO users (
+        full_name,
+        phone,
+        email,
+        identity_card,
+        bank_account,
+        role,
+        classification,
+        title,
+        team_id,
+        team_name,
+        ref_code,
+        referrer_id,
+        referral_group,
+        source,
+        join_date,
+        status,
+        is_team_leader_eligible,
+        guest_count,
+        notes,
+        avatar_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      RETURNING *`,
+      [
+        full_name.trim(),
+        phone.trim(),
+        email ? email.trim() : null,
+        identity_card ? identity_card.trim() : null,
+        bank_account ? bank_account.trim() : null,
+        role || 'Khác',
+        classification || 'Nhân sự',
+        title || 'Thành viên',
+        teamId,
+        normalizedTeamName,
+        ref_code && ref_code.trim() ? ref_code.trim() : (phone ? `N_${phone.trim()}` : null),
+        referrer_id ? parseInt(referrer_id) : null,
+        referral_group || 'Khách vãng lai',
+        source ? source.trim() : null,
+        join_date ? join_date : null,
+        status || 'Hoạt động',
+        !!is_team_leader_eligible,
+        guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
+        notes ? notes.trim() : null,
+        avatar_url ? avatar_url.trim() : null,
+      ]
+    );
+
+    const insertedUser = result.rows[0];
+
+    // Đồng bộ sang phân hệ TeamLead
     try {
-      await client.query('BEGIN');
-      const teamIds = await resolveTeamIds(client, selectedTeamNames);
-      if (!teamIds) {
-        await client.query('ROLLBACK');
-        return Response.json({ error: 'Một hoặc nhiều đội nhóm không còn tồn tại trong hệ thống' }, { status: 400 });
-      }
-
-      const result = await client.query(
-        `INSERT INTO users (
-          full_name,
-          phone,
-          email,
-          identity_card,
-          bank_account,
-          role,
-          classification,
-          title,
-          ref_code,
-          referrer_id,
-          referral_group,
-          source,
-          join_date,
-          status,
-          is_team_leader_eligible,
-          guest_count,
-          notes,
-          avatar_url,
-          team_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        RETURNING *`,
-        [
-          full_name.trim(),
-          phone.trim(),
-          email ? email.trim() : null,
-          identity_card ? identity_card.trim() : null,
-          bank_account ? bank_account.trim() : null,
-          role || 'Khác',
-          classification || 'Nhân sự',
-          title || 'Thành viên',
-          ref_code && ref_code.trim() ? ref_code.trim() : (phone ? `N_${phone.trim()}` : null),
-          referrer_id ? parseInt(referrer_id) : null,
-          referral_group || 'Khách vãng lai',
-          source ? source.trim() : null,
-          join_date ? join_date : null,
-          status || 'Hoạt động',
-          !!is_team_leader_eligible,
-          guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
-          notes ? notes.trim() : null,
-          avatar_url ? avatar_url.trim() : null,
-          teamIds[0] ?? null,
-        ]
-      );
-
-      await replaceUserTeams(client, result.rows[0].id, teamIds);
-      await client.query('COMMIT');
-      return Response.json({ member: result.rows[0] }, { status: 201 });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+      await syncUserToTeamLead(insertedUser.id);
+    } catch (syncErr) {
+      console.error('Failed to sync new user to TeamLead:', syncErr);
     }
+
+    return Response.json({ member: insertedUser }, { status: 201 });
   } catch (error) {
     console.error('Failed to create member:', error);
     return Response.json({ error: 'Có lỗi xảy ra khi tạo thành viên mới' }, { status: 500 });

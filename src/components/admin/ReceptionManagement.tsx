@@ -89,6 +89,8 @@ const STATUS_OPTIONS = [
   'Tham dự',
 ];
 
+const BUSINESS_UNIT_OPTIONS = ['Khối kinh doanh', 'Ban nguồn vốn'];
+
 export default function ReceptionManagement({
   initialEvents,
   initialSales,
@@ -268,7 +270,8 @@ export default function ReceptionManagement({
         r.guest_name?.toLowerCase().includes(q) ||
         r.guest_phone?.includes(q) ||
         r.sale_name?.toLowerCase().includes(q) ||
-        r.attendance_status?.toLowerCase().includes(q)
+        r.attendance_status?.toLowerCase().includes(q) ||
+        r.business_unit?.toLowerCase().includes(q)
     );
   }, [registrations, tableSearch]);
 
@@ -705,12 +708,23 @@ export default function ReceptionManagement({
               </div>
             </div>
 
+            {/* Business unit */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Khối / Ban</label>
-              <select value={businessUnit} onChange={(e) => setBusinessUnit(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800">
-                <option value="Khối kinh doanh">Khối kinh doanh</option>
-                <option value="Ban nguồn vốn">Ban nguồn vốn</option>
-              </select>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Khối / Ban
+              </label>
+              <div className="relative">
+                <select
+                  value={businessUnit}
+                  onChange={(e) => setBusinessUnit(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition appearance-none cursor-pointer pr-10"
+                >
+                  {BUSINESS_UNIT_OPTIONS.map((unit) => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
 
             {/* Notes */}
@@ -852,7 +866,9 @@ export default function ReceptionManagement({
                             {guest.attendance_status || 'Đã check-in'}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3">{guest.business_unit || 'Khối kinh doanh'}</td>
+                        <td className="py-3.5 px-3 text-slate-700">
+                          {guest.business_unit === 'BNV' ? 'Ban nguồn vốn' : (guest.business_unit || 'Khối kinh doanh')}
+                        </td>
                         <td className="py-3.5 pl-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Quick Check-in Button */}

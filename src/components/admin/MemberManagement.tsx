@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Users,
   UserCheck,
@@ -15,8 +16,24 @@ import {
   AlertCircle,
   Upload,
   Image as LucideImage,
+  Eye,
+  FileText,
+  Receipt,
+  Wallet,
+  ExternalLink,
+  CreditCard,
+  Mail,
+  Calendar,
+  Phone,
+  Award,
 } from 'lucide-react';
 import ImageLibraryModal from '@/components/admin/ImageLibraryModal';
+import { MEMBER_TEAM_OPTIONS } from '@/lib/teamOptions';
+
+const formatVND = (val?: number | null) => {
+  if (val == null || !Number.isFinite(val)) return '0 đ';
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+};
 
 export interface Member {
   id: number;
@@ -31,7 +48,6 @@ export interface Member {
   title?: string | null;
   team_id?: number | null;
   team_name?: string | null;
-  team_names?: string[];
   ref_code?: string | null;
   referrer_id?: number | null;
   referrer_name?: string | null;
@@ -46,6 +62,11 @@ export interface Member {
   notes?: string | null;
   created_at?: string;
   updated_at?: string;
+  contract_count?: number | null;
+  total_contract_value?: number | null;
+  total_commission?: number | null;
+  total_paid_amount?: number | null;
+  total_pending_amount?: number | null;
 }
 
 export interface Stats {
@@ -66,7 +87,7 @@ interface MemberManagementProps {
   initialMembers: Member[];
   initialStats: Stats;
   initialReferrers: ReferrerOption[];
-  initialTeams: string[];
+  initialTeams?: Array<{ id: number; name: string }>;
 }
 
 const COMPETENCY_OPTIONS = [
@@ -115,7 +136,6 @@ const TITLE_OPTIONS = [
   'Thành viên',
   'Trưởng phòng',
   'Phó Giám đốc',
-  'P. Giám đốc',
   'Giám đốc',
   'Chủ tịch',
 ];
@@ -144,12 +164,14 @@ export default function MemberManagement({
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [stats, setStats] = useState<Stats>(initialStats);
   const [referrers, setReferrers] = useState<ReferrerOption[]>(initialReferrers);
-  const [teamOptions, setTeamOptions] = useState<string[]>(initialTeams);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [viewingMember, setViewingMember] = useState<Member | null>(null);
   const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -167,7 +189,7 @@ export default function MemberManagement({
     role: 'Khác',
     classification: 'Nhân sự',
     title: 'Thành viên',
-    team_names: [] as string[],
+    team_name: '',
     referrer_id: '',
     referrer_name: '',
     source: '',
@@ -179,6 +201,27 @@ export default function MemberManagement({
     status: 'Hoạt động',
     notes: '',
   });
+
+  const availableTeamOptions = useMemo(() => {
+    const list = [...MEMBER_TEAM_OPTIONS] as string[];
+    if (initialTeams && initialTeams.length) {
+      for (const t of initialTeams) {
+        if (!list.includes(t.name)) list.push(t.name);
+      }
+    }
+    if (formData.team_name) {
+      const selected = formData.team_name
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (const t of selected) {
+        if (!list.includes(t)) {
+          list.push(t);
+        }
+      }
+    }
+    return list;
+  }, [formData.team_name, initialTeams]);
 
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -250,7 +293,6 @@ export default function MemberManagement({
         setMembers(data.members || []);
         setStats(data.stats || initialStats);
         setReferrers(data.referrers || []);
-        setTeamOptions(data.teams || initialTeams);
       }
     } catch (err) {
       console.error('Error refreshing members:', err);
@@ -269,7 +311,7 @@ export default function MemberManagement({
       role: 'Khác',
       classification: 'Nhân sự',
       title: 'Thành viên',
-      team_names: [],
+      team_name: '',
       referrer_id: '',
       referrer_name: '',
       source: '',
@@ -301,11 +343,7 @@ export default function MemberManagement({
       role: member.role || 'Khác',
       classification: member.classification || 'Nhân sự',
       title: member.title || 'Thành viên',
-      team_names: member.team_names?.length
-        ? member.team_names
-        : member.team_name
-          ? member.team_name.split(',').map((team) => team.trim()).filter(Boolean)
-          : [],
+      team_name: member.team_name || '',
       referrer_id: member.referrer_id ? String(member.referrer_id) : '',
       referrer_name: member.referrer_name || '',
       source: member.source || '',
@@ -408,9 +446,16 @@ export default function MemberManagement({
       const emailMatch = m.email?.toLowerCase().includes(q);
       const classMatch = m.classification?.toLowerCase().includes(q);
       const titleMatch = m.title?.toLowerCase().includes(q);
-      return nameMatch || phoneMatch || roleMatch || emailMatch || classMatch || titleMatch;
+      const teamMatch = m.team_name?.toLowerCase().includes(q);
+      return nameMatch || phoneMatch || roleMatch || emailMatch || classMatch || titleMatch || teamMatch;
     });
   }, [members, searchQuery]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredMembers.length / pageSize));
+  const activePage = Math.min(currentPage, pageCount);
+  const firstVisibleMember = filteredMembers.length === 0 ? 0 : (activePage - 1) * pageSize + 1;
+  const lastVisibleMember = Math.min(activePage * pageSize, filteredMembers.length);
+  const paginatedMembers = filteredMembers.slice(firstVisibleMember - 1, lastVisibleMember);
 
   return (
     <div className="px-[15px] py-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto min-h-screen">
@@ -522,13 +567,19 @@ export default function MemberManagement({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Tìm kiếm..."
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 placeholder-slate-400 shadow-xs"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
             >
               <X className="w-4 h-4" />
@@ -539,6 +590,44 @@ export default function MemberManagement({
 
       {/* Bảng Danh sách Thành viên */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-600">
+            Hiển thị {firstVisibleMember}–{lastVisibleMember} / {filteredMembers.length} thành viên
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label htmlFor="member-page-size" className="text-slate-500">Số dòng:</label>
+            <select
+              id="member-page-size"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, activePage - 1))}
+              disabled={activePage <= 1}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Trước
+            </button>
+            <span className="min-w-[92px] text-center text-slate-600">Trang {activePage} / {pageCount}</span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.min(pageCount, activePage + 1))}
+              disabled={activePage >= pageCount}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Tiếp
+            </button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600 border-collapse">
             <thead>
@@ -561,7 +650,7 @@ export default function MemberManagement({
                   </td>
                 </tr>
               ) : (
-                filteredMembers.map((member) => (
+                paginatedMembers.map((member) => (
                   <tr
                     key={member.id}
                     className="hover:bg-slate-50/70 transition-colors group"
@@ -625,7 +714,27 @@ export default function MemberManagement({
                     <td className="py-4 px-5 text-slate-600">
                       {member.title || '—'}
                     </td>
-                    <td className="py-4 px-5 text-slate-600">{member.team_names?.length ? member.team_names.join(', ') : member.team_name || '—'}</td>
+
+                    <td className="py-4 px-5 text-slate-600">
+                      {member.team_name ? (
+                        <div className="flex flex-wrap gap-1">
+                          {member.team_name
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean)
+                            .map((t, tIdx) => (
+                              <span
+                                key={tIdx}
+                                className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
 
                     {/* Số lần làm khách */}
                     <td className="py-4 px-5 text-slate-600">
@@ -652,6 +761,13 @@ export default function MemberManagement({
                     {/* Thao tác */}
                     <td className="py-4 px-5 text-right">
                       <div className="flex items-center justify-end gap-2.5">
+                        <button
+                          onClick={() => setViewingMember(member)}
+                          className="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-indigo-50"
+                          title="Xem dữ liệu liên kết (Đội nhóm, Hợp đồng, Thu chi)"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleOpenEditModal(member)}
                           className="text-slate-400 hover:text-blue-600 transition-colors p-1 rounded-md hover:bg-blue-50"
@@ -701,6 +817,90 @@ export default function MemberManagement({
                 <div className="bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{formError}</span>
+                </div>
+              )}
+              {editingMember && (
+                <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/60 to-purple-50/70 border border-blue-200/70 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                      Dữ liệu liên thông của thành viên:
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">ID #{editingMember.id}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    {/* 1. TeamLead */}
+                    <div className="bg-white/95 border border-blue-100 rounded-lg p-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between text-slate-500 mb-1">
+                        <span className="font-semibold text-blue-700">Đội nhóm & TeamLead</span>
+                        <Link
+                          href={`/admin/teamlead`}
+                          target="_blank"
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Mở phân hệ TeamLead"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </div>
+                      <p className="font-medium text-slate-800 truncate" title={editingMember.team_name || 'Chưa gán'}>
+                        Đội: <span className="font-semibold text-blue-900">{editingMember.team_name || 'Chưa gán'}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        Chức vụ: <span className="font-medium text-indigo-700">{editingMember.title || 'Thành viên'}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {editingMember.is_team_leader_eligible ? '✓ Đủ ĐK nhận quỹ TeamLead' : '○ Chưa kích hoạt TeamLead'}
+                      </p>
+                    </div>
+
+                    {/* 2. Hợp đồng */}
+                    <div className="bg-white/95 border border-emerald-100 rounded-lg p-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between text-slate-500 mb-1">
+                        <span className="font-semibold text-emerald-700">Hợp đồng cá nhân</span>
+                        <Link
+                          href={`/admin/nhat-ky-hop-dong?search=${encodeURIComponent(editingMember.full_name || '')}`}
+                          target="_blank"
+                          className="text-emerald-600 hover:text-emerald-800 transition-colors"
+                          title="Xem danh sách hợp đồng đã chốt"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </div>
+                      <p className="font-medium text-slate-800">
+                        Đã chốt: <span className="font-bold text-emerald-800">{editingMember.contract_count || 0} HĐ</span>
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        Doanh số: <span className="font-semibold text-slate-900">{formatVND(editingMember.total_contract_value)}</span>
+                      </p>
+                      <p className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                        Hoa hồng: {formatVND(editingMember.total_commission)}
+                      </p>
+                    </div>
+
+                    {/* 3. Thu chi */}
+                    <div className="bg-white/95 border border-amber-100 rounded-lg p-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between text-slate-500 mb-1">
+                        <span className="font-semibold text-amber-700">Thu chi cá nhân</span>
+                        <Link
+                          href={`/admin/nhat-ky-thu-chi?search=${encodeURIComponent(editingMember.full_name || '')}`}
+                          target="_blank"
+                          className="text-amber-600 hover:text-amber-800 transition-colors"
+                          title="Xem sổ quỹ thu chi"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </div>
+                      <p className="font-medium text-slate-800">
+                        Đã chi nhận: <span className="font-bold text-amber-800">{formatVND(editingMember.total_paid_amount)}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        Chờ duyệt: <span className="font-medium text-slate-800">{formatVND(editingMember.total_pending_amount)}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 truncate" title={editingMember.bank_account || 'Chưa cập nhật'}>
+                        Tài khoản: {editingMember.bank_account || 'Chưa cập nhật'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -885,31 +1085,43 @@ export default function MemberManagement({
                 </select>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                  Đội nhóm <span className="font-normal text-slate-400">(Chọn một hoặc nhiều đội nhóm)</span>
+              {/* 7. Đội nhóm (TeamLead) - Chọn nhiều checkbox 1 lúc */}
+              <div className="col-span-1 sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Đội nhóm (TeamLead) <span className="text-slate-400 font-normal">(Chọn một hoặc nhiều đội nhóm)</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3">
-                  {teamOptions.map((team) => {
-                    const isChecked = formData.team_names.includes(team);
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {availableTeamOptions.map((team) => {
+                    const currentTeams = formData.team_name
+                      ? formData.team_name.split(',').map((s) => s.trim()).filter(Boolean)
+                      : [];
+                    const isChecked = currentTeams.includes(team);
                     return (
-                      <label key={team} className="flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-700 hover:text-blue-600">
+                      <label
+                        key={team}
+                        className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 font-medium hover:text-blue-600"
+                      >
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => setFormData((prev) => ({
-                            ...prev,
-                            team_names: isChecked
-                              ? prev.team_names.filter((selectedTeam) => selectedTeam !== team)
-                              : [...prev.team_names, team],
-                          }))}
-                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          onChange={() => {
+                            let updatedList = [...currentTeams];
+                            if (isChecked) {
+                              updatedList = updatedList.filter((item) => item !== team);
+                            } else {
+                              updatedList.push(team);
+                            }
+                            setFormData({
+                              ...formData,
+                              team_name: updatedList.join(', '),
+                            });
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                         />
                         <span>{team}</span>
                       </label>
                     );
                   })}
-                  {teamOptions.length === 0 && <span className="col-span-full text-xs text-slate-400">Chưa có đội nhóm nào.</span>}
                 </div>
               </div>
 
@@ -1086,6 +1298,246 @@ export default function MemberManagement({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* MODAL: Xem chi tiết & Dữ liệu thông suốt của thành viên       */}
+      {/* ============================================================ */}
+      {viewingMember && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-200 border-2 border-slate-300 flex items-center justify-center shrink-0">
+                  {viewingMember.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={viewingMember.avatar_url}
+                      alt={viewingMember.full_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Users className="w-6 h-6 text-slate-400" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900 leading-tight">
+                      {viewingMember.full_name}
+                    </h2>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        viewingMember.status === 'Hoạt động' || viewingMember.status === 'Đang hoạt động'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      {viewingMember.status || 'Hoạt động'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                    <span>{viewingMember.phone}</span>
+                    {viewingMember.email && <span>· {viewingMember.email}</span>}
+                    <span>· Phân loại: <b>{viewingMember.classification || 'Nhân sự'}</b></span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingMember(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="overflow-y-auto px-6 py-5 flex-1 space-y-4">
+              {/* Thẻ 1: Đội nhóm & Chức vụ TeamLead */}
+              <div className="bg-gradient-to-br from-blue-50/70 via-indigo-50/50 to-white border border-blue-200/80 rounded-xl p-4 shadow-2xs">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-blue-900">
+                    <Award className="w-4 h-4 text-blue-600" />
+                    <span>Đội nhóm & Chức vụ TeamLead</span>
+                  </div>
+                  <Link
+                    href={`/admin/teamlead`}
+                    target="_blank"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs"
+                  >
+                    <span>Mở phân hệ TeamLead</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100">
+                    <span className="text-slate-500 block mb-0.5">Đội nhóm hiện tại</span>
+                    <span className="font-bold text-blue-950 text-sm">{viewingMember.team_name || 'Chưa phân đội'}</span>
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100">
+                    <span className="text-slate-500 block mb-0.5">Chức vụ TeamLead</span>
+                    <span className="font-bold text-indigo-900 text-sm">{viewingMember.title || 'Thành viên'}</span>
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100">
+                    <span className="text-slate-500 block mb-0.5">Hưởng quỹ TeamLead</span>
+                    <span className={`font-semibold text-xs ${viewingMember.is_team_leader_eligible ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      {viewingMember.is_team_leader_eligible ? '✓ Đủ điều kiện hưởng quỹ' : '○ Chưa kích hoạt'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid 2 cột: Hợp đồng & Thu chi cá nhân */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Thẻ 2: Hợp đồng cá nhân */}
+                <div className="bg-gradient-to-br from-emerald-50/70 via-teal-50/50 to-white border border-emerald-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-sm font-bold text-emerald-900">
+                        <FileText className="w-4 h-4 text-emerald-600" />
+                        <span>Hợp đồng cá nhân</span>
+                      </div>
+                      <Link
+                        href={`/admin/nhat-ky-hop-dong?search=${encodeURIComponent(viewingMember.full_name)}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition-colors bg-white px-2 py-0.5 rounded-md border border-emerald-200"
+                        title="Xem hợp đồng do thành viên này chốt"
+                      >
+                        <span>Tra cứu</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between py-1 border-b border-emerald-100/80">
+                        <span className="text-slate-600">Số HĐ đã chốt:</span>
+                        <span className="font-bold text-emerald-900">{viewingMember.contract_count || 0} hợp đồng</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-emerald-100/80">
+                        <span className="text-slate-600">Tổng doanh số cá nhân:</span>
+                        <span className="font-bold text-slate-900">{formatVND(viewingMember.total_contract_value)}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-600">Tổng hoa hồng:</span>
+                        <span className="font-bold text-emerald-700">{formatVND(viewingMember.total_commission)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thẻ 3: Thu chi cá nhân */}
+                <div className="bg-gradient-to-br from-amber-50/70 via-orange-50/50 to-white border border-amber-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                        <Receipt className="w-4 h-4 text-amber-600" />
+                        <span>Nhật ký thu chi cá nhân</span>
+                      </div>
+                      <Link
+                        href={`/admin/nhat-ky-thu-chi?search=${encodeURIComponent(viewingMember.full_name)}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors bg-white px-2 py-0.5 rounded-md border border-amber-200"
+                        title="Xem phiếu chi hoa hồng cá nhân"
+                      >
+                        <span>Sổ quỹ</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between py-1 border-b border-amber-100/80">
+                        <span className="text-slate-600">Đã chi trả thực tế:</span>
+                        <span className="font-bold text-emerald-700">{formatVND(viewingMember.total_paid_amount)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-amber-100/80">
+                        <span className="text-slate-600">Đang chờ duyệt chi:</span>
+                        <span className="font-bold text-amber-700">{formatVND(viewingMember.total_pending_amount)}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-600">Tài khoản nhận:</span>
+                        <span className="font-medium text-slate-800 truncate max-w-[160px]" title={viewingMember.bank_account || 'Chưa cập nhật'}>
+                          {viewingMember.bank_account || 'Chưa cập nhật'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thẻ 4: Thông tin cá nhân & Hồ sơ chi tiết */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-3">
+                  <CreditCard className="w-4 h-4 text-slate-600" />
+                  <span>Hồ sơ & Tài khoản</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-slate-500 block">Số điện thoại:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.phone || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Email:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.email || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Căn cước công dân (CCCD):</span>
+                    <span className="font-medium text-slate-800">{viewingMember.identity_card || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Số tài khoản ngân hàng:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.bank_account || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Nhóm người mời:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.referral_group || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Người giới thiệu:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.referrer_name || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Nguồn biết:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.source || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Ngày tham gia:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.join_date ? new Date(viewingMember.join_date).toLocaleDateString('vi-VN') : '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Số lần làm khách:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.guest_count ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => {
+                  const m = viewingMember;
+                  setViewingMember(null);
+                  handleOpenEditModal(m);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Chỉnh sửa thông tin thành viên</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewingMember(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}
