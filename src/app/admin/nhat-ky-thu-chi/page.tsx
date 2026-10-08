@@ -1,4 +1,6 @@
 import pool from '@/lib/db';
+import { cookies } from 'next/headers';
+import { safeDecodeURI } from '@/lib/authUtils';
 import TransactionLogManagement, {
   EventFundExpense,
   FundContract,
@@ -80,7 +82,15 @@ async function getTransactionsData() {
 }
 
 export default async function NhatKyThuChiPage() {
-  const data = await getTransactionsData();
+  const currentMonth = getCurrentMonth();
+  const cookieStore = await cookies();
+  const role = safeDecodeURI(cookieStore.get('user_role')?.value).toLocaleLowerCase('vi-VN');
+  const canManageTeamLeadFund = role.includes('admin') || role.includes('quản trị') || role.includes('quan tri');
+  const [data, splitResult] = await Promise.all([
+    getTransactionsData(),
+    pool.query('SELECT leader_percent FROM teamlead_fund_splits WHERE fund_month = $1', [currentMonth]),
+  ]);
+  const initialTeamLeadPercent: 30 | 70 = splitResult.rows[0]?.leader_percent === 70 ? 70 : 30;
   return (
     <TransactionLogManagement
       initialLogs={data.logs}
@@ -88,7 +98,10 @@ export default async function NhatKyThuChiPage() {
       contracts={data.contracts}
       weeklyBeneficiaries={data.weeklyBeneficiaries}
       eventExpenses={data.eventExpenses}
-      currentMonth={getCurrentMonth()}
+      currentMonth={currentMonth}
+      initialTeamLeadPercent={initialTeamLeadPercent}
+      initialTeamLeadSplitSaved={splitResult.rows.length > 0}
+      canManageTeamLeadFund={canManageTeamLeadFund}
     />
   );
 }

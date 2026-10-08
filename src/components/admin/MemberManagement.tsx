@@ -31,6 +31,7 @@ export interface Member {
   title?: string | null;
   team_id?: number | null;
   team_name?: string | null;
+  team_names?: string[];
   ref_code?: string | null;
   referrer_id?: number | null;
   referrer_name?: string | null;
@@ -65,6 +66,7 @@ interface MemberManagementProps {
   initialMembers: Member[];
   initialStats: Stats;
   initialReferrers: ReferrerOption[];
+  initialTeams: string[];
 }
 
 const COMPETENCY_OPTIONS = [
@@ -113,6 +115,7 @@ const TITLE_OPTIONS = [
   'Thành viên',
   'Trưởng phòng',
   'Phó Giám đốc',
+  'P. Giám đốc',
   'Giám đốc',
   'Chủ tịch',
 ];
@@ -136,10 +139,12 @@ export default function MemberManagement({
   initialMembers,
   initialStats,
   initialReferrers,
+  initialTeams,
 }: MemberManagementProps) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [stats, setStats] = useState<Stats>(initialStats);
   const [referrers, setReferrers] = useState<ReferrerOption[]>(initialReferrers);
+  const [teamOptions, setTeamOptions] = useState<string[]>(initialTeams);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -162,7 +167,7 @@ export default function MemberManagement({
     role: 'Khác',
     classification: 'Nhân sự',
     title: 'Thành viên',
-    team_name: '',
+    team_names: [] as string[],
     referrer_id: '',
     referrer_name: '',
     source: '',
@@ -245,6 +250,7 @@ export default function MemberManagement({
         setMembers(data.members || []);
         setStats(data.stats || initialStats);
         setReferrers(data.referrers || []);
+        setTeamOptions(data.teams || initialTeams);
       }
     } catch (err) {
       console.error('Error refreshing members:', err);
@@ -263,7 +269,7 @@ export default function MemberManagement({
       role: 'Khác',
       classification: 'Nhân sự',
       title: 'Thành viên',
-      team_name: '',
+      team_names: [],
       referrer_id: '',
       referrer_name: '',
       source: '',
@@ -295,7 +301,11 @@ export default function MemberManagement({
       role: member.role || 'Khác',
       classification: member.classification || 'Nhân sự',
       title: member.title || 'Thành viên',
-      team_name: member.team_name || '',
+      team_names: member.team_names?.length
+        ? member.team_names
+        : member.team_name
+          ? member.team_name.split(',').map((team) => team.trim()).filter(Boolean)
+          : [],
       referrer_id: member.referrer_id ? String(member.referrer_id) : '',
       referrer_name: member.referrer_name || '',
       source: member.source || '',
@@ -615,7 +625,7 @@ export default function MemberManagement({
                     <td className="py-4 px-5 text-slate-600">
                       {member.title || '—'}
                     </td>
-                    <td className="py-4 px-5 text-slate-600">{member.team_name || '—'}</td>
+                    <td className="py-4 px-5 text-slate-600">{member.team_names?.length ? member.team_names.join(', ') : member.team_name || '—'}</td>
 
                     {/* Số lần làm khách */}
                     <td className="py-4 px-5 text-slate-600">
@@ -876,11 +886,31 @@ export default function MemberManagement({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Đội nhóm</label>
-                <select value={formData.team_name} onChange={(e) => setFormData({ ...formData, team_name: e.target.value })} className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800">
-                  <option value="">Chưa phân đội</option>
-                  {['Kiến Vàng', 'Ong Vàng', 'Lộc Phát', 'Thành Công', 'Biệt đội Kim Cương', 'Happy'].map((team) => <option key={team} value={team}>{team}</option>)}
-                </select>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                  Đội nhóm <span className="font-normal text-slate-400">(Chọn một hoặc nhiều đội nhóm)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3">
+                  {teamOptions.map((team) => {
+                    const isChecked = formData.team_names.includes(team);
+                    return (
+                      <label key={team} className="flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-700 hover:text-blue-600">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => setFormData((prev) => ({
+                            ...prev,
+                            team_names: isChecked
+                              ? prev.team_names.filter((selectedTeam) => selectedTeam !== team)
+                              : [...prev.team_names, team],
+                          }))}
+                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>{team}</span>
+                      </label>
+                    );
+                  })}
+                  {teamOptions.length === 0 && <span className="col-span-full text-xs text-slate-400">Chưa có đội nhóm nào.</span>}
+                </div>
               </div>
 
               {/* 8. Người giới thiệu (ID) */}

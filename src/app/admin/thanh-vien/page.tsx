@@ -11,9 +11,10 @@ async function getInitialData(): Promise<{
   members: Member[];
   stats: Stats;
   referrers: ReferrerOption[];
+  teams: string[];
 }> {
   try {
-    const [membersRes, statsRes, referrersRes] = await Promise.all([
+    const [membersRes, statsRes, referrersRes, teamsRes] = await Promise.all([
       pool.query(`
         SELECT 
           u.id,
@@ -26,7 +27,8 @@ async function getInitialData(): Promise<{
           u.classification,
           u.title,
           u.team_id,
-          t.name AS team_name,
+          COALESCE(member_team.team_names, ARRAY_REMOVE(ARRAY[t.name], NULL)) AS team_names,
+          COALESCE(array_to_string(member_team.team_names, ', '), t.name) AS team_name,
           u.ref_code,
           u.referrer_id,
           u.referral_group,
@@ -43,6 +45,12 @@ async function getInitialData(): Promise<{
           r.phone AS referrer_phone
         FROM users u
         LEFT JOIN teams t ON t.id = u.team_id
+        LEFT JOIN LATERAL (
+          SELECT array_agg(member_team.name ORDER BY member_team.name) AS team_names
+          FROM user_teams ut
+          JOIN teams member_team ON member_team.id = ut.team_id
+          WHERE ut.user_id = u.id
+        ) member_team ON TRUE
         LEFT JOIN users r ON u.referrer_id = r.id
         ORDER BY u.id ASC
       `),
@@ -55,6 +63,7 @@ async function getInitialData(): Promise<{
         FROM users
       `),
       pool.query(`SELECT id, full_name, phone, ref_code FROM users ORDER BY full_name ASC`),
+      pool.query('SELECT name FROM teams ORDER BY name ASC'),
     ]);
 
     const statsRow = statsRes.rows[0] || {
@@ -67,6 +76,7 @@ async function getInitialData(): Promise<{
     return {
       members: membersRes.rows.map((row) => ({
         ...row,
+        team_names: row.team_names || [],
         join_date: row.join_date ? new Date(row.join_date).toISOString() : null,
         created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
         updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
@@ -78,6 +88,7 @@ async function getInitialData(): Promise<{
         inactiveMembers: statsRow.inactive_members,
       },
       referrers: referrersRes.rows,
+      teams: teamsRes.rows.map((row) => row.name),
     };
   } catch (error) {
     console.error('Failed to fetch initial member data:', error);
@@ -85,18 +96,20 @@ async function getInitialData(): Promise<{
       members: [],
       stats: { totalMembers: 0, activeMembers: 0, newMembers: 0, inactiveMembers: 0 },
       referrers: [],
+      teams: [],
     };
   }
 }
 
 export default async function ThanhVienPage() {
-  const { members, stats, referrers } = await getInitialData();
+  const { members, stats, referrers, teams } = await getInitialData();
 
   return (
     <MemberManagement
       initialMembers={members}
       initialStats={stats}
       initialReferrers={referrers}
+      initialTeams={teams}
     />
   );
 }

@@ -12,12 +12,15 @@
     "db:seed:members": "node seed_rich_members.js",
     "db:seed:events": "node seed_events.js",
     "db:migrate:auth": "node migrate_google_auth.js",
+    "db:migrate:member-team-relations": "node migrate_member_team_relations.js",
+    "db:migrate:teamlead": "node migrate_teamlead_fund_splits.js",
     "db:migrate:reception": "node migrate_le_tan.js",
     "db:migrate:logs": "node migrate_event_logs.js",
     "db:migrate:schedules": "node migrate_event_schedules.js",
     "db:permissions": "node run_permissions_sql.js",
     "db:sync:neon": "node sync_db_from_neon.js",
-    "db:test": "node test_db.js"
+    "db:test": "node test_db.js",
+    "db:sync:teamlead-members": "node sync_teamlead_members.js"
   },
   "dependencies": {
     "lucide-react": "^1.38.0",

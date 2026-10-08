@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
+import { getSelectedTeamNames, replaceUserTeams, resolveTeamIds } from '@/lib/memberTeams';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,10 +22,17 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       `SELECT 
         u.*,
         r.full_name AS referrer_name,
-        t.name AS team_name
+        COALESCE(member_team.team_names, ARRAY_REMOVE(ARRAY[t.name], NULL)) AS team_names,
+        COALESCE(array_to_string(member_team.team_names, ', '), t.name) AS team_name
       FROM users u
       LEFT JOIN users r ON u.referrer_id = r.id
       LEFT JOIN teams t ON t.id = u.team_id
+      LEFT JOIN LATERAL (
+        SELECT array_agg(member_team.name ORDER BY member_team.name) AS team_names
+        FROM user_teams ut
+        JOIN teams member_team ON member_team.id = ut.team_id
+        WHERE ut.user_id = u.id
+      ) member_team ON TRUE
       WHERE u.id = $1`,
       [memberId]
     );
@@ -69,8 +77,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       status,
       notes,
       is_team_leader_eligible,
-        avatar_url,
+      avatar_url,
       team_name,
+      team_names,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -101,60 +110,79 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const result = await pool.query(
-      `UPDATE users
-       SET 
-        full_name = $1,
-        phone = $2,
-        email = $3,
-        identity_card = $4,
-        bank_account = $5,
-        role = $6,
-        classification = $7,
-        title = $8,
-        ref_code = $9,
-        referrer_id = $10,
-        referral_group = $11,
-        source = $12,
-        join_date = $13,
-        status = $14,
-        is_team_leader_eligible = $15,
-        guest_count = $16,
-        notes = $17,
-        avatar_url = $18,
-        team_id = (SELECT id FROM teams WHERE name = $19 LIMIT 1),
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $20
-       RETURNING *`,
-      [
-        full_name.trim(),
-        phone.trim(),
-        email ? email.trim() : null,
-        identity_card ? identity_card.trim() : null,
-        bank_account ? bank_account.trim() : null,
-        role || 'Khác',
-        classification || 'Nhân sự',
-        title || 'Thành viên',
-        ref_code ? ref_code.trim() : null,
-        referrer_id ? parseInt(referrer_id) : null,
-        referral_group || 'Khách vãng lai',
-        source ? source.trim() : null,
-        join_date ? join_date : null,
-        status || 'Hoạt động',
-        !!is_team_leader_eligible,
-        guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
-        notes ? notes.trim() : null,
-        avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
-        team_name || null,
-        memberId,
-      ]
-    );
+    const selectedTeamNames = getSelectedTeamNames(team_names, team_name);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const teamIds = await resolveTeamIds(client, selectedTeamNames);
+      if (!teamIds) {
+        await client.query('ROLLBACK');
+        return Response.json({ error: 'Một hoặc nhiều đội nhóm không còn tồn tại trong hệ thống' }, { status: 400 });
+      }
 
-    if (result.rows.length === 0) {
-      return Response.json({ error: 'Không tìm thấy thành viên để cập nhật' }, { status: 404 });
+      const result = await client.query(
+        `UPDATE users
+         SET
+          full_name = $1,
+          phone = $2,
+          email = $3,
+          identity_card = $4,
+          bank_account = $5,
+          role = $6,
+          classification = $7,
+          title = $8,
+          ref_code = $9,
+          referrer_id = $10,
+          referral_group = $11,
+          source = $12,
+          join_date = $13,
+          status = $14,
+          is_team_leader_eligible = $15,
+          guest_count = $16,
+          notes = $17,
+          avatar_url = $18,
+          team_id = $19,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $20
+         RETURNING *`,
+        [
+          full_name.trim(),
+          phone.trim(),
+          email ? email.trim() : null,
+          identity_card ? identity_card.trim() : null,
+          bank_account ? bank_account.trim() : null,
+          role || 'Khác',
+          classification || 'Nhân sự',
+          title || 'Thành viên',
+          ref_code ? ref_code.trim() : null,
+          referrer_id ? parseInt(referrer_id) : null,
+          referral_group || 'Khách vãng lai',
+          source ? source.trim() : null,
+          join_date ? join_date : null,
+          status || 'Hoạt động',
+          !!is_team_leader_eligible,
+          guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
+          notes ? notes.trim() : null,
+          avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
+          teamIds[0] ?? null,
+          memberId,
+        ]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return Response.json({ error: 'Không tìm thấy thành viên để cập nhật' }, { status: 404 });
+      }
+
+      await replaceUserTeams(client, memberId, teamIds);
+      await client.query('COMMIT');
+      return Response.json({ member: result.rows[0] });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    return Response.json({ member: result.rows[0] });
   } catch (error) {
     console.error('Failed to update member:', error);
     return Response.json({ error: 'Có lỗi xảy ra khi cập nhật thông tin thành viên' }, { status: 500 });

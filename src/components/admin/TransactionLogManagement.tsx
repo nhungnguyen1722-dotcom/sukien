@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -110,6 +110,9 @@ interface Props {
   weeklyBeneficiaries: WeeklyBeneficiary[];
   eventExpenses: EventFundExpense[];
   currentMonth: string;
+  initialTeamLeadPercent: 30 | 70;
+  initialTeamLeadSplitSaved: boolean;
+  canManageTeamLeadFund: boolean;
 }
 
 interface WeeklyContractRow {
@@ -208,14 +211,40 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
 }
 
-export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, weeklyBeneficiaries, eventExpenses, currentMonth }: Props) {
+export default function TransactionLogManagement({ initialLogs, weeklyAllocations, contracts, weeklyBeneficiaries, eventExpenses, currentMonth, initialTeamLeadPercent, initialTeamLeadSplitSaved, canManageTeamLeadFund }: Props) {
   const [logs, setLogs] = useState(initialLogs);
-  const [activeMainTab, setActiveMainTab] = useState<'contracts' | 'events' | 'transactions'>('contracts');
+  const [activeMainTab, setActiveMainTab] = useState<'contracts' | 'teamlead' | 'events' | 'transactions'>('contracts');
+  const [teamLeadPercent, setTeamLeadPercent] = useState<30 | 70>(initialTeamLeadPercent);
+  const [savedTeamLeadMonth, setSavedTeamLeadMonth] = useState(currentMonth);
+  const [savedTeamLeadPercent, setSavedTeamLeadPercent] = useState<30 | 70>(initialTeamLeadPercent);
+  const [hasSavedTeamLeadSplit, setHasSavedTeamLeadSplit] = useState(initialTeamLeadSplitSaved);
+  const [isSavingTeamLeadSplit, setIsSavingTeamLeadSplit] = useState(false);
+  const [teamLeadSplitError, setTeamLeadSplitError] = useState('');
   const months = useMemo(
     () => Array.from(new Set([...weeklyAllocations.map((row) => row.period_month), currentMonth])).filter(Boolean).sort(),
     [weeklyAllocations, currentMonth]
   );
   const [selectedMonth, setSelectedMonth] = useState(currentMonth || months.at(-1) || '');
+  useEffect(() => {
+    if (!canManageTeamLeadFund) return;
+    let isCurrent = true;
+    fetch('/api/admin/teamlead-fund?month=' + encodeURIComponent(selectedMonth))
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Không thể tải tỷ lệ phân bổ');
+        if (isCurrent) {
+          setTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
+          setSavedTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
+          setSavedTeamLeadMonth(selectedMonth);
+          setHasSavedTeamLeadSplit(Boolean(data.is_saved));
+          setTeamLeadSplitError('');
+        }
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) setTeamLeadSplitError(error instanceof Error ? error.message : 'Không thể tải tỷ lệ phân bổ');
+      });
+    return () => { isCurrent = false; };
+  }, [selectedMonth, canManageTeamLeadFund]);
   const selectedYear = selectedMonth.slice(0, 4);
   const selectedMonthNumber = selectedMonth.slice(5, 7);
   const availableYears = Array.from(new Set([...months, selectedMonth].map((month) => month.slice(0, 4)))).filter(Boolean).sort();
@@ -272,6 +301,8 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
     return sum + (period ? periodBase(period) * row.allocation_rate : 0);
   }, 0));
   const monthlyLeaderRequests = monthLeaderRows.reduce((sum, row) => sum + row.requested_amount, 0);
+  const leaderAmount = Math.round(monthlyLeaderPool * teamLeadPercent / 100);
+  const directorAmount = monthlyLeaderPool - leaderAmount;
 
   const selectedRows = selectedPeriod
     ? weeklyAllocations
@@ -448,6 +479,28 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
     setSelectedPeriodCode(MONTH_OVERVIEW);
   };
 
+  const saveTeamLeadSplit = async () => {
+    setIsSavingTeamLeadSplit(true);
+    setTeamLeadSplitError('');
+    try {
+      const response = await fetch('/api/admin/teamlead-fund', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: selectedMonth, leader_percent: teamLeadPercent }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Không thể lưu tỷ lệ phân bổ');
+      setTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
+      setSavedTeamLeadPercent(data.leader_percent === 70 ? 70 : 30);
+      setSavedTeamLeadMonth(selectedMonth);
+      setHasSavedTeamLeadSplit(true);
+    } catch (error: unknown) {
+      setTeamLeadSplitError(error instanceof Error ? error.message : 'Không thể lưu tỷ lệ phân bổ');
+    } finally {
+      setIsSavingTeamLeadSplit(false);
+    }
+  };
+
   return (
     <div className="contract-log-page min-w-0 w-full space-y-5 pb-8 md:px-5">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
@@ -465,6 +518,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
         {[
           { id: 'contracts', label: 'Nhật ký dòng tiền & Phân bổ quỹ' },
+          ...(canManageTeamLeadFund ? [{ id: 'teamlead' as const, label: 'Quỹ TeamLead' }] : []),
           { id: 'events', label: 'Quỹ Sự kiện & Chốt hợp đồng — tổng hợp tháng' },
           { id: 'transactions', label: 'Nhật ký phiếu thu chi' },
         ].map((tab) => (
@@ -492,7 +546,7 @@ export default function TransactionLogManagement({ initialLogs, weeklyAllocation
             <button onClick={() => setSelectedPeriodCode(MONTH_OVERVIEW)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
               Tổng quan tháng
             </button>
-            {periodsForMonth.map((period) => (
+            {periodsForMonth.filter((period) => !/^Tổng quan tháng\s+\d{1,2}\/\d{4}$/i.test(period.period_label.trim())).map((period) => (
               <button key={period.period_code} onClick={() => setSelectedPeriodCode(period.period_code)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
                 {period.period_label}
               </button>
@@ -645,12 +699,12 @@ ${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-ri
 
           {isMonthOverview && <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between">
-              <div><h2 className="font-bold text-slate-900">Leader Team & Giám đốc KD</h2><p className="mt-1 text-[11px] text-slate-500">Tổng hợp tháng, chia tỷ lệ 30% / 70%.</p></div>
+              <div><h2 className="font-bold text-slate-900">Leader Team & Giám đốc KD</h2><p className="mt-1 text-[11px] text-slate-500">Tổng hợp tháng, chia tỷ lệ {teamLeadPercent}% / {100 - teamLeadPercent}%.</p></div>
               <span className="rounded-full bg-pink-50 px-2 py-1 text-[10px] font-bold text-pink-700">2,9%</span>
             </div>
             <div className="space-y-2 text-xs">
-              <SplitRow label="Quỹ Leader Team (30%)" amount={Math.round(monthlyLeaderPool * 0.3)} color="text-pink-700" />
-              <SplitRow label="Quỹ Giám đốc KD (70%)" amount={Math.round(monthlyLeaderPool * 0.7)} color="text-blue-700" />
+              <SplitRow label={'Quỹ Leader Team (' + teamLeadPercent + '%)'} amount={leaderAmount} color="text-pink-700" />
+              <SplitRow label={'Quỹ Giám đốc KD (' + (100 - teamLeadPercent) + '%)'} amount={directorAmount} color="text-blue-700" />
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold"><span>Tổng quỹ lũy kế tháng</span><span>{formatVND(monthlyLeaderPool)}</span></div>
               <div className="flex justify-between text-[11px] text-slate-500"><span>Đề nghị chi trong DNTT tuần</span><span>{formatVND(monthlyLeaderRequests)}</span></div>
             </div>
@@ -696,6 +750,67 @@ ${contract.customerName || ''}`}</th>)}<th className="min-w-36 px-3 py-3 text-ri
       </Panel>}
 
       </>}
+
+      {activeMainTab === 'teamlead' && canManageTeamLeadFund && <Panel className="overflow-hidden">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-indigo-50 via-white to-blue-50 px-5 py-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Quỹ TeamLead · Tháng {Number(selectedMonth.slice(5))}/{selectedMonth.slice(0, 4)}</p>
+          <h2 className="mt-1 text-xl font-bold text-slate-900">Phân bổ quỹ TeamLead</h2>
+          <p className="mt-1 text-sm text-slate-600">Chọn tỷ lệ của Quỹ Leader Team. Phần còn lại được tính cho Quỹ Giám đốc KD.</p>
+        </div>
+        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+          <section>
+            <div className="mb-2 text-sm font-semibold text-slate-800">Chọn cách chia</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([30, 70] as const).map((percent) => {
+                const selected = teamLeadPercent === percent;
+                const leadValue = Math.round(monthlyLeaderPool * percent / 100);
+                const directorValue = monthlyLeaderPool - leadValue;
+                return <button
+                  key={percent}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setTeamLeadPercent(percent)}
+                  className={'rounded-2xl border p-4 text-left transition ' + (selected ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-100' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">{percent}% cho Leader Team</span>
+                    <span className={'flex h-5 w-5 items-center justify-center rounded-full border ' + (selected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 text-transparent')}><CheckCircle2 className="h-4 w-4" /></span>
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs text-slate-600">
+                    <div className="flex justify-between"><span>Leader Team ({percent}%)</span><strong className="text-slate-900">{formatVND(leadValue)}</strong></div>
+                    <div className="flex justify-between"><span>Giám đốc KD ({100 - percent}%)</span><strong className="text-slate-900">{formatVND(directorValue)}</strong></div>
+                  </div>
+                </button>;
+              })}
+            </div>
+            <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-100" aria-label={'Leader Team ' + teamLeadPercent + '%, Giám đốc KD ' + (100 - teamLeadPercent) + '%'}>
+              <div className="bg-indigo-600 transition-all" style={{ width: teamLeadPercent + '%' }} />
+              <div className="bg-blue-400 transition-all" style={{ width: (100 - teamLeadPercent) + '%' }} />
+            </div>
+            <div className="mt-2 flex justify-between text-[11px] font-semibold text-slate-600"><span>Leader Team · {teamLeadPercent}%</span><span>Giám đốc KD · {100 - teamLeadPercent}%</span></div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quỹ lũy kế tháng</div>
+            <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{formatVND(monthlyLeaderPool)}</div>
+            <div className="mt-4 space-y-2">
+              <SplitRow label={'Quỹ Leader Team (' + teamLeadPercent + '%)'} amount={leaderAmount} color="text-indigo-700" />
+              <SplitRow label={'Quỹ Giám đốc KD (' + (100 - teamLeadPercent) + '%)'} amount={directorAmount} color="text-blue-700" />
+              <div className="flex justify-between border-t border-slate-200 pt-2 text-xs font-bold text-slate-900"><span>Tổng đã đối chiếu</span><span>{formatVND(leaderAmount + directorAmount)}</span></div>
+            </div>
+            <button
+              type="button"
+              onClick={saveTeamLeadSplit}
+              disabled={isSavingTeamLeadSplit || (hasSavedTeamLeadSplit && savedTeamLeadMonth === selectedMonth && teamLeadPercent === savedTeamLeadPercent)}
+              className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingTeamLeadSplit ? 'Đang lưu…' : 'Lưu tỷ lệ phân bổ tháng'}
+            </button>
+            {hasSavedTeamLeadSplit && savedTeamLeadMonth === selectedMonth && <p className="mt-2 text-center text-[11px] text-emerald-700">Tỷ lệ tháng này đã được lưu.</p>}
+            {teamLeadSplitError && <p role="alert" className="mt-2 text-center text-[11px] text-red-600">{teamLeadSplitError}</p>}
+          </section>
+        </div>
+      </Panel>}
 
       {activeMainTab === 'events' && <>
       <Panel className="overflow-hidden">

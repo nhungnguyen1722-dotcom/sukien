@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
+import { getSelectedTeamNames, replaceUserTeams, resolveTeamIds } from '@/lib/memberTeams';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest) {
         u.classification,
         u.title,
         u.team_id,
-        t.name AS team_name,
+        COALESCE(member_team.team_names, ARRAY_REMOVE(ARRAY[t.name], NULL)) AS team_names,
+        COALESCE(array_to_string(member_team.team_names, ', '), t.name) AS team_name,
         u.ref_code,
         u.referrer_id,
         u.referral_group,
@@ -43,6 +45,12 @@ export async function GET(request: NextRequest) {
         r.phone AS referrer_phone
       FROM users u
       LEFT JOIN teams t ON t.id = u.team_id
+      LEFT JOIN LATERAL (
+        SELECT array_agg(member_team.name ORDER BY member_team.name) AS team_names
+        FROM user_teams ut
+        JOIN teams member_team ON member_team.id = ut.team_id
+        WHERE ut.user_id = u.id
+      ) member_team ON TRUE
       LEFT JOIN users r ON u.referrer_id = r.id
       WHERE 1=1
     `;
@@ -76,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     query += ' ORDER BY u.id ASC';
 
-    const [membersRes, statsRes, referrersRes] = await Promise.all([
+    const [membersRes, statsRes, referrersRes, teamsRes] = await Promise.all([
       pool.query(query, params),
       pool.query(`
         SELECT 
@@ -87,6 +95,7 @@ export async function GET(request: NextRequest) {
         FROM users
       `),
       pool.query(`SELECT id, full_name, phone, ref_code FROM users ORDER BY full_name ASC`),
+      pool.query('SELECT name FROM teams ORDER BY name ASC'),
     ]);
 
     const statsRow = statsRes.rows[0] || {
@@ -105,6 +114,7 @@ export async function GET(request: NextRequest) {
         inactiveMembers: statsRow.inactive_members,
       },
       referrers: referrersRes.rows,
+      teams: teamsRes.rows.map((row) => row.name),
     });
   } catch (error) {
     console.error('Failed to fetch members:', error);
@@ -136,6 +146,7 @@ export async function POST(request: NextRequest) {
       is_team_leader_eligible,
       avatar_url,
       team_name,
+      team_names,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -160,54 +171,71 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const result = await pool.query(
-      `INSERT INTO users (
-        full_name,
-        phone,
-        email,
-        identity_card,
-        bank_account,
-        role,
-        classification,
-        title,
-        ref_code,
-        referrer_id,
-        referral_group,
-        source,
-        join_date,
-        status,
-        is_team_leader_eligible,
-        guest_count,
-        notes,
-        avatar_url,
-        team_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-        (SELECT id FROM teams WHERE name = $19 LIMIT 1))
-      RETURNING *`,
-      [
-        full_name.trim(),
-        phone.trim(),
-        email ? email.trim() : null,
-        identity_card ? identity_card.trim() : null,
-        bank_account ? bank_account.trim() : null,
-        role || 'Khác',
-        classification || 'Nhân sự',
-        title || 'Thành viên',
-        ref_code && ref_code.trim() ? ref_code.trim() : (phone ? `N_${phone.trim()}` : null),
-        referrer_id ? parseInt(referrer_id) : null,
-        referral_group || 'Khách vãng lai',
-        source ? source.trim() : null,
-        join_date ? join_date : null,
-        status || 'Hoạt động',
-        !!is_team_leader_eligible,
-        guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
-        notes ? notes.trim() : null,
-        avatar_url ? avatar_url.trim() : null,
-        team_name || null,
-      ]
-    );
+    const selectedTeamNames = getSelectedTeamNames(team_names, team_name);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const teamIds = await resolveTeamIds(client, selectedTeamNames);
+      if (!teamIds) {
+        await client.query('ROLLBACK');
+        return Response.json({ error: 'Một hoặc nhiều đội nhóm không còn tồn tại trong hệ thống' }, { status: 400 });
+      }
 
-    return Response.json({ member: result.rows[0] }, { status: 201 });
+      const result = await client.query(
+        `INSERT INTO users (
+          full_name,
+          phone,
+          email,
+          identity_card,
+          bank_account,
+          role,
+          classification,
+          title,
+          ref_code,
+          referrer_id,
+          referral_group,
+          source,
+          join_date,
+          status,
+          is_team_leader_eligible,
+          guest_count,
+          notes,
+          avatar_url,
+          team_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        RETURNING *`,
+        [
+          full_name.trim(),
+          phone.trim(),
+          email ? email.trim() : null,
+          identity_card ? identity_card.trim() : null,
+          bank_account ? bank_account.trim() : null,
+          role || 'Khác',
+          classification || 'Nhân sự',
+          title || 'Thành viên',
+          ref_code && ref_code.trim() ? ref_code.trim() : (phone ? `N_${phone.trim()}` : null),
+          referrer_id ? parseInt(referrer_id) : null,
+          referral_group || 'Khách vãng lai',
+          source ? source.trim() : null,
+          join_date ? join_date : null,
+          status || 'Hoạt động',
+          !!is_team_leader_eligible,
+          guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
+          notes ? notes.trim() : null,
+          avatar_url ? avatar_url.trim() : null,
+          teamIds[0] ?? null,
+        ]
+      );
+
+      await replaceUserTeams(client, result.rows[0].id, teamIds);
+      await client.query('COMMIT');
+      return Response.json({ member: result.rows[0] }, { status: 201 });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('Failed to create member:', error);
     return Response.json({ error: 'Có lỗi xảy ra khi tạo thành viên mới' }, { status: 500 });
