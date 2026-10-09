@@ -60,6 +60,7 @@ export interface Member {
   invite_count?: number | null;
   guest_count?: number | null;
   notes?: string | null;
+  business_unit?: string | null;
   created_at?: string;
   updated_at?: string;
   contract_count?: number | null;
@@ -200,6 +201,7 @@ export default function MemberManagement({
     identity_card: '',
     status: 'Hoạt động',
     notes: '',
+    business_unit: 'Khối kinh doanh',
   });
 
   const availableTeamOptions = useMemo(() => {
@@ -322,6 +324,7 @@ export default function MemberManagement({
       identity_card: '',
       status: 'Hoạt động',
       notes: '',
+      business_unit: 'Khối kinh doanh',
     });
     setFormError('');
     setIsModalOpen(true);
@@ -354,6 +357,7 @@ export default function MemberManagement({
       identity_card: member.identity_card || '',
       status: member.status || 'Hoạt động',
       notes: member.notes || '',
+      business_unit: member.business_unit || 'Khối kinh doanh',
     });
     setFormError('');
     setIsModalOpen(true);
@@ -671,7 +675,16 @@ export default function MemberManagement({
                           )}
                         </div>
                         <div>
-                          <div className="font-medium text-slate-900">{member.full_name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-slate-900">{member.full_name}</span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              member.business_unit === 'Ban nguồn vốn'
+                                ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                            }`}>
+                              {member.business_unit || 'Khối kinh doanh'}
+                            </span>
+                          </div>
                           {member.phone && (
                             <div className="text-xs text-slate-400 font-normal mt-0.5">{member.phone}</div>
                           )}
@@ -1065,6 +1078,21 @@ export default function MemberManagement({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Khối / Ban */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Khối / Ban
+                </label>
+                <select
+                  value={formData.business_unit}
+                  onChange={(e) => setFormData({ ...formData, business_unit: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 shadow-2xs cursor-pointer"
+                >
+                  <option value="Khối kinh doanh">Khối kinh doanh</option>
+                  <option value="Ban nguồn vốn">Ban nguồn vốn</option>
+                </select>
               </div>
 
               {/* 6. Chức danh */}

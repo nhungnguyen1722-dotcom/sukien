@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Check user in database by email, phone, full_name, or ref_code
     const result = await pool.query(
-      `SELECT id, full_name, email, phone, role, status, ref_code FROM users 
+      `SELECT id, full_name, email, phone, role, status, ref_code, business_unit FROM users
        WHERE LOWER(email) = LOWER($1) 
           OR phone = $1 
           OR phone = $2
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     const isAdmin = lowerRole.includes('admin') || lowerRole.includes('quản trị');
     const isReception = lowerRole.includes('lễ tân') || lowerRole.includes('le tan') || lowerRole.includes('reception');
     const userRefCode = user.ref_code || (user.id ? 'N_' + String(user.id).padStart(10, '0') : 'N_0000000001');
+    const userBusinessUnit = user.business_unit || 'Khối kinh doanh';
 
     let redirectTo = '/admin';
     if (isReception) {
@@ -64,9 +65,11 @@ export async function POST(request: NextRequest) {
         role: user.role,
         status: user.status,
         ref_code: userRefCode,
+        business_unit: userBusinessUnit,
       },
       role: user.role,
       ref_code: userRefCode,
+      business_unit: userBusinessUnit,
       isAdmin,
       isReception,
       redirectTo,
@@ -86,6 +89,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set('user_ref_code', userRefCode, cookieOptions);
     response.cookies.set('ref_code', userRefCode, cookieOptions);
     response.cookies.set('user_ref', userRefCode, cookieOptions);
+    response.cookies.set('user_business_unit', encodeURIComponent(userBusinessUnit), cookieOptions);
     return response;
   } catch (error) {
     console.error('Login error:', error);

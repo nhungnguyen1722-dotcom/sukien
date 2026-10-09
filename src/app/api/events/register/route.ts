@@ -127,13 +127,14 @@ export async function POST(request: NextRequest) {
     // 2. Tìm người giới thiệu (nếu có)
     let referrerId: number | null = null;
     let referrerGroup: string | null = null;
+    let referrerBusinessUnit: string | null = null;
     if (referrer && String(referrer).trim()) {
       const refStr = String(referrer).trim();
       const codeMatch = refStr.match(/N_[0-9A-Za-z_-]+/);
       const extractedCode = codeMatch ? codeMatch[0] : null;
 
       const refSearch = await pool.query(
-        `SELECT id, full_name, ref_code FROM users 
+        `SELECT id, full_name, ref_code, business_unit FROM users
          WHERE ref_code = $1 
             OR ($2::text IS NOT NULL AND ref_code = $2)
             OR phone = $1 
@@ -145,13 +146,15 @@ export async function POST(request: NextRequest) {
       if (refSearch.rows.length > 0) {
         referrerId = refSearch.rows[0].id;
         referrerGroup = refSearch.rows[0].full_name;
+        referrerBusinessUnit = refSearch.rows[0].business_unit;
       } else {
         const refNum = parseInt(refStr, 10);
         if (!isNaN(refNum)) {
-          const refCheck = await pool.query('SELECT id, full_name FROM users WHERE id = $1', [refNum]);
+          const refCheck = await pool.query('SELECT id, full_name, business_unit FROM users WHERE id = $1', [refNum]);
           if (refCheck.rows.length > 0) {
             referrerId = refCheck.rows[0].id;
             referrerGroup = refCheck.rows[0].full_name;
+            referrerBusinessUnit = refCheck.rows[0].business_unit;
           } else {
             referrerGroup = refStr;
           }
@@ -229,7 +232,20 @@ export async function POST(request: NextRequest) {
     // Trạng thái: nếu là sự kiện đang diễn ra hôm nay thì chuyển sang check-in tham dự
     const attendanceStatus = isTodayCheckin ? 'Đã check-in' : 'Đã đăng ký';
 
-    // 5. Lưu vào event_registrations (Mục 10 - Checkbox Suất ăn tiệc trà)
+    // 5. Xác định Khối / Ban:
+    // Ưu tiên lựa chọn từ Radio Button (body.business_unit / body.businessUnit), nếu không tra cứu từ người mời (referrerId)
+    let businessUnit = 'Khối kinh doanh';
+    if (referrerId && referrerBusinessUnit) {
+      const lower = referrerBusinessUnit.trim().toLowerCase();
+      businessUnit = lower.includes('vốn') || lower === 'bnv' ? 'Ban nguồn vốn' : 'Khối kinh doanh';
+    } else if (!referrerId) {
+      const rawUnit = body.business_unit || body.businessUnit;
+      if (typeof rawUnit === 'string' && (rawUnit.trim().toLowerCase().includes('vốn') || rawUnit.trim().toLowerCase() === 'bnv')) {
+        businessUnit = 'Ban nguồn vốn';
+      }
+    }
+
+    // 6. Lưu vào event_registrations (Mục 10 - Checkbox Suất ăn tiệc trà)
     const isFoodApproved = body.has_tea_break !== undefined
       ? (body.has_tea_break === true || body.has_tea_break === 'true' || body.has_tea_break === 1 || body.has_tea_break === '1')
       : (body.is_food_approved !== undefined
@@ -250,10 +266,11 @@ export async function POST(request: NextRequest) {
         attendance_status,
         is_food_approved,
         source,
+        business_unit,
         notes,
         registered_at,
         checkin_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Trang chủ Web', $12, CURRENT_TIMESTAMP, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Trang chủ Web', $12, $13, CURRENT_TIMESTAMP, $14)
       RETURNING *`,
       [
         parsedEventId,
@@ -267,6 +284,7 @@ export async function POST(request: NextRequest) {
         referrerGroup,
         attendanceStatus,
         isFoodApproved,
+        businessUnit,
         cleanNotes,
         isTodayCheckin ? new Date() : null,
       ]
@@ -317,6 +335,7 @@ export async function POST(request: NextRequest) {
         guestEmail: registration.guest_email,
         attendanceStatus: registration.attendance_status,
         isFoodApproved: registration.is_food_approved,
+        businessUnit: registration.business_unit,
         eventName: event.name,
         eventDate: event.event_date,
         eventLocation: event.location,

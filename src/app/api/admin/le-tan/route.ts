@@ -5,6 +5,13 @@ export const dynamic = 'force-dynamic';
 
 const BUSINESS_UNIT_OPTIONS = ['Khối kinh doanh', 'Ban nguồn vốn'];
 
+export function normalizeBusinessUnit(bu?: string | null): string {
+  if (!bu) return 'Khối kinh doanh';
+  const lower = bu.toLowerCase().trim();
+  if (lower.includes('vốn') || lower === 'bnv') return 'Ban nguồn vốn';
+  return 'Khối kinh doanh';
+}
+
 // GET: Lấy danh sách khách mời đã nhập theo sự kiện hoặc tìm kiếm
 export async function GET(request: NextRequest) {
   try {
@@ -118,9 +125,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!BUSINESS_UNIT_OPTIONS.includes(business_unit)) {
-      return NextResponse.json({ error: 'Khối / Ban không hợp lệ' }, { status: 400 });
-    }
+    let finalBusinessUnit = normalizeBusinessUnit(business_unit);
 
     // Resolve referrer info if not passed directly by ID
     let resolvedReferrerId = referrer_id ? parseInt(referrer_id, 10) : null;
@@ -131,13 +136,14 @@ export async function POST(request: NextRequest) {
         if (referrer_phone) {
           const cleanRefPhone = referrer_phone.replace(/[^0-9]/g, '');
           const uRes = await pool.query(
-            `SELECT id, full_name, phone FROM users 
+            `SELECT id, full_name, phone, business_unit FROM users
              WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = $1 
                 OR ref_code = $2 LIMIT 1`,
             [cleanRefPhone, referrer_phone.trim()]
           );
           if (uRes.rows.length > 0) {
             resolvedReferrerId = uRes.rows[0].id;
+            finalBusinessUnit = normalizeBusinessUnit(uRes.rows[0].business_unit);
             if (!resolvedReferrerGroup) {
               resolvedReferrerGroup = `${uRes.rows[0].full_name} (${uRes.rows[0].phone})`;
             }
@@ -145,12 +151,13 @@ export async function POST(request: NextRequest) {
         }
         if (!resolvedReferrerId && referrer_name) {
           const uRes = await pool.query(
-            `SELECT id, full_name, phone FROM users 
+            `SELECT id, full_name, phone, business_unit FROM users
              WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) LIMIT 1`,
             [referrer_name.trim()]
           );
           if (uRes.rows.length > 0) {
             resolvedReferrerId = uRes.rows[0].id;
+            finalBusinessUnit = normalizeBusinessUnit(uRes.rows[0].business_unit);
             if (!resolvedReferrerGroup) {
               resolvedReferrerGroup = `${uRes.rows[0].full_name} (${uRes.rows[0].phone || ''})`.trim();
             }
@@ -163,6 +170,18 @@ export async function POST(request: NextRequest) {
 
     if (!resolvedReferrerGroup && (referrer_name || referrer_phone)) {
       resolvedReferrerGroup = `${referrer_name || ''} ${referrer_phone ? `(${referrer_phone})` : ''}`.trim();
+    }
+
+    // Tự động gắn đúng Khối / Ban theo thông tin cá nhân của người mời
+    if (resolvedReferrerId) {
+      try {
+        const uBuRes = await pool.query('SELECT business_unit FROM users WHERE id = $1', [resolvedReferrerId]);
+        if (uBuRes.rows.length > 0 && uBuRes.rows[0].business_unit) {
+          finalBusinessUnit = normalizeBusinessUnit(uBuRes.rows[0].business_unit);
+        }
+      } catch (refBuErr) {
+        console.warn('Error resolving referrer business_unit:', refBuErr);
+      }
     }
 
     // Duplicate check: Kiểm tra trùng SĐT và trùng cả tên + SĐT cho sự kiện
@@ -247,7 +266,7 @@ export async function POST(request: NextRequest) {
           source || 'Lễ tân nhập',
           attendance_status || 'Đã đăng ký',
           notes?.trim() || null,
-          business_unit || 'Khối kinh doanh',
+          finalBusinessUnit || 'Khối kinh doanh',
         ]
       );
     } catch (insertErr: any) {
@@ -366,8 +385,9 @@ export async function PATCH(request: NextRequest) {
       business_unit,
     } = body;
 
-    if (business_unit !== undefined && !BUSINESS_UNIT_OPTIONS.includes(String(business_unit).trim())) {
-      return NextResponse.json({ error: 'Khối / Ban không hợp lệ' }, { status: 400 });
+    let normBusinessUnit: string | undefined = undefined;
+    if (business_unit !== undefined) {
+      normBusinessUnit = normalizeBusinessUnit(business_unit);
     }
 
     if (!id) {
@@ -517,8 +537,8 @@ export async function PATCH(request: NextRequest) {
       updates.push(`referrer_group = $${params.length}`);
     }
 
-    if (business_unit !== undefined) {
-      params.push(String(business_unit).trim());
+    if (normBusinessUnit !== undefined) {
+      params.push(normBusinessUnit);
       updates.push(`business_unit = $${params.length}`);
     }
 

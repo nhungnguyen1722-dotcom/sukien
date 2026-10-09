@@ -26,6 +26,7 @@ import {
   ArrowRight,
   Printer,
   RotateCcw,
+  Building2,
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import GuestProxyRegistrationModal from './GuestProxyRegistrationModal';
@@ -35,6 +36,7 @@ interface InviterInfo {
   name: string;
   refCode: string;
   id?: number | null;
+  businessUnit?: string | null;
 }
 
 interface QRCheckinModalProps {
@@ -69,9 +71,10 @@ export default function QRCheckinModal({
   const [notes, setNotes] = useState('');
   const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('vang_lai');
   const [referrer, setReferrer] = useState('');
-  const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{ id: number; full_name: string; phone: string; ref_code?: string }>>([]);
+  const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{ id: number; full_name: string; phone: string; ref_code?: string; business_unit?: string }>>([]);
   const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
   const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
+  const [businessUnit, setBusinessUnit] = useState<'Ban Nguồn Vốn' | 'Khối Doanh'>('Khối Doanh');
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProxyModalOpen, setIsProxyModalOpen] = useState(false);
@@ -92,8 +95,8 @@ export default function QRCheckinModal({
   } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
-  // Khôi phục thông tin từ cookies hoặc localStorage cho 4 trường:
-  // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+  // Khôi phục thông tin từ cookies hoặc localStorage cho các trường:
+  // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú, 5. Khối/Ban
   useEffect(() => {
     if (!isOpen) {
       setRegistrationResult(null);
@@ -119,11 +122,25 @@ export default function QRCheckinModal({
       const savedPhone = safeDecodeURI(getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '');
       const savedReferrer = safeDecodeURI(getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '');
       const savedNotes = safeDecodeURI(getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '');
+      const savedBusinessUnit = safeDecodeURI(getCookie('reg_business_unit') || savedData?.businessUnit || '');
 
       if (savedFullName) setFullName(savedFullName);
       if (savedPhone) setPhone(savedPhone);
       if (savedNotes) setNotes(savedNotes);
       if (savedData?.email) setEmail(savedData.email);
+
+      // Thiết lập Khối/Ban: Ưu tiên người mời URL (?ref=...) nếu có, hoặc cookies/localStorage đã lưu
+      if (inviter?.businessUnit) {
+        if (inviter.businessUnit.toLowerCase().includes('vốn')) {
+          setBusinessUnit('Ban Nguồn Vốn');
+        } else {
+          setBusinessUnit('Khối Doanh');
+        }
+      } else if (savedBusinessUnit === 'Ban Nguồn Vốn' || savedBusinessUnit === 'Ban nguồn vốn') {
+        setBusinessUnit('Ban Nguồn Vốn');
+      } else if (savedBusinessUnit === 'Khối Doanh' || savedBusinessUnit === 'Khối kinh doanh') {
+        setBusinessUnit('Khối Doanh');
+      }
 
       // Người giới thiệu: ưu tiên người mời từ URL (?ref=...) nếu có, nếu không lấy từ cookies đã lưu
       const isDefaultInviter =
@@ -170,8 +187,15 @@ export default function QRCheckinModal({
     }
   };
 
-  const handleSelectReferrer = (member: { id: number; full_name: string; phone: string; ref_code?: string }) => {
+  const handleSelectReferrer = (member: { id: number; full_name: string; phone: string; ref_code?: string; business_unit?: string }) => {
     setReferrer(`${member.full_name} (${member.ref_code || member.phone})`);
+    if (member.business_unit) {
+      if (member.business_unit.toLowerCase().includes('vốn')) {
+        setBusinessUnit('Ban Nguồn Vốn');
+      } else {
+        setBusinessUnit('Khối Doanh');
+      }
+    }
     setShowReferrerDropdown(false);
     setReferrerSearchResults([]);
   };
@@ -209,6 +233,7 @@ export default function QRCheckinModal({
           email: email.trim() || undefined,
           company: referrerType === 'vang_lai' ? 'Khách vãng lai' : 'Khách mời tham dự',
           referrer: finalReferrer,
+          business_unit: businessUnit === 'Ban Nguồn Vốn' ? 'Ban nguồn vốn' : 'Khối kinh doanh',
           notes: notes.trim() || undefined,
           isTodayCheckin: false,
           has_tea_break: hasTeaBreak,
@@ -227,8 +252,8 @@ export default function QRCheckinModal({
         throw new Error(data.error || 'Đăng ký thất bại, vui lòng thử lại');
       }
 
-      // Vẫn lưu cookies ở 4 trường này:
-      // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+      // Vẫn lưu cookies ở các trường:
+      // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú, 5. Khối/Ban
       try {
         const maxAge = 31536000; // 1 năm
         const setCookie = (name: string, val: string) => {
@@ -244,6 +269,7 @@ export default function QRCheckinModal({
         setCookie('reg_referrer', finalReferrerVal);
         setCookie('user_notes', notes.trim());
         setCookie('reg_notes', notes.trim());
+        setCookie('reg_business_unit', businessUnit);
         if (email.trim()) setCookie('user_email', email.trim());
 
         localStorage.setItem('nghieng_auth_role', 'member');
@@ -259,6 +285,7 @@ export default function QRCheckinModal({
             email: email.trim(),
             referrer: finalReferrerVal,
             referrerType: referrerType,
+            businessUnit: businessUnit,
             notes: notes.trim(),
             hasTeaBreak: hasTeaBreak,
             registeredAt: new Date().toISOString(),
@@ -287,8 +314,7 @@ export default function QRCheckinModal({
   };
 
   const handleClearForm = () => {
-    // Xóa trắng 4 trường theo đúng 4 mũi tên chỉ định trong ảnh:
-    // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+    // Xóa trắng 4 trường theo đúng 4 mũi tên chỉ định trong ảnh + reset Khối/Ban
     setReferrer('');
     setFullName('');
     setPhone('');
@@ -296,8 +322,13 @@ export default function QRCheckinModal({
     setEmail('');
     setErrorMsg('');
     setDuplicateInfo(null);
+    if (inviter?.businessUnit) {
+      setBusinessUnit(inviter.businessUnit.toLowerCase().includes('vốn') ? 'Ban Nguồn Vốn' : 'Khối Doanh');
+    } else {
+      setBusinessUnit('Khối Doanh');
+    }
 
-    // Xóa cookies & localStorage của 4 trường này
+    // Xóa cookies & localStorage
     if (typeof document !== 'undefined') {
       const cookiesToClear = [
         'user_name',
@@ -308,6 +339,7 @@ export default function QRCheckinModal({
         'reg_referrer',
         'user_notes',
         'reg_notes',
+        'reg_business_unit',
       ];
       cookiesToClear.forEach((name) => {
         document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
@@ -796,6 +828,50 @@ export default function QRCheckinModal({
                       placeholder="Nhập ghi chú (nếu có)"
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-xs resize-none"
                     />
+                  </div>
+
+                  {/* Khối / Ban selection */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Khối / Ban <span className="text-rose-500">*</span></span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                      <label
+                        className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border cursor-pointer transition-all ${
+                          businessUnit === 'Ban Nguồn Vốn'
+                            ? 'bg-blue-50/90 border-blue-500 text-blue-900 shadow-2xs font-semibold ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="businessUnit"
+                          value="Ban Nguồn Vốn"
+                          checked={businessUnit === 'Ban Nguồn Vốn'}
+                          onChange={() => setBusinessUnit('Ban Nguồn Vốn')}
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs sm:text-sm select-none">Ban Nguồn Vốn</span>
+                      </label>
+                      <label
+                        className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border cursor-pointer transition-all ${
+                          businessUnit === 'Khối Doanh'
+                            ? 'bg-blue-50/90 border-blue-500 text-blue-900 shadow-2xs font-semibold ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="businessUnit"
+                          value="Khối Doanh"
+                          checked={businessUnit === 'Khối Doanh'}
+                          onChange={() => setBusinessUnit('Khối Doanh')}
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs sm:text-sm select-none">Khối Kinh doanh</span>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Checkbox Đăng ký suất ăn trưa tiệc trà (Hình 6) */}

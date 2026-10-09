@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const cleanPhone = cleanQuery.replace(/^N_/, '');
     
     const result = await pool.query(
-      `SELECT id, full_name, phone, ref_code 
+      `SELECT id, full_name, phone, ref_code, COALESCE(business_unit, 'Khối kinh doanh') AS business_unit
        FROM users 
        WHERE phone LIKE $1 
           OR phone LIKE $2

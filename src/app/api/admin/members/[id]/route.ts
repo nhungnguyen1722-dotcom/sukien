@@ -99,6 +99,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       notes,
       is_team_leader_eligible,
       avatar_url,
+      business_unit,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -132,6 +133,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     await ensureMemberSchema();
     const teamId = await resolveMemberTeamId(team_name);
     const normalizedTeamName = typeof team_name === 'string' && team_name.trim() ? team_name.trim() : null;
+    const normBusinessUnit = business_unit ? ((String(business_unit).toLowerCase().includes('vốn')) ? 'Ban nguồn vốn' : 'Khối kinh doanh') : null;
     const result = await pool.query(
       `UPDATE users
        SET 
@@ -155,8 +157,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         guest_count = $18,
         notes = $19,
         avatar_url = $20,
+        business_unit = COALESCE($21, business_unit, 'Khối kinh doanh'),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $21
+       WHERE id = $22
        RETURNING *`,
       [
         full_name.trim(),
@@ -179,6 +182,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
         notes ? notes.trim() : null,
         avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
+        normBusinessUnit,
         memberId,
       ]
     );

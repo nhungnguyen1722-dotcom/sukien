@@ -65,6 +65,7 @@ export default function EventRegistrationModal({
   const [referrerType, setReferrerType] = useState<'vang_lai' | 'co_nguoi_gioi_thieu'>('vang_lai');
   const [referrer, setReferrer] = useState('');
   const [notes, setNotes] = useState('');
+  const [businessUnit, setBusinessUnit] = useState<'Ban Nguồn Vốn' | 'Khối Doanh'>('Khối Doanh');
   const [hasTeaBreak, setHasTeaBreak] = useState(true);
   const [agreeTerms, setAgreeTerms] = useState(true);
 
@@ -79,7 +80,7 @@ export default function EventRegistrationModal({
   } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
 
-  const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{id: number; full_name: string; phone: string}>>([]);
+  const [referrerSearchResults, setReferrerSearchResults] = useState<Array<{id: number; full_name: string; phone: string; business_unit?: string}>>([]);
   const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
   const [origin, setOrigin] = useState<string>('');
 
@@ -117,11 +118,18 @@ export default function EventRegistrationModal({
       const savedPhone = safeDecodeURI(getCookie('reg_phone') || getCookie('user_phone') || savedData?.phone || '');
       const savedReferrer = safeDecodeURI(getCookie('reg_referrer') || getCookie('user_referrer') || savedData?.referrer || '');
       const savedNotes = safeDecodeURI(getCookie('reg_notes') || getCookie('user_notes') || savedData?.notes || '');
+      const savedBusinessUnit = safeDecodeURI(getCookie('reg_business_unit') || savedData?.businessUnit || '');
 
       if (savedFullName) setFullName(savedFullName);
       if (savedPhone) setPhone(savedPhone);
       if (savedNotes) setNotes(savedNotes);
       if (savedData?.email) setEmail(savedData.email);
+
+      if (savedBusinessUnit === 'Ban Nguồn Vốn' || savedBusinessUnit === 'Ban nguồn vốn') {
+        setBusinessUnit('Ban Nguồn Vốn');
+      } else if (savedBusinessUnit === 'Khối Doanh' || savedBusinessUnit === 'Khối kinh doanh') {
+        setBusinessUnit('Khối Doanh');
+      }
 
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
@@ -134,6 +142,13 @@ export default function EventRegistrationModal({
               if (data.results && data.results.length > 0) {
                 const u = data.results[0];
                 setReferrer(`${u.full_name} (${(u as any).ref_code || trimmedRef})`);
+                if (u.business_unit) {
+                  if (u.business_unit.toLowerCase().includes('vốn')) {
+                    setBusinessUnit('Ban Nguồn Vốn');
+                  } else {
+                    setBusinessUnit('Khối Doanh');
+                  }
+                }
               } else if (trimmedRef.includes('0914556677') || trimmedRef.toUpperCase().includes('CUC')) {
                 setReferrer(`Vũ Thị Cúc (${trimmedRef})`);
               } else if (trimmedRef.includes('0901234567') || trimmedRef.toUpperCase().includes('AN')) {
@@ -240,6 +255,7 @@ export default function EventRegistrationModal({
           email,
           company,
           referrer: finalReferrer,
+          business_unit: businessUnit === 'Ban Nguồn Vốn' ? 'Ban nguồn vốn' : 'Khối kinh doanh',
           notes,
           has_tea_break: hasTeaBreak,
           isTodayCheckin: isToday,
@@ -258,8 +274,8 @@ export default function EventRegistrationModal({
         throw new Error(data.error || 'Đăng ký thất bại. Vui lòng thử lại.');
       }
 
-      // Vẫn lưu cookies ở 4 trường này:
-      // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú
+      // Vẫn lưu cookies ở các trường:
+      // 1. Người giới thiệu, 2. Họ và tên, 3. Số điện thoại, 4. Ghi chú, 5. Khối/Ban
       try {
         const maxAge = 31536000; // 1 năm
         const setCookie = (name: string, val: string) => {
@@ -276,6 +292,7 @@ export default function EventRegistrationModal({
         setCookie('reg_referrer', finalReferrerVal);
         setCookie('user_notes', notes.trim());
         setCookie('reg_notes', notes.trim());
+        setCookie('reg_business_unit', businessUnit);
         if (email.trim()) setCookie('user_email', email.trim());
 
         localStorage.setItem('nghieng_auth_role', 'member');
@@ -291,6 +308,7 @@ export default function EventRegistrationModal({
             email: email.trim(),
             referrer: finalReferrerVal,
             referrerType: referrerType,
+            businessUnit: businessUnit,
             notes: notes.trim(),
             hasTeaBreak: hasTeaBreak,
             registeredAt: new Date().toISOString(),
@@ -322,6 +340,7 @@ export default function EventRegistrationModal({
       setNotes('');
       setEmail('');
       setCompany('');
+      setBusinessUnit('Khối Doanh');
       setErrorMsg('');
       setDuplicateInfo(null);
       if (typeof document !== 'undefined') {
@@ -334,6 +353,7 @@ export default function EventRegistrationModal({
           'reg_referrer',
           'user_notes',
           'reg_notes',
+          'reg_business_unit',
         ];
         cookiesToClear.forEach((name) => {
           document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
@@ -952,6 +972,50 @@ export default function EventRegistrationModal({
                       placeholder="Nhập ghi chú (nếu có)"
                       className="w-full p-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     />
+                  </div>
+
+                  {/* Khối / Ban (Radio Button: Ban Nguồn Vốn / Khối Doanh) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Khối / Ban <span className="text-rose-500">*</span></span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                      <label
+                        className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border cursor-pointer transition-all ${
+                          businessUnit === 'Ban Nguồn Vốn'
+                            ? 'bg-blue-50/90 border-blue-500 text-blue-900 shadow-2xs font-semibold ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="businessUnitModal"
+                          value="Ban Nguồn Vốn"
+                          checked={businessUnit === 'Ban Nguồn Vốn'}
+                          onChange={() => setBusinessUnit('Ban Nguồn Vốn')}
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs sm:text-sm select-none">Ban Nguồn Vốn</span>
+                      </label>
+                      <label
+                        className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border cursor-pointer transition-all ${
+                          businessUnit === 'Khối Doanh'
+                            ? 'bg-blue-50/90 border-blue-500 text-blue-900 shadow-2xs font-semibold ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="businessUnitModal"
+                          value="Khối Doanh"
+                          checked={businessUnit === 'Khối Doanh'}
+                          onChange={() => setBusinessUnit('Khối Doanh')}
+                          className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs sm:text-sm select-none">Khối Kinh doanh</span>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Checkbox Suất ăn trưa tiệc trà (Mục 10 - Hình 13.2 & 13.3) */}

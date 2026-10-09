@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         u.source,
         u.join_date,
         u.status,
+        COALESCE(u.business_unit, 'Khối kinh doanh') AS business_unit,
         COALESCE(
           u.is_team_leader_eligible,
           EXISTS(
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
       notes,
       is_team_leader_eligible,
       avatar_url,
+      business_unit,
     } = body;
 
     if (!full_name || !full_name.trim()) {
@@ -198,6 +200,7 @@ export async function POST(request: NextRequest) {
     await ensureMemberSchema();
     const teamId = await resolveMemberTeamId(team_name);
     const normalizedTeamName = typeof team_name === 'string' && team_name.trim() ? team_name.trim() : null;
+    const normBusinessUnit = (business_unit && String(business_unit).toLowerCase().includes('vốn')) ? 'Ban nguồn vốn' : 'Khối kinh doanh';
     const result = await pool.query(
       `INSERT INTO users (
         full_name,
@@ -219,8 +222,9 @@ export async function POST(request: NextRequest) {
         is_team_leader_eligible,
         guest_count,
         notes,
-        avatar_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        avatar_url,
+        business_unit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *`,
       [
         full_name.trim(),
@@ -243,6 +247,7 @@ export async function POST(request: NextRequest) {
         guest_count !== undefined && guest_count !== '' ? parseInt(guest_count) : 0,
         notes ? notes.trim() : null,
         avatar_url ? avatar_url.trim() : null,
+        normBusinessUnit,
       ]
     );
 

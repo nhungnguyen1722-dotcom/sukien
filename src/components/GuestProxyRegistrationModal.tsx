@@ -63,6 +63,7 @@ export default function GuestProxyRegistrationModal({
   const [userPhone, setUserPhone] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [userRefCode, setUserRefCode] = useState('');
+  const [userBusinessUnit, setUserBusinessUnit] = useState<'Ban Nguồn Vốn' | 'Khối Kinh doanh'>('Khối Kinh doanh');
 
   // Login form state (Step 1)
   const [loginUsername, setLoginUsername] = useState('');
@@ -95,6 +96,7 @@ export default function GuestProxyRegistrationModal({
       const cRole = getCookie('user_role') || localStorage.getItem('nghieng_auth_role');
       const cPhone = getCookie('user_phone') || localStorage.getItem('nghieng_user_phone');
       const cId = getCookie('user_id') || localStorage.getItem('nghieng_user_id');
+      const cUnit = getCookie('user_business_unit') || localStorage.getItem('nghieng_user_business_unit');
       const cRef = getValidReferralCode(
         localStorage.getItem('nghieng_user_ref_code'),
         localStorage.getItem('ref_code'),
@@ -103,6 +105,10 @@ export default function GuestProxyRegistrationModal({
         getCookie('user_ref')
       );
 
+      if (cUnit) {
+        setUserBusinessUnit(cUnit.toLowerCase().includes('vốn') ? 'Ban Nguồn Vốn' : 'Khối Kinh doanh');
+      }
+
       if (cName && cRole && cRole.toLowerCase() !== 'guest' && cRef) {
         setIsLoggedIn(true);
         setUserName(cName);
@@ -110,6 +116,24 @@ export default function GuestProxyRegistrationModal({
         if (cId) setUserId(cId);
         setUserRefCode(cRef);
         setCurrentStep(2);
+
+        // Fetch user info to ensure exact business_unit
+        const queryTerm = cPhone || cRef || (cId ? String(cId) : '');
+        if (queryTerm) {
+          fetch(`/api/users/search?q=${encodeURIComponent(queryTerm)}`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.results && d.results.length > 0) {
+                const u = d.results[0];
+                if (u.business_unit) {
+                  const norm = u.business_unit.toLowerCase().includes('vốn') ? 'Ban Nguồn Vốn' : 'Khối Kinh doanh';
+                  setUserBusinessUnit(norm);
+                  localStorage.setItem('nghieng_user_business_unit', norm);
+                }
+              }
+            })
+            .catch(() => {});
+        }
       } else {
         setIsLoggedIn(false);
         setCurrentStep(1);
@@ -117,6 +141,7 @@ export default function GuestProxyRegistrationModal({
         setUserPhone('');
         setUserId(null);
         setUserRefCode('');
+        setUserBusinessUnit('Khối Kinh doanh');
         setLoginUsername(cEmail || (cName?.includes('@') ? cName : ''));
       }
     } catch {
@@ -166,6 +191,12 @@ export default function GuestProxyRegistrationModal({
       setUserPhone(user.phone || '');
       setUserId(user.id ? String(user.id) : null);
       setUserRefCode(refCode);
+
+      const rawBu = user.business_unit || data.business_unit;
+      const normBu = (rawBu && String(rawBu).toLowerCase().includes('vốn')) ? 'Ban Nguồn Vốn' : 'Khối Kinh doanh';
+      setUserBusinessUnit(normBu);
+      localStorage.setItem('nghieng_user_business_unit', normBu);
+
       setIsLoggedIn(true);
       setCurrentStep(2);
       setLoginPassword('');
@@ -263,7 +294,7 @@ export default function GuestProxyRegistrationModal({
               referrer_name: userName,
               referrer_phone: userPhone || userRefCode,
               referrer_group: `${userName}${userPhone ? ` (${userPhone})` : ''}`,
-              business_unit: 'Khối kinh doanh',
+              business_unit: userBusinessUnit === 'Ban Nguồn Vốn' ? 'Ban nguồn vốn' : 'Khối kinh doanh',
               attendance_status: 'Đã đăng ký',
               notes: `Đăng ký hộ bởi ${userName} (${userPhone || userRefCode})`,
             }),
@@ -452,7 +483,16 @@ export default function GuestProxyRegistrationModal({
                 </div>
                 <div>
                   <div className="text-[10px] text-blue-600 font-semibold uppercase">Người giới thiệu</div>
-                  <div className="font-bold text-slate-900">{userName}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900">{userName}</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      userBusinessUnit === 'Ban Nguồn Vốn'
+                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                    }`}>
+                      {userBusinessUnit}
+                    </span>
+                  </div>
                   <div className="text-[11px] text-slate-500">Mã giới thiệu: {userRefCode}</div>
                 </div>
               </div>

@@ -23,6 +23,7 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
     name: '',
     refCode: '',
     id: null as number | null,
+    businessUnit: '' as string | null,
   };
 
   if (hasSpecificRef) {
@@ -32,7 +33,7 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
 
     try {
       const userRes = await pool.query(
-        `SELECT id, full_name, ref_code, phone FROM users 
+        `SELECT id, full_name, ref_code, phone, COALESCE(business_unit, 'Khối kinh doanh') AS business_unit FROM users
          WHERE ref_code = $1 
             OR ref_code = $2 
             OR ref_code = $3
@@ -50,6 +51,7 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
           name: safeDecodeURI(u.full_name),
           refCode: u.ref_code || (refCode.startsWith('N_') ? refCode : `N_${u.phone || refCode}`),
           id: u.id,
+          businessUnit: u.business_unit || 'Khối kinh doanh',
         };
       } else {
         // Named standard fallbacks according to docx & mockups
@@ -58,18 +60,21 @@ export default async function QRCheckinPage({ searchParams }: PageProps) {
             name: 'Vũ Thị Cúc',
             refCode: 'N_0914556677',
             id: 15,
+            businessUnit: 'Khối kinh doanh',
           };
         } else if (refCode.toUpperCase().includes('SALE001') || refCode.toUpperCase().includes('AN') || refCode.includes('0901234567')) {
           inviter = {
             name: 'Nguyễn Văn An',
             refCode: 'N_0901234567',
             id: 3,
+            businessUnit: 'Khối kinh doanh',
           };
         } else if (refCode && refCode !== 'N_0000000001') {
           inviter = {
             name: 'Người giới thiệu',
             refCode: prefixRef,
             id: null,
+            businessUnit: null,
           };
         }
       }

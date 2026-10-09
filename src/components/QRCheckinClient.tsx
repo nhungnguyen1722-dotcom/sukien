@@ -8,6 +8,7 @@ interface InviterInfo {
   name: string;
   refCode: string;
   id?: number | null;
+  businessUnit?: string | null;
 }
 
 interface QRCheckinClientProps {

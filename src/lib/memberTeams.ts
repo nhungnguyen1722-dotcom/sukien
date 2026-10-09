@@ -46,6 +46,13 @@ export async function ensureMemberSchema(): Promise<void> {
           await pool.query('ALTER TABLE users ADD COLUMN team_name TEXT');
         }
 
+        const buRes = await pool.query(
+          "SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'business_unit'"
+        );
+        if (buRes.rows.length === 0) {
+          await pool.query("ALTER TABLE users ADD COLUMN business_unit VARCHAR(100) DEFAULT 'Khối kinh doanh'");
+        }
+
         // Clean up any corrupted names with question marks in teams and teamlead_teams
         await pool.query("DELETE FROM teams WHERE name LIKE '%?%'");
         await pool.query("DELETE FROM teamlead_teams WHERE name LIKE '%?%'");
