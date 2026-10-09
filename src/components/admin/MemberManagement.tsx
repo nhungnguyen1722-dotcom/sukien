@@ -813,9 +813,7 @@ export default function MemberManagement({
           <div className="bg-white rounded-2xl w-full md:w-[1014px] md:max-w-[1014px] shadow-2xl border border-slate-100 overflow-hidden max-h-[90vh] flex flex-col">
             {/* Header Modal */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
-              <h2 className="text-base font-bold text-slate-900">
-                {editingMember ? 'Sửa thông tin thành viên' : 'Thêm mới – Thành viên'}
-              </h2>
+              {editingMember && <h2 className="text-base font-bold text-slate-900">Sửa thông tin thành viên</h2>}
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
@@ -1114,7 +1112,7 @@ export default function MemberManagement({
               </div>
 
               {/* 7. Đội nhóm (TeamLead) - Chọn nhiều checkbox 1 lúc */}
-              <div className="col-span-1 sm:col-span-2">
+              <div className={editingMember ? 'col-span-1 sm:col-span-2' : 'hidden'}>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Đội nhóm (TeamLead) <span className="text-slate-400 font-normal">(Chọn một hoặc nhiều đội nhóm)</span>
                 </label>

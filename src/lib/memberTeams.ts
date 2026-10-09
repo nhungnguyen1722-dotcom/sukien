@@ -238,12 +238,13 @@ export async function syncUserToTeamLead(userId: number): Promise<void> {
       .filter(Boolean);
 
     const isEligible = Boolean(user.is_team_leader_eligible) || teamNames.length > 0;
+    const hasTeamLeadTitle = ['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng', 'Chủ tịch'].includes(String(user.title || '').trim());
     const role = ['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng'].includes(user.title)
       ? user.title
       : 'Trưởng phòng';
 
     for (const month of months) {
-      if (!isEligible && teamNames.length === 0) {
+      if (!hasTeamLeadTitle && !isEligible) {
         // Nếu không có đội nhóm và không đủ điều kiện, có thể bỏ qua hoặc giữ nguyên
         continue;
       }
@@ -251,7 +252,7 @@ export async function syncUserToTeamLead(userId: number): Promise<void> {
       // Upsert vào teamlead_members
       let memberId: number;
       const existingMember = await pool.query(
-        `SELECT id FROM teamlead_members 
+        `SELECT id, include_30 FROM teamlead_members
          WHERE month = $1 AND (member_id = $2 OR member_phone = $3) 
          LIMIT 1`,
         [month, user.id, user.phone]
@@ -263,7 +264,7 @@ export async function syncUserToTeamLead(userId: number): Promise<void> {
           `UPDATE teamlead_members 
            SET member_id = $1, member_name = $2, member_phone = $3, include_30 = $4 
            WHERE id = $5`,
-          [user.id, user.full_name, user.phone, isEligible, memberId]
+          [user.id, user.full_name, user.phone, isEligible || Boolean(existingMember.rows[0].include_30), memberId]
         );
       } else {
         const inserted = await pool.query(
@@ -316,18 +317,20 @@ export async function syncUserToTeamLead(userId: number): Promise<void> {
         }
       }
 
-      // Xóa các đội nhóm đã bị gỡ bỏ khỏi user trong tháng này
-      if (currentTeamIds.length > 0) {
-        await pool.query(
-          `DELETE FROM teamlead_member_teams 
-           WHERE member_id = $1 AND NOT (team_id = ANY($2::int[]))`,
-          [memberId, currentTeamIds]
-        );
-      } else {
-        await pool.query(
-          'DELETE FROM teamlead_member_teams WHERE member_id = $1',
-          [memberId]
-        );
+      if (isEligible) {
+        // Chỉ sửa liên kết đội khi quyền TeamLead hoặc đội nhóm được chọn.
+        if (currentTeamIds.length > 0) {
+          await pool.query(
+            `DELETE FROM teamlead_member_teams
+             WHERE member_id = $1 AND NOT (team_id = ANY($2::int[]))`,
+            [memberId, currentTeamIds]
+          );
+        } else {
+          await pool.query(
+            'DELETE FROM teamlead_member_teams WHERE member_id = $1',
+            [memberId]
+          );
+        }
       }
     }
   } catch (err) {

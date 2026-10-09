@@ -237,6 +237,7 @@ type RosterMember = {
   userId: number | null;
   name: string;
   phone: string;
+  title: string | null;
   include30: boolean;
   teams: Array<{
     memberTeamId: number;
@@ -268,10 +269,11 @@ type AllocationRow = {
 async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Promise<RosterMember[]> {
   const result = await db.query(
     `
-      SELECT m.id AS membership_id, m.member_id AS user_id, m.member_name, m.member_phone, m.include_30,
+      SELECT m.id AS membership_id, m.member_id AS user_id, m.member_name, m.member_phone, u.title AS user_title, m.include_30,
         mt.id AS member_team_id, mt.team_id, t.name AS team_name, mt.role, mt.include_70 AS include_70_default,
         we.include_70 AS include_70_week
       FROM teamlead_members m
+      LEFT JOIN users u ON u.id = m.member_id
       LEFT JOIN teamlead_member_teams mt ON mt.member_id = m.id
       LEFT JOIN teamlead_teams t ON t.id = mt.team_id
       LEFT JOIN teamlead_week_eligibility we ON we.member_team_id = mt.id AND we.week_no = $2
@@ -290,6 +292,7 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
         userId: row.user_id === null ? null : Number(row.user_id),
         name: row.member_name,
         phone: row.member_phone,
+        title: row.user_title || null,
         include30: Boolean(row.include_30),
         teams: [],
       };

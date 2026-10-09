@@ -37,6 +37,7 @@ type RosterMember = {
   userId: number | null;
   name: string;
   phone: string;
+  title?: string | null;
   include30: boolean;
   teams: TeamAssignment[];
 };
@@ -92,6 +93,7 @@ type Breakdown = {
 
 const ROLE_OPTIONS = ['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng'];
 const ROLE_WEIGHTS: Record<string, string> = { 'Giám đốc': '50%', 'Phó Giám đốc': '30%', 'Trưởng phòng': '20%' };
+const TEAMLEAD_TITLES = new Set(['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng', 'Chủ tịch']);
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const TAB_LINKS: Array<{ id: Tab; label: string; href: string; icon: typeof Users }> = [
   { id: 'roster', label: 'Danh sách TeamLead', href: '/admin/teamlead', icon: Users },
@@ -128,6 +130,10 @@ function shortDate(value: string) {
 function monthTitle(month: string) {
   const [year, number] = month.split('-').map(Number);
   return `Tháng ${number}/${year}`;
+}
+
+function hasTeamLeadTitle(title: string | null | undefined) {
+  return TEAMLEAD_TITLES.has(title?.trim() || '');
 }
 
 function statusText(locked: boolean, imported: boolean) {
@@ -270,10 +276,12 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
     if (activeTab === 'reports') void loadReports();
   }, [activeTab, loadAllocation, loadReports, loadRoster]);
 
+  const visibleRoster = useMemo(() => roster.filter((member) => hasTeamLeadTitle(member.title)), [roster]);
+
   const filteredRoster = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('vi-VN');
-    return roster.filter((member) => !term || `${member.name} ${member.phone}`.toLocaleLowerCase('vi-VN').includes(term));
-  }, [roster, search]);
+    return visibleRoster.filter((member) => !term || `${member.name} ${member.phone}`.toLocaleLowerCase('vi-VN').includes(term));
+  }, [visibleRoster, search]);
 
   const filteredAllocationRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('vi-VN');
@@ -295,6 +303,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
       userId: user.id,
       name: user.name,
       phone: user.phone,
+      title: user.title,
       include30: addInclude30,
       teams: teams.filter((team) => addTeamIds.includes(team.id)).map((team) => ({
         memberTeamId: 0,
@@ -333,10 +342,6 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const updateRole = (member: RosterMember, role: string) => {
     updateRosterMember(member.membershipId, member.userId, { teams: member.teams.map((team) => ({ ...team, role })) });
-  };
-
-  const updateWeekEligibility = (member: RosterMember, enabled: boolean) => {
-    updateRosterMember(member.membershipId, member.userId, { teams: member.teams.map((team) => ({ ...team, include70: enabled })) });
   };
 
   const createTeam = async () => {
@@ -454,7 +459,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const rosterLocked = periods.some((period) => period.weekNo === 0 && period.locked);
   const rosterReadOnly = rosterLocked || selectedWeekLocked;
   const existingUserIds = new Set(roster.map((member) => member.userId).filter(Boolean));
-  const availableUsers = users.filter((user) => !existingUserIds.has(user.id));
+  const availableUsers = users.filter((user) => hasTeamLeadTitle(user.title) && !existingUserIds.has(user.id));
   const title = activeTab === 'roster' ? 'Danh sách TeamLead theo tháng' : activeTab === 'allocation' ? 'Phân bổ quỹ TeamLead' : 'Nhật ký & báo cáo TeamLead';
   const subtitle = activeTab === 'roster'
     ? 'Chốt thành viên, đội nhóm, chức danh và quyền hưởng quỹ cho từng tháng.'
@@ -536,9 +541,9 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               )}
               {activeTab === 'allocation' && (
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Kỳ</span>
-                  <div role="group" aria-label="Chọn kỳ xem" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {[{ value: 0, label: 'Tháng' }, ...weekOptions.map((week) => ({ value: week, label: String(week) }))].map((option) => (
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
+                  <div role="group" aria-label="Chọn tuần xem" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {weekOptions.map((week) => ({ value: week, label: String(week) })).map((option) => (
                       <button key={option.value} type="button" aria-pressed={weekNo === option.value} onClick={() => setWeekNo(option.value)} className={`border-r border-slate-200 px-3 py-2 text-sm font-semibold last:border-r-0 ${weekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                         {option.label}
                       </button>
@@ -605,7 +610,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-bold text-slate-900">{monthTitle(month)}</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">{roster.length} thành viên · {teams.length} đội nhóm</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{visibleRoster.length} thành viên · {teams.length} đội nhóm</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
@@ -620,21 +625,18 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               </div>
               {loading ? <div className="p-12 text-center text-sm text-slate-500">Đang tải dữ liệu…</div> : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1060px] text-left text-sm">
+                  <table className="w-full min-w-[900px] text-left text-sm">
                     <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
                       <tr>
                         <th className="px-4 py-3.5">Thành viên</th>
                         <th className="px-4 py-3.5">Đội nhóm</th>
-                        <th className="px-4 py-3.5">Chức danh theo tháng</th>
-                        <th className="px-4 py-3.5 text-center">Quỹ 30%<span className="mt-1 block font-normal normal-case tracking-normal text-slate-400">Chia đều tháng</span></th>
-                        <th className="px-4 py-3.5 text-center">Quỹ 70%<span className="mt-1 block font-normal normal-case tracking-normal text-slate-400">Tuần {weekNo}</span></th>
+                        <th className="px-4 py-3.5">Chức danh</th>
                         <th className="px-4 py-3.5 text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredRoster.map((member, index) => {
                         const role = member.teams[0]?.role || '';
-                        const eligible70 = member.teams.length > 0 && member.teams.every((team) => team.include70);
                         const isNearBottom = index >= Math.max(0, filteredRoster.length - 3);
                         return (
                           <tr key={`${member.membershipId}-${member.userId}`} className="align-middle hover:bg-slate-50/70">
@@ -642,34 +644,6 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                               <div className="font-semibold text-slate-900">{member.name}</div>
                               <div className="mt-1 text-xs text-slate-500">{member.phone || 'Chưa có số điện thoại'}</div>
                               {!member.userId && <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">Dữ liệu nhập Excel</span>}
-                              <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400">
-                                <Link
-                                  href={`/admin/thanh-vien?search=${encodeURIComponent(member.name)}`}
-                                  target="_blank"
-                                  className="text-slate-500 hover:text-blue-600 transition-colors font-medium"
-                                  title="Xem hồ sơ thành viên"
-                                >
-                                  Hồ sơ
-                                </Link>
-                                <span>·</span>
-                                <Link
-                                  href={`/admin/nhat-ky-hop-dong?search=${encodeURIComponent(member.name)}`}
-                                  target="_blank"
-                                  className="text-slate-500 hover:text-emerald-600 transition-colors font-medium"
-                                  title="Xem hợp đồng của thành viên"
-                                >
-                                  Hợp đồng
-                                </Link>
-                                <span>·</span>
-                                <Link
-                                  href={`/admin/nhat-ky-thu-chi?search=${encodeURIComponent(member.name)}`}
-                                  target="_blank"
-                                  className="text-slate-500 hover:text-amber-600 transition-colors font-medium"
-                                  title="Xem thu chi của thành viên"
-                                >
-                                  Thu chi
-                                </Link>
-                              </div>
                             </td>
                             <td className="px-4 py-3.5">
                               <TeamSelectCell
@@ -686,26 +660,13 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                                 {ROLE_OPTIONS.map((item) => <option key={item} value={item}>{item} ({ROLE_WEIGHTS[item]})</option>)}
                               </select>
                             </td>
-                            <td className="px-4 py-4 text-center">
-                              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-violet-700">
-                                <input type="checkbox" checked={member.include30} onChange={(event) => updateRosterMember(member.membershipId, member.userId, { include30: event.target.checked })} disabled={rosterReadOnly} className="h-4 w-4 rounded border-slate-300 accent-violet-600 disabled:opacity-50" />
-                                Có
-                              </label>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <label className={`inline-flex items-center gap-2 text-sm font-semibold ${member.teams.length ? 'cursor-pointer text-emerald-700' : 'text-slate-300'}`}>
-                                <input type="checkbox" checked={eligible70} onChange={(event) => updateWeekEligibility(member, event.target.checked)} disabled={!member.teams.length || rosterReadOnly} className="h-4 w-4 rounded border-slate-300 accent-emerald-600 disabled:opacity-50" />
-                                {eligible70 ? 'Được chia' : 'Không'}
-                              </label>
-                              {member.teams.length > 1 && <span className="mt-1 block text-[10px] text-slate-400">Áp dụng cho {member.teams.length} đội</span>}
-                            </td>
                             <td className="px-4 py-4 text-right">
                               {!rosterReadOnly && <button onClick={() => setRoster((previous) => previous.filter((item) => item !== member))} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50">Xóa</button>}
                             </td>
                           </tr>
                         );
                       })}
-                      {!filteredRoster.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">{roster.length ? 'Không có thành viên phù hợp.' : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}</td></tr>}
+                      {!filteredRoster.length && <tr><td colSpan={4} className="px-4 py-14 text-center text-sm text-slate-500">{visibleRoster.length ? 'Không có thành viên phù hợp.' : roster.length ? 'Chưa có thành viên thuộc chức danh TeamLead trong tháng này.' : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}</td></tr>}
                     </tbody>
                   </table>
                 </div>
