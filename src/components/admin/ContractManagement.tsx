@@ -5,6 +5,7 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { CONTRACT_TEAM_OPTIONS } from '@/lib/teamOptions';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { getOperationsSupportFundKey, OPERATIONS_SUPPORT_FUND_RATE } from '@/lib/operationsFunds';
 import {
   AlertCircle,
   CalendarDays,
@@ -129,7 +130,12 @@ const emptyForm: ContractFormData = {
 };
 
 const weekOptions = [1, 2, 3, 4, 5];
-const contractTypes = ['BĐS', ...Array.from({ length: 10 }, (_, index) => (index + 1) + ' năm')];
+const contractTypes = [
+  { value: 'BĐS', label: 'BĐS' },
+  { value: '1 năm', label: '1 Năm' },
+  { value: '2 năm', label: '2 Năm' },
+  { value: '3 năm', label: '3 Năm' },
+];
 
 function formatWeekRange(year: string, month: number, week: number) {
   const firstDay = (week - 1) * 7 + 1;
@@ -180,7 +186,7 @@ const contractBudgetFunds = [
   { key: 'incentive', label: 'Quỹ Thi đua & Chương trình thúc đẩy', rate: 0.008, color: 'bg-orange-500' },
   { key: 'travel', label: 'Chi phí Công tác phí', rate: 0.003, color: 'bg-cyan-500' },
   { key: 'leader', label: 'Leader team - giám đốc Kd', rate: 0.029, color: 'bg-yellow-500' },
-  { key: 'operations', label: 'Quỹ Vận hành & Bộ phận hỗ trợ', rate: 0.025, color: 'bg-slate-500' },
+  { key: 'operations', label: 'Quỹ Vận hành & Bộ phận hỗ trợ', rate: OPERATIONS_SUPPORT_FUND_RATE, color: 'bg-slate-500' },
 ] as const;
 
 function getBudgetFundKey(fundSource: string) {
@@ -194,7 +200,7 @@ function getBudgetFundKey(fundSource: string) {
   if (source.includes('thi đua') || source.includes('thúc đẩy')) return 'incentive';
   if (source.includes('công tác phí')) return 'travel';
   if (source.includes('leader') || source.includes('giám đốc kd')) return 'leader';
-  if (source.includes('vận hành') || source.includes('bộ phận hỗ trợ') || source.includes('bp hỗ trợ') || source.includes('hỗ trợ kt') || source.includes('hỗ trợ cn')) return 'operations';
+  if (getOperationsSupportFundKey(fundSource)) return 'operations';
   return null;
 }
 
@@ -1284,9 +1290,9 @@ export default function ContractManagement({
                 <label className="text-xs font-semibold text-slate-700">
                   Loại hợp đồng
                   <select value={formData.contract_type} onChange={(event) => setFormData({ ...formData, contract_type: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Chọn thời hạn</option>
-                    {!contractTypes.includes(formData.contract_type) && formData.contract_type && <option value={formData.contract_type}>{formData.contract_type}</option>}
-                    {contractTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                    <option value="">Chọn BĐS</option>
+                    {!contractTypes.some((type) => type.value === formData.contract_type) && formData.contract_type && <option value={formData.contract_type}>{formData.contract_type}</option>}
+                    {contractTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                   </select>
                 </label>
               </div>

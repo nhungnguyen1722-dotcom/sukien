@@ -9,6 +9,7 @@ import TransactionLogManagement, {
 import { loadSeptemberContractDistributions } from '@/lib/contractDistributionWorkbooks';
 import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
 import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
+import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 
 export const revalidate = 0;
 
@@ -37,7 +38,12 @@ async function getTransactionsData() {
     `),
     pool.query(`
       SELECT id, contract_code, contract_date::text AS contract_date, customer_name,
-        value::float8 AS value, allocated_value::float8 AS allocated_value,
+        value::float8 AS value,
+        CASE
+          WHEN contract_date >= DATE '2026-10-01' AND contract_date < DATE '2026-11-01'
+            THEN COALESCE(NULLIF(allocated_value, 0), value, 0)
+          ELSE COALESCE(allocated_value, 0)
+        END::float8 AS allocated_value,
         COALESCE(closer_name, '') AS closer_name, COALESCE(closer_phone, '') AS closer_phone,
         COALESCE(closer_fee, 0)::float8 AS closer_fee,
         COALESCE(referrer_name, '') AS referrer_name, COALESCE(referrer_phone, '') AS referrer_phone,
@@ -68,20 +74,55 @@ async function getTransactionsData() {
     `),
   ]);
 
-  const contracts = contractsRes.rows as FundContract[];
-  const members = membersRes.rows as TransactionMember[];
+  const logs = logsRes.rows.map((row) => ({
+    ...row,
+    requester_name: sanitizeVietnameseText(row.requester_name),
+    approver_name: sanitizeVietnameseText(row.approver_name),
+    beneficiary_name: sanitizeVietnameseText(row.beneficiary_name),
+    detail_content: sanitizeVietnameseText(row.detail_content),
+    status: sanitizeVietnameseText(row.status),
+  })) as TransactionLog[];
+  const contracts = contractsRes.rows.map((row) => ({
+    ...row,
+    customer_name: sanitizeVietnameseText(row.customer_name),
+    closer_name: sanitizeVietnameseText(row.closer_name),
+    referrer_name: sanitizeVietnameseText(row.referrer_name),
+    supporter_name: sanitizeVietnameseText(row.supporter_name),
+    status: sanitizeVietnameseText(row.status),
+  })) as FundContract[];
+  const members = membersRes.rows.map((row) => ({
+    ...row,
+    full_name: sanitizeVietnameseText(row.full_name),
+  })) as TransactionMember[];
   const workbookDistributions = loadSeptemberContractDistributions(
     contracts,
     members.map((member) => member.full_name),
   );
+  const workbookContracts = workbookDistributions.contracts.map((contract) => ({
+    ...contract,
+    customer_name: sanitizeVietnameseText(contract.customer_name),
+    closer_name: sanitizeVietnameseText(contract.closer_name),
+    referrer_name: sanitizeVietnameseText(contract.referrer_name),
+    supporter_name: sanitizeVietnameseText(contract.supporter_name),
+    status: sanitizeVietnameseText(contract.status),
+    source_beneficiaries: contract.source_beneficiaries?.map((person) => ({
+      ...person,
+      name: sanitizeVietnameseText(person.name),
+    })),
+  }));
+  const eventExpenses = eventExpensesRes.rows.map((row) => ({
+    ...row,
+    beneficiary_name: sanitizeVietnameseText(row.beneficiary_name),
+    status: sanitizeVietnameseText(row.status),
+  })) as EventFundExpense[];
 
   return {
-    logs: logsRes.rows as TransactionLog[],
+    logs,
     weeklyAllocations: weeklyRes.rows as WeeklyAllocation[],
     contracts,
-    workbookContracts: workbookDistributions.contracts,
+    workbookContracts,
     workbookWarnings: workbookDistributions.warningsByPeriod,
-    eventExpenses: eventExpensesRes.rows as EventFundExpense[],
+    eventExpenses,
     members,
   };
 }

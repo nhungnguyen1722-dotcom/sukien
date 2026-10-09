@@ -22,6 +22,7 @@ import {
   ChevronDown,
   Trophy,
   ClipboardList,
+  Wallet,
 } from 'lucide-react';
 import SystemLogo from '@/components/SystemLogo';
 import { safeDecodeURI } from '@/lib/authUtils';
@@ -34,6 +35,7 @@ const menuItems = [
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
   { label: 'Quản lý TeamLead', href: '/admin/teamlead', icon: Users },
+  { label: 'Quỹ vận hành và hỗ trợ', href: '/admin/quy-van-hanh-ho-tro', icon: Wallet },
   { label: 'Danh sách hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
   { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },

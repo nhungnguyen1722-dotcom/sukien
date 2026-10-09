@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
+import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import {
   AlertCircle,
   CalendarDays,
@@ -100,6 +102,8 @@ export interface FundContract {
 export interface FundContractBeneficiary {
   name: string;
   amount: number;
+  bank_account?: string | null;
+  bank_name?: string | null;
 }
 
 export interface EventFundExpense {
@@ -124,6 +128,17 @@ interface Props {
 }
 
 const MONTH_OVERVIEW = '__month_overview__';
+
+function sanitizeTransactionLogNames(log: TransactionLog): TransactionLog {
+  return {
+    ...log,
+    requester_name: sanitizeVietnameseText(log.requester_name),
+    approver_name: sanitizeVietnameseText(log.approver_name),
+    beneficiary_name: sanitizeVietnameseText(log.beneficiary_name),
+    detail_content: sanitizeVietnameseText(log.detail_content),
+    status: sanitizeVietnameseText(log.status),
+  };
+}
 
 const FUND_ORDER = [
   'direct_sale',
@@ -204,7 +219,15 @@ const isPaidStatus = (status: string) => ['Đã chi', 'Đã thanh toán', 'Đã 
 const normalizeFund = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim().toLocaleLowerCase('vi');
 
 function withinPeriod(date: string, period: WeeklyAllocation) {
-  return date >= period.period_start && date <= period.period_end;
+  const dateOnly = date.slice(0, 10);
+  const range = getEffectivePeriodRange(period);
+  return dateOnly >= range.start && dateOnly <= range.endInclusive;
+}
+
+function withinMonth(date: string, month: string) {
+  const range = getMonthWeekRange(month);
+  const dateOnly = date.slice(0, 10);
+  return dateOnly >= range.start && dateOnly < range.endExclusive;
 }
 
 function contractBeneficiaries(contract: FundContract): FundContractBeneficiary[] {
@@ -214,6 +237,16 @@ function contractBeneficiaries(contract: FundContract): FundContractBeneficiary[
     { name: contract.referrer_name, amount: contract.referrer_fee },
     { name: contract.supporter_name, amount: contract.supporter_fee },
   ].filter((person) => person.name.trim());
+}
+
+function normalizePersonName(value: string) {
+  return value.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLocaleLowerCase('vi')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function contractPool(contract: FundContract) {
@@ -260,18 +293,24 @@ function groupContractsByPerson(contracts: FundContract[]) {
 }
 
 function formatPeriodRange(period: WeeklyAllocation) {
-  const start = period.period_start.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  const end = period.period_end.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const range = getEffectivePeriodRange(period);
+  const start = range.start.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const end = range.endInclusive.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!start || !end) return '';
   if (start[1] === end[1] && start[2] === end[2]) return `${start[3]}–${end[3]}/${end[2]}`;
   return `${start[3]}/${start[2]}–${end[3]}/${end[2]}`;
 }
 
+function getEffectivePeriodRange(period: WeeklyAllocation) {
+  if (period.period_month === '2026-09' && !period.period_code.endsWith('-MONTH')) {
+    const weekNo = getPeriodWeekNo(period.period_label, period.period_code, 0);
+    if (weekNo) return getMonthWeekRange(period.period_month, weekNo);
+  }
+  return { start: period.period_start, endInclusive: period.period_end };
+}
+
 function getPeriodWeekNumber(period: WeeklyAllocation, index: number) {
-  const label = period.period_label.trim();
-  const match = `${label} ${period.period_code}`.match(/(?:tuần|tuan|week|wk|w)[\s._-]*0?([1-5])\b/i)
-    || label.match(/^0?([1-5])\b/);
-  return match ? Number(match[1]) : index + 1;
+  return getPeriodWeekNo(period.period_label, period.period_code, index + 1);
 }
 
 function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -279,10 +318,33 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
 }
 
 export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, currentMonth }: Props) {
-  const [logs, setLogs] = useState(initialLogs);
+  const [logs, setLogs] = useState(() => initialLogs.map(sanitizeTransactionLogNames));
   const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers'>('cashflow');
   const [selectedYear, setSelectedYear] = useState(currentMonth.slice(0, 4));
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const normalizedWeeklyAllocations = useMemo(() => {
+    const septemberPeriods = new Map<string, { label: string; code: string; start: string }>();
+    weeklyAllocations
+      .filter((row) => row.period_month === '2026-09' && !row.period_code.endsWith('-MONTH'))
+      .forEach((row) => {
+        if (!septemberPeriods.has(row.period_code)) {
+          septemberPeriods.set(row.period_code, { label: row.period_label, code: row.period_code, start: row.period_start });
+        }
+      });
+    const orderedSeptemberPeriods = Array.from(septemberPeriods.values()).sort((a, b) => a.start.localeCompare(b.start));
+    const weekNumbers = new Map(orderedSeptemberPeriods.map((period, index) => [
+      period.code,
+      getPeriodWeekNo(period.label, period.code, index + 1),
+    ]));
+
+    return weeklyAllocations.map((row) => {
+      if (row.period_month !== '2026-09' || row.period_code.endsWith('-MONTH')) return row;
+      const weekNo = weekNumbers.get(row.period_code);
+      if (!weekNo) return row;
+      const range = getMonthWeekRange('2026-09', weekNo);
+      return { ...row, period_start: range.start, period_end: range.endInclusive };
+    });
+  }, [weeklyAllocations]);
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
     const dates = [
@@ -301,29 +363,37 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   }, [contracts, currentMonth, eventExpenses, logs, selectedYear, weeklyAllocations]);
   const periodsForMonth = useMemo(() => {
     const unique = new Map<string, WeeklyAllocation>();
-    weeklyAllocations
+    normalizedWeeklyAllocations
       .filter((row) => row.period_month === selectedMonth && !row.period_code.endsWith('-MONTH'))
       .forEach((row) => unique.set(row.period_code, row));
     return Array.from(unique.values()).sort((a, b) => a.period_start.localeCompare(b.period_start));
-  }, [weeklyAllocations, selectedMonth]);
+  }, [normalizedWeeklyAllocations, selectedMonth]);
   const [selectedPeriodCode, setSelectedPeriodCode] = useState(MONTH_OVERVIEW);
   const selectedPeriod = selectedPeriodCode === MONTH_OVERVIEW
     ? undefined
     : periodsForMonth.find((period) => period.period_code === selectedPeriodCode) || periodsForMonth.at(-1);
+  const selectedPeriodIndex = selectedPeriod
+    ? periodsForMonth.findIndex((period) => period.period_code === selectedPeriod.period_code)
+    : -1;
+  const selectedPeriodHeading = selectedPeriod && selectedMonth === '2026-09'
+    ? `Tuần ${getPeriodWeekNumber(selectedPeriod, Math.max(0, selectedPeriodIndex))} · ${formatPeriodRange(selectedPeriod)}`
+    : selectedPeriod?.period_label || 'Chưa có kỳ';
   const isMonthOverview = selectedPeriodCode === MONTH_OVERVIEW;
   const periodCodesForMonth = new Set(periodsForMonth.map((period) => period.period_code));
-  const weeklyRowsForMonth = weeklyAllocations.filter((row) => (
+  const weeklyRowsForMonth = normalizedWeeklyAllocations.filter((row) => (
     row.period_month === selectedMonth && periodCodesForMonth.has(row.period_code)
   ));
 
   const periodBase = (period: WeeklyAllocation) => {
-    const sourceContracts = workbookContracts.filter((contract) => contract.source_period_code === period.period_code);
-    const sourceRows = sourceContracts.length ? sourceContracts : contracts.filter((contract) => withinPeriod(contract.contract_date, period));
+    const hasWorkbookPeriod = workbookContracts.some((contract) => contract.source_period_code === period.period_code);
+    const sourceRows = hasWorkbookPeriod
+      ? workbookContracts.filter((contract) => contract.source_period_code === period.period_code && withinPeriod(contract.contract_date, period))
+      : contracts.filter((contract) => withinPeriod(contract.contract_date, period));
     return sourceRows.reduce((total, contract) => total + contract.allocated_value, 0);
   };
 
   const monthContracts = ((selectedMonth === '2026-09' && workbookContracts.length)
-    ? workbookContracts
+    ? workbookContracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth))
     : periodsForMonth.length
       ? contracts.filter((contract) => periodsForMonth.some((period) => withinPeriod(contract.contract_date, period)))
       : contracts.filter((contract) => contract.contract_date.slice(0, 7) === selectedMonth))
@@ -336,14 +406,15 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     const period = periodsForMonth.find((item) => item.period_code === row.period_code);
     return sum + (period ? periodBase(period) * row.allocation_rate : 0);
   }, 0));
-  const monthlyEventExpenses = eventExpenses.filter((item) => item.event_date.slice(0, 7) === selectedMonth);
+  const monthlyEventExpenses = eventExpenses.filter((item) => withinMonth(item.event_date, selectedMonth));
   const staffProposed = monthlyEventExpenses.reduce((sum, item) => sum + item.proposed_amount, 0);
   const staffPaid = monthlyEventExpenses
     .filter((item) => isPaidStatus(item.status))
     .reduce((sum, item) => sum + item.proposed_amount, 0);
   const otherEventRequests = logs.filter(
     (log) => log.fund_source.toLowerCase().includes('sự kiện')
-      && log.request_date?.slice(0, 7) === selectedMonth
+      && log.request_date
+      && withinMonth(log.request_date, selectedMonth)
       && Number(log.proposed_amount || 0) > 0
       && log.status !== 'Từ chối'
   );
@@ -415,7 +486,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     .reduce((sum, row) => sum + row.requested_amount, 0);
   const selectedContracts = selectedPeriod
     ? (workbookContracts.some((contract) => contract.source_period_code === selectedPeriod.period_code)
-        ? workbookContracts.filter((contract) => contract.source_period_code === selectedPeriod.period_code)
+        ? workbookContracts.filter((contract) => contract.source_period_code === selectedPeriod.period_code && withinPeriod(contract.contract_date, selectedPeriod))
         : contracts.filter((contract) => withinPeriod(contract.contract_date, selectedPeriod)))
         .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
     : [];
@@ -483,7 +554,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'Không tạo được phiếu tự động.');
-        if (active) setLogs(result.logs || []);
+        if (active) setLogs((result.logs || []).map(sanitizeTransactionLogNames));
       })
       .catch((error) => console.error('Automatic contract slip generation failed:', error));
     return () => { active = false; };
@@ -515,7 +586,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || 'Không tạo được phiếu.');
-      setLogs((current) => [result.log, ...current]);
+      setLogs((current) => [sanitizeTransactionLogNames(result.log), ...current]);
       setIsCreateOpen(false);
       setForm((current) => ({ ...current, requestCode: `YC${String(Date.now()).slice(-5)}`, detailContent: '', proposedAmount: '', beneficiaryName: '', beneficiaryPhone: '', beneficiaryUserId: '', beneficiaryBankAccount: '', status: 'Chờ duyệt' }));
     } catch (error: unknown) {
@@ -534,7 +605,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || 'Không cập nhật được phiếu.');
-      setLogs((current) => current.map((item) => item.id === log.id ? result.log : item));
+      setLogs((current) => current.map((item) => item.id === log.id ? sanitizeTransactionLogNames(result.log) : item));
       setActionMenuId(null);
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : 'Có lỗi xảy ra.');
@@ -567,7 +638,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const paidAmountForFund = (fundKey: string, fundSource: string) => logs
     .filter((log) => {
       if (!isPaidStatus(log.status) || !log.request_date) return false;
-      if (isMonthOverview ? !log.request_date.startsWith(selectedMonth) : !selectedPeriod || !withinPeriod(log.request_date, selectedPeriod)) return false;
+      if (isMonthOverview ? !withinMonth(log.request_date, selectedMonth) : !selectedPeriod || !withinPeriod(log.request_date, selectedPeriod)) return false;
       const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
       return normalizeFund(log.fund_source) === normalizeFund(fundSource)
         || normalizeFund(log.fund_source) === target;
@@ -661,7 +732,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           <div className="border-b border-slate-200 px-5 py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriod?.period_label || 'Chưa có kỳ'}</h2>
+                <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}</h2>
                 <p className="mt-1 text-xs text-slate-500">Hiển thị danh sách nhân sự và số tiền phân bổ theo từng hợp đồng.</p>
               </div>
               <div role="group" aria-label="Chế độ xem bảng kê" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
@@ -706,7 +777,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                       className="cursor-pointer hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
                     >
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-800">{contract.contract_code || (contract.source_excel_row ? `Excel · dòng ${contract.source_excel_row}` : `HĐ #${contract.id}`)} · {contract.customer_name}</div>
+                        <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
                         <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
@@ -752,7 +823,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                           {person.contracts.map(({ contract, amount }) => (
                             <button key={contract.id} type="button" onClick={() => setViewContract(contract)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] hover:border-blue-300 hover:bg-blue-50">
                               <span className="block font-semibold text-slate-700">{contract.customer_name} · {formatDate(contract.contract_date)}</span>
-                              <span className="mt-0.5 block text-slate-500">{contract.contract_code || (contract.source_excel_row ? `Excel · dòng ${contract.source_excel_row}` : `HĐ #${contract.id}`)} · {formatVND(amount)}</span>
+                              <span className="mt-0.5 block text-slate-500">{contract.contract_code || `HĐ #${contract.id}`} · {formatVND(amount)}</span>
                             </button>
                           ))}
                         </div>
@@ -941,16 +1012,27 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           <div>
             <h3 className="mb-2 font-bold text-slate-800">Nhân sự thụ hưởng</h3>
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-[420px] w-full text-left">
-                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Họ và tên</th><th className="px-3 py-2 text-right">Hoa hồng chia</th></tr></thead>
+              <table className="min-w-[760px] w-full text-left">
+                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Họ và tên</th><th className="px-3 py-2">Tài khoản / Ngân hàng</th><th className="px-3 py-2">Nguồn quỹ</th><th className="px-3 py-2 text-right" title="Hoa hồng chia trên giá trị phân bổ hợp đồng">Tỷ lệ / HĐ</th><th className="px-3 py-2 text-right">Hoa hồng chia</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                  {contractBeneficiaries(viewContract).map((person, index) => (
-                    <tr key={index}>
-                      <td className="px-3 py-2 font-semibold text-slate-800">{person.name}</td>
-                      <td className="px-3 py-2 text-right font-bold">{formatVND(person.amount)}</td>
-                    </tr>
-                  ))}
-                  {!contractBeneficiaries(viewContract).length && <tr><td colSpan={2} className="px-3 py-6 text-center text-slate-500">Chưa có nhân sự thụ hưởng.</td></tr>}
+                  {contractBeneficiaries(viewContract).map((person, index) => {
+                    const matchingMember = initialMembers.find((member) => normalizePersonName(member.full_name) === normalizePersonName(person.name));
+                    const percentageBase = Number(viewContract.allocated_value || viewContract.value || 0);
+                    const percentage = percentageBase > 0 ? (person.amount / percentageBase) * 100 : null;
+                    return (
+                      <tr key={index}>
+                        <td className="px-3 py-2 font-semibold text-slate-800">{person.name}</td>
+                        <td className="px-3 py-2 text-slate-600">
+                          <div>{person.bank_account || matchingMember?.bank_account || '—'}</div>
+                          {person.bank_name && <div className="mt-0.5 text-[10px] text-slate-500">{person.bank_name}</div>}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">Quỹ chưa chia (15%)</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-600">{percentage === null ? '—' : `${percentage.toLocaleString('vi-VN', { maximumFractionDigits: 3 })}%`}</td>
+                        <td className="px-3 py-2 text-right font-bold tabular-nums">{formatVND(person.amount)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!contractBeneficiaries(viewContract).length && <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-500">Chưa có nhân sự thụ hưởng.</td></tr>}
                 </tbody>
               </table>
             </div>

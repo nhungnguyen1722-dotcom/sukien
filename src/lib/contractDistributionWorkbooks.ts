@@ -5,6 +5,8 @@ import * as XLSX from 'xlsx';
 export interface WorkbookBeneficiary {
   name: string;
   amount: number;
+  bank_account?: string | null;
+  bank_name?: string | null;
 }
 
 export interface WorkbookContractDistribution {
@@ -189,10 +191,17 @@ function readSource(source: WorkbookSource, memberNames: string[]) {
     throw new Error(`Thiếu cột tổng quỹ hoặc hoa hồng trong ${source.fileName}.`);
   }
 
-  const beneficiaryColumns = header.slice(2, poolColumn).map((cell, offset) => ({
-    column: offset + 2,
-    name: String(cell ?? '').split(/\r?\n/)[0].trim(),
-  })).filter((beneficiary) => beneficiary.name);
+  const beneficiaryColumns = header.slice(2, poolColumn).map((cell, offset) => {
+    const lines = String(cell ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const accountLine = lines.find((line) => /^(?:STK|số tài khoản|tài khoản)\s*:?\s*/i.test(line));
+    const bankName = lines.slice(1).find((line) => line !== accountLine && !/^(?:STK|số tài khoản|tài khoản)\s*:?\s*/i.test(line));
+    return {
+      column: offset + 2,
+      name: lines[0] || '',
+      bank_account: accountLine?.replace(/^(?:STK|số tài khoản|tài khoản)\s*:?\s*/i, '').trim() || null,
+      bank_name: bankName || null,
+    };
+  }).filter((beneficiary) => beneficiary.name);
 
   const contracts: Omit<WorkbookContractDistribution, 'id' | 'contract_code' | 'closer_name' | 'closer_phone' | 'closer_fee' | 'referrer_name' | 'referrer_phone' | 'referrer_fee' | 'supporter_name' | 'supporter_phone' | 'supporter_fee' | 'status'>[] = [];
   const warnings: string[] = [];
@@ -208,7 +217,12 @@ function readSource(source: WorkbookSource, memberNames: string[]) {
     }
 
     const sourceBeneficiaries = beneficiaryColumns
-      .map(({ column, name }) => ({ name: canonicalName(name, memberNames), amount: parseMoney(row[column]) }))
+      .map(({ column, name, bank_account, bank_name }) => ({
+        name: canonicalName(name, memberNames),
+        amount: parseMoney(row[column]),
+        bank_account,
+        bank_name,
+      }))
       .filter((beneficiary) => beneficiary.amount > 0);
     const unallocatedPool = parseMoney(row[poolColumn]);
     const distributedCommission = parseMoney(row[commissionColumn]);

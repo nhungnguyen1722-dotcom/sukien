@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import pool from '@/lib/db';
+import { getMonthWeekNo, getMonthWeekRange } from '@/lib/weekRanges';
 
 export const TEAMLEAD_DEFAULT_RATE = 0.029;
 export const TEAMLEAD_ROLE_ORDER = ['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng'] as const;
@@ -187,23 +188,18 @@ export function monthKey(value: string | Date) {
 }
 
 function monthBounds(month: string) {
-  const start = new Date(`${month}T00:00:00.000Z`);
-  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
-  return { start: month, end: end.toISOString().slice(0, 10) };
+  const range = getMonthWeekRange(month, 0);
+  return { start: range.start, end: range.endExclusive };
 }
 
 function periodBounds(month: string, weekNo: number) {
-  const bounds = monthBounds(month);
-  if (!weekNo) return bounds;
-  const [year, monthNumber] = month.slice(0, 7).split('-').map(Number);
-  const startDay = (weekNo - 1) * 7 + 1;
-  const endDay = Math.min(weekNo * 7 + 1, new Date(Date.UTC(year, monthNumber, 0)).getUTCDate() + 1);
-  const start = new Date(Date.UTC(year, monthNumber - 1, startDay)).toISOString().slice(0, 10);
-  const end = new Date(Date.UTC(year, monthNumber - 1, endDay)).toISOString().slice(0, 10);
-  return { start, end };
+  const range = getMonthWeekRange(month, weekNo);
+  return { start: range.start, end: range.endExclusive };
 }
 
-function getWeekNo(contractDate: string) {
+function getWeekNo(contractDate: string, month = monthKey(contractDate)) {
+  const configuredWeek = getMonthWeekNo(contractDate, month);
+  if (configuredWeek !== null) return configuredWeek;
   const day = new Date(`${contractDate.slice(0, 10)}T00:00:00.000Z`).getUTCDate();
   return Math.min(5, Math.ceil(day / 7));
 }
@@ -466,7 +462,7 @@ async function calculateWeekRows(
 ) {
   const locked = await readLockedPeriod(month, weekNo, db);
   if (locked) return locked.rows;
-  const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date) === weekNo);
+  const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, month) === weekNo);
   const weekSales = teamSalesFor(weekContracts, 0);
   const totalSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
   const grossFund = amount(totalSales * rate);
@@ -609,8 +605,14 @@ export async function getTeamLeadContractBreakdown(month: string, contractId: nu
   );
   if (!result.rows.length) return null;
   const contract = result.rows[0];
-  const contractMonth = `${monthKey(contract.contract_date)}-01`;
-  const weekNo = getWeekNo(contract.contract_date);
+  const requestedMonth = monthKey(month);
+  const contractDate = contract.contract_date.slice(0, 10);
+  const contractMonthKey = requestedMonth === '2026-09'
+    && getMonthWeekNo(contractDate, requestedMonth) !== null
+    ? requestedMonth
+    : monthKey(contractDate);
+  const contractMonth = `${contractMonthKey}-01`;
+  const weekNo = getWeekNo(contractDate, contractMonthKey);
   const roster = await loadRoster(contractMonth, weekNo, db);
   const membershipResult = await db.query(`SELECT fund_rate FROM teamlead_periods WHERE month = $1 AND week_no = $2 LIMIT 1`, [contractMonth, weekNo]);
   const monthRateResult = await db.query(`SELECT fund_rate FROM teamlead_periods WHERE month = $1 AND week_no = 0 LIMIT 1`, [contractMonth]);
@@ -696,7 +698,7 @@ export async function getTeamLeadReports(month: string, db: typeof pool = pool) 
       ...row,
       id: Number(row.id),
       value: amount(row.value),
-      weekNo: getWeekNo(row.contract_date),
+      weekNo: getWeekNo(row.contract_date, monthKey(month)),
     })),
     monthPayouts: allocation.rows,
   };
