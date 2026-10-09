@@ -20,7 +20,6 @@ import {
   Receipt,
   Sparkles,
   ChevronDown,
-  Trophy,
   ClipboardList,
   Wallet,
 } from 'lucide-react';
@@ -35,7 +34,7 @@ const menuItems = [
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
   { label: 'Quản lý TeamLead', href: '/admin/teamlead', icon: Users },
-  { label: 'Quỹ vận hành và hỗ trợ', href: '/admin/quy-van-hanh-ho-tro', icon: Wallet },
+  { label: 'Chính sách hỗ trợ', href: '/admin/teamlead/chinh-sach', icon: Wallet },
   { label: 'Danh sách hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
   { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },
@@ -56,6 +55,11 @@ const teamLeadSubItems = [
   { label: 'Nhật ký & báo cáo', href: '/admin/teamlead/bao-cao' },
 ];
 
+const policySupportSubItems = [
+  { label: 'Chính sách phân bổ', href: '/admin/teamlead/chinh-sach' },
+  { label: 'Quỹ vận hành và hỗ trợ', href: '/admin/quy-van-hanh-ho-tro' },
+];
+
 interface AdminSidebarProps {
   adminName?: string;
   adminRole?: string;
@@ -72,9 +76,11 @@ export default function AdminSidebar({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const isWheelRoute = pathname?.startsWith('/admin/vong-quay');
-  const isTeamLeadRoute = pathname?.startsWith('/admin/teamlead');
+  const isPolicySupportRoute = pathname === '/admin/teamlead/chinh-sach' || pathname === '/admin/quy-van-hanh-ho-tro';
+  const isTeamLeadRoute = Boolean(pathname?.startsWith('/admin/teamlead') && pathname !== '/admin/teamlead/chinh-sach');
   const [isWheelMenuOpen, setIsWheelMenuOpen] = useState(isWheelRoute);
   const [isTeamLeadMenuOpen, setIsTeamLeadMenuOpen] = useState(isTeamLeadRoute);
+  const [isPolicySupportMenuOpen, setIsPolicySupportMenuOpen] = useState(isPolicySupportRoute);
 
   useEffect(() => {
     if (isWheelRoute) {
@@ -85,6 +91,10 @@ export default function AdminSidebar({
   useEffect(() => {
     if (isTeamLeadRoute) setIsTeamLeadMenuOpen(true);
   }, [isTeamLeadRoute]);
+
+  useEffect(() => {
+    if (isPolicySupportRoute) setIsPolicySupportMenuOpen(true);
+  }, [isPolicySupportRoute]);
 
   useEffect(() => {
     if (defaultAdminRole) setCurrentRole(safeDecodeURI(defaultAdminRole));
@@ -235,7 +245,7 @@ export default function AdminSidebar({
 
             return (
               <React.Fragment key={item.href}>
-                {item.href !== '/admin/teamlead' && (
+                {item.href !== '/admin/teamlead' && item.href !== '/admin/teamlead/chinh-sach' && (
                   <li>
                     <Link
                       href={item.href}
@@ -326,6 +336,46 @@ export default function AdminSidebar({
                     {isTeamLeadMenuOpen && (
                       <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
                         {teamLeadSubItems.map((sub) => {
+                          const isSubActive = pathname === sub.href;
+                          return (
+                            <li key={sub.href}>
+                              <Link
+                                href={sub.href}
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                  isSubActive ? 'bg-[#2563eb] text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${isSubActive ? 'bg-white' : 'bg-slate-500'}`} />
+                                <span>{sub.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                )}
+                {isAdmin && item.href === '/admin/teamlead/chinh-sach' && (
+                  <li className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsPolicySupportMenuOpen(!isPolicySupportMenuOpen)}
+                      aria-expanded={isPolicySupportMenuOpen}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
+                        isPolicySupportRoute
+                          ? 'bg-slate-800 text-emerald-300 font-semibold shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <Wallet className={`w-5 h-5 flex-shrink-0 ${isPolicySupportRoute ? 'text-emerald-300' : 'text-slate-400'}`} />
+                        <span>Chính sách hỗ trợ</span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPolicySupportMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                    </button>
+                    {isPolicySupportMenuOpen && (
+                      <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {policySupportSubItems.map((sub) => {
                           const isSubActive = pathname === sub.href;
                           return (
                             <li key={sub.href}>

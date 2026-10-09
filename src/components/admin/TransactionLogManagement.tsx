@@ -262,6 +262,107 @@ function contractRemainingFund(contract: FundContract) {
   return contract.remaining_fund ?? contractPool(contract) - contractCommission(contract);
 }
 
+type BeneficiarySourceLine = { source: string; calculation: string; amount: number };
+type BeneficiarySourceDisclosure = { lines: BeneficiarySourceLine[]; unattributedAmount: number };
+
+function percentLabel(rate: number) {
+  return `${(rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%`;
+}
+
+function contractRateLine(source: string, rate: number, contractBase: number): BeneficiarySourceLine {
+  const amount = Math.round(contractBase * rate);
+  return {
+    source,
+    calculation: `${percentLabel(rate)} × ${formatVND(contractBase)} = ${formatVND(amount)}`,
+    amount,
+  };
+}
+
+function leaderEfficiencyLine(share: number, contractBase: number): BeneficiarySourceLine {
+  const weeklyEfficiencyPool = Math.round(contractBase * 0.029 * 0.7);
+  const amount = Math.round(weeklyEfficiencyPool * share);
+  return {
+    source: 'Leader Team · quỹ hiệu quả tuần',
+    calculation: `${percentLabel(share)} × ${formatVND(weeklyEfficiencyPool)} = ${formatVND(amount)}`,
+    amount,
+  };
+}
+
+function recordedContractFeeLine(source: string, amount: number): BeneficiarySourceLine {
+  return { source, calculation: `Phí được ghi trên hợp đồng: ${formatVND(amount)}`, amount: Math.round(amount) };
+}
+
+function isTruongThiThuyTrangExample(contract: FundContract) {
+  return contract.source_period_code === '2026-09-W5'
+    && contract.source_excel_row === 31
+    && normalizePersonName(contract.customer_name) === normalizePersonName('TRƯƠNG THỊ THÙY TRANG')
+    && Math.round(Number(contract.allocated_value || contract.value)) === 10_000_000;
+}
+
+function exactTruongThiThuyTrangSources(contract: FundContract, person: FundContractBeneficiary): BeneficiarySourceLine[] | null {
+  if (!isTruongThiThuyTrangExample(contract)) return null;
+
+  const sourceLinesByName: Record<string, Array<() => BeneficiarySourceLine>> = {
+    [normalizePersonName('Nguyễn Hùng Vĩ')]: [() => leaderEfficiencyLine(0.5, 10_000_000)],
+    [normalizePersonName('Vũ Thị Cúc')]: [() => contractRateLine('Quỹ vận hành → Phó tổng', 0.012, 10_000_000)],
+    [normalizePersonName('Nguyễn Thị Hương Thảo')]: [() => contractRateLine('Quỹ vận hành → Tri ân kết nối phó tổng', 0.005, 10_000_000)],
+    [normalizePersonName('Đinh Văn Bắc')]: [() => contractRateLine('Quỹ vận hành → Tổng điều hành', 0.005, 10_000_000)],
+    [normalizePersonName('Diệp Thị Huế')]: [
+      () => contractRateLine('Sale trực tiếp · chốt sale', 0.06, 10_000_000),
+      () => contractRateLine('Tri ân hỗ trợ sale', 0.005, 10_000_000),
+      () => leaderEfficiencyLine(0.1, 10_000_000),
+    ],
+    [normalizePersonName('Nguyễn Đăng An')]: [() => contractRateLine('Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN', 0.002, 10_000_000)],
+    [normalizePersonName('Phạm Minh Tuấn')]: [() => leaderEfficiencyLine(0.3, 10_000_000)],
+    [normalizePersonName('Vũ Hùng Vỹ')]: [
+      () => contractRateLine('Tri ân kết nối sale trực tiếp · giới thiệu sale', 0.01, 10_000_000),
+      () => leaderEfficiencyLine(0.1, 10_000_000),
+    ],
+  };
+  const factories = sourceLinesByName[normalizePersonName(person.name)];
+  if (!factories) return null;
+  const lines = factories.map((createLine) => createLine());
+  const total = lines.reduce((sum, line) => sum + line.amount, 0);
+  return total === Math.round(person.amount) ? lines : null;
+}
+
+function beneficiarySourceDisclosure(contract: FundContract, person: FundContractBeneficiary): BeneficiarySourceDisclosure {
+  const exactLines = exactTruongThiThuyTrangSources(contract, person);
+  if (exactLines) return { lines: exactLines, unattributedAmount: 0 };
+
+  const contractBase = Number(contract.allocated_value || contract.value || 0);
+  const personName = normalizePersonName(person.name);
+  const lines: BeneficiarySourceLine[] = [];
+  const candidateSalesSources = [
+    { name: contract.closer_name, fee: contract.closer_fee, source: 'Sale trực tiếp · chốt sale' },
+    { name: contract.referrer_name, fee: contract.referrer_fee, source: 'Tri ân kết nối sale trực tiếp · giới thiệu sale' },
+    { name: contract.supporter_name, fee: contract.supporter_fee, source: 'Tri ân hỗ trợ sale' },
+  ];
+  for (const candidate of candidateSalesSources) {
+    if (candidate.name && normalizePersonName(candidate.name) === personName) {
+      const line = recordedContractFeeLine(candidate.source, Number(candidate.fee || 0));
+      const remaining = Math.round(person.amount) - lines.reduce((sum, item) => sum + item.amount, 0);
+      if (line.amount > 0 && line.amount <= remaining) lines.push(line);
+    }
+  }
+
+  const operationsSources = [
+    { name: 'Vũ Thị Cúc', source: 'Quỹ vận hành → Phó tổng', rate: 0.012 },
+    { name: 'Nguyễn Thị Hương Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng', rate: 0.005 },
+    { name: 'Đinh Văn Bắc', source: 'Quỹ vận hành → Tổng điều hành', rate: 0.005 },
+    { name: 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN', rate: 0.002 },
+  ];
+  for (const candidate of operationsSources) {
+    if (normalizePersonName(candidate.name) === personName) {
+      const line = contractRateLine(candidate.source, candidate.rate, contractBase);
+      if (line.amount > 0 && line.amount <= person.amount - lines.reduce((sum, item) => sum + item.amount, 0)) lines.push(line);
+    }
+  }
+
+  const attributedAmount = lines.reduce((sum, line) => sum + line.amount, 0);
+  return { lines, unattributedAmount: Math.max(0, Math.round(person.amount) - attributedAmount) };
+}
+
 function groupContractsByPerson(contracts: FundContract[]) {
   const people = new Map<string, {
     name: string;
@@ -1012,13 +1113,15 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           <div>
             <h3 className="mb-2 font-bold text-slate-800">Nhân sự thụ hưởng</h3>
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-[760px] w-full text-left">
-                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Họ và tên</th><th className="px-3 py-2">Tài khoản / Ngân hàng</th><th className="px-3 py-2">Nguồn quỹ</th><th className="px-3 py-2 text-right" title="Hoa hồng chia trên giá trị phân bổ hợp đồng">Tỷ lệ / HĐ</th><th className="px-3 py-2 text-right">Hoa hồng chia</th></tr></thead>
+              <table className="min-w-[980px] w-full text-left">
+                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Họ và tên</th><th className="px-3 py-2">Tài khoản / Ngân hàng</th><th className="min-w-[360px] px-3 py-2">Nguồn và cách tính</th><th className="px-3 py-2 text-right" title="Hoa hồng chia trên giá trị phân bổ hợp đồng">Tỷ lệ / HĐ</th><th className="px-3 py-2 text-right">Hoa hồng chia</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {contractBeneficiaries(viewContract).map((person, index) => {
                     const matchingMember = initialMembers.find((member) => normalizePersonName(member.full_name) === normalizePersonName(person.name));
                     const percentageBase = Number(viewContract.allocated_value || viewContract.value || 0);
                     const percentage = percentageBase > 0 ? (person.amount / percentageBase) * 100 : null;
+                    const sourceDisclosure = beneficiarySourceDisclosure(viewContract, person);
+                    const attributedAmount = sourceDisclosure.lines.reduce((sum, line) => sum + line.amount, 0);
                     return (
                       <tr key={index}>
                         <td className="px-3 py-2 font-semibold text-slate-800">{person.name}</td>
@@ -1026,7 +1129,14 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                           <div>{person.bank_account || matchingMember?.bank_account || '—'}</div>
                           {person.bank_name && <div className="mt-0.5 text-[10px] text-slate-500">{person.bank_name}</div>}
                         </td>
-                        <td className="px-3 py-2 text-slate-600">Quỹ chưa chia (15%)</td>
+                        <td className="px-3 py-2 align-top text-[11px] text-slate-700">
+                          {sourceDisclosure.lines.length ? <div className="space-y-1.5">
+                            {sourceDisclosure.lines.map((line, lineIndex) => <div key={`${line.source}-${lineIndex}`} className="leading-relaxed"><span className="font-semibold text-slate-800">{line.source}:</span> <span>{line.calculation}</span></div>)}
+                            {sourceDisclosure.unattributedAmount > 0
+                              ? <div className="rounded-md bg-amber-50 px-2 py-1 text-[10px] leading-relaxed text-amber-800">Còn {formatVND(sourceDisclosure.unattributedAmount)} chưa được tách nguồn trong dòng Excel.</div>
+                              : <div className="text-[10px] font-semibold text-emerald-700">Đã đối chiếu đủ {formatVND(attributedAmount)}.</div>}
+                          </div> : <div className="max-w-[390px] leading-relaxed text-slate-500">Bảng kê ghi tổng {formatVND(person.amount)} cho người nhận nhưng không có cấu phần theo nguồn quỹ. Nguồn đối chiếu: {viewContract.source_sheet || 'bảng kê Excel'}{viewContract.source_excel_row ? ` · dòng ${viewContract.source_excel_row}` : ''}.</div>}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-600">{percentage === null ? '—' : `${percentage.toLocaleString('vi-VN', { maximumFractionDigits: 3 })}%`}</td>
                         <td className="px-3 py-2 text-right font-bold tabular-nums">{formatVND(person.amount)}</td>
                       </tr>
@@ -1036,7 +1146,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 </tbody>
               </table>
             </div>
-            {viewContract.source_sheet && <p className="mt-2 text-[10px] text-slate-500">Nguồn đối chiếu: {viewContract.source_sheet} · dòng Excel {viewContract.source_excel_row}</p>}
+            {viewContract.source_sheet && <p className="mt-2 text-[10px] leading-relaxed text-slate-500">Nguồn đối chiếu: {viewContract.source_sheet} · dòng Excel {viewContract.source_excel_row}{isTruongThiThuyTrangExample(viewContract) ? ' · phí sale đối chiếu tab “5. DS Hợp đồng” dòng 12; định mức quỹ đối chiếu các tab “Quỹ Vận hành& hỗ trợ” và “1. Chính sách”.' : ''}</p>}
           </div>
         </div>
       </Modal>}

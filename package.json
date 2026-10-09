@@ -22,6 +22,8 @@
     "db:migrate:schedules": "node script/migrate_event_schedules.js",
     "db:permissions": "node script/run_permissions_sql.js",
     "db:sync:neon": "node script/sync_db_from_neon.js",
+    "db:sync:neon:events-members": "node script/sync_events_members_from_neon.js",
+    "db:push:neon": "node script/sync_local_to_neon_safe.js --apply",
     "db:import:contracts": "node script/import_contracts_from_neon.js",
     "db:fix:fonts": "node script/fix_font_contract_names.js",
     "db:test": "node script/test_db.js"
