@@ -1194,18 +1194,18 @@ export default function ContractManagement({
 
       <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1320px] border-collapse text-left text-xs tabular-nums">
+          <table className="w-full min-w-[1200px] border-collapse text-left text-xs tabular-nums">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
               <tr className="border-b border-slate-200">
-                <th className="w-12 px-3 py-3 text-center">STT</th>
-                <th className="min-w-[180px] px-3 py-3">Mã / loại hợp đồng</th>
-                <th className="min-w-[150px] px-3 py-3">Đội nhóm</th>
-                <th className="whitespace-nowrap px-3 py-3">Ngày ký</th>
-                <th className="min-w-[180px] px-3 py-3">Khách hàng &amp; SĐT</th>
-                <th className="min-w-[170px] px-3 py-3">Người chốt</th>
-                <th className="min-w-[170px] px-3 py-3">Người giới thiệu</th>
-                <th className="whitespace-nowrap px-3 py-3 text-right">Giá trị hợp đồng phân bổ (VND)</th>
-                <th className="whitespace-nowrap px-3 py-3 text-center">Thao tác</th>
+                <th className="w-12 px-2 py-3 text-center whitespace-nowrap">STT</th>
+                <th className="w-32 px-3 py-3 whitespace-nowrap">Mã / loại hợp đồng</th>
+                <th className="w-28 min-w-[110px] px-3 py-3">Đội nhóm</th>
+                <th className="w-28 whitespace-nowrap px-3 py-3">Ngày ký</th>
+                <th className="min-w-[200px] px-3 py-3">Khách hàng &amp; SĐT</th>
+                <th className="w-44 min-w-[160px] px-3 py-3">Người chốt</th>
+                <th className="w-44 min-w-[160px] px-3 py-3">Người giới thiệu</th>
+                <th className="w-48 min-w-[175px] whitespace-nowrap px-3 py-3 text-right">Giá trị HĐ phân bổ (VND)</th>
+                <th className="w-24 whitespace-nowrap px-3 py-3 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1219,29 +1219,29 @@ export default function ContractManagement({
                   tabIndex={0}
                   className="cursor-pointer transition-colors hover:bg-blue-50/50 focus:bg-blue-50/50"
                 >
-                  <td className="px-3 py-3 text-center text-slate-400">{(currentPage - 1) * pageSize + index + 1}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2 whitespace-nowrap">
+                  <td className="w-12 px-2 py-3 text-center whitespace-nowrap text-slate-400">{(currentPage - 1) * pageSize + index + 1}</td>
+                  <td className="w-32 px-3 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
                       <strong className="text-sm text-blue-700">{contract.contract_code || '—'}</strong>
                       {contract.contract_type && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{contract.contract_type}</span>}
                     </div>
                   </td>
-                  <td className="px-3 py-3 font-medium text-slate-600">{contract.team_name?.trim() || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDate(contract.contract_date)}</td>
-                  <td className="px-3 py-3">
-                    <strong className="block max-w-[220px] truncate text-[13px] text-slate-800">{contract.customer_name}</strong>
+                  <td className="w-28 min-w-[110px] px-3 py-3 font-medium text-slate-600">{contract.team_name?.trim() || '—'}</td>
+                  <td className="w-28 whitespace-nowrap px-3 py-3 text-slate-600">{formatDate(contract.contract_date)}</td>
+                  <td className="min-w-[200px] px-3 py-3">
+                    <strong className="block text-[13px] text-slate-800">{contract.customer_name}</strong>
                     <span className="mt-0.5 block text-[11px] text-slate-400">{contract.customer_phone || 'Chưa có SĐT'}</span>
                   </td>
-                  <td className="px-3 py-3">
-                    <strong className="block max-w-[200px] truncate text-[13px] text-slate-800">{contract.closer_name || '—'}</strong>
+                  <td className="w-44 min-w-[160px] px-3 py-3">
+                    <strong className="block text-[13px] text-slate-800">{contract.closer_name || '—'}</strong>
                     <span className="mt-0.5 block text-[11px] text-slate-400">{contract.closer_phone || 'Chưa có SĐT'}</span>
                   </td>
-                  <td className="px-3 py-3">
-                    <strong className="block max-w-[200px] truncate text-[13px] text-slate-800">{contract.referrer_name || '—'}</strong>
+                  <td className="w-44 min-w-[160px] px-3 py-3">
+                    <strong className="block text-[13px] text-slate-800">{contract.referrer_name || '—'}</strong>
                     <span className="mt-0.5 block text-[11px] text-slate-400">{contract.referrer_phone || 'Chưa có SĐT'}</span>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatMoney(getAllocatedContractValue(contract.value, contract.contract_type))}</td>
-                  <td className="px-3 py-3">
+                  <td className="w-48 min-w-[175px] whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatMoney(getAllocatedContractValue(contract.value, contract.contract_type))}</td>
+                  <td className="w-24 whitespace-nowrap px-3 py-3">
                     <div className="flex items-center justify-center gap-1">
                       <button
                         type="button"

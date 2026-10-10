@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
@@ -1210,31 +1210,41 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           <button type="button" onClick={() => setPrintLog(viewLog)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white sm:col-span-2"><Printer className="h-4 w-4" /> In / Lưu PDF</button>
         </div>
       </Modal>}
-      {viewContract && <Modal onClose={() => setViewContract(null)} title={`Chi tiết hợp đồng ${viewContract.contract_code || viewContract.customer_name}`}>
-        <div className="space-y-4 p-5 text-xs">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Detail label="Khách hàng" value={viewContract.customer_name} />
-            <Detail label="Ngày ký" value={formatDate(viewContract.contract_date)} />
-            <Detail label="Giá trị hợp đồng" value={formatVND(viewContract.value)} />
-            <Detail label="Giá trị phân bổ" value={isBdsContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (BĐS · 4/15)` : formatVND(viewContract.allocated_value)} />
-            <Detail label="Loại hợp đồng" value={viewContract.contract_type || 'Thường'} />
-            <Detail label="Trạng thái hợp đồng" value={viewContract.status || '—'} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Detail label="Tổng quỹ chưa chia (15%)" value={formatVND(contractPool(viewContract))} />
-            <Detail label="Tổng hoa hồng chia" value={formatVND(contractCommission(viewContract))} />
-            <Detail label="Tổng quỹ còn lại" value={formatVND(contractRemainingFund(viewContract))} />
-          </div>
+      {viewContract && (
+        <Modal
+          onClose={() => setViewContract(null)}
+          title={`Chi tiết hợp đồng ${viewContract.contract_code || viewContract.customer_name}`}
+          maxWidth="w-full max-w-[1500px] xl:w-[90vw] 2xl:min-w-[1500px]"
+        >
+          <div className="space-y-4 p-5 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Detail label="Khách hàng" value={viewContract.customer_name} />
+              <Detail label="Ngày ký" value={formatDate(viewContract.contract_date)} />
+              <Detail label="Giá trị hợp đồng" value={formatVND(viewContract.value)} />
+              <Detail label="Giá trị phân bổ" value={isBdsContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (BĐS · 4/15)` : formatVND(viewContract.allocated_value)} />
+              <Detail label="Loại hợp đồng" value={viewContract.contract_type || 'Thường'} />
+              <Detail label="Trạng thái hợp đồng" value={viewContract.status || '—'} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Detail label="Tổng quỹ chưa chia (15%)" value={formatVND(contractPool(viewContract))} />
+              <Detail label="Tổng hoa hồng chia" value={formatVND(contractCommission(viewContract))} />
+              <Detail label="Tổng quỹ còn lại" value={formatVND(contractRemainingFund(viewContract))} />
+            </div>
           <div>
             <h3 className="mb-2 font-bold text-slate-800">Nhân sự thụ hưởng</h3>
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-[980px] w-full text-left">
-                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Họ và tên</th><th className="px-3 py-2">Tài khoản / Ngân hàng</th><th className="min-w-[360px] px-3 py-2">Nguồn và cách tính</th><th className="px-3 py-2 text-right" title="Hoa hồng chia trên giá trị phân bổ hợp đồng">Tỷ lệ / HĐ</th><th className="px-3 py-2 text-right">Hoa hồng chia</th></tr></thead>
+              <table className="min-w-[840px] w-full text-left">
+                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Họ và tên</th>
+                    <th className="px-3 py-2">Tài khoản / Ngân hàng</th>
+                    <th className="min-w-[360px] px-3 py-2">Nguồn và cách tính</th>
+                    <th className="px-3 py-2 text-right">Hoa hồng chia</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100">
                   {contractBeneficiaries(viewContract).map((person, index) => {
                     const matchingMember = initialMembers.find((member) => normalizePersonName(member.full_name) === normalizePersonName(person.name));
-                    const percentageBase = Number(viewContract.allocated_value || viewContract.value || 0);
-                    const percentage = percentageBase > 0 ? (person.amount / percentageBase) * 100 : null;
                     const sourceDisclosure = beneficiarySourceDisclosure(viewContract, person);
                     const attributedAmount = sourceDisclosure.lines.reduce((sum, line) => sum + line.amount, 0);
                     return (
@@ -1252,19 +1262,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                               : <div className="text-[10px] font-semibold text-emerald-700">Đã đối chiếu đủ {formatVND(attributedAmount)}.</div>}
                           </div> : <div className="max-w-[390px] leading-relaxed text-slate-500">Bảng kê ghi tổng {formatVND(person.amount)} cho người nhận nhưng không có cấu phần theo nguồn quỹ. Nguồn đối chiếu: {viewContract.source_sheet || 'bảng kê Excel'}{viewContract.source_excel_row ? ` · dòng ${viewContract.source_excel_row}` : ''}.</div>}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-600">{percentage === null ? '—' : `${percentage.toLocaleString('vi-VN', { maximumFractionDigits: 3 })}%`}</td>
                         <td className="px-3 py-2 text-right font-bold tabular-nums">{formatVND(person.amount)}</td>
                       </tr>
                     );
                   })}
-                  {!contractBeneficiaries(viewContract).length && <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-500">Chưa có nhân sự thụ hưởng.</td></tr>}
+                  {!contractBeneficiaries(viewContract).length && <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-500">Chưa có nhân sự thụ hưởng.</td></tr>}
                 </tbody>
               </table>
             </div>
             {viewContract.source_sheet && <p className="mt-2 text-[10px] leading-relaxed text-slate-500">Nguồn đối chiếu: {viewContract.source_sheet} · dòng Excel {viewContract.source_excel_row}{isTruongThiThuyTrangExample(viewContract) ? ' · phí sale đối chiếu tab “5. DS Hợp đồng” dòng 12; định mức quỹ đối chiếu các tab “Quỹ Vận hành& hỗ trợ” và “1. Chính sách”.' : ''}</p>}
           </div>
         </div>
-      </Modal>}
+      </Modal>)}
       {printLog && <div className="print-sheet">
         <div className="mb-8 border-b-2 border-slate-900 pb-4 text-center">
           <h1 className="text-sm font-bold uppercase">Công ty Cổ phần Tập đoàn Nghiêng Complex</h1>
@@ -1310,8 +1319,77 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${style}`}>{status === 'Thiếu dữ liệu' ? <AlertCircle className="h-3 w-3" /> : null}{status}</span>;
 }
 
-function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2><button onClick={onClose} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>{children}</div></div>;
+function Modal({
+  children,
+  onClose,
+  title,
+  maxWidth = 'max-w-2xl',
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  title: string;
+  maxWidth?: string;
+}) {
+  const isBackdropMouseDownRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      isBackdropMouseDownRef.current = true;
+    } else {
+      isBackdropMouseDownRef.current = false;
+    }
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget && isBackdropMouseDownRef.current) {
+      onClose();
+    }
+    isBackdropMouseDownRef.current = false;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+      onMouseDown={handleBackdropMouseDown}
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className={`max-h-[92vh] w-full ${maxWidth} overflow-y-auto rounded-2xl bg-white shadow-2xl`}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          isBackdropMouseDownRef.current = false;
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 rounded-t-2xl">
+          <h2 className="font-bold text-slate-900">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
