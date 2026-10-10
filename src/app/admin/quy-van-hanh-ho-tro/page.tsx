@@ -24,7 +24,7 @@ async function getOperationsFundData() {
   const [logsResult, contractsResult, allocationsResult] = await Promise.all([
     pool.query(`
       SELECT id, request_code, request_date::text AS request_date, fund_source, detail_content,
-        requester_name, beneficiary_name, beneficiary_phone, beneficiary_bank_account,
+        requester_name, beneficiary_name, beneficiary_phone, beneficiary_bank_account, beneficiary_bank_name,
         proposed_amount::float8 AS proposed_amount, status,
         actual_expense::float8 AS actual_expense, payment_date::text AS payment_date,
         source_contract_id, expense_type

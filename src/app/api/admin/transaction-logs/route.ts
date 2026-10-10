@@ -54,17 +54,19 @@ export async function POST(request: Request) {
       ? Number(body.beneficiaryUserId)
       : null;
     const beneficiaryBankAccount = String(body.beneficiaryBankAccount || '').trim() || null;
+    const beneficiaryBankName = String(body.beneficiaryBankName || body.bankName || '').trim() || null;
     const paidImmediately = ['Đã thanh toán', 'Đã thực hiện', 'Đã chi'].includes(status);
     const inserted = await pool.query(
       `INSERT INTO transaction_logs (
         request_code, request_date, fund_source, detail_content,
         requester_id, requester_name, requester_phone, approver_id, approver_name, approver_phone,
         beneficiary_name, beneficiary_phone, beneficiary_user_id, beneficiary_bank_account,
+        beneficiary_bank_name,
         proposed_amount, available_balance, fund_alert, status, actual_expense, receipt_url,
         source_complete, expense_type, approval_date, payment_date
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,TRUE,'Thủ công',
-        CASE WHEN $18 IN ('Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END,
-        CASE WHEN $18 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,TRUE,'Thủ công',
+        CASE WHEN $19 IN ('Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END,
+        CASE WHEN $19 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END)
       RETURNING id`,
       [
         code,
@@ -81,6 +83,7 @@ export async function POST(request: Request) {
         body.beneficiaryPhone || null,
         beneficiaryUserId,
         beneficiaryBankAccount,
+        beneficiaryBankName,
         amount,
         availableBalance,
         fundAlert,

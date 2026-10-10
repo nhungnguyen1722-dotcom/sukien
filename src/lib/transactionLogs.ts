@@ -5,6 +5,7 @@ export const SELECT_TRANSACTION_LOGS = `
     tl.id, tl.request_code, tl.request_date::text AS request_date, tl.fund_source, tl.detail_content,
     tl.requester_id, tl.requester_name, tl.requester_phone, tl.approver_id, tl.approver_name, tl.approver_phone,
     tl.beneficiary_name, tl.beneficiary_phone, tl.beneficiary_user_id, tl.beneficiary_bank_account,
+    tl.beneficiary_bank_name,
     tl.proposed_amount::float8 AS proposed_amount,
     tl.available_balance::float8 AS available_balance, tl.fund_alert, tl.status, tl.expense_type,
     tl.source_contract_id, tl.beneficiary_role,

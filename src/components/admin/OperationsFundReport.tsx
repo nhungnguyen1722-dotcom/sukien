@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import {
-  CalendarDays,
+  Calendar,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Download,
-  Eye,
+  Layers,
   Plus,
-  Search,
+  TrendingUp,
   Wallet,
   X,
 } from 'lucide-react';
@@ -20,8 +21,6 @@ import {
   getOperationsSupportFundKey,
   OPERATIONS_SUPPORT_FUND_RATE,
   OPERATIONS_SUPPORT_FUND_TYPES,
-  SEPTEMBER_2026_OPERATIONS_EXPENSE_SOURCE_ROWS,
-  SEPTEMBER_2026_OPERATIONS_FUND_SOURCE,
   type OperationsSupportFundKey,
 } from '@/lib/operationsFunds';
 
@@ -37,28 +36,86 @@ type Props = {
   initialMonth: string;
 };
 
-type FundSummary = {
-  key: OperationsSupportFundKey;
-  label: string;
-  color: string;
-  proposed: number;
-  paid: number;
-  allocated: number;
-  rows: number;
-  share: number;
-  rateSource: string;
-  sourceSheet: string;
-};
+/** Các bộ phận cố định cho dropdown (Hình 7.6) */
+const DEPARTMENT_OPTIONS = [
+  'Tri ấn kết nối phó tổng',
+  'Tổng điều hành',
+  'Phó tổng',
+  'Quỹ hỗ trợ & dự phòng (CN)',
+  'Quỹ hỗ trợ & dự phòng (KT)',
+] as const;
+
+/** Loại quỹ cho dropdown trong modal */
+const FUND_TYPE_OPTIONS = [
+  { key: 'operations', label: 'Quỹ vận hành' },
+  { key: 'support_cn', label: 'BP hỗ trợ CN' },
+  { key: 'support_kt', label: 'BP hỗ trợ KT' },
+] as const;
+
+/** Cấu hình phân bổ theo bộ phận - dữ liệu chuẩn theo Hình 7.1, 7.2, 7.3 */
+const ALLOCATION_ROWS = [
+  {
+    fundType: 'Quỹ vận hành',
+    fundKey: 'operations' as OperationsSupportFundKey,
+    department: 'Tri ấn kết nối phó tổng',
+    phone: '000006',
+    fullName: 'Nguyễn Thị Hương Thảo',
+    bankAccount: '0965749223',
+    bankName: 'Vpbank',
+    weeklyRate: 0.005,
+    monthlyRate: 0.005,
+  },
+  {
+    fundType: 'Quỹ vận hành',
+    fundKey: 'operations' as OperationsSupportFundKey,
+    department: 'Tổng điều hành',
+    phone: '000007',
+    fullName: 'Đinh Văn Bắc',
+    bankAccount: '19033903936017',
+    bankName: 'Techcombank',
+    weeklyRate: 0.005,
+    monthlyRate: 0.005,
+  },
+  {
+    fundType: 'Quỹ vận hành',
+    fundKey: 'operations' as OperationsSupportFundKey,
+    department: 'Phó tổng',
+    phone: '0889225989',
+    fullName: 'Vũ Thị Cúc',
+    bankAccount: '2589225989',
+    bankName: 'Techcombank',
+    weeklyRate: 0.012,
+    monthlyRate: 0.012,
+  },
+  {
+    fundType: 'BP hỗ trợ CN',
+    fundKey: 'support_cn' as OperationsSupportFundKey,
+    department: 'Quỹ hỗ trợ & dự phòng (CN)',
+    phone: '0343781580',
+    fullName: 'Nguyễn Đăng An',
+    bankAccount: '183093983',
+    bankName: 'VP Bank',
+    weeklyRate: 0.002,
+    monthlyRate: 0.002,
+  },
+  {
+    fundType: 'BP hỗ trợ KT',
+    fundKey: 'support_kt' as OperationsSupportFundKey,
+    department: 'Quỹ hỗ trợ & dự phòng (KT)',
+    phone: '00000',
+    fullName: '',
+    bankAccount: '',
+    bankName: '',
+    weeklyRate: 0.001,
+    monthlyRate: 0.001,
+  },
+];
 
 const PAID_STATUSES = new Set(['Đã chi', 'Đã thanh toán', 'Đã thực hiện']);
 const REJECTED_STATUS = 'Từ chối';
-const MONTHS = [
-  'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-  'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
-];
 
 const money = (value: number | null | undefined) =>
-  `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value || 0)))} ₫`;
+  `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value || 0)))} đ`;
 
 const dateLabel = (value?: string | null) => {
   if (!value) return '—';
@@ -66,7 +123,6 @@ const dateLabel = (value?: string | null) => {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 };
 
-const amountFor = (log: TransactionLog) => Number(log.proposed_amount ?? log.actual_expense ?? 0);
 const paidAmountFor = (log: TransactionLog) => Number(log.actual_expense ?? log.proposed_amount ?? 0);
 
 function inRange(date: string | null | undefined, start: string, endInclusive: string) {
@@ -75,139 +131,73 @@ function inRange(date: string | null | undefined, start: string, endInclusive: s
   return day >= start && day <= endInclusive;
 }
 
-function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
-}
-
-function formatPeriodRangeStr(startStr: string, endInclusiveStr: string) {
-  const start = startStr.slice(0, 10).split('-');
-  const end = endInclusiveStr.slice(0, 10).split('-');
-  if (start.length !== 3 || end.length !== 3) return '';
-  const [, sMonth, sDay] = start;
-  const [, eMonth, eDay] = end;
-  if (sMonth === eMonth) {
-    return `${sDay}–${eDay}/${eMonth}`;
-  }
-  return `${sDay}/${sMonth}–${eDay}/${eMonth}`;
-}
-
-function weekLabel(month: string, weekNo: number) {
-  const range = getMonthWeekRange(month, weekNo);
-  return `Tuần ${weekNo} · ${dateLabel(range.start)}–${dateLabel(range.endInclusive)}`;
-}
-
-function MetricCard({
-  title,
-  value,
-  note,
-  icon,
-  tone,
-}: {
-  title: string;
-  value: string;
-  note: string;
-  icon: React.ReactNode;
-  tone: 'blue' | 'rose' | 'emerald' | 'violet';
-}) {
-  const tones = {
-    blue: 'border-blue-100 bg-blue-50 text-blue-700',
-    rose: 'border-rose-100 bg-rose-50 text-rose-700',
-    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    violet: 'border-violet-100 bg-violet-50 text-violet-700',
-  };
-  return (
-    <section className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ${tones[tone]}`}>{icon}</span>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-slate-500">{title}</p>
-        <p className="mt-1 truncate text-lg font-bold tabular-nums text-slate-900">{value}</p>
-        <p className="mt-0.5 truncate text-[10px] text-slate-500">{note}</p>
-      </div>
-    </section>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const style = PAID_STATUSES.has(status)
-    ? 'bg-emerald-50 text-emerald-700'
-    : status === 'Đã duyệt'
-      ? 'bg-blue-50 text-blue-700'
-      : status === REJECTED_STATUS
-        ? 'bg-rose-50 text-rose-700'
-        : 'bg-amber-50 text-amber-700';
-  return <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold ${style}`}>{status || 'Chưa có trạng thái'}</span>;
-}
+type ViewMode = 'month' | 'week';
 
 export default function OperationsFundReport({ logs, contracts, allocations, initialMonth }: Props) {
   const [currentLogs, setCurrentLogs] = useState(logs);
-  const [selectedYear, setSelectedYear] = useState(initialMonth.slice(0, 4));
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth.slice(5, 7));
-  const [selectedWeek, setSelectedWeek] = useState(0);
-  const [search, setSearch] = useState('');
-  const [viewLog, setViewLog] = useState<TransactionLog | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth.slice(0, 7));
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [selectedWeek, setSelectedWeek] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState('');
   const [createForm, setCreateForm] = useState({
-    requestDate: '',
-    fundKey: 'operations' as OperationsSupportFundKey,
+    fundType: 'operations' as OperationsSupportFundKey,
     department: '',
-    detailContent: '',
-    beneficiaryName: '',
-    beneficiaryPhone: '',
-    beneficiaryBankAccount: '',
-    proposedAmount: '',
+    fullName: '',
+    phone: '',
+    bankAccount: '',
+    bankName: '',
+    amount: '',
+    month: Number(initialMonth.slice(5, 7)),
+    paymentDate: new Date().toISOString().slice(0, 10),
+    status: 'Chờ duyệt',
   });
 
-  const monthKey = `${selectedYear}-${selectedMonth}`;
-  const range = useMemo(() => getMonthWeekRange(monthKey, selectedWeek), [monthKey, selectedWeek]);
+  // Lấy danh sách các tháng khả dụng
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>([initialMonth.slice(0, 7), '2026-09', '2026-10']);
+    for (const alloc of allocations) if (alloc.period_month) months.add(alloc.period_month.slice(0, 7));
+    for (const contract of contracts) if (contract.contract_date) months.add(contract.contract_date.slice(0, 7));
+    return Array.from(months).filter((m) => /^\d{4}-\d{2}$/.test(m)).sort();
+  }, [allocations, contracts, initialMonth]);
 
-  const changeYear = (year: string) => {
-    setSelectedYear(year);
-    setSelectedWeek(0);
-  };
+  // Tính khoảng ngày cho kỳ được chọn
+  const range = useMemo(() => {
+    if (viewMode === 'week') {
+      return getMonthWeekRange(selectedMonth, selectedWeek);
+    }
+    return getMonthWeekRange(selectedMonth, 0);
+  }, [selectedMonth, viewMode, selectedWeek]);
 
-  const changeMonth = (month: number) => {
-    setSelectedMonth(String(month).padStart(2, '0'));
-    setSelectedWeek(0);
-  };
-
-  const allYears = useMemo(() => {
-    const years = new Set<string>([initialMonth.slice(0, 4), selectedYear]);
-    for (const log of currentLogs) if (log.request_date) years.add(log.request_date.slice(0, 4));
-    for (const contract of contracts) years.add(contract.contract_date.slice(0, 4));
-    for (const alloc of allocations) if (alloc.period_month) years.add(alloc.period_month.slice(0, 4));
-    return Array.from(years).filter((year) => /^\d{4}$/.test(year)).sort((a, b) => b.localeCompare(a));
-  }, [allocations, contracts, currentLogs, initialMonth, selectedYear]);
-
+  // Danh sách 5 tuần trong tháng
   const weekOptions = useMemo(() => {
     return [1, 2, 3, 4, 5].map((weekNo) => {
-      const r = getMonthWeekRange(monthKey, weekNo);
+      const r = getMonthWeekRange(selectedMonth, weekNo);
+      const startParts = r.start.slice(0, 10).split('-');
+      const endParts = r.endInclusive.slice(0, 10).split('-');
       return {
         weekNo,
-        label: `${weekNo} · ${formatPeriodRangeStr(r.start, r.endInclusive)}`,
+        label: `Tuần ${weekNo}`,
+        range: `${startParts[2]}/${startParts[1]} - ${endParts[2]}/${endParts[1]}`,
       };
     });
-  }, [monthKey]);
+  }, [selectedMonth]);
 
-  useEffect(() => {
-    if (selectedWeek !== 0 && !weekOptions.some((opt) => opt.weekNo === selectedWeek)) {
-      setSelectedWeek(0);
-    }
-  }, [selectedWeek, weekOptions]);
-
+  // Tính tổng DT hợp đồng trong kỳ
   const selectedContracts = useMemo(
-    () => contracts.filter((contract) => inRange(contract.contract_date, range.start, range.endInclusive)),
+    () => contracts.filter((c) => inRange(c.contract_date, range.start, range.endInclusive)),
     [contracts, range],
   );
-  const contractBase = selectedContracts.reduce((sum, contract) => sum + Number(contract.allocation_base || 0), 0);
+  const contractBase = selectedContracts.reduce((sum, c) => sum + Number(c.allocation_base || 0), 0);
   const fundBudget = Math.round(contractBase * OPERATIONS_SUPPORT_FUND_RATE);
 
+  // Lấy dữ liệu phân bổ từ database nếu có
   const selectedAllocations = useMemo(() => {
     const fundRows = allocations.filter((row) => (
-      row.period_month === monthKey && getOperationsSupportFundKey(row.fund_source) !== null
+      row.period_month === selectedMonth && getOperationsSupportFundKey(row.fund_source) !== null
     ));
-    if (selectedWeek === 0) {
+    if (viewMode === 'month') {
       const monthRows = fundRows.filter((row) => row.period_code.endsWith('-MONTH'));
       return monthRows.length ? monthRows : fundRows.filter((row) => !row.period_code.endsWith('-MONTH'));
     }
@@ -215,116 +205,105 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
       !row.period_code.endsWith('-MONTH')
       && getPeriodWeekNo(row.period_label, row.period_code, 0) === selectedWeek
     ));
-  }, [allocations, monthKey, selectedWeek]);
+  }, [allocations, selectedMonth, viewMode, selectedWeek]);
   const recordedAllocation = selectedAllocations.reduce((sum, row) => sum + Number(row.requested_amount || 0), 0);
 
-  const matchingLogs = useMemo(() => currentLogs.filter((log) => (
-    log.request_date
-    && inRange(log.request_date, range.start, range.endInclusive)
-    && getOperationsSupportFundKey(log.fund_source) !== null
-    && log.status !== REJECTED_STATUS
-  )), [currentLogs, range]);
+  // Lọc các kỳ chi thuộc kỳ được chọn
+  const matchingLogs = useMemo(() => currentLogs.filter((log) => {
+    const dateToCheck = log.payment_date || log.request_date;
+    return (
+      dateToCheck
+      && inRange(dateToCheck, range.start, range.endInclusive)
+      && getOperationsSupportFundKey(log.fund_source) !== null
+      && log.status !== REJECTED_STATUS
+    );
+  }), [currentLogs, range]);
 
-  const filteredLogs = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase('vi');
-    if (!query) return matchingLogs;
-    return matchingLogs.filter((log) => [
-      log.request_code,
-      log.fund_source,
-      log.detail_content,
-      log.requester_name,
-      log.beneficiary_name,
-      log.beneficiary_phone,
-      log.beneficiary_bank_account,
-    ].some((value) => String(value || '').toLocaleLowerCase('vi').includes(query)));
-  }, [matchingLogs, search]);
-
-  const proposedTotal = matchingLogs.reduce((sum, log) => sum + amountFor(log), 0);
   const paidTotal = matchingLogs
     .filter((log) => PAID_STATUSES.has(log.status))
     .reduce((sum, log) => sum + paidAmountFor(log), 0);
-  const waitingTotal = matchingLogs
-    .filter((log) => !PAID_STATUSES.has(log.status))
-    .reduce((sum, log) => sum + amountFor(log), 0);
+
   const reportedFund = selectedAllocations.length ? recordedAllocation : fundBudget;
   const remaining = reportedFund - paidTotal;
 
-  const fundSummaries: FundSummary[] = OPERATIONS_SUPPORT_FUND_TYPES.map((fund) => {
-    const rows = matchingLogs.filter((log) => getOperationsSupportFundKey(log.fund_source) === fund.key);
-    const allocationRows = selectedAllocations.filter((row) => getOperationsSupportFundKey(row.fund_source) === fund.key);
-    const proposed = rows.reduce((sum, log) => sum + amountFor(log), 0);
-    const paid = rows
-      .filter((log) => PAID_STATUSES.has(log.status))
-      .reduce((sum, log) => sum + paidAmountFor(log), 0);
-    const allocated = allocationRows.reduce((sum, row) => sum + Number(row.requested_amount || 0), 0);
-    return {
-      ...fund,
-      proposed,
-      paid,
-      allocated,
-      rows: rows.length,
-      share: recordedAllocation > 0 ? (allocated / recordedAllocation) * 100 : 0,
-      rateSource: Array.from(new Set(allocationRows.map((row) => row.fund_source).filter(Boolean))).join(' · '),
-      sourceSheet: Array.from(new Set(allocationRows.map((row) => row.source_sheet).filter(Boolean))).join(', '),
-    };
-  });
+  // Tính phân bổ theo từng bộ phận
+  const departmentAllocations = useMemo(() => {
+    return ALLOCATION_ROWS.map((row) => {
+      const rate = viewMode === 'week' ? row.weeklyRate : row.monthlyRate;
+      const totalFund = Math.round(contractBase * rate);
 
-  const sourceSnapshot = SEPTEMBER_2026_OPERATIONS_FUND_SOURCE;
-  const showSourceComparison = monthKey === '2026-09' && selectedWeek === 0;
-  const sourceContracts = contracts.filter((contract) => (
-    inRange(contract.contract_date, sourceSnapshot.start, sourceSnapshot.endInclusive)
-  ));
-  const sourceContractRevenue = sourceContracts.reduce((sum, contract) => sum + Number(contract.allocation_base || 0), 0);
-  const sourceMonthAllocations = allocations.filter((row) => (
-    row.period_month === '2026-09'
-    && row.period_code.endsWith('-MONTH')
-    && getOperationsSupportFundKey(row.fund_source) !== null
-  ));
-  const sourceRecordedFund = sourceMonthAllocations.reduce((sum, row) => sum + Number(row.requested_amount || 0), 0);
-  const sourcePeriodLogs = currentLogs.filter((log) => (
-    log.request_date
-    && inRange(log.request_date, sourceSnapshot.start, sourceSnapshot.endInclusive)
-    && getOperationsSupportFundKey(log.fund_source) !== null
-    && log.status !== REJECTED_STATUS
-  ));
-  const sourceLivePaid = sourcePeriodLogs
-    .filter((log) => PAID_STATUSES.has(log.status))
-    .reduce((sum, log) => sum + paidAmountFor(log), 0);
-  const sourceComparisonRows = sourceSnapshot.groups.map((sourceGroup) => {
-    const liveAllocation = sourceMonthAllocations
-      .filter((row) => getOperationsSupportFundKey(row.fund_source) === sourceGroup.key)
-      .reduce((sum, row) => sum + Number(row.requested_amount || 0), 0);
-    const livePaid = sourcePeriodLogs
-      .filter((log) => getOperationsSupportFundKey(log.fund_source) === sourceGroup.key && PAID_STATUSES.has(log.status))
-      .reduce((sum, log) => sum + paidAmountFor(log), 0);
-    const fund = OPERATIONS_SUPPORT_FUND_TYPES.find((item) => item.key === sourceGroup.key)!;
-    return { ...sourceGroup, label: fund.label, liveAllocation, livePaid };
-  });
-  const showSourceDetails = monthKey === '2026-09';
-  const sourceDetailsForRange = showSourceDetails
-    ? SEPTEMBER_2026_OPERATIONS_EXPENSE_SOURCE_ROWS.filter((row) => inRange(row.date, range.start, range.endInclusive))
-    : [];
-  const sourcePeopleSummary = Array.from(new Set(sourceDetailsForRange.map((row) => row.beneficiary))).map((beneficiary) => {
-    const rows = sourceDetailsForRange.filter((row) => row.beneficiary === beneficiary);
-    return {
-      beneficiary,
-      departments: Array.from(new Set(rows.map((row) => row.department))).join(' · '),
-      amounts: rows.map((row) => row.amount),
-      total: rows.reduce((sum, row) => sum + row.amount, 0),
-    };
-  });
-  const sourcePeopleTotal = sourceDetailsForRange.reduce((sum, row) => sum + row.amount, 0);
+      // Tính tổng đã chi cho từng bộ phận
+      const deptLogs = matchingLogs.filter((log) => {
+        const logFundKey = getOperationsSupportFundKey(log.fund_source);
+        if (logFundKey !== row.fundKey) return false;
+        const content = (log.detail_content || '').toLowerCase();
+        const beneficiary = (log.beneficiary_name || '').toLowerCase();
+        const rowName = row.fullName.toLowerCase();
+        const rowDept = row.department.toLowerCase();
 
+        return (rowName && beneficiary.includes(rowName))
+          || content.includes(rowDept)
+          || (row.department === 'Phó tổng' && content.includes('phó tổng'))
+          || (row.department === 'Tổng điều hành' && content.includes('tổng điều hành'))
+          || (row.department === 'Tri ấn kết nối phó tổng' && content.includes('tri ân'));
+      });
+
+      const paid = deptLogs
+        .filter((log) => PAID_STATUSES.has(log.status))
+        .reduce((sum, log) => sum + paidAmountFor(log), 0);
+
+      return {
+        ...row,
+        rate: (rate * 100).toFixed(1).replace('.0', '') + '%',
+        rawRate: rate,
+        totalFund,
+        paid,
+        remaining: totalFund - paid,
+      };
+    });
+  }, [contractBase, matchingLogs, viewMode]);
+
+  const totalFundSum = departmentAllocations.reduce((sum, r) => sum + r.totalFund, 0);
+  const totalPaidSum = departmentAllocations.reduce((sum, r) => sum + r.paid, 0);
+  const totalRemainingSum = departmentAllocations.reduce((sum, r) => sum + r.remaining, 0);
+
+  const monthNumber = Number(selectedMonth.slice(5, 7));
+  const periodTitle = viewMode === 'week'
+    ? `Tuần ${selectedWeek} — Tháng ${monthNumber}`
+    : `Tháng ${monthNumber}`;
+
+  // Tự động điền dữ liệu khi chọn Bộ phận trong Form Modal
+  const handleDepartmentChange = (dept: string) => {
+    const match = ALLOCATION_ROWS.find((r) => r.department === dept);
+    if (match) {
+      setCreateForm((c) => ({
+        ...c,
+        department: dept,
+        fullName: match.fullName,
+        phone: match.phone,
+        bankAccount: match.bankAccount,
+        bankName: match.bankName,
+        fundType: match.fundKey,
+      }));
+    } else {
+      setCreateForm((c) => ({
+        ...c,
+        department: dept,
+      }));
+    }
+  };
+
+  // Submit tạo kỳ chi mới
   const submitFundEntry = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateError('');
-    const amount = Number(createForm.proposedAmount);
-    if (!createForm.requestDate || !createForm.detailContent.trim() || !createForm.beneficiaryName.trim() || !Number.isFinite(amount) || amount <= 0) {
-      setCreateError('Nhập ngày, hạng mục, người thụ hưởng và số tiền hợp lệ.');
+    const amount = Number(createForm.amount);
+    if (!createForm.department || !createForm.fullName.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setCreateError('Vui lòng nhập đầy đủ Bộ phận, Họ và tên và Số tiền hợp lệ.');
       return;
     }
 
-    const fund = OPERATIONS_SUPPORT_FUND_TYPES.find((item) => item.key === createForm.fundKey);
+    const fund = OPERATIONS_SUPPORT_FUND_TYPES.find((item) => item.key === createForm.fundType);
     if (!fund) return;
     setIsSubmitting(true);
     try {
@@ -332,473 +311,650 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requestDate: createForm.requestDate,
+          requestDate: createForm.paymentDate,
+          paymentDate: createForm.paymentDate,
           fundSource: fund.label,
-          detailContent: [createForm.department.trim(), createForm.detailContent.trim()].filter(Boolean).join(' · '),
-          beneficiaryName: createForm.beneficiaryName.trim(),
-          beneficiaryPhone: createForm.beneficiaryPhone.trim(),
-          beneficiaryBankAccount: createForm.beneficiaryBankAccount.trim(),
+          detailContent: createForm.department,
+          beneficiaryName: createForm.fullName.trim(),
+          beneficiaryPhone: createForm.phone.trim() || null,
+          beneficiaryBankAccount: createForm.bankAccount.trim() || null,
+          beneficiaryBankName: createForm.bankName.trim() || null,
           proposedAmount: amount,
-          availableBalance: Math.max(0, (fundSummaries.find((item) => item.key === fund.key)?.allocated || 0)
-            - (fundSummaries.find((item) => item.key === fund.key)?.paid || 0)),
-          status: 'Chờ duyệt',
+          availableBalance: Math.max(0, remaining),
+          status: createForm.status,
         }),
       });
       const result = await response.json();
       if (!response.ok || !result.success || !result.log) {
-        throw new Error(result.message || 'Không tạo được phiếu quỹ.');
+        throw new Error(result.message || 'Không tạo được kỳ chi.');
       }
       setCurrentLogs((items) => [result.log as TransactionLog, ...items]);
       setIsCreateOpen(false);
       setCreateForm({
-        requestDate: '',
-        fundKey: 'operations',
+        fundType: 'operations',
         department: '',
-        detailContent: '',
-        beneficiaryName: '',
-        beneficiaryPhone: '',
-        beneficiaryBankAccount: '',
-        proposedAmount: '',
+        fullName: '',
+        phone: '',
+        bankAccount: '',
+        bankName: '',
+        amount: '',
+        month: monthNumber,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        status: 'Chờ duyệt',
       });
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : 'Không tạo được phiếu quỹ.');
+      setCreateError(error instanceof Error ? error.message : 'Không tạo được kỳ chi.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const chartSegments = (() => {
-    let cursor = 0;
-    return fundSummaries.map((fund) => {
-      const start = cursor;
-      cursor += fund.share;
-      return `${fund.color} ${start}% ${cursor}%`;
-    });
-  })();
-  const chartStyle = {
-    background: recordedAllocation > 0
-      ? `conic-gradient(${chartSegments.join(', ')})`
-      : 'conic-gradient(#e2e8f0 0% 100%)',
-  };
-
-  const periodTitle = selectedWeek ? weekLabel(monthKey, selectedWeek) : `Tháng ${Number(selectedMonth)}/${selectedYear}`;
-
+  // Xuất file Excel
   const exportExcel = () => {
-    const detailRows = filteredLogs.map((log, index) => ({
+    const allocationSheet = departmentAllocations.map((row, index) => ({
       STT: index + 1,
-      Ngày: dateLabel(log.request_date),
-      'Mã phiếu': log.request_code,
-      'Tên quỹ': log.fund_source,
-      'Hạng mục chi': log.detail_content,
-      'Số tiền đề nghị': amountFor(log),
-      'Thực chi': PAID_STATUSES.has(log.status) ? paidAmountFor(log) : 0,
-      'Người nhận': log.beneficiary_name,
-      'Điện thoại': log.beneficiary_phone || '',
-      'Tài khoản': log.beneficiary_bank_account || '',
-      'Trạng thái': log.status,
+      'Loại Quỹ': row.fundType,
+      'Bộ phận hưởng thụ': row.department,
+      'SĐT': row.phone,
+      'Họ và tên': row.fullName || '—',
+      'STK': row.bankAccount || '—',
+      'Ngân hàng': row.bankName || '—',
+      'Tỷ lệ %': row.rate,
+      'Tổng quỹ': row.totalFund,
+      'Đã chi': row.paid,
+      'Còn lại': row.remaining,
     }));
+
     const summaryRows = [
       { Chỉ_tiêu: 'Khoảng thời gian', Giá_trị: periodTitle },
-      { Chỉ_tiêu: 'Doanh số hợp đồng', Giá_trị: contractBase },
-      { Chỉ_tiêu: 'Tỷ lệ định mức theo mã nguồn', Giá_trị: '2,5%' },
-      { Chỉ_tiêu: 'Quỹ định mức tính theo doanh số', Giá_trị: fundBudget },
-      { Chỉ_tiêu: 'Tổng số ghi trong bảng phân bổ', Giá_trị: selectedAllocations.length ? recordedAllocation : 'Chưa có dữ liệu' },
-      { Chỉ_tiêu: 'Tổng đề nghị chi', Giá_trị: proposedTotal },
-      { Chỉ_tiêu: 'Đã thanh toán / thực hiện', Giá_trị: paidTotal },
-      { Chỉ_tiêu: 'Chờ thanh toán', Giá_trị: waitingTotal },
-      { Chỉ_tiêu: 'Còn lại sau thực chi', Giá_trị: (selectedAllocations.length ? recordedAllocation : fundBudget) - paidTotal },
+      { Chỉ_tiêu: 'Tổng DT Hợp đồng', Giá_trị: contractBase },
+      { Chỉ_tiêu: 'Tổng quỹ vận hành (2,5%)', Giá_trị: fundBudget },
+      { Chỉ_tiêu: 'Đã chi', Giá_trị: paidTotal },
+      { Chỉ_tiêu: 'Còn lại', Giá_trị: remaining },
     ];
+
+    const disbursementRows = matchingLogs.map((log, index) => ({
+      STT: index + 1,
+      'Mã phiếu': log.request_code,
+      'Ngày chi': dateLabel(log.payment_date || log.request_date),
+      'Loại quỹ': log.fund_source,
+      'Hạng mục / Bộ phận': log.detail_content,
+      'Người nhận': log.beneficiary_name,
+      'SĐT': log.beneficiary_phone || '',
+      'STK': log.beneficiary_bank_account || '',
+      'Số tiền': Number(log.proposed_amount ?? log.actual_expense ?? 0),
+      'Trạng thái': log.status,
+    }));
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Tổng hợp');
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), 'Chi tiết');
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(fundSummaries.map((fund) => ({
-      'Nhóm quỹ': fund.label,
-      'Tỷ lệ theo nguồn': fund.rateSource,
-      'Số tiền phân bổ ghi nhận': fund.allocated,
-      'Tỷ trọng trong phân bổ': `${fund.share.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`,
-      'Nguồn bảng': fund.sourceSheet,
-    }))), 'Phân bổ');
-    XLSX.writeFile(workbook, `quy-van-hanh-ho-tro-${monthKey}${selectedWeek ? `-tuan-${selectedWeek}` : ''}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Tổng quan');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(allocationSheet), 'Phân bổ theo bộ phận');
+    if (disbursementRows.length > 0) {
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(disbursementRows), 'Chi tiết kỳ chi');
+    }
+    XLSX.writeFile(workbook, `quy-van-hanh-ho-tro-${selectedMonth}${viewMode === 'week' ? `-tuan-${selectedWeek}` : ''}.xlsx`);
   };
 
   return (
-    <div className="min-h-screen space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="min-h-screen bg-[#f8fafc] px-4 py-6 sm:px-6 lg:px-8">
+      {/* ===== HEADER TRANG ===== */}
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-500">
-            <Link href="/admin" className="hover:text-blue-600">Trang chủ</Link><span>›</span><span>Quỹ vận hành và hỗ trợ</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Bảng quỹ vận hành và hỗ trợ</h1>
-          <p className="mt-1 text-sm text-slate-500">Tổng hợp quỹ vận hành, BP hỗ trợ KT và BP hỗ trợ CN theo tháng hoặc tuần.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Quỹ Vận hành & Hỗ trợ
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Phân bổ quỹ vận hành (2,5% DT HĐ) và giải ngân cho các bộ phận hỗ trợ
+          </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button type="button" onClick={() => { setCreateError(''); setIsCreateOpen(true); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-            <Plus className="h-4 w-4" /> Thêm Quỹ vận hành hỗ trợ
+
+        {/* Nút hành động */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setCreateError('');
+              setCreateForm((c) => ({
+                ...c,
+                month: monthNumber,
+                paymentDate: new Date().toISOString().slice(0, 10),
+              }));
+              setIsCreateOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98] cursor-pointer"
+          >
+            <Plus className="h-4 w-4 stroke-[2.5]" />
+            <span>Tạo kỳ chi</span>
           </button>
-          <button type="button" onClick={exportExcel} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
-            <Download className="h-4 w-4" /> Xuất Excel
+          <button
+            type="button"
+            onClick={exportExcel}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            <span>Xuất Excel</span>
           </button>
         </div>
       </header>
 
-      <Panel className="p-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex items-center gap-2">
-            <label htmlFor="operations-year" className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-              Năm
-            </label>
-            <select
-              id="operations-year"
-              aria-label="Chọn năm"
-              value={selectedYear}
-              onChange={(event) => changeYear(event.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
-            >
-              {allYears.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* ===== THANH BỘ LỌC THỜI GIAN (TABS THÁNG / TUẦN) ===== */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        {/* Tab chọn Tháng */}
+        <div className="flex items-center gap-1.5">
+          {availableMonths.map((monthKey) => {
+            const m = Number(monthKey.slice(5, 7));
+            const isActive = selectedMonth === monthKey;
+            return (
+              <button
+                key={monthKey}
+                type="button"
+                onClick={() => {
+                  setSelectedMonth(monthKey);
+                  setSelectedWeek(1);
+                }}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-600'
+                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Tháng {m}
+              </button>
+            );
+          })}
+        </div>
 
-          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
+        {/* Chuyển đổi Tháng / Tuần */}
+        <div className="flex items-center rounded-xl bg-slate-200/80 p-1 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setViewMode('month')}
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+              viewMode === 'month'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Xem theo Tháng
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('week')}
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+              viewMode === 'week'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Xem theo Tuần
+          </button>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-              Tháng
-            </span>
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => {
-              const isSelected = Number(selectedMonth) === month;
-              return (
-                <button
-                  key={month}
-                  type="button"
-                  onClick={() => changeMonth(month)}
-                  className={`min-w-9 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                    isSelected
-                      ? 'border-blue-700 bg-slate-900 text-white'
-                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {month}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-              Tuần
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedWeek(0)}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                selectedWeek === 0
-                  ? 'border-blue-500 bg-blue-600 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              Cả tháng
-            </button>
+        {/* Các nút Tuần khi chọn viewMode === 'week' */}
+        {viewMode === 'week' && (
+          <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-150">
             {weekOptions.map((opt) => {
-              const isSelected = selectedWeek === opt.weekNo;
+              const isWeekActive = selectedWeek === opt.weekNo;
               return (
                 <button
                   key={opt.weekNo}
                   type="button"
                   onClick={() => setSelectedWeek(opt.weekNo)}
-                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-600 text-white'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                    isWeekActive
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
                   }`}
+                  title={opt.range}
                 >
-                  {opt.label}
+                  <span>{opt.label}</span>
+                  <span className={`text-[10px] ${isWeekActive ? 'text-slate-300' : 'text-slate-400'}`}>
+                    ({opt.range})
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
-      </Panel>
-
-      {showSourceComparison && (
-        <section className="space-y-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
-          <div>
-            <h2 className="font-bold text-slate-900">Đối chiếu dữ liệu nguồn tháng 9/2026</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              Tham chiếu tab “Quỹ Vận hành& hỗ trợ” trong {sourceSnapshot.workbook}, kỳ {dateLabel(sourceSnapshot.start)}–{dateLabel(sourceSnapshot.endInclusive)}.
-              Số Excel được giữ riêng để so sánh, không cộng vào sổ Neon.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <MetricCard
-              title="Doanh số hợp đồng · Excel / danh sách"
-              value={money(sourceSnapshot.contractRevenue)}
-              note={`Danh sách hợp đồng ${money(sourceContractRevenue)} · lệch ${money(sourceContractRevenue - sourceSnapshot.contractRevenue)}`}
-              icon={<Wallet className="h-5 w-5" />}
-              tone={Math.abs(sourceContractRevenue - sourceSnapshot.contractRevenue) >= 1 ? 'rose' : 'emerald'}
-            />
-            <MetricCard
-              title="Tổng quỹ · Excel / phân bổ Neon"
-              value={money(sourceSnapshot.totalFund)}
-              note={`Neon ${money(sourceRecordedFund)} · lệch ${money(sourceRecordedFund - sourceSnapshot.totalFund)}`}
-              icon={<Wallet className="h-5 w-5" />}
-              tone={Math.abs(sourceRecordedFund - sourceSnapshot.totalFund) >= 1 ? 'rose' : 'emerald'}
-            />
-            <MetricCard
-              title="Đã chi · Excel / nhật ký Neon"
-              value={money(sourceSnapshot.totalPaid)}
-              note={`Neon ${money(sourceLivePaid)} (${sourcePeriodLogs.length} phiếu) · lệch ${money(sourceLivePaid - sourceSnapshot.totalPaid)}`}
-              icon={<CheckCircle2 className="h-5 w-5" />}
-              tone={Math.abs(sourceLivePaid - sourceSnapshot.totalPaid) >= 1 ? 'rose' : 'emerald'}
-            />
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <MetricCard title="Tổng quỹ lũy kế · Excel" value={money(sourceSnapshot.cumulativeFund)} note="Theo số tổng hợp trong tab nguồn" icon={<Wallet className="h-5 w-5" />} tone="blue" />
-            <MetricCard title="Đã chi lũy kế · Excel" value={money(sourceSnapshot.cumulativePaid)} note="Theo số tổng hợp trong tab nguồn" icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
-            <MetricCard title="Phải trả lũy kế · Excel" value={money(sourceSnapshot.cumulativePayable)} note="Theo số tổng hợp trong tab nguồn" icon={<Clock3 className="h-5 w-5" />} tone="violet" />
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-amber-200 bg-white">
-            <table className="min-w-[760px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                <tr><th className="px-3 py-2.5">Nhóm quỹ</th><th className="px-3 py-2.5 text-right">Tỷ lệ ảnh</th><th className="px-3 py-2.5 text-right">Tổng quỹ ảnh</th><th className="px-3 py-2.5 text-right">Phân bổ Neon</th><th className="px-3 py-2.5 text-right">Đã chi ảnh</th><th className="px-3 py-2.5 text-right">Đã chi Neon</th><th className="px-3 py-2.5 text-right">Còn lại ảnh</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sourceComparisonRows.map((row) => (
-                  <tr key={row.key}>
-                    <td className="px-3 py-2.5 font-semibold text-slate-800">{row.label}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{(row.rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(row.fund)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(row.liveAllocation)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(row.paid)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(row.livePaid)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(row.remaining)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-slate-50 font-bold text-slate-900">
-                  <td className="px-3 py-2.5">Tổng cộng</td>
-                  <td className="px-3 py-2.5 text-right">2,5%</td>
-                  <td className="px-3 py-2.5 text-right">{money(sourceSnapshot.totalFund)}</td>
-                  <td className="px-3 py-2.5 text-right">{money(sourceRecordedFund)}</td>
-                  <td className="px-3 py-2.5 text-right">{money(sourceSnapshot.totalPaid)}</td>
-                  <td className="px-3 py-2.5 text-right">{money(sourceLivePaid)}</td>
-                  <td className="px-3 py-2.5 text-right">{money(sourceSnapshot.remaining)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[11px] leading-5 text-amber-900">
-            Bảng hợp đồng, phân bổ và nhật ký chi trong Neon được đối chiếu nguyên trạng. Chênh lệch được báo cáo để rà soát; dữ liệu ảnh không được tự nhập hoặc ghi đè vào database.
-          </p>
-        </section>
-      )}
-
-      {showSourceDetails && sourceDetailsForRange.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-blue-100 bg-blue-50/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-bold text-slate-900">Chi tiết từng người thụ hưởng · tháng 9/2026</h2>
-              <p className="mt-1 text-xs text-slate-600">
-                {sourceDetailsForRange.length} dòng trong tab Excel, ngày chi {dateLabel(sourceDetailsForRange[0].date)}. Sổ Neon kỳ này có {matchingLogs.length} phiếu, đã chi {money(paidTotal)}; hai nguồn được trình bày riêng.
-              </p>
-            </div>
-            <span className="w-fit rounded-full border border-blue-200 bg-white px-3 py-1 text-[10px] font-semibold text-blue-700">Tham chiếu workbook · không phải phiếu Neon</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[760px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                <tr><th className="px-4 py-3">Người thụ hưởng</th><th className="px-3 py-3">Bộ phận / hạng mục</th><th className="px-3 py-3 text-center">Số dòng</th><th className="px-3 py-3 text-right">Các khoản theo file</th><th className="px-4 py-3 text-right">Tổng theo người</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sourcePeopleSummary.map((person) => (
-                  <tr key={person.beneficiary}>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{person.beneficiary}</td>
-                    <td className="px-3 py-3 text-slate-600">{person.departments}</td>
-                    <td className="px-3 py-3 text-center tabular-nums">{person.amounts.length}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">{person.amounts.map(money).join(' + ')}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-slate-900">{money(person.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-blue-50 font-bold text-slate-900">
-                <tr><td colSpan={3} className="px-4 py-3">Tổng theo workbook · {sourceDetailsForRange.length} dòng</td><td className="px-3 py-3 text-right">—</td><td className="whitespace-nowrap px-4 py-3 text-right">{money(sourcePeopleTotal)}</td></tr>
-              </tfoot>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <section className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-        <MetricCard title={selectedAllocations.length ? 'Phân bổ đã nhập' : 'Quỹ định mức (2,5%)'} value={money(reportedFund)} note={selectedAllocations.length ? `Định mức theo doanh số HĐ: ${money(fundBudget)}` : `Theo doanh số HĐ: ${money(contractBase)}`} icon={<Wallet className="h-5 w-5" />} tone="blue" />
-        <MetricCard title="Tổng đề nghị chi" value={money(proposedTotal)} note={`${matchingLogs.length} phiếu chưa bị từ chối`} icon={<Wallet className="h-5 w-5" />} tone="rose" />
-        <MetricCard title="Đã thanh toán / thực hiện" value={money(paidTotal)} note="Theo trạng thái phiếu đã chi" icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
-        <MetricCard title="Chờ thanh toán" value={money(waitingTotal)} note="Không cộng phiếu đã từ chối" icon={<Clock3 className="h-5 w-5" />} tone="violet" />
-      </section>
-
-      {selectedAllocations.length > 0 && Math.abs(recordedAllocation - fundBudget) >= 1 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
-          <strong>Số phân bổ chưa khớp định mức:</strong> bảng phân bổ ghi {money(recordedAllocation)}, trong khi 2,5% doanh số hợp đồng trong kỳ là {money(fundBudget)} (chênh {money(recordedAllocation - fundBudget)}). Trang giữ nguyên cả hai số liệu để đối chiếu, không tự điều chỉnh dữ liệu nguồn.
-        </section>
-      )}
-      {selectedAllocations.length > 0 && matchingLogs.length === 0 && (
-        <section className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900">
-          Đã tải phân bổ từ bảng quỹ tuần/tháng. Kỳ này chưa có phiếu chi thuộc Quỹ vận hành, BP hỗ trợ KT hoặc BP hỗ trợ CN trong nhật ký thu chi; bảng chi tiết và các thẻ chi phản ánh phiếu trong sổ hiện có.
-        </section>
-      )}
-
-      <div className="grid gap-5 2xl:grid-cols-12">
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm 2xl:col-span-8">
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-bold text-slate-900">Chi tiết quỹ vận hành và hỗ trợ</h2>
-              <p className="mt-1 text-xs text-slate-500">Các phiếu chi thuộc kỳ {periodTitle}; số tiền thực chi chỉ cộng khi phiếu đã thanh toán hoặc thực hiện.</p>
-            </div>
-            <label className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm mã phiếu, quỹ, người nhận..." className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-            </label>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                <tr><th className="px-4 py-3">Thời gian / Mã phiếu</th><th className="px-3 py-3">Loại quỹ</th><th className="px-3 py-3">Hạng mục chi</th><th className="px-3 py-3 text-right">Số tiền</th><th className="px-3 py-3">Người nhận / Tài khoản</th><th className="px-3 py-3 text-center">Trạng thái</th><th className="px-3 py-3 text-center">Chi tiết</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-blue-50/50">
-                    <td className="px-4 py-3"><div className="font-semibold text-slate-800">{dateLabel(log.request_date)}</div><div className="mt-0.5 font-mono text-[10px] text-slate-500">{log.request_code || `#${log.id}`}</div></td>
-                    <td className="px-3 py-3"><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">{log.fund_source}</span></td>
-                    <td className="max-w-[230px] px-3 py-3"><div className="truncate font-medium text-slate-700" title={log.detail_content}>{log.detail_content || '—'}</div><div className="mt-0.5 text-[10px] text-slate-400">{log.expense_type || 'Thủ công'}</div></td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{money(amountFor(log))}{PAID_STATUSES.has(log.status) && <div className="mt-0.5 text-[10px] font-normal text-emerald-700">Thực chi {money(paidAmountFor(log))}</div>}</td>
-                    <td className="px-3 py-3"><div className="font-medium text-slate-800">{log.beneficiary_name || '—'}</div><div className="mt-0.5 text-[10px] text-slate-500">{log.beneficiary_bank_account ? `STK ${log.beneficiary_bank_account}` : log.beneficiary_phone || 'Chưa có tài khoản'}</div></td>
-                    <td className="px-3 py-3 text-center"><StatusBadge status={log.status} /></td>
-                    <td className="px-3 py-3 text-center"><button type="button" onClick={() => setViewLog(log)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" aria-label={`Xem phiếu ${log.request_code}`}><Eye className="h-4 w-4" /></button></td>
-                  </tr>
-                ))}
-                {!filteredLogs.length && <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">{matchingLogs.length ? 'Không có phiếu phù hợp với nội dung tìm kiếm.' : 'Chưa có phiếu thuộc các quỹ này trong kỳ đã chọn.'}</td></tr>}
-              </tbody>
-              <tfoot className="bg-blue-50 font-bold text-slate-800"><tr><td colSpan={3} className="px-4 py-3">TỔNG CỘNG · {filteredLogs.length} phiếu</td><td className="whitespace-nowrap px-3 py-3 text-right">{money(filteredLogs.reduce((sum, log) => sum + amountFor(log), 0))}</td><td colSpan={3} className="px-3 py-3 text-[10px] font-medium text-slate-500">Quỹ phân bổ còn lại toàn kỳ: {money(remaining)}</td></tr></tfoot>
-            </table>
-          </div>
-        </section>
-
-        <aside className="space-y-5 2xl:col-span-4">
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div><h2 className="font-bold text-slate-900">Tỷ lệ phân bổ theo nguồn</h2><p className="mt-1 text-[11px] text-slate-500">Theo các dòng quỹ đã nhập cho kỳ</p></div>
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">Quỹ chung 2,5%</span>
-            </div>
-            <div className="my-5 flex justify-center">
-                <div className="relative h-40 w-40 rounded-full" style={chartStyle} role="img" aria-label="Biểu đồ tỷ lệ phân bổ theo quỹ">
-                <div className="absolute inset-6 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-inner"><span className="text-[10px] text-slate-500">Tổng phân bổ</span><strong className="mt-1 max-w-24 text-sm leading-5 text-slate-900">{money(recordedAllocation)}</strong></div>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {fundSummaries.map((fund) => (
-                <div key={fund.key}>
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="flex min-w-0 items-center gap-2 font-medium text-slate-700"><i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: fund.color }} />{fund.label}</span>
-                    <span className="shrink-0 text-right font-semibold tabular-nums text-slate-800">{fund.share.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% · {money(fund.allocated)}</span>
-                  </div>
-                  <div className="mt-1 flex justify-between gap-2 pl-4 text-[10px] text-slate-400"><span className="truncate" title={fund.rateSource || fund.sourceSheet}>{fund.rateSource || fund.sourceSheet || 'Chưa có dòng phân bổ'}</span><span className="shrink-0">Phiếu chi {fund.rows} · Đã chi {money(fund.paid)}</span></div>
-                </div>
-              ))}
-            </div>
-            <div className={`mt-4 rounded-xl p-3 ${remaining < 0 ? 'bg-rose-50 text-rose-800' : 'bg-slate-900 text-white'}`}>
-              <div className="flex justify-between gap-3 text-xs font-bold"><span>CÒN LẠI TOÀN KỲ SAU THỰC CHI</span><span className="tabular-nums">{money(remaining)}</span></div>
-              <p className={`mt-1 text-[10px] ${remaining < 0 ? 'text-rose-700' : 'text-slate-300'}`}>Quỹ ghi nhận {money(reportedFund)} trừ số đã thanh toán/thực hiện {money(paidTotal)}.</p>
-            </div>
-          </section>
-          <section className="rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-xs leading-5 text-slate-600">
-            <h3 className="font-bold text-slate-800">Cách tính đang áp dụng</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-4">
-              <li>Định mức quỹ = tổng giá trị phân bổ hợp đồng trong kỳ × 2,5%, theo bảng ngân sách hợp đồng hiện tại.</li>
-              <li>Phân bổ đã nhập được lấy từ bảng phân bổ tuần/tháng. Khi có chênh lệch với định mức, trang hiển thị riêng để đối chiếu.</li>
-              <li>Đề nghị chi cộng phiếu chưa bị từ chối; thực chi cộng các trạng thái “Đã chi”, “Đã thanh toán” hoặc “Đã thực hiện”.</li>
-              <li>Tỷ lệ bên phải là phần của từng nhóm trên tổng số tiền phân bổ ghi nhận, không phải tỷ lệ ngân sách riêng.</li>
-            </ul>
-          </section>
-        </aside>
+        )}
       </div>
 
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSubmitting) setIsCreateOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="create-operations-fund-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div>
-                <p className="text-xs text-slate-500">Phiếu mới · trạng thái mặc định Chờ duyệt</p>
-                <h2 id="create-operations-fund-title" className="mt-1 text-lg font-bold text-slate-900">Thêm Quỹ vận hành hỗ trợ</h2>
-              </div>
-              <button type="button" disabled={isSubmitting} onClick={() => setIsCreateOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50" aria-label="Đóng"><X className="h-5 w-5" /></button>
+      {/* ===== 4 CARDS THỐNG KÊ (HÌNH 7.3) ===== */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Card 1: Tổng DT Hợp đồng */}
+        <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:shadow-md">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <TrendingUp className="h-6 w-6 stroke-[2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">Tổng DT Hợp đồng</p>
+            <p className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900">
+              {money(contractBase)}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Tổng quỹ vận hành (2,5%) */}
+        <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:shadow-md">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+            <Layers className="h-6 w-6 stroke-[2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">Tổng quỹ vận hành (2,5%)</p>
+            <p className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900">
+              {money(reportedFund)}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Đã chi */}
+        <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:shadow-md">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+            <Wallet className="h-6 w-6 stroke-[2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">Đã chi</p>
+            <p className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900">
+              {money(paidTotal)}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Còn lại */}
+        <div className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:shadow-md">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <Calendar className="h-6 w-6 stroke-[2]" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">Còn lại</p>
+            <p className={`mt-1 truncate text-xl font-bold tracking-tight ${remaining < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+              {money(remaining)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== BẢNG PHÂN BỔ QUÝ THEO BỘ PHẬN (HÌNH 7.1, 7.2, 7.3) ===== */}
+      <section className="mb-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="text-base font-bold text-slate-900">
+            Phân bổ quỹ theo bộ phận — {periodTitle}
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/75 text-xs font-semibold text-slate-500">
+                <th className="px-5 py-3.5 font-medium">Loại Quỹ</th>
+                <th className="px-5 py-3.5 font-medium">Bộ phận hưởng thụ</th>
+                <th className="px-5 py-3.5 font-medium">SĐT</th>
+                <th className="px-5 py-3.5 font-medium">Họ và tên</th>
+                <th className="px-5 py-3.5 font-medium">STK</th>
+                <th className="px-5 py-3.5 font-medium">Ngân hàng</th>
+                <th className="px-5 py-3.5 text-right font-medium">Tỷ lệ %</th>
+                <th className="px-5 py-3.5 text-right font-medium">Tổng quỹ</th>
+                <th className="px-5 py-3.5 text-right font-medium">Đã chi</th>
+                <th className="px-5 py-3.5 text-right font-medium">Còn lại</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {departmentAllocations.map((row, index) => (
+                <tr key={index} className="transition-colors hover:bg-slate-50/60">
+                  <td className="whitespace-nowrap px-5 py-3.5 font-medium text-slate-700">
+                    {row.fundType}
+                  </td>
+                  <td className="px-5 py-3.5 font-semibold text-slate-900">
+                    {row.department}
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-slate-600">
+                    {row.phone}
+                  </td>
+                  <td className="px-5 py-3.5 font-medium text-slate-800">
+                    {row.fullName || '—'}
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-slate-600">
+                    {row.bankAccount || '—'}
+                  </td>
+                  <td className="px-5 py-3.5 text-slate-600">
+                    {row.bankName || '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3.5 text-right font-semibold text-slate-700">
+                    {row.rate}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3.5 text-right font-semibold text-slate-900">
+                    {money(row.totalFund)}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3.5 text-right font-medium text-slate-600">
+                    {money(row.paid)}
+                  </td>
+                  <td className={`whitespace-nowrap px-5 py-3.5 text-right font-bold ${row.remaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {money(row.remaining)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-slate-200 bg-slate-50/90 font-bold text-slate-900">
+                <td colSpan={6} className="px-5 py-4 uppercase tracking-wider text-xs font-bold text-slate-700">
+                  TỔNG CỘNG
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-right">
+                  2,5%
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-right text-slate-900">
+                  {money(totalFundSum)}
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-right text-slate-700">
+                  {money(totalPaidSum)}
+                </td>
+                <td className={`whitespace-nowrap px-5 py-4 text-right ${totalRemainingSum < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {money(totalRemainingSum)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      {/* ===== KỲ CHI GIẢI NGÂN (HÌNH 7.3) ===== */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h2 className="text-base font-bold text-slate-900">
+            Kỳ chi giải ngân {periodTitle} ({matchingLogs.length})
+          </h2>
+        </div>
+
+        {matchingLogs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Calendar className="h-6 w-6" />
             </div>
-            <form onSubmit={submitFundEntry} className="space-y-4 p-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700">
-                  <span>Ngày đề nghị *</span>
-                  <input type="date" required value={createForm.requestDate} onChange={(event) => setCreateForm((current) => ({ ...current, requestDate: event.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+            <p className="mt-3 text-sm font-medium text-slate-600">
+              Chưa có kỳ chi giải ngân nào trong {periodTitle.toLowerCase()}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Nhấn &quot;+ Tạo kỳ chi&quot; ở trên để thêm phiếu chi mới cho bộ phận.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/75 text-xs font-semibold text-slate-500">
+                  <th className="px-5 py-3.5 font-medium">Mã phiếu</th>
+                  <th className="px-5 py-3.5 font-medium">Ngày chi</th>
+                  <th className="px-5 py-3.5 font-medium">Loại quỹ</th>
+                  <th className="px-5 py-3.5 font-medium">Hạng mục / Bộ phận</th>
+                  <th className="px-5 py-3.5 font-medium">Người nhận</th>
+                  <th className="px-5 py-3.5 font-medium">STK / Ngân hàng</th>
+                  <th className="px-5 py-3.5 text-right font-medium">Số tiền</th>
+                  <th className="px-5 py-3.5 text-center font-medium">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {matchingLogs.map((log) => (
+                  <tr key={log.id} className="transition-colors hover:bg-slate-50/60">
+                    <td className="whitespace-nowrap px-5 py-3.5 font-mono text-xs font-semibold text-blue-600">
+                      {log.request_code}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-slate-600">
+                      {dateLabel(log.payment_date || log.request_date)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5">
+                      <span className="inline-flex rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+                        {log.fund_source}
+                      </span>
+                    </td>
+                    <td className="max-w-[220px] truncate px-5 py-3.5 font-medium text-slate-900" title={log.detail_content}>
+                      {log.detail_content || '—'}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="font-semibold text-slate-900">{log.beneficiary_name || '—'}</div>
+                      {log.beneficiary_phone && (
+                        <div className="font-mono text-xs text-slate-400">{log.beneficiary_phone}</div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-xs text-slate-600">
+                      {log.beneficiary_bank_account || log.beneficiary_bank_name ? (
+                        <span>{[log.beneficiary_bank_account, log.beneficiary_bank_name].filter(Boolean).join(' · ')}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-right font-bold text-slate-900">
+                      {money(Number(log.proposed_amount ?? log.actual_expense ?? 0))}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-center">
+                      <StatusBadge status={log.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ===== MODAL TẠO KỲ CHI MỚI (HÌNH 7.4 & 7.6) ===== */}
+      {isCreateOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isSubmitting) setIsCreateOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h2 id="modal-title" className="text-lg font-bold text-slate-900">
+                Tạo kỳ chi mới
+              </h2>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setIsCreateOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 cursor-pointer"
+                aria-label="Đóng"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={submitFundEntry} className="space-y-4 px-6 py-5">
+              {/* 1. Loại quỹ */}
+              <div className="space-y-1.5">
+                <label htmlFor="modal-fund-type" className="text-sm font-semibold text-slate-700">
+                  Loại quỹ
                 </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700">
-                  <span>Nhóm quỹ *</span>
-                  <select value={createForm.fundKey} onChange={(event) => setCreateForm((current) => ({ ...current, fundKey: event.target.value as OperationsSupportFundKey }))} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    {OPERATIONS_SUPPORT_FUND_TYPES.map((fund) => <option key={fund.key} value={fund.key}>{fund.label}</option>)}
-                  </select>
-                </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700">
-                  <span>Bộ phận / hạng mục</span>
-                  <input value={createForm.department} onChange={(event) => setCreateForm((current) => ({ ...current, department: event.target.value }))} placeholder="VD: Tổng điều hành" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700">
-                  <span>Số tiền đề nghị *</span>
-                  <input type="number" min="1" step="1" required value={createForm.proposedAmount} onChange={(event) => setCreateForm((current) => ({ ...current, proposedAmount: event.target.value }))} placeholder="0" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700 sm:col-span-2">
-                  <span>Hạng mục / nội dung chi *</span>
-                  <input required value={createForm.detailContent} onChange={(event) => setCreateForm((current) => ({ ...current, detailContent: event.target.value }))} placeholder="Nhập nội dung đề nghị chi" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700">
-                  <span>Họ và tên người thụ hưởng *</span>
-                  <input required value={createForm.beneficiaryName} onChange={(event) => setCreateForm((current) => ({ ...current, beneficiaryName: event.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700">
-                  <span>Số điện thoại</span>
-                  <input value={createForm.beneficiaryPhone} onChange={(event) => setCreateForm((current) => ({ ...current, beneficiaryPhone: event.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                </label>
-                <label className="space-y-1.5 text-xs font-semibold text-slate-700 sm:col-span-2">
-                  <span>Tài khoản / ngân hàng</span>
-                  <input value={createForm.beneficiaryBankAccount} onChange={(event) => setCreateForm((current) => ({ ...current, beneficiaryBankAccount: event.target.value }))} placeholder="Số tài khoản (có thể kèm tên ngân hàng)" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                </label>
+                <select
+                  id="modal-fund-type"
+                  value={createForm.fundType}
+                  onChange={(e) => setCreateForm((c) => ({ ...c, fundType: e.target.value as OperationsSupportFundKey }))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  {FUND_TYPE_OPTIONS.map((ft) => (
+                    <option key={ft.key} value={ft.key}>
+                      {ft.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {createError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{createError}</p>}
-              <p className="text-[11px] leading-5 text-slate-500">Khi bấm lưu, hệ thống tạo phiếu trong nhật ký thu chi bằng API hiện hành. Dữ liệu Excel tham chiếu không được tự động ghi vào database.</p>
-              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-                <button type="button" disabled={isSubmitting} onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Hủy</button>
-                <button type="submit" disabled={isSubmitting} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">{isSubmitting ? 'Đang lưu…' : 'Lưu phiếu'}</button>
+
+              {/* 2. Bộ phận * (Dropdown đúng 5 lựa chọn theo Hình 7.6) */}
+              <div className="space-y-1.5">
+                <label htmlFor="modal-department" className="text-sm font-semibold text-slate-700">
+                  Bộ phận <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  id="modal-department"
+                  required
+                  value={createForm.department}
+                  onChange={(e) => handleDepartmentChange(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">Chọn bộ phận</option>
+                  {DEPARTMENT_OPTIONS.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Họ và tên * */}
+              <div className="space-y-1.5">
+                <label htmlFor="modal-fullname" className="text-sm font-semibold text-slate-700">
+                  Họ và tên <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="modal-fullname"
+                  required
+                  value={createForm.fullName}
+                  onChange={(e) => setCreateForm((c) => ({ ...c, fullName: e.target.value }))}
+                  placeholder="Nhập họ và tên người nhận"
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              {/* 4. SĐT | STK */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-phone" className="text-sm font-semibold text-slate-700">
+                    SĐT
+                  </label>
+                  <input
+                    id="modal-phone"
+                    value={createForm.phone}
+                    onChange={(e) => setCreateForm((c) => ({ ...c, phone: e.target.value }))}
+                    placeholder="000000"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-bank-account" className="text-sm font-semibold text-slate-700">
+                    STK
+                  </label>
+                  <input
+                    id="modal-bank-account"
+                    value={createForm.bankAccount}
+                    onChange={(e) => setCreateForm((c) => ({ ...c, bankAccount: e.target.value }))}
+                    placeholder="Số tài khoản"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              {/* 5. Ngân hàng | Số tiền (VND) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-bank-name" className="text-sm font-semibold text-slate-700">
+                    Ngân hàng
+                  </label>
+                  <input
+                    id="modal-bank-name"
+                    value={createForm.bankName}
+                    onChange={(e) => setCreateForm((c) => ({ ...c, bankName: e.target.value }))}
+                    placeholder="Tên ngân hàng"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-amount" className="text-sm font-semibold text-slate-700">
+                    Số tiền (VND)
+                  </label>
+                  <input
+                    id="modal-amount"
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={createForm.amount}
+                    onChange={(e) => setCreateForm((c) => ({ ...c, amount: e.target.value }))}
+                    placeholder="0"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              {/* 6. Tháng | Ngày chi */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-month" className="text-sm font-semibold text-slate-700">
+                    Tháng
+                  </label>
+                  <input
+                    id="modal-month"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={createForm.month}
+                    onChange={(e) => setCreateForm((c) => ({ ...c, month: Number(e.target.value) }))}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-payment-date" className="text-sm font-semibold text-slate-700">
+                    Ngày chi
+                  </label>
+                  <input
+                    id="modal-payment-date"
+                    type="date"
+                    value={createForm.paymentDate}
+                    onChange={(e) => setCreateForm((c) => ({ ...c, paymentDate: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              {/* 7. Trạng thái */}
+              <div className="space-y-1.5">
+                <label htmlFor="modal-status" className="text-sm font-semibold text-slate-700">
+                  Trạng thái
+                </label>
+                <select
+                  id="modal-status"
+                  value={createForm.status}
+                  onChange={(e) => setCreateForm((c) => ({ ...c, status: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="Chờ duyệt">Chờ duyệt</option>
+                  <option value="Đã duyệt">Đã duyệt</option>
+                  <option value="Đã chi">Đã chi</option>
+                </select>
+              </div>
+
+              {/* Thông báo lỗi nếu có */}
+              {createError && (
+                <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-700 font-medium">
+                  {createError}
+                </p>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setIsCreateOpen(false)}
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                >
+                  {isSubmitting ? 'Đang lưu…' : 'Lưu'}
+                </button>
               </div>
             </form>
-          </section>
-        </div>
-      )}
-
-      {viewLog && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewLog(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="operations-expense-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-xs text-slate-500">Chi tiết phiếu · {viewLog.request_code || `#${viewLog.id}`}</p><h2 id="operations-expense-title" className="mt-1 text-lg font-bold text-slate-900">{viewLog.fund_source}</h2></div><button type="button" onClick={() => setViewLog(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Đóng"><X className="h-5 w-5" /></button></div>
-            <div className="grid gap-3 p-5 sm:grid-cols-2">
-              <Detail label="Ngày đề nghị" value={dateLabel(viewLog.request_date)} />
-              <Detail label="Trạng thái" value={viewLog.status} />
-              <Detail label="Hạng mục chi" value={viewLog.detail_content || '—'} />
-              <Detail label="Số tiền đề nghị" value={money(amountFor(viewLog))} />
-              <Detail label="Thực chi" value={PAID_STATUSES.has(viewLog.status) ? money(paidAmountFor(viewLog)) : 'Chưa ghi nhận'} />
-              <Detail label="Ngày thanh toán" value={dateLabel(viewLog.payment_date)} />
-              <Detail label="Người đề nghị" value={viewLog.requester_name || '—'} />
-              <Detail label="Người thụ hưởng" value={viewLog.beneficiary_name || '—'} />
-              <Detail label="Điện thoại" value={viewLog.beneficiary_phone || '—'} />
-              <Detail label="Tài khoản nhận" value={viewLog.beneficiary_bank_account || 'Chưa ghi trên phiếu'} />
-            </div>
           </section>
         </div>
       )}
@@ -806,6 +962,23 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800">{value}</p></div>;
+function StatusBadge({ status }: { status: string }) {
+  const isPaid = PAID_STATUSES.has(status);
+  const isApproved = status === 'Đã duyệt';
+  const isRejected = status === REJECTED_STATUS;
+
+  let bgStyle = 'bg-amber-50 text-amber-700 ring-amber-200';
+  if (isPaid) {
+    bgStyle = 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+  } else if (isApproved) {
+    bgStyle = 'bg-blue-50 text-blue-700 ring-blue-200';
+  } else if (isRejected) {
+    bgStyle = 'bg-rose-50 text-rose-700 ring-rose-200';
+  }
+
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ${bgStyle}`}>
+      {status || 'Chờ duyệt'}
+    </span>
+  );
 }

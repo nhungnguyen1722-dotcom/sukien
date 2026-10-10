@@ -848,7 +848,7 @@ export default function MemberManagement({
                           href={`/admin/teamlead`}
                           target="_blank"
                           className="text-blue-600 hover:text-blue-800 transition-colors"
-                          title="Mở phân hệ TeamLead"
+                          title="Mở Quỹ TeamLead"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </Link>
@@ -1394,7 +1394,7 @@ export default function MemberManagement({
                     target="_blank"
                     className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs"
                   >
-                    <span>Mở phân hệ TeamLead</span>
+                    <span>Mở Quỹ TeamLead</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                 </div>
