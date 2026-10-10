@@ -365,6 +365,75 @@ export default function AllocationPolicyManager() {
           </section>
         )}
 
+        {/* Chi tiết cơ chế phân bổ hai quỹ chuyên biệt */}
+        <section className="grid gap-4 md:grid-cols-2">
+          {/* Box 1: Quỹ Leader Team */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Cơ chế phân bổ Quỹ Leader Team</h3>
+                <p className="text-xs text-slate-500">2,9% doanh số hệ thống · chia 30% tháng & 70% tuần</p>
+              </div>
+              <span className="rounded-full bg-pink-50 px-2.5 py-1 text-xs font-bold text-pink-700">2,9% DT</span>
+            </div>
+            <div className="mt-3 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center rounded-lg bg-slate-50 p-2.5">
+                <span className="font-semibold text-slate-700">Phần chia đều (30% quỹ):</span>
+                <span className="font-bold text-pink-700">{formatMoney(Math.round(revenue * 0.029 * 0.3))}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 px-1">Chia đều cho tất cả các Leader đủ điều kiện duy trì nhóm trong tháng.</p>
+              
+              <div className="flex justify-between items-center rounded-lg bg-slate-50 p-2.5">
+                <span className="font-semibold text-slate-700">Phần hiệu quả (70% quỹ):</span>
+                <span className="font-bold text-blue-700">{formatMoney(Math.round(revenue * 0.029 * 0.7))}</span>
+              </div>
+              <div className="space-y-1.5 rounded-lg border border-slate-100 p-2.5 text-[11px]">
+                <div className="font-semibold text-slate-700 mb-1">Định mức theo chức danh trong từng đội nhóm:</div>
+                <div className="flex justify-between text-slate-600"><span>• Giám đốc:</span><strong>50% quỹ đội</strong></div>
+                <div className="flex justify-between text-slate-600"><span>• Phó Giám đốc:</span><strong>30% quỹ đội</strong></div>
+                <div className="flex justify-between text-slate-600"><span>• Trưởng phòng:</span><strong>20% quỹ đội</strong></div>
+                <p className="text-[10px] text-slate-400 mt-1 italic">* Tự động tách dòng nhân sự kiêm nhiệm nhiều đội; dồn tỷ lệ nếu đội khuyết cấp.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Box 2: Quỹ Vận hành & Hỗ trợ */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Cơ chế phân bổ Quỹ Vận hành & Hỗ trợ</h3>
+                <p className="text-xs text-slate-500">2,5% doanh số hợp đồng · chuẩn hóa theo tỷ lệ quy định</p>
+              </div>
+              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">2,5% DT</span>
+            </div>
+            <div className="mt-3 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center rounded-lg bg-slate-50 p-2.5">
+                <span className="font-semibold text-slate-700">Tổng quỹ 2,5% giả định:</span>
+                <span className="font-bold text-indigo-700">{formatMoney(Math.round(revenue * 0.025))}</span>
+              </div>
+              <div className="space-y-1.5 rounded-lg border border-slate-100 p-2.5 text-[11px]">
+                <div className="flex justify-between py-1 border-b border-slate-100">
+                  <span className="font-semibold text-slate-800">1. Quỹ Vận hành (2,2%):</span>
+                  <span className="font-bold text-blue-700">{formatMoney(Math.round(revenue * 0.022))}</span>
+                </div>
+                <div className="pl-3 space-y-1 text-slate-600">
+                  <div className="flex justify-between"><span>• Phó tổng (1,2%):</span><span>{formatMoney(Math.round(revenue * 0.012))}</span></div>
+                  <div className="flex justify-between"><span>• Tổng điều hành (0,5%):</span><span>{formatMoney(Math.round(revenue * 0.005))}</span></div>
+                  <div className="flex justify-between"><span>• Tri ân kết nối phó tổng (0,5%):</span><span>{formatMoney(Math.round(revenue * 0.005))}</span></div>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-100 mt-2">
+                  <span className="font-semibold text-slate-800">2. Bộ phận hỗ trợ CN (0,2%):</span>
+                  <span className="font-bold text-emerald-700">{formatMoney(Math.round(revenue * 0.002))}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="font-semibold text-slate-800">3. Bộ phận hỗ trợ KT (0,1%):</span>
+                  <span className="font-bold text-purple-700">{formatMoney(Math.round(revenue * 0.001))}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-3 text-xs text-slate-500 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="flex items-center gap-2 font-semibold text-slate-700"><ShieldCheck className="h-4 w-4 text-blue-600" /> Phiên bản hiện tại</p><p className="mt-2">{current?.versionLabel || DEFAULT_POLICY_VERSION} · áp dụng từ {formatDate(current?.effectiveDate || DEFAULT_POLICY_EFFECTIVE_DATE)}</p></div>
           <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="flex items-center gap-2 font-semibold text-slate-700"><Clock3 className="h-4 w-4 text-blue-600" /> Cập nhật gần nhất</p><p className="mt-2">{current ? new Date(current.createdAt).toLocaleString('vi-VN') : '—'}{current?.createdBy ? ` · ${current.createdBy}` : ''}</p></div>

@@ -33,7 +33,11 @@ async function getOperationsFundData() {
     `),
     pool.query(`
       SELECT contract_date::text AS contract_date,
-        COALESCE(allocated_value, value, 0)::float8 AS allocation_base
+        CASE
+          WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+            THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+          ELSE COALESCE(value, 0)
+        END::float8 AS allocation_base
       FROM contracts
       WHERE contract_date IS NOT NULL
       ORDER BY contract_date DESC, id DESC

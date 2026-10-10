@@ -37,21 +37,46 @@ async function getTransactionsData() {
       ORDER BY period_start, id
     `),
     pool.query(`
-      SELECT id, contract_code, contract_date::text AS contract_date, customer_name,
-        value::float8 AS value,
+      SELECT 
+        c.id, 
+        c.contract_code, 
+        c.contract_date::text AS contract_date, 
+        c.customer_name,
+        c.value::float8 AS value,
+        COALESCE(c.contract_type, '') AS contract_type,
         CASE
-          WHEN contract_date >= DATE '2026-10-01' AND contract_date < DATE '2026-11-01'
-            THEN COALESCE(NULLIF(allocated_value, 0), value, 0)
-          ELSE COALESCE(allocated_value, 0)
+          WHEN UPPER(TRIM(COALESCE(c.contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+            THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
+          ELSE COALESCE(c.value, 0)
         END::float8 AS allocated_value,
-        COALESCE(closer_name, '') AS closer_name, COALESCE(closer_phone, '') AS closer_phone,
-        COALESCE(closer_fee, 0)::float8 AS closer_fee,
-        COALESCE(referrer_name, '') AS referrer_name, COALESCE(referrer_phone, '') AS referrer_phone,
-        COALESCE(referrer_fee, 0)::float8 AS referrer_fee,
-        COALESCE(supporter_name, '') AS supporter_name, COALESCE(supporter_phone, '') AS supporter_phone,
-        COALESCE(supporter_fee, 0)::float8 AS supporter_fee, COALESCE(status, '') AS status
-      FROM contracts
-      ORDER BY contract_date, id
+        CASE 
+          WHEN c.closer_name = 'Nguy?n H?ng V?' THEN 'Nguyễn Hùng Vĩ'
+          WHEN c.closer_name LIKE '%?%' AND u_closer.full_name IS NOT NULL THEN u_closer.full_name
+          ELSE COALESCE(NULLIF(BTRIM(c.closer_name), ''), u_closer.full_name, '')
+        END AS closer_name,
+        COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone, '') AS closer_phone,
+        COALESCE(c.closer_fee, 0)::float8 AS closer_fee,
+        CASE 
+          WHEN c.referrer_name = 'Chu Th? L??ng' THEN 'Chu Thị Lương'
+          WHEN c.referrer_name LIKE '%?%' AND u_referrer.full_name IS NOT NULL THEN u_referrer.full_name
+          ELSE COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name, '')
+        END AS referrer_name,
+        COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone, '') AS referrer_phone,
+        COALESCE(c.referrer_fee, 0)::float8 AS referrer_fee,
+        CASE 
+          WHEN c.supporter_name = 'V? Th? C?c' THEN 'Vũ Thị Cúc'
+          WHEN c.supporter_name = 'Nguy?n H?ng V?' THEN 'Nguyễn Hùng Vĩ'
+          WHEN c.supporter_name LIKE '%?%' AND u_supporter.full_name IS NOT NULL THEN u_supporter.full_name
+          ELSE COALESCE(NULLIF(BTRIM(c.supporter_name), ''), u_supporter.full_name, '')
+        END AS supporter_name,
+        COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone, '') AS supporter_phone,
+        COALESCE(c.supporter_fee, 0)::float8 AS supporter_fee,
+        CASE WHEN c.status = 'Ch? duy?t' THEN 'Chờ duyệt' ELSE COALESCE(c.status, '') END AS status
+      FROM contracts c
+      LEFT JOIN users u_closer ON c.closer_id = u_closer.id
+      LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
+      LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+      ORDER BY c.contract_date, c.id
     `),
     pool.query(`
       SELECT event_code, event_date::text AS event_date, COALESCE(beneficiary_phone, '') AS beneficiary_phone,

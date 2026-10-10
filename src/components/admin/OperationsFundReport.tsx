@@ -38,7 +38,7 @@ type Props = {
 
 /** Các bộ phận cố định cho dropdown (Hình 7.6) */
 const DEPARTMENT_OPTIONS = [
-  'Tri ấn kết nối phó tổng',
+  'Tri ân kết nối phó tổng',
   'Tổng điều hành',
   'Phó tổng',
   'Quỹ hỗ trợ & dự phòng (CN)',
@@ -57,7 +57,7 @@ const ALLOCATION_ROWS = [
   {
     fundType: 'Quỹ vận hành',
     fundKey: 'operations' as OperationsSupportFundKey,
-    department: 'Tri ấn kết nối phó tổng',
+    department: 'Tri ân kết nối phó tổng',
     phone: '000006',
     fullName: 'Nguyễn Thị Hương Thảo',
     bankAccount: '0965749223',
@@ -245,7 +245,7 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
           || content.includes(rowDept)
           || (row.department === 'Phó tổng' && content.includes('phó tổng'))
           || (row.department === 'Tổng điều hành' && content.includes('tổng điều hành'))
-          || (row.department === 'Tri ấn kết nối phó tổng' && content.includes('tri ân'));
+          || (row.department === 'Tri ân kết nối phó tổng' && content.includes('tri ân'));
       });
 
       const paid = deptLogs

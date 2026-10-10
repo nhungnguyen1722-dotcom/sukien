@@ -82,6 +82,24 @@ const SOURCES: WorkbookSource[] = [
   },
 ];
 
+interface MatrixSource {
+  fileName: string;
+  sheetName: string;
+  periodCode: string;
+  sheetLabel: string;
+  weekNumber: number;
+}
+
+const MATRIX_SOURCES: MatrixSource[] = [
+  {
+    fileName: 'DN_thanh_toan_HH_Tuan1_T10.xlsx',
+    sheetName: 'DNTT HH tuần 1 T10',
+    periodCode: '2026-10-W1',
+    sheetLabel: 'Tuần 1 Tháng 10',
+    weekNumber: 1,
+  },
+];
+
 const normalizeName = (value: string) => value
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -92,13 +110,27 @@ const normalizeName = (value: string) => value
   .replace(/\s+/g, ' ');
 
 function namesMatch(left: string, right: string) {
-  const a = normalizeName(left).split(' ');
-  const b = normalizeName(right).split(' ');
-  return a.length === b.length && a.every((part, index) => (
+  const normA = normalizeName(left).replace(/y/g, 'i');
+  const normB = normalizeName(right).replace(/y/g, 'i');
+  if (normA === normB) return true;
+  const a = normA.split(' ');
+  const b = normB.split(' ');
+  const lastA = a[a.length - 1];
+  const lastB = b[b.length - 1];
+  if (lastA !== lastB && !lastA.startsWith(lastB) && !lastB.startsWith(lastA)) {
+    return false;
+  }
+  if (a.length === b.length && a.every((part, index) => (
     part === b[index]
     || (part.length === 1 && b[index].startsWith(part))
     || (b[index].length === 1 && part.startsWith(b[index]))
-  ));
+  ))) {
+    return true;
+  }
+  const aWords = new Set(a);
+  const bWords = new Set(b);
+  const common = a.filter((w) => bWords.has(w));
+  return common.length >= 2 && (common.length === a.length || common.length === b.length || common.length >= Math.max(a.length, b.length) - 1);
 }
 
 function canonicalName(name: string, memberNames: string[]) {
@@ -165,6 +197,23 @@ function findDatabaseContract(
   return matches[0].contract;
 }
 
+const fileBufferCache = new Map<string, { mtimeMs: number; buffer: Buffer }>();
+
+function readFileBuffer(filePath: string): Buffer {
+  try {
+    const stat = fs.statSync(filePath);
+    const cached = fileBufferCache.get(filePath);
+    if (cached && cached.mtimeMs === stat.mtimeMs) {
+      return cached.buffer;
+    }
+    const buffer = fs.readFileSync(filePath);
+    fileBufferCache.set(filePath, { mtimeMs: stat.mtimeMs, buffer });
+    return buffer;
+  } catch {
+    return fs.readFileSync(filePath);
+  }
+}
+
 function readSource(source: WorkbookSource, memberNames: string[]) {
   const filePath = path.join(process.cwd(), 'imagedata', source.fileName);
   if (!fs.existsSync(filePath)) {
@@ -173,7 +222,7 @@ function readSource(source: WorkbookSource, memberNames: string[]) {
       warnings: [`Không tìm thấy file ${source.fileName}.`],
     };
   }
-  const fileBuffer = fs.readFileSync(filePath);
+  const fileBuffer = readFileBuffer(filePath);
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: false });
   const worksheetName = workbook.SheetNames[0];
   const worksheet = worksheetName ? workbook.Sheets[worksheetName] : undefined;
@@ -266,6 +315,281 @@ function readSource(source: WorkbookSource, memberNames: string[]) {
   return { contracts, warnings };
 }
 
+function readMatrixSource(
+  source: MatrixSource,
+  memberNames: string[],
+  databaseContracts: DatabaseContract[],
+  usedContractIds: Set<number>,
+) {
+  const filePath = path.join(process.cwd(), 'imagedata', source.fileName);
+  if (!fs.existsSync(filePath)) {
+    return {
+      contracts: [],
+      warnings: [`Không tìm thấy file ${source.fileName}.`],
+    };
+  }
+  const fileBuffer = readFileBuffer(filePath);
+  const workbook = XLSX.read(fileBuffer, { type: 'buffer', sheets: [source.sheetName], cellDates: false });
+  const worksheet = workbook.Sheets[source.sheetName];
+  if (!worksheet) {
+    return {
+      contracts: [],
+      warnings: [`Không tìm thấy trang tính ${source.sheetName} trong ${source.fileName}.`],
+    };
+  }
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
+  const headerRowIdx = rows.findIndex((r) => {
+    const c1 = String(r[1] ?? '').trim();
+    return c1 === 'Hợp đồng' || c1.includes('Họ tên/Hợp đồng');
+  });
+  if (headerRowIdx < 0) {
+    return {
+      contracts: [],
+      warnings: [`Không tìm thấy ma trận hợp đồng trong ${source.sheetLabel}.`],
+    };
+  }
+
+  const headerRow = rows[headerRowIdx];
+  const isRowContracts = String(headerRow[1] ?? '').trim() === 'Hợp đồng';
+
+  // Trường hợp 1: Dòng là Hợp đồng, Cột là Người thụ hưởng (ví dụ sheet DNTT HH tuần 1 T10)
+  if (isRowContracts) {
+    const colBeneficiaries: Array<{ colIndex: number; name: string; bankAccount: string | null; bankName: string | null }> = [];
+    for (let c = 2; c < headerRow.length; c++) {
+      const cell = String(headerRow[c] ?? '').trim();
+      if (!cell || cell.toLowerCase().includes('tổng chi')) break;
+      const lines = cell.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const name = canonicalName(lines[0] || '', memberNames);
+      const accountLine = lines.find((l) => /^stk/i.test(l));
+      const bankAccount = accountLine ? accountLine.replace(/^stk:?\s*/i, '').trim() : null;
+      const bankName = lines.length > 2 ? lines[2] : (lines.length === 2 && !accountLine ? lines[1] : null);
+      colBeneficiaries.push({ colIndex: c, name, bankAccount, bankName });
+    }
+
+    const contracts: WorkbookContractDistribution[] = [];
+    for (let r = headerRowIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      const cCell = String(row[1] ?? '').trim();
+      if (!cCell || cCell.toLowerCase().includes('tổng') || String(row[0] ?? '').toLowerCase().includes('tổng')) break;
+      const lines = cCell.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const text = lines.join(' ');
+      const dateMatch = text.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+      const contractDate = dateMatch ? `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}` : '2026-10-03';
+      const valMatch = text.match(/Giá trị:\s*([\d.]+)/i);
+      const parsedVal = valMatch ? parseMoney(valMatch[1].replace(/\./g, '')) : 0;
+      const khMatch = text.match(/KH:\s*([^\n\r]+?)(?:\s*Giá trị:|$)/i);
+      let customerName = khMatch ? khMatch[1].trim() : lines[1] || '';
+      customerName = customerName.replace(/^KH:?\s*/i, '').trim();
+
+      const sourceBeneficiaries: WorkbookBeneficiary[] = [];
+      for (const b of colBeneficiaries) {
+        const amount = parseMoney(row[b.colIndex]);
+        if (amount > 0) {
+          sourceBeneficiaries.push({
+            name: b.name,
+            amount,
+            bank_account: b.bankAccount,
+            bank_name: b.bankName,
+          });
+        }
+      }
+
+      const matched = databaseContracts.find((c) => (
+        !usedContractIds.has(c.id)
+        && (namesMatch(c.customer_name, customerName) || customerName.toLowerCase().includes(c.customer_name.trim().toLowerCase()))
+        && (parsedVal === 0 || Math.abs(Math.round(c.allocated_value || c.value) - parsedVal) <= 1)
+        && c.contract_date >= '2026-10-01'
+      ));
+      if (matched) usedContractIds.add(matched.id);
+
+      const actualValue = parsedVal || (matched ? Math.round(matched.allocated_value || matched.value) : 0);
+      const unallocatedPool = Math.round(actualValue * 0.15);
+
+      if (sourceBeneficiaries.length === 0 && matched) {
+        if (matched.closer_name && matched.closer_fee > 0) {
+          sourceBeneficiaries.push({ name: matched.closer_name, amount: Math.round(matched.closer_fee) });
+        }
+        if (matched.referrer_name && matched.referrer_fee > 0) {
+          sourceBeneficiaries.push({ name: matched.referrer_name, amount: Math.round(matched.referrer_fee) });
+        }
+        if (matched.supporter_name && matched.supporter_fee > 0) {
+          sourceBeneficiaries.push({ name: matched.supporter_name, amount: Math.round(matched.supporter_fee) });
+        }
+      }
+
+      const distributedCommission = sourceBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
+      const remainingFund = unallocatedPool - distributedCommission;
+      const identity = matched?.id ?? 910_000 + source.weekNumber * 10_000 + r;
+
+      contracts.push({
+        id: identity,
+        contract_code: matched?.contract_code ?? null,
+        contract_date: matched?.contract_date ?? contractDate,
+        customer_name: matched?.customer_name || customerName,
+        value: actualValue,
+        allocated_value: actualValue,
+        closer_name: matched?.closer_name ?? '',
+        closer_phone: matched?.closer_phone ?? '',
+        closer_fee: matched?.closer_fee ?? 0,
+        referrer_name: matched?.referrer_name ?? '',
+        referrer_phone: matched?.referrer_phone ?? '',
+        referrer_fee: matched?.referrer_fee ?? 0,
+        supporter_name: matched?.supporter_name ?? '',
+        supporter_phone: matched?.supporter_phone ?? '',
+        supporter_fee: matched?.supporter_fee ?? 0,
+        status: matched?.status || 'Chờ duyệt',
+        source_period_code: source.periodCode,
+        source_excel_row: r + 1,
+        source_sheet: source.sheetName,
+        source_beneficiaries: sourceBeneficiaries,
+        unallocated_pool: unallocatedPool,
+        distributed_commission: distributedCommission,
+        remaining_fund: remainingFund,
+      });
+    }
+
+    const remainingDbContracts = databaseContracts.filter((c) => (
+      !usedContractIds.has(c.id)
+      && c.contract_date >= '2026-10-03'
+      && c.contract_date <= '2026-10-31'
+    ));
+    for (const dbContract of remainingDbContracts) {
+      usedContractIds.add(dbContract.id);
+      const actualValue = Math.round(dbContract.allocated_value || dbContract.value);
+      const unallocatedPool = Math.round(actualValue * 0.15);
+      const sourceBeneficiaries: WorkbookBeneficiary[] = [];
+      if (dbContract.closer_name && dbContract.closer_fee > 0) {
+        sourceBeneficiaries.push({ name: dbContract.closer_name, amount: Math.round(dbContract.closer_fee) });
+      }
+      if (dbContract.referrer_name && dbContract.referrer_fee > 0) {
+        sourceBeneficiaries.push({ name: dbContract.referrer_name, amount: Math.round(dbContract.referrer_fee) });
+      }
+      if (dbContract.supporter_name && dbContract.supporter_fee > 0) {
+        sourceBeneficiaries.push({ name: dbContract.supporter_name, amount: Math.round(dbContract.supporter_fee) });
+      }
+      const distributedCommission = sourceBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
+      contracts.push({
+        id: dbContract.id,
+        contract_code: dbContract.contract_code ?? null,
+        contract_date: dbContract.contract_date,
+        customer_name: dbContract.customer_name,
+        value: actualValue,
+        allocated_value: actualValue,
+        closer_name: dbContract.closer_name,
+        closer_phone: dbContract.closer_phone,
+        closer_fee: dbContract.closer_fee,
+        referrer_name: dbContract.referrer_name,
+        referrer_phone: dbContract.referrer_phone,
+        referrer_fee: dbContract.referrer_fee,
+        supporter_name: dbContract.supporter_name,
+        supporter_phone: dbContract.supporter_phone,
+        supporter_fee: dbContract.supporter_fee,
+        status: dbContract.status || 'Chờ duyệt',
+        source_period_code: source.periodCode,
+        source_excel_row: 999,
+        source_sheet: source.sheetName,
+        source_beneficiaries: sourceBeneficiaries,
+        unallocated_pool: unallocatedPool,
+        distributed_commission: distributedCommission,
+        remaining_fund: unallocatedPool - distributedCommission,
+      });
+    }
+
+    return { contracts, warnings: [] };
+  }
+
+  // Trường hợp 2: Cột là Hợp đồng, Dòng là Người thụ hưởng
+  const colContracts: Array<{ colIndex: number; customerName: string; contractValue: number; contractDate: string }> = [];
+  for (let c = 2; c < headerRow.length; c++) {
+    const cell = String(headerRow[c] ?? '').trim();
+    if (!cell || cell.toLowerCase().includes('tổng chi')) break;
+    const lines = cell.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const text = lines.join(' ');
+    const dateMatch = text.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+    const contractDate = dateMatch ? `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}` : '2026-10-03';
+    const digitsMatch = text.match(/[\d.]+/g);
+    const amountStr = digitsMatch ? digitsMatch[digitsMatch.length - 1].replace(/\./g, '') : '0';
+    const contractValue = parseMoney(amountStr);
+    let customer = text.replace(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/, '');
+    customer = customer.replace(/^[-–\s]+/, '').replace(/[\d.,]+$/, '').trim();
+    colContracts.push({ colIndex: c, customerName: customer, contractValue, contractDate });
+  }
+
+  const beneficiaries: Array<{ rowIdx: number; name: string; bankAccount: string | null; bankName: string | null }> = [];
+  for (let r = headerRowIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const nameCell = String(row[1] ?? '').trim();
+    if (!nameCell || nameCell.toLowerCase().includes('tổng quỹ') || nameCell.toLowerCase().includes('tổng hoa hồng') || nameCell.toLowerCase().includes('người lập')) break;
+    const lines = nameCell.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const name = canonicalName(lines[0] || '', memberNames);
+    const accountLine = lines.find((l) => /^stk/i.test(l));
+    const bankAccount = accountLine ? accountLine.replace(/^stk:?\s*/i, '').trim() : null;
+    const bankName = lines.length > 2 ? lines[2] : (lines.length === 2 && !accountLine ? lines[1] : null);
+    beneficiaries.push({ rowIdx: r, name, bankAccount, bankName });
+  }
+
+  const poolRow = rows.find((r) => String(r[1] ?? '').includes('Tổng quỹ chưa chia'));
+  const commRow = rows.find((r) => String(r[1] ?? '').includes('Tổng hoa hồng chia'));
+  const remRow = rows.find((r) => String(r[1] ?? '').includes('Tổng quỹ còn lại'));
+
+  const contracts: WorkbookContractDistribution[] = [];
+  for (const col of colContracts) {
+    const unallocatedPool = parseMoney(poolRow ? poolRow[col.colIndex] : Math.round(col.contractValue * 0.15));
+    const distributedCommission = parseMoney(commRow ? commRow[col.colIndex] : 0);
+    const remainingFund = parseMoney(remRow ? remRow[col.colIndex] : unallocatedPool - distributedCommission);
+
+    const sourceBeneficiaries: WorkbookBeneficiary[] = [];
+    for (const b of beneficiaries) {
+      const amount = parseMoney(rows[b.rowIdx][col.colIndex]);
+      if (amount > 0) {
+        sourceBeneficiaries.push({
+          name: b.name,
+          amount,
+          bank_account: b.bankAccount,
+          bank_name: b.bankName,
+        });
+      }
+    }
+
+    const matched = databaseContracts.find((c) => (
+      !usedContractIds.has(c.id)
+      && namesMatch(c.customer_name, col.customerName)
+      && Math.abs(Math.round(c.allocated_value || c.value) - col.contractValue) <= 1
+    ));
+    if (matched) usedContractIds.add(matched.id);
+
+    const identity = matched?.id ?? 910_000 + source.weekNumber * 10_000 + col.colIndex;
+    contracts.push({
+      id: identity,
+      contract_code: matched?.contract_code ?? null,
+      contract_date: matched?.contract_date ?? col.contractDate,
+      customer_name: matched?.customer_name || col.customerName,
+      value: col.contractValue,
+      allocated_value: col.contractValue,
+      closer_name: matched?.closer_name ?? '',
+      closer_phone: matched?.closer_phone ?? '',
+      closer_fee: matched?.closer_fee ?? 0,
+      referrer_name: matched?.referrer_name ?? '',
+      referrer_phone: matched?.referrer_phone ?? '',
+      referrer_fee: matched?.referrer_fee ?? 0,
+      supporter_name: matched?.supporter_name ?? '',
+      supporter_phone: matched?.supporter_phone ?? '',
+      supporter_fee: matched?.supporter_fee ?? 0,
+      status: matched?.status || 'Chờ duyệt',
+      source_period_code: source.periodCode,
+      source_excel_row: headerRowIdx + 1,
+      source_sheet: source.sheetName,
+      source_beneficiaries: sourceBeneficiaries,
+      unallocated_pool: unallocatedPool,
+      distributed_commission: distributedCommission,
+      remaining_fund: remainingFund,
+    });
+  }
+
+  return { contracts, warnings: [] };
+}
+
 export function loadSeptemberContractDistributions(
   databaseContracts: DatabaseContract[],
   memberNames: string[],
@@ -304,5 +628,19 @@ export function loadSeptemberContractDistributions(
     }
   }
 
+  for (const source of MATRIX_SOURCES) {
+    try {
+      const result = readMatrixSource(source, memberNames, databaseContracts, usedContractIds);
+      warningsByPeriod[source.periodCode] = result.warnings;
+      contracts.push(...result.contracts);
+    } catch (error) {
+      warningsByPeriod[source.periodCode] = [
+        `Lỗi khi đọc sheet ${source.sheetName}: ${error instanceof Error ? error.message : String(error)}`,
+      ];
+    }
+  }
+
   return { contracts, warningsByPeriod };
 }
+
+export const loadContractDistributions = loadSeptemberContractDistributions;

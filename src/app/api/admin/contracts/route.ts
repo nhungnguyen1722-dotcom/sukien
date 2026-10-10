@@ -339,10 +339,11 @@ export async function POST(request: NextRequest) {
     const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
       ? Number(body.allocated_value)
       : (isBds ? Math.round((numValue * 4) / 15) : numValue);
-    // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5%
-    const closer_fee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(numValue * 0.06);
-    const referrer_fee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(numValue * 0.01);
-    const supporter_fee = body.supporter_fee !== undefined ? Number(body.supporter_fee) : Math.round(numValue * 0.005);
+    // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5% (tính trên giá trị phân bổ nếu là BĐS)
+    const feeBase = isBds ? allocatedValue : numValue;
+    const closer_fee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(feeBase * 0.06);
+    const referrer_fee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(feeBase * 0.01);
+    const supporter_fee = body.supporter_fee !== undefined ? Number(body.supporter_fee) : Math.round(feeBase * 0.005);
 
     const res = await pool.query(
       `

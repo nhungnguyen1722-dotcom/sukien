@@ -81,6 +81,7 @@ export interface FundContract {
   customer_name: string;
   value: number;
   allocated_value: number;
+  contract_type?: string | null;
   closer_name: string;
   closer_phone: string;
   closer_fee: number;
@@ -239,8 +240,31 @@ const safeText = (value?: string | null) => value?.trim() || 'Chưa có dữ li�
 const isPaidStatus = (status: string) => ['Đã chi', 'Đã thanh toán', 'Đã thực hiện'].includes(status);
 const normalizeFund = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim().toLocaleLowerCase('vi');
 
+export function isBdsContract(contractType?: string | null): boolean {
+  if (!contractType) return false;
+  const upper = contractType.trim().toUpperCase();
+  if (upper === 'BĐS' || upper === 'BDS') return true;
+  const normalized = contractType
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .trim()
+    .toLowerCase();
+  return normalized === 'bds' || normalized.includes('bat dong san');
+}
+
+export function getContractAllocatedValue(contract: { value: number; contract_type?: string | null; allocated_value?: number }): number {
+  if (isBdsContract(contract.contract_type)) {
+    return Math.round((Number(contract.value || 0) * 4) / 15);
+  }
+  return Number(contract.value || contract.allocated_value || 0);
+}
+
 function withinPeriod(date: string, period: WeeklyAllocation) {
   const dateOnly = date.slice(0, 10);
+  if (period.period_month === '2026-10' && dateOnly <= '2026-10-02') {
+    return false;
+  }
   const range = getEffectivePeriodRange(period);
   return dateOnly >= range.start && dateOnly <= range.endInclusive;
 }
@@ -248,6 +272,9 @@ function withinPeriod(date: string, period: WeeklyAllocation) {
 function withinMonth(date: string, month: string) {
   const range = getMonthWeekRange(month);
   const dateOnly = date.slice(0, 10);
+  if (month.slice(0, 7) === '2026-10') {
+    return dateOnly >= '2026-10-03' && dateOnly < range.endExclusive;
+  }
   return dateOnly >= range.start && dateOnly < range.endExclusive;
 }
 
@@ -472,16 +499,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       return { ...row, allocation_rate, period_start: range.start, period_end: range.endInclusive };
     });
 
-    const hasMonthAllocations = mapped.some((row) => row.period_month === selectedMonth && !row.period_code.endsWith('-MONTH'));
-    if (hasMonthAllocations) {
-      return mapped;
-    }
+    const existingWeekCodes = new Set(
+      mapped
+        .filter((row) => row.period_month === selectedMonth && !row.period_code.endsWith('-MONTH'))
+        .map((row) => row.period_code)
+    );
 
     const generated: WeeklyAllocation[] = [];
     const totalWeeks = 5;
     for (let w = 1; w <= totalWeeks; w++) {
-      const range = getMonthWeekRange(selectedMonth, w);
       const periodCode = `${selectedMonth}-W${w}`;
+      if (existingWeekCodes.has(periodCode)) continue;
+      const range = getMonthWeekRange(selectedMonth, w);
       const periodLabel = `Tuần ${w}`;
 
       for (const fund of DEFAULT_FUNDS) {
@@ -502,12 +531,19 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
     return [...mapped, ...generated];
   }, [weeklyAllocations, selectedMonth]);
+  const normalizedContracts = useMemo(() => {
+    return contracts.map((contract) => ({
+      ...contract,
+      allocated_value: getContractAllocatedValue(contract),
+    }));
+  }, [contracts]);
+
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
     const dates = [
       currentMonth,
       ...weeklyAllocations.map((row) => row.period_month),
-      ...contracts.map((contract) => contract.contract_date),
+      ...normalizedContracts.map((contract) => contract.contract_date),
       ...eventExpenses.map((expense) => expense.event_date),
       ...logs.map((log) => log.request_date || ''),
     ];
@@ -517,7 +553,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     }
     years.add(Number(selectedYear));
     return Array.from(years).sort((a, b) => b - a);
-  }, [contracts, currentMonth, eventExpenses, logs, selectedYear, weeklyAllocations]);
+  }, [currentMonth, eventExpenses, logs, normalizedContracts, selectedYear, weeklyAllocations]);
   const periodsForMonth = useMemo(() => {
     const unique = new Map<string, WeeklyAllocation>();
     normalizedWeeklyAllocations
@@ -545,17 +581,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     const hasWorkbookPeriod = workbookContracts.some((contract) => contract.source_period_code === period.period_code);
     const sourceRows = hasWorkbookPeriod
       ? workbookContracts.filter((contract) => contract.source_period_code === period.period_code && withinPeriod(contract.contract_date, period))
-      : contracts.filter((contract) => withinPeriod(contract.contract_date, period));
+      : normalizedContracts.filter((contract) => withinPeriod(contract.contract_date, period));
     return sourceRows.reduce((total, contract) => total + contract.allocated_value, 0);
   };
 
-  const monthContracts = ((selectedMonth === '2026-09' && workbookContracts.length)
+  const hasWorkbookForMonth = workbookContracts.some((contract) => withinMonth(contract.contract_date, selectedMonth));
+  const monthContracts = (hasWorkbookForMonth
     ? workbookContracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth))
-    : contracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth)))
+    : normalizedContracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth)))
     .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   const monthBase = monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
   const selectedBase = selectedPeriod ? periodBase(selectedPeriod) : 0;
-  const monthPool = monthContracts.reduce((total, contract) => total + contractPool(contract), 0);
+  const monthPool = Math.round(monthBase * 0.15);
   const monthEventRows = weeklyRowsForMonth.filter((row) => row.fund_key === 'event_close');
   const monthEventPool = Math.round(monthEventRows.reduce((sum, row) => {
     const period = periodsForMonth.find((item) => item.period_code === row.period_code);
@@ -585,6 +622,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     return sum + (period ? periodBase(period) * row.allocation_rate : 0);
   }, 0));
   const monthlyLeaderRequests = monthLeaderRows.reduce((sum, row) => sum + row.requested_amount, 0);
+
+  const selectedLeaderRow = selectedPeriod
+    ? normalizedWeeklyAllocations.find((row) => row.period_code === selectedPeriod.period_code && row.fund_key === 'leader')
+    : undefined;
+  const selectedLeaderPool = selectedPeriod ? Math.round(selectedBase * 0.029) : 0;
+  const selectedLeaderRequests = selectedLeaderRow ? selectedLeaderRow.requested_amount : 0;
 
   const selectedRows = selectedPeriod
     ? normalizedWeeklyAllocations
@@ -642,7 +685,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const selectedContracts = selectedPeriod
     ? (workbookContracts.some((contract) => contract.source_period_code === selectedPeriod.period_code)
         ? workbookContracts.filter((contract) => contract.source_period_code === selectedPeriod.period_code && withinPeriod(contract.contract_date, selectedPeriod))
-        : contracts.filter((contract) => withinPeriod(contract.contract_date, selectedPeriod)))
+        : normalizedContracts.filter((contract) => withinPeriod(contract.contract_date, selectedPeriod)))
         .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
     : [];
   const displayedContracts = isMonthOverview ? monthContracts : selectedContracts;
@@ -652,11 +695,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     remaining: totals.remaining + contractRemainingFund(contract),
   }), { pool: 0, commission: 0, remaining: 0 });
   const peopleRows = groupContractsByPerson(displayedContracts);
-  const displayedWorkbookWarnings = selectedMonth === '2026-09'
-    ? (isMonthOverview
-        ? Object.values(workbookWarnings).flat()
-        : workbookWarnings[selectedPeriod?.period_code || ''] || [])
-    : [];
+  const displayedWorkbookWarnings = isMonthOverview
+    ? Object.entries(workbookWarnings)
+        .filter(([periodCode]) => periodCode.startsWith(selectedMonth))
+        .flatMap(([, warnings]) => warnings)
+    : workbookWarnings[selectedPeriod?.period_code || ''] || [];
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFund, setSelectedFund] = useState('all');
@@ -877,7 +920,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       {activeTab === 'cashflow' && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Wallet className="h-5 w-5" />} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthBase : selectedBase)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
-        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
+        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
         <StatCard icon={<Receipt className="h-5 w-5" />} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
         <StatCard icon={<CalendarDays className="h-5 w-5" />} label="Quỹ tích lũy tháng" value={formatVND(monthPool)} note={`Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}`} tint="emerald" />
       </div>
@@ -955,9 +998,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 </tbody>
                 <tfoot className="bg-blue-50 font-bold text-slate-800">
                   <tr>
-                    <td colSpan={2} className="px-4 py-3">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
+                    <td className="px-4 py-3">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700">{formatVND(isMonthOverview ? monthBase : selectedBase)}</td>
                     <td className="px-3 py-3 text-slate-600">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.pool)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.commission)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.remaining)}</td>
                   </tr>
@@ -1032,14 +1076,29 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
           <Panel className="p-4">
             <div className="mb-3 flex items-center justify-between">
-              <div><h2 className="font-bold text-slate-900">Leader Team & Giám đốc KD</h2><p className="mt-1 text-[11px] text-slate-500">Tổng hợp tháng, chia tỷ lệ 30% / 70%.</p></div>
+              <div>
+                <h2 className="font-bold text-slate-900">{isMonthOverview ? 'Leader Team & Giám đốc KD' : `Leader Team · ${selectedPeriodHeading.split('·')[0].trim()}`}</h2>
+                <p className="mt-1 text-[11px] text-slate-500">{isMonthOverview ? 'Tổng hợp tháng, chia tỷ lệ 30% / 70%.' : '30% chia đều tháng; 70% theo hiệu quả tuần.'}</p>
+              </div>
               <span className="rounded-full bg-pink-50 px-2 py-1 text-[10px] font-bold text-pink-700">2,9%</span>
             </div>
             <div className="space-y-2 text-xs">
-              <SplitRow label="Quỹ Leader Team (30%)" amount={Math.round(monthlyLeaderPool * 0.3)} color="text-pink-700" />
-              <SplitRow label="Quỹ Giám đốc KD (70%)" amount={Math.round(monthlyLeaderPool * 0.7)} color="text-blue-700" />
-              <div className="flex justify-between border-t border-slate-100 pt-2 font-bold"><span>Tổng quỹ lũy kế tháng</span><span>{formatVND(monthlyLeaderPool)}</span></div>
-              <div className="flex justify-between text-[11px] text-slate-500"><span>Đề nghị chi trong DNTT tuần</span><span>{formatVND(monthlyLeaderRequests)}</span></div>
+              <SplitRow label={isMonthOverview ? "Quỹ Leader Team (30%)" : "Quỹ 30% chia đều"} amount={Math.round((isMonthOverview ? monthlyLeaderPool : selectedLeaderPool) * 0.3)} color="text-pink-700" />
+              <SplitRow label={isMonthOverview ? "Quỹ Giám đốc KD (70%)" : "Quỹ 70% hiệu quả tuần"} amount={Math.round((isMonthOverview ? monthlyLeaderPool : selectedLeaderPool) * 0.7)} color="text-blue-700" />
+              <div className="flex justify-between border-t border-slate-100 pt-2 font-bold">
+                <span>{isMonthOverview ? 'Tổng quỹ lũy kế tháng' : 'Tổng quỹ Leader tuần'}</span>
+                <span>{formatVND(isMonthOverview ? monthlyLeaderPool : selectedLeaderPool)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-500">
+                <span>{isMonthOverview ? 'Đề nghị chi trong DNTT tháng' : 'Đề nghị chi tuần này'}</span>
+                <span>{formatVND(isMonthOverview ? monthlyLeaderRequests : (selectedLeaderRequests || Math.round(selectedLeaderPool * 0.7)))}</span>
+              </div>
+              {!isMonthOverview && (
+                <div className="flex justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+                  <span>Lũy kế tháng (2,9%):</span>
+                  <span className="font-semibold text-slate-600">{formatVND(monthlyLeaderPool)}</span>
+                </div>
+              )}
             </div>
           </Panel>
         </div>
@@ -1156,7 +1215,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           <div className="grid gap-3 sm:grid-cols-2">
             <Detail label="Khách hàng" value={viewContract.customer_name} />
             <Detail label="Ngày ký" value={formatDate(viewContract.contract_date)} />
-            <Detail label="Giá trị phân bổ" value={formatVND(viewContract.allocated_value)} />
+            <Detail label="Giá trị hợp đồng" value={formatVND(viewContract.value)} />
+            <Detail label="Giá trị phân bổ" value={isBdsContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (BĐS · 4/15)` : formatVND(viewContract.allocated_value)} />
+            <Detail label="Loại hợp đồng" value={viewContract.contract_type || 'Thường'} />
             <Detail label="Trạng thái hợp đồng" value={viewContract.status || '—'} />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">

@@ -200,7 +200,12 @@ function periodBounds(month: string, weekNo: number) {
 function getWeekNo(contractDate: string, month = monthKey(contractDate)) {
   const configuredWeek = getMonthWeekNo(contractDate, month);
   if (configuredWeek !== null) return configuredWeek;
-  const day = new Date(`${contractDate.slice(0, 10)}T00:00:00.000Z`).getUTCDate();
+  const targetMonth = month.slice(0, 7);
+  const dateOnly = contractDate.slice(0, 10);
+  if (targetMonth === '2026-10' && dateOnly <= '2026-10-02') {
+    return 0;
+  }
+  const day = new Date(`${dateOnly}T00:00:00.000Z`).getUTCDate();
   return Math.min(5, Math.ceil(day / 7));
 }
 
@@ -305,6 +310,15 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
       });
     }
   }
+  for (const member of byId.values()) {
+    member.teams.sort((a, b) => {
+      const aName = a.teamName.trim().toLowerCase();
+      const bName = b.teamName.trim().toLowerCase();
+      if (aName === 'thịnh vượng' || aName === 'thành công') return -1;
+      if (bName === 'thịnh vượng' || bName === 'thành công') return 1;
+      return aName.localeCompare(bName, 'vi');
+    });
+  }
   return Array.from(byId.values());
 }
 
@@ -313,7 +327,12 @@ async function loadContracts(month: string, db: typeof pool = pool) {
   const result = await db.query(
     `
       SELECT id, contract_code, customer_name, contract_date::text AS contract_date,
-        COALESCE(value, 0)::float8 AS value, BTRIM(COALESCE(team_name, '')) AS team_name,
+        CASE
+          WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+            THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+          ELSE COALESCE(value, 0)
+        END::float8 AS value,
+        BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
       FROM contracts
       WHERE contract_date >= $1::date AND contract_date < $2::date
@@ -353,49 +372,50 @@ function teamSalesFor(contracts: Awaited<ReturnType<typeof loadContracts>>, week
   return sales;
 }
 
-function distributeRolePool(
-  poolAmount: number,
+function calculateTeam70Payouts(
+  teamSales: number,
+  fundRate: number,
   candidates: Array<{ memberTeamId: number; role: string }>
-) {
-  const amounts = new Map<number, number>();
-  if (!poolAmount || !candidates.length) return amounts;
-  const groups = new Map<string, Array<{ memberTeamId: number; role: string }>>();
-  for (const candidate of candidates) {
-    const role = canonicalRole(candidate.role);
-    if (!role) continue;
-    groups.set(role, [...(groups.get(role) || []), candidate]);
-  }
-  if (!groups.size) return amounts;
-  const groupWeights = new Map<string, number>();
-  TEAMLEAD_ROLE_ORDER.forEach((role, index) => {
-    let target = role;
-    if (!groups.has(role)) {
-      const active = TEAMLEAD_ROLE_ORDER
-        .filter((candidate) => groups.has(candidate))
-        .sort((a, b) => {
-          const distanceA = Math.abs(TEAMLEAD_ROLE_ORDER.indexOf(a) - index);
-          const distanceB = Math.abs(TEAMLEAD_ROLE_ORDER.indexOf(b) - index);
-          return distanceA - distanceB || TEAMLEAD_ROLE_ORDER.indexOf(a) - TEAMLEAD_ROLE_ORDER.indexOf(b);
-        });
-      target = active[0];
+): Map<number, number> {
+  const payouts = new Map<number, number>();
+  if (!teamSales || !candidates.length) return payouts;
+
+  const pool70 = teamSales * fundRate * 0.7;
+
+  const countGd = candidates.filter((c) => canonicalRole(c.role) === 'Giám đốc').length;
+  const countPgd = candidates.filter((c) => canonicalRole(c.role) === 'Phó Giám đốc').length;
+  const countTp = candidates.filter((c) => canonicalRole(c.role) === 'Trưởng phòng').length;
+
+  const tongWTeam =
+    (countGd > 0 ? (0.50 + (countPgd === 0 ? 0.30 : 0)) : 0) +
+    (countPgd > 0 ? (0.30 + (countGd === 0 ? 0.50 : 0)) : 0) +
+    (countTp > 0 ? 0.20 : 0);
+
+  if (tongWTeam <= 0) return payouts;
+
+  for (const c of candidates) {
+    const role = canonicalRole(c.role);
+    let wCanhan = 0;
+    let soNguoi = 1;
+
+    if (role === 'Giám đốc') {
+      wCanhan = 0.50 + (countPgd === 0 ? 0.30 : 0);
+      soNguoi = countGd;
+    } else if (role === 'Phó Giám đốc') {
+      wCanhan = 0.30 + (countGd === 0 ? 0.50 : 0);
+      soNguoi = countPgd;
+    } else if (role === 'Trưởng phòng') {
+      wCanhan = 0.20;
+      soNguoi = countTp;
     }
-    groupWeights.set(target, (groupWeights.get(target) || 0) + TEAMLEAD_ROLE_BASIS[index]);
-  });
-  const weightedGroups = Array.from(groupWeights.entries());
-  let distributedGroups = 0;
-  for (let groupIndex = 0; groupIndex < weightedGroups.length; groupIndex += 1) {
-    const [role, weight] = weightedGroups[groupIndex];
-    const groupAmount = groupIndex === weightedGroups.length - 1
-      ? poolAmount - distributedGroups
-      : Math.floor((poolAmount * weight) / 100);
-    distributedGroups += groupAmount;
-    const people = groups.get(role) || [];
-    splitEvenly(groupAmount, people.length).forEach((share, personIndex) => {
-      const memberTeamId = people[personIndex].memberTeamId;
-      amounts.set(memberTeamId, (amounts.get(memberTeamId) || 0) + share);
-    });
+
+    if (wCanhan > 0 && soNguoi > 0) {
+      const share = Math.round((pool70 * (wCanhan / soNguoi)) / tongWTeam);
+      payouts.set(c.memberTeamId, share);
+    }
   }
-  return amounts;
+
+  return payouts;
 }
 
 async function readLockedPeriod(month: string, weekNo: number, db: typeof pool = pool) {
@@ -455,67 +475,73 @@ async function calculateWeekRows(
   month: string,
   weekNo: number,
   rate: number,
-  monthlyFund30: number,
+  weekFund30: number,
   contracts: Awaited<ReturnType<typeof loadContracts>>,
   roster: RosterMember[],
   db: typeof pool = pool
 ) {
   const locked = await readLockedPeriod(month, weekNo, db);
   if (locked) return locked.rows;
-  const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, month) === weekNo);
-  const weekSales = teamSalesFor(weekContracts, 0);
-  const totalSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
-  const grossFund = amount(totalSales * rate);
-  const fund70 = amount(grossFund * 0.7);
-  const teamTotal = Array.from(weekSales.values()).reduce((sum, value) => sum + value, 0);
-  const teamPools = new Map<string, number>();
-  let assignedPool = 0;
-  const teamEntries = Array.from(weekSales.entries());
-  teamEntries.forEach(([key, sales], index) => {
-    const teamPool = index === teamEntries.length - 1
-      ? fund70 - assignedPool
-      : teamTotal ? Math.floor((fund70 * sales) / teamTotal) : 0;
-    assignedPool += teamPool;
-    teamPools.set(key, teamPool);
-  });
+  const monthKeyStr = monthKey(month);
+  const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, monthKeyStr) === weekNo);
 
-  const payouts = new Map<number, number>();
   const salesByTeam = new Map<string, number>();
-  for (const member of roster) {
-    for (const team of member.teams) {
-      const key = team.teamName.toLocaleLowerCase('vi-VN');
-      salesByTeam.set(key, weekSales.get(key) || 0);
+  for (const contract of weekContracts) {
+    if (!contract.team_name) continue;
+    const key = contract.team_name.trim().toLocaleLowerCase('vi-VN');
+    salesByTeam.set(key, (salesByTeam.get(key) || 0) + contract.value);
+  }
+
+  const payouts70 = new Map<number, number>();
+  for (const [teamKey, tSales] of salesByTeam) {
+    if (!tSales) continue;
+    const candidates = roster.flatMap((member) =>
+      member.teams
+        .filter((team) => team.teamName.trim().toLocaleLowerCase('vi-VN') === teamKey && team.include70)
+        .map((team) => ({ memberTeamId: team.memberTeamId, role: team.role }))
+    );
+    const teamPayouts = calculateTeam70Payouts(tSales, rate, candidates);
+    for (const [mTeamId, amt] of teamPayouts) {
+      payouts70.set(mTeamId, amt);
     }
   }
-  for (const [teamKey, teamPool] of teamPools) {
-    const candidates = roster.flatMap((member) => member.teams
-      .filter((team) => team.teamName.toLocaleLowerCase('vi-VN') === teamKey && team.include70)
-      .map((team) => ({ memberTeamId: team.memberTeamId, role: team.role })));
-    for (const [memberTeamId, payout] of distributeRolePool(teamPool, candidates)) payouts.set(memberTeamId, payout);
+
+  const eligible30Members = roster.filter((member) => member.include30);
+  const count30 = eligible30Members.length;
+  const shares30 = splitEvenly(weekFund30, count30);
+  const shareByMember = new Map(eligible30Members.map((m, index) => [m.membershipId, shares30[index]]));
+
+  const primaryTeamByMember = new Map<number, number>();
+  for (const member of eligible30Members) {
+    if (!member.teams.length) continue;
+    const tvTeam = member.teams.find((t) => t.teamName.trim().toLowerCase() === 'thịnh vượng');
+    const tcTeam = member.teams.find((t) => t.teamName.trim().toLowerCase() === 'thành công');
+    const chosen = tvTeam || tcTeam || member.teams[0];
+    primaryTeamByMember.set(member.membershipId, chosen.memberTeamId);
   }
 
   const rows = roster.flatMap((member) => {
     const outputTeams = member.teams.length ? member.teams : [undefined];
     return outputTeams.map((team) => {
       const row = rowFor(member, team);
-      const key = team?.teamName.toLocaleLowerCase('vi-VN') || '';
-      row.salesBasis = team ? salesByTeam.get(key) || 0 : 0;
-      row.payout70 = team ? payouts.get(team.memberTeamId) || 0 : 0;
+      const key = team?.teamName.trim().toLocaleLowerCase('vi-VN') || '';
+      row.salesBasis = team ? (salesByTeam.get(key) || 0) : 0;
+      row.payout70 = team ? (payouts70.get(team.memberTeamId) || 0) : 0;
+
+      const isPrimary30 = member.include30 && team && primaryTeamByMember.get(member.membershipId) === team.memberTeamId;
+      if (isPrimary30) {
+        row.eligible30 = true;
+        row.payout30 = shareByMember.get(member.membershipId) || 0;
+      } else {
+        row.eligible30 = false;
+        row.payout30 = 0;
+      }
+
+      row.total = row.payout70;
       return row;
     });
   });
 
-  const monthlyMembers = roster.filter((member) => member.include30).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-  const monthlyShares = splitEvenly(monthlyFund30, monthlyMembers.length);
-  const shareByMember = new Map(monthlyMembers.map((member, index) => [member.membershipId, monthlyShares[index]]));
-  const seen30 = new Set<number>();
-  for (const row of rows) {
-    if (row.eligible30 && row.membershipId !== null && !seen30.has(row.membershipId)) {
-      row.payout30 = shareByMember.get(row.membershipId) || 0;
-      seen30.add(row.membershipId);
-    }
-    row.total = row.payout70;
-  }
   return rows;
 }
 
@@ -549,27 +575,61 @@ export async function getTeamLeadAllocation(month: string, weekNo: number, db: t
   const monthlyFund70 = amount(monthGross * 0.7);
 
   if (weekNo) {
-    const rows = await calculateWeekRows(month, weekNo, rate, monthlyFund30, contracts, roster, db);
-    const weekBounds = periodBounds(month, weekNo);
-    const weekSales = contracts
-      .filter((contract) => contract.contract_date >= weekBounds.start && contract.contract_date < weekBounds.end)
-      .reduce((sum, contract) => sum + contract.value, 0);
-    return allocationMeta(rows, weekSales, rate, monthlyFund30, amount(amount(weekSales * rate) * 0.7), null);
+    const monthKeyStr = monthKey(month);
+    const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, monthKeyStr) === weekNo);
+    const weekSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
+    const grossFund = amount(weekSales * rate);
+    const weekFund30 = amount(grossFund * 0.3);
+    const weekFund70 = amount(grossFund * 0.7);
+    const rows = await calculateWeekRows(month, weekNo, rate, weekFund30, contracts, roster, db);
+    return allocationMeta(rows, weekSales, rate, weekFund30, weekFund70, null);
   }
 
-  const rows = roster.flatMap((member) => (member.teams.length ? member.teams : [undefined]).map((team) => rowFor(member, team)));
-  const monthMembers = roster.filter((member) => member.include30).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-  const monthShares = splitEvenly(monthlyFund30, monthMembers.length);
-  const monthShareByMember = new Map(monthMembers.map((member, index) => [member.membershipId, monthShares[index]]));
-  const used30 = new Set<number>();
-  for (const row of rows) {
-    if (row.eligible30 && row.membershipId !== null && !used30.has(row.membershipId)) {
-      row.payout30 = monthShareByMember.get(row.membershipId) || 0;
-      used30.add(row.membershipId);
-    }
+  const eligible30Members = roster.filter((member) => member.include30);
+  const count30 = eligible30Members.length;
+  const monthShares = splitEvenly(monthlyFund30, count30);
+  const monthShareByMember = new Map(eligible30Members.map((member, index) => [member.membershipId, monthShares[index]]));
+
+  const primaryTeamByMember = new Map<number, number>();
+  for (const member of eligible30Members) {
+    if (!member.teams.length) continue;
+    const tvTeam = member.teams.find((t) => t.teamName.trim().toLowerCase() === 'thịnh vượng');
+    const tcTeam = member.teams.find((t) => t.teamName.trim().toLowerCase() === 'thành công');
+    const chosen = tvTeam || tcTeam || member.teams[0];
+    primaryTeamByMember.set(member.membershipId, chosen.memberTeamId);
   }
+
+  const monthSalesByTeam = new Map<string, number>();
+  for (const contract of contracts) {
+    if (!contract.team_name) continue;
+    const key = contract.team_name.trim().toLocaleLowerCase('vi-VN');
+    monthSalesByTeam.set(key, (monthSalesByTeam.get(key) || 0) + contract.value);
+  }
+
+  const rows = roster.flatMap((member) => {
+    const outputTeams = member.teams.length ? member.teams : [undefined];
+    return outputTeams.map((team) => {
+      const row = rowFor(member, team);
+      const key = team ? team.teamName.trim().toLocaleLowerCase('vi-VN') : '';
+      row.salesBasis = team ? (monthSalesByTeam.get(key) || 0) : 0;
+
+      const isPrimary30 = member.include30 && team && primaryTeamByMember.get(member.membershipId) === team.memberTeamId;
+      if (isPrimary30) {
+        row.eligible30 = true;
+        row.payout30 = monthShareByMember.get(member.membershipId) || 0;
+      } else {
+        row.eligible30 = false;
+        row.payout30 = 0;
+      }
+      return row;
+    });
+  });
+
   for (let week = 1; week <= 5; week += 1) {
-    const weekRows = await calculateWeekRows(month, week, rate, monthlyFund30, contracts, await loadRoster(month, week, db), db);
+    const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, monthKey(month)) === week);
+    const weekSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
+    const weekFund30 = amount(amount(weekSales * rate) * 0.3);
+    const weekRows = await calculateWeekRows(month, week, rate, weekFund30, contracts, await loadRoster(month, week, db), db);
     const weekPayouts = new Map<string, number>();
     for (const row of weekRows) {
       if (!row.memberTeamId) continue;
@@ -580,6 +640,7 @@ export async function getTeamLeadAllocation(month: string, weekNo: number, db: t
       if (row.memberTeamId) row.payout70 += weekPayouts.get(String(row.memberTeamId)) || 0;
     }
   }
+
   for (const row of rows) row.total = row.payout30 + row.payout70;
   const monthlyLocked = await readLockedPeriod(month, 0, db);
   if (monthlyLocked) {
@@ -634,7 +695,7 @@ export async function getTeamLeadContractBreakdown(month: string, contractId: nu
       allocations70.push({ memberName: row.memberName, memberPhone: row.memberPhone, teamName: row.teamName, role: row.role, payout: share });
     });
   } else {
-    const shares = distributeRolePool(individualFund, teamMembers.map((member) => ({ memberTeamId: member.memberTeamId, role: member.role })));
+    const shares = calculateTeam70Payouts(Number(contract.value), rate, teamMembers.map((member) => ({ memberTeamId: member.memberTeamId, role: member.role })));
     allocations70 = teamMembers.map((member) => ({
       memberName: member.memberName,
       memberPhone: member.memberPhone,
@@ -669,7 +730,12 @@ export async function getTeamLeadReports(month: string, db: typeof pool = pool) 
     db.query(`SELECT * FROM teamlead_periods WHERE month = $1 ORDER BY week_no`, [month]),
     db.query(
       `SELECT id, contract_code, customer_name, contract_date::text AS contract_date,
-        COALESCE(value, 0)::float8 AS value, BTRIM(COALESCE(team_name, '')) AS team_name,
+        CASE
+          WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+            THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+          ELSE COALESCE(value, 0)
+        END::float8 AS value,
+        BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
        FROM contracts WHERE contract_date >= $1::date AND contract_date < $2::date
        ORDER BY contract_date, id`,

@@ -257,6 +257,12 @@ function getInsertExpression(column, parameterIndex) {
   if (column.udt_name === 'geometry') {
     return `ST_GeomFromEWKB($${parameterIndex}::bytea)`;
   }
+  if (column.udt_name === 'json') {
+    return `$${parameterIndex}::json`;
+  }
+  if (column.udt_name === 'jsonb') {
+    return `$${parameterIndex}::jsonb`;
+  }
   return `$${parameterIndex}`;
 }
 
@@ -289,7 +295,10 @@ async function upsertTable(localPool, neonClient, table, teamIdMap) {
     const values = [];
     const rowsSql = batch.map((row) => {
       const placeholders = sourceColumns.map((column) => {
-        const rawValue = row[column.column_name];
+        let rawValue = row[column.column_name];
+        if (['json', 'jsonb'].includes(column.udt_name) && typeof rawValue === 'object' && rawValue !== null) {
+          rawValue = JSON.stringify(rawValue);
+        }
         const value = teamIdMap
           && column.column_name === 'team_id'
           && ['teamlead_member_teams', 'teamlead_payout_rows'].includes(table.name)

@@ -56,20 +56,23 @@ async function ensurePolicySchema() {
             version_label VARCHAR(32) NOT NULL,
             effective_date DATE NOT NULL,
             note TEXT NOT NULL,
-            rows JSONB NOT NULL,
+            rows JSON NOT NULL,
             created_by VARCHAR(255) NOT NULL DEFAULT 'Admin',
             is_active BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
-        await client.query(`
-          CREATE UNIQUE INDEX IF NOT EXISTS allocation_policy_one_active_idx
-          ON allocation_policy_versions (is_active) WHERE is_active = TRUE
-        `);
+        const idxRes = await client.query(`SELECT 1 FROM pg_class WHERE relname = 'allocation_policy_one_active_idx'`);
+        if ((idxRes.rowCount || 0) === 0) {
+          await client.query(`
+            CREATE UNIQUE INDEX allocation_policy_one_active_idx
+            ON allocation_policy_versions (is_active) WHERE is_active = TRUE
+          `);
+        }
         await client.query(
           `INSERT INTO allocation_policy_versions
              (version_label, effective_date, note, rows, created_by, is_active)
-           SELECT $1, $2::date, $3, $4::jsonb, 'Khởi tạo hệ thống', TRUE
+           SELECT $1, $2::date, $3, $4::json, 'Khởi tạo hệ thống', TRUE
            WHERE NOT EXISTS (SELECT 1 FROM allocation_policy_versions WHERE is_active = TRUE)`,
           [
             DEFAULT_POLICY_VERSION,
@@ -230,7 +233,7 @@ export async function POST(request: NextRequest) {
       const inserted = await client.query(`
         INSERT INTO allocation_policy_versions
           (version_label, effective_date, note, rows, created_by, is_active)
-        VALUES ($1, $2::date, $3, $4::jsonb, $5, TRUE)
+        VALUES ($1, $2::date, $3, $4::json, $5, TRUE)
         RETURNING id, version_label, TO_CHAR(effective_date, 'YYYY-MM-DD') AS effective_date,
                   created_at, created_by, note, rows
       `, [versionLabel, effectiveDate, note, JSON.stringify(rows), createdBy]);

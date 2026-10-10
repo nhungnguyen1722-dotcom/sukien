@@ -746,7 +746,13 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                     </tbody>
                     {!!filteredAllocationRows.length && (
                       <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-900">
-                        <tr><td colSpan={6} className="px-4 py-4">TỔNG CỘNG ({filteredAllocationRows.length} dòng)</td><td className="px-4 py-4 text-right tabular-nums text-violet-700">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout30, 0))}</td><td className="px-4 py-4 text-right tabular-nums text-amber-700">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout70, 0))}</td><td className="px-4 py-4 text-right tabular-nums text-emerald-700">{money(filteredAllocationRows.reduce((sum, row) => sum + (weekNo ? row.payout70 : row.total), 0))}</td></tr>
+                        <tr>
+                          <td colSpan={5} className="px-4 py-4">TỔNG CỘNG ({filteredAllocationRows.length} dòng)</td>
+                          <td className="px-4 py-4 text-right tabular-nums text-slate-800">{money(allocation?.meta.totalSales || 0)}</td>
+                          <td className="px-4 py-4 text-right tabular-nums text-violet-700">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout30, 0))}</td>
+                          <td className="px-4 py-4 text-right tabular-nums text-amber-700">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout70, 0))}</td>
+                          <td className="px-4 py-4 text-right tabular-nums text-emerald-700">{money(filteredAllocationRows.reduce((sum, row) => sum + (weekNo ? row.payout70 : row.total), 0))}</td>
+                        </tr>
                       </tfoot>
                     )}
                   </table>

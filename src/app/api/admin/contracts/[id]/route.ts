@@ -147,6 +147,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       ? Number(body.allocated_value)
       : (isBds ? Math.round((numValue * 4) / 15) : numValue);
 
+    const feeBase = isBds ? allocatedValue : numValue;
+    const closerFee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(feeBase * 0.06);
+    const referrerFee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(feeBase * 0.01);
+    const supporterFee = body.supporter_fee !== undefined ? Number(body.supporter_fee) : Math.round(feeBase * 0.005);
+
     const res = await pool.query(
       `
       UPDATE contracts
@@ -168,8 +173,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         supporter_phone = $15,
         team_name = $16,
         contract_type = $17,
-        allocated_value = $18
-      WHERE id = $19
+        allocated_value = $18,
+        closer_fee = $19,
+        referrer_fee = $20,
+        supporter_fee = $21
+      WHERE id = $22
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
@@ -191,6 +199,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         normalizedTeamName || null,
         contract_type || null,
         allocatedValue,
+        closerFee,
+        referrerFee,
+        supporterFee,
         contractId,
       ]
     );
