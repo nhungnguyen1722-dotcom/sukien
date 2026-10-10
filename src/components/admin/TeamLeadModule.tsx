@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatWeekOptionLabel } from '@/lib/weekRanges';
 import {
   BarChart3,
   Check,
@@ -189,10 +190,10 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const updateMonthFilter = (year: number, monthNumber: number) => {
     const nextMonth = `${year}-${String(monthNumber).padStart(2, '0')}`;
-    const nextWeekCount = weekCountForMonth(nextMonth);
     setMonth(nextMonth);
-    setWeekNo((previous) => Math.min(previous, nextWeekCount));
-    setReportWeekNo((previous) => previous === 0 ? 0 : Math.min(previous, nextWeekCount));
+    // Khi chuyển sang tháng mới, bộ lọc tuần reset lại từ đầu (Tuần 1)
+    setWeekNo(1);
+    setReportWeekNo(0);
     setSelectedContract(null);
     setBreakdown(null);
   };
@@ -532,8 +533,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
                   <div role="group" aria-label="Chọn tuần cần cấu hình" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
                     {weekOptions.map((week) => (
-                      <button key={week} type="button" aria-pressed={weekNo === week} onClick={() => setWeekNo(week)} className={`min-w-10 border-r border-slate-200 px-3 py-2 text-sm font-semibold last:border-r-0 ${weekNo === week ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                        {week}
+                      <button key={week} type="button" aria-pressed={weekNo === week} onClick={() => setWeekNo(week)} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold last:border-r-0 ${weekNo === week ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                        {formatWeekOptionLabel(month, week, 'short')}
                       </button>
                     ))}
                   </div>
@@ -543,8 +544,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
                   <div role="group" aria-label="Chọn tuần xem" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {weekOptions.map((week) => ({ value: week, label: String(week) })).map((option) => (
-                      <button key={option.value} type="button" aria-pressed={weekNo === option.value} onClick={() => setWeekNo(option.value)} className={`border-r border-slate-200 px-3 py-2 text-sm font-semibold last:border-r-0 ${weekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    {weekOptions.map((week) => ({ value: week, label: formatWeekOptionLabel(month, week, 'short') })).map((option) => (
+                      <button key={option.value} type="button" aria-pressed={weekNo === option.value} onClick={() => setWeekNo(option.value)} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold last:border-r-0 ${weekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                         {option.label}
                       </button>
                     ))}
@@ -555,8 +556,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
                   <div role="group" aria-label="Lọc hợp đồng theo tuần" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {[{ value: 0, label: 'Tất cả' }, ...weekOptions.map((week) => ({ value: week, label: String(week) }))].map((option) => (
-                      <button key={option.value} type="button" aria-pressed={reportWeekNo === option.value} onClick={() => { setReportWeekNo(option.value); if (option.value > 0) setWeekNo(option.value); }} className={`border-r border-slate-200 px-3 py-2 text-sm font-semibold last:border-r-0 ${reportWeekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    {[{ value: 0, label: 'Tất cả' }, ...weekOptions.map((week) => ({ value: week, label: formatWeekOptionLabel(month, week, 'short') }))].map((option) => (
+                      <button key={option.value} type="button" aria-pressed={reportWeekNo === option.value} onClick={() => { setReportWeekNo(option.value); if (option.value > 0) setWeekNo(option.value); }} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold last:border-r-0 ${reportWeekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                         {option.label}
                       </button>
                     ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import {
@@ -75,6 +75,22 @@ function inRange(date: string | null | undefined, start: string, endInclusive: s
   return day >= start && day <= endInclusive;
 }
 
+function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
+}
+
+function formatPeriodRangeStr(startStr: string, endInclusiveStr: string) {
+  const start = startStr.slice(0, 10).split('-');
+  const end = endInclusiveStr.slice(0, 10).split('-');
+  if (start.length !== 3 || end.length !== 3) return '';
+  const [, sMonth, sDay] = start;
+  const [, eMonth, eDay] = end;
+  if (sMonth === eMonth) {
+    return `${sDay}–${eDay}/${eMonth}`;
+  }
+  return `${sDay}/${sMonth}–${eDay}/${eMonth}`;
+}
+
 function weekLabel(month: string, weekNo: number) {
   const range = getMonthWeekRange(month, weekNo);
   return `Tuần ${weekNo} · ${dateLabel(range.start)}–${dateLabel(range.endInclusive)}`;
@@ -146,12 +162,39 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
   const monthKey = `${selectedYear}-${selectedMonth}`;
   const range = useMemo(() => getMonthWeekRange(monthKey, selectedWeek), [monthKey, selectedWeek]);
 
+  const changeYear = (year: string) => {
+    setSelectedYear(year);
+    setSelectedWeek(0);
+  };
+
+  const changeMonth = (month: number) => {
+    setSelectedMonth(String(month).padStart(2, '0'));
+    setSelectedWeek(0);
+  };
+
   const allYears = useMemo(() => {
-    const years = new Set([initialMonth.slice(0, 4)]);
+    const years = new Set<string>([initialMonth.slice(0, 4), selectedYear]);
     for (const log of currentLogs) if (log.request_date) years.add(log.request_date.slice(0, 4));
     for (const contract of contracts) years.add(contract.contract_date.slice(0, 4));
+    for (const alloc of allocations) if (alloc.period_month) years.add(alloc.period_month.slice(0, 4));
     return Array.from(years).filter((year) => /^\d{4}$/.test(year)).sort((a, b) => b.localeCompare(a));
-  }, [contracts, currentLogs, initialMonth]);
+  }, [allocations, contracts, currentLogs, initialMonth, selectedYear]);
+
+  const weekOptions = useMemo(() => {
+    return [1, 2, 3, 4, 5].map((weekNo) => {
+      const r = getMonthWeekRange(monthKey, weekNo);
+      return {
+        weekNo,
+        label: `${weekNo} · ${formatPeriodRangeStr(r.start, r.endInclusive)}`,
+      };
+    });
+  }, [monthKey]);
+
+  useEffect(() => {
+    if (selectedWeek !== 0 && !weekOptions.some((opt) => opt.weekNo === selectedWeek)) {
+      setSelectedWeek(0);
+    }
+  }, [selectedWeek, weekOptions]);
 
   const selectedContracts = useMemo(
     () => contracts.filter((contract) => inRange(contract.contract_date, range.start, range.endInclusive)),
@@ -398,29 +441,89 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
         </div>
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="sr-only" htmlFor="operations-year">Năm</label>
-            <select id="operations-year" value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {allYears.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
-            <label className="sr-only" htmlFor="operations-month">Tháng</label>
-            <select id="operations-month" value={selectedMonth} onChange={(event) => { setSelectedMonth(event.target.value); setSelectedWeek(0); }} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {MONTHS.map((month, index) => <option key={month} value={String(index + 1).padStart(2, '0')}>{month}</option>)}
+      <Panel className="p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2">
+            <label htmlFor="operations-year" className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Năm
+            </label>
+            <select
+              id="operations-year"
+              aria-label="Chọn năm"
+              value={selectedYear}
+              onChange={(event) => changeYear(event.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+            >
+              {allYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
             </select>
           </div>
-          <div className="flex min-w-0 flex-wrap gap-2" aria-label="Lọc theo tuần">
-            <button type="button" onClick={() => setSelectedWeek(0)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedWeek === 0 ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>Cả tháng</button>
-            {[1, 2, 3, 4, 5].map((week) => (
-              <button key={week} type="button" onClick={() => setSelectedWeek(week)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedWeek === week ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-                Tuần {week}<span className="ml-1 hidden text-[10px] font-normal sm:inline">({dateLabel(getMonthWeekRange(monthKey, week).start)}–{dateLabel(getMonthWeekRange(monthKey, week).endInclusive)})</span>
-              </button>
-            ))}
+
+          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Tháng
+            </span>
+            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => {
+              const isSelected = Number(selectedMonth) === month;
+              return (
+                <button
+                  key={month}
+                  type="button"
+                  onClick={() => changeMonth(month)}
+                  className={`min-w-9 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                    isSelected
+                      ? 'border-blue-700 bg-slate-900 text-white'
+                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {month}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Tuần
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedWeek(0)}
+              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                selectedWeek === 0
+                  ? 'border-blue-500 bg-blue-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              Cả tháng
+            </button>
+            {weekOptions.map((opt) => {
+              const isSelected = selectedWeek === opt.weekNo;
+              return (
+                <button
+                  key={opt.weekNo}
+                  type="button"
+                  onClick={() => setSelectedWeek(opt.weekNo)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500"><CalendarDays className="h-3.5 w-3.5" /> Đang xem {periodTitle}</p>
-      </section>
+      </Panel>
 
       {showSourceComparison && (
         <section className="space-y-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">

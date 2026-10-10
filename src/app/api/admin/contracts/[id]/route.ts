@@ -30,6 +30,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         c.customer_phone,
         c.customer_address,
         c.value,
+        c.allocated_value,
         c.closer_id,
         CASE 
           WHEN c.closer_name = 'Nguy?n H?ng V?' THEN 'Nguyễn Hùng Vĩ'
@@ -136,6 +137,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const numValue = Number(value) || 0;
+    const isBds = contract_type && (
+      contract_type.trim().toUpperCase() === 'BĐS' ||
+      contract_type.trim().toUpperCase() === 'BDS' ||
+      contract_type.trim().toLowerCase() === 'bất động sản' ||
+      contract_type.trim().toLowerCase() === 'bat dong san'
+    );
+    const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
+      ? Number(body.allocated_value)
+      : (isBds ? Math.round((numValue * 4) / 15) : numValue);
 
     const res = await pool.query(
       `
@@ -157,8 +167,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         supporter_name = $14,
         supporter_phone = $15,
         team_name = $16,
-        contract_type = $17
-      WHERE id = $18
+        contract_type = $17,
+        allocated_value = $18
+      WHERE id = $19
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
@@ -179,6 +190,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         supporter_phone || null,
         normalizedTeamName || null,
         contract_type || null,
+        allocatedValue,
         contractId,
       ]
     );

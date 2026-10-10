@@ -4,6 +4,7 @@ import { ensureTeamLeadSchema } from '@/lib/teamlead';
 import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL } from '@/lib/memberTeams';
 import { generateAutomaticContractSlips } from '@/lib/transactionLogs';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { getMonthWeekRange } from '@/lib/weekRanges';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
         OR c.customer_address ILIKE $${idx}
         OR u_closer.full_name ILIKE $${idx}
         OR c.closer_name ILIKE $${idx}
+        OR u_referrer.full_name ILIKE $${idx}
+        OR c.referrer_name ILIKE $${idx}
+        OR u_supporter.full_name ILIKE $${idx}
+        OR c.supporter_name ILIKE $${idx}
       )`);
       values.push(`%${search}%`);
       idx++;
@@ -50,24 +55,30 @@ export async function GET(request: NextRequest) {
       idx++;
     }
 
-    if (year >= 2000 && year <= 2200) {
+    let queryMonthKey = '';
+    if (month >= 1 && month <= 12) {
+      const queryYear = (year >= 2000 && year <= 2200) ? year : new Date().getFullYear();
+      queryMonthKey = `${queryYear}-${String(month).padStart(2, '0')}`;
+    }
+
+    if (year >= 2000 && year <= 2200 && !queryMonthKey) {
       conditions.push('EXTRACT(YEAR FROM c.contract_date) = $' + idx);
       values.push(year);
       idx++;
     }
 
-    if (month >= 1 && month <= 12) {
-      conditions.push('EXTRACT(MONTH FROM c.contract_date) = $' + idx);
-      values.push(month);
-      idx++;
-    }
-
-    if (week >= 1 && week <= 5) {
-      const firstDay = (week - 1) * 7 + 1;
-      const lastDay = week === 5 ? 31 : week * 7;
-      conditions.push('EXTRACT(DAY FROM c.contract_date) BETWEEN $' + idx + ' AND $' + (idx + 1));
-      values.push(firstDay, lastDay);
-      idx += 2;
+    if (queryMonthKey) {
+      if (!week) {
+        const monthRange = getMonthWeekRange(queryMonthKey, 0);
+        conditions.push('c.contract_date >= $' + idx + '::date AND c.contract_date <= $' + (idx + 1) + '::date');
+        values.push(monthRange.start, monthRange.endInclusive);
+        idx += 2;
+      } else if (week >= 1 && week <= 5) {
+        const weekRange = getMonthWeekRange(queryMonthKey, week);
+        conditions.push('c.contract_date >= $' + idx + '::date AND c.contract_date <= $' + (idx + 1) + '::date');
+        values.push(weekRange.start, weekRange.endInclusive);
+        idx += 2;
+      }
     }
 
     if (fromDate) {
@@ -89,24 +100,24 @@ export async function GET(request: NextRequest) {
     let paymentIdx = 1;
     const paymentDate = 'COALESCE(payment_date, request_date)';
 
-    if (year >= 2000 && year <= 2200) {
+    if (year >= 2000 && year <= 2200 && !queryMonthKey) {
       paymentConditions.push(`EXTRACT(YEAR FROM ${paymentDate}) = $${paymentIdx}`);
       paymentValues.push(year);
       paymentIdx++;
     }
 
-    if (month >= 1 && month <= 12) {
-      paymentConditions.push(`EXTRACT(MONTH FROM ${paymentDate}) = $${paymentIdx}`);
-      paymentValues.push(month);
-      paymentIdx++;
-    }
-
-    if (week >= 1 && week <= 5) {
-      const firstDay = (week - 1) * 7 + 1;
-      const lastDay = week === 5 ? 31 : week * 7;
-      paymentConditions.push(`EXTRACT(DAY FROM ${paymentDate}) BETWEEN $${paymentIdx} AND $${paymentIdx + 1}`);
-      paymentValues.push(firstDay, lastDay);
-      paymentIdx += 2;
+    if (queryMonthKey) {
+      if (!week) {
+        const monthRange = getMonthWeekRange(queryMonthKey, 0);
+        paymentConditions.push(`${paymentDate} >= $${paymentIdx}::date AND ${paymentDate} <= $${paymentIdx + 1}::date`);
+        paymentValues.push(monthRange.start, monthRange.endInclusive);
+        paymentIdx += 2;
+      } else if (week >= 1 && week <= 5) {
+        const weekRange = getMonthWeekRange(queryMonthKey, week);
+        paymentConditions.push(`${paymentDate} >= $${paymentIdx}::date AND ${paymentDate} <= $${paymentIdx + 1}::date`);
+        paymentValues.push(weekRange.start, weekRange.endInclusive);
+        paymentIdx += 2;
+      }
     }
 
     if (fromDate) {
@@ -132,6 +143,7 @@ export async function GET(request: NextRequest) {
         c.customer_phone,
         c.customer_address,
         c.value,
+        c.allocated_value,
         c.closer_id,
         CASE 
           WHEN c.closer_name = 'Nguy?n H?ng V?' THEN 'Nguyễn Hùng Vĩ'
@@ -172,12 +184,26 @@ export async function GET(request: NextRequest) {
     const statsQuery = `
       SELECT
         COUNT(*)::int AS total_contracts,
-        COALESCE(SUM(c.value), 0)::numeric AS total_value,
+        COALESCE(SUM(
+          CASE 
+            WHEN UPPER(TRIM(c.contract_type)) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+              THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
+            ELSE COALESCE(c.value, 0)
+          END
+        ), 0)::numeric AS total_value,
         COALESCE(SUM(COALESCE(c.closer_fee, 0) + COALESCE(c.referrer_fee, 0) + COALESCE(c.supporter_fee, 0)), 0)::numeric AS total_commission,
         COUNT(CASE WHEN c.status IN ('Đã duyệt', 'Da duyệt', 'Da duy?t') THEN 1 END)::int AS approved_contracts,
-        COALESCE(SUM(COALESCE(c.allocated_value, c.value)), 0)::numeric AS allocation_base
+        COALESCE(SUM(
+          CASE 
+            WHEN UPPER(TRIM(c.contract_type)) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+              THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
+            ELSE COALESCE(c.allocated_value, c.value, 0)
+          END
+        ), 0)::numeric AS allocation_base
       FROM contracts c
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
+      LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
+      LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
       ${whereClause}
     `;
 
@@ -304,7 +330,15 @@ export async function POST(request: NextRequest) {
     }
 
     const numValue = Number(value) || 0;
-    const allocatedValue = numValue;
+    const isBds = contract_type && (
+      contract_type.trim().toUpperCase() === 'BĐS' ||
+      contract_type.trim().toUpperCase() === 'BDS' ||
+      contract_type.trim().toLowerCase() === 'bất động sản' ||
+      contract_type.trim().toLowerCase() === 'bat dong san'
+    );
+    const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
+      ? Number(body.allocated_value)
+      : (isBds ? Math.round((numValue * 4) / 15) : numValue);
     // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5%
     const closer_fee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(numValue * 0.06);
     const referrer_fee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(numValue * 0.01);

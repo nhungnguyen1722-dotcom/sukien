@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { CONTRACT_TEAM_OPTIONS } from '@/lib/teamOptions';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { getOperationsSupportFundKey, OPERATIONS_SUPPORT_FUND_RATE } from '@/lib/operationsFunds';
+import { formatWeekOptionLabel } from '@/lib/weekRanges';
 import {
   AlertCircle,
   CalendarDays,
@@ -36,6 +37,7 @@ export interface Contract {
   customer_phone?: string | null;
   customer_address?: string | null;
   value: number | string;
+  allocated_value?: number | string | null;
   closer_id: number | null;
   closer_name?: string | null;
   closer_phone?: string | null;
@@ -97,6 +99,7 @@ interface ContractFormData {
   customer_phone: string;
   customer_address: string;
   value: number;
+  allocated_value: number;
   closer_id: string;
   closer_name: string;
   closer_phone: string;
@@ -117,6 +120,7 @@ const emptyForm: ContractFormData = {
   customer_phone: '',
   customer_address: '',
   value: 0,
+  allocated_value: 0,
   closer_id: '',
   closer_name: '',
   closer_phone: '',
@@ -137,17 +141,9 @@ const contractTypes = [
   { value: '3 năm', label: '3 Năm' },
 ];
 
-function formatWeekRange(year: string, month: number, week: number) {
-  const firstDay = (week - 1) * 7 + 1;
-  const lastDay = Math.min(week * 7, new Date(Number(year), month, 0).getDate());
-  if (firstDay > lastDay) return '';
-  const monthLabel = String(month).padStart(2, '0');
-  return `${String(firstDay).padStart(2, '0')}–${String(lastDay).padStart(2, '0')}/${monthLabel}`;
-}
-
 function formatWeekLabel(year: string, month: number, week: number) {
-  const range = formatWeekRange(year, month, week);
-  return range ? `${week} · ${range}` : String(week);
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+  return formatWeekOptionLabel(monthKey, week, 'short');
 }
 
 function numeric(value: number | string | null | undefined) {
@@ -290,6 +286,26 @@ function normalizeVietnamese(value: string | null | undefined): string {
     .replace(/Đ/g, 'D')
     .toLowerCase()
     .trim();
+}
+
+function isBdsContract(contractType: string | null | undefined): boolean {
+  if (!contractType) return false;
+  const trimmed = contractType.trim().toUpperCase();
+  if (trimmed === 'BĐS' || trimmed === 'BDS') return true;
+  const normalized = normalizeVietnamese(contractType);
+  return normalized === 'bds' || normalized.includes('bat dong san');
+}
+
+function calculateAllocatedValue(contractValue: number): number {
+  return Math.round((contractValue * 4) / 15);
+}
+
+function getAllocatedContractValue(value: number | string | null | undefined, contractType?: string | null): number {
+  const num = numeric(value);
+  if (isBdsContract(contractType)) {
+    return calculateAllocatedValue(num);
+  }
+  return num;
 }
 
 interface SearchableMemberSelectProps {
@@ -613,7 +629,7 @@ export default function ContractManagement({
   const [viewingContract, setViewingContract] = useState<Contract | null>(null);
   const [deleteConfirmContract, setDeleteConfirmContract] = useState<Contract | null>(null);
   const [formData, setFormData] = useState<ContractFormData>(emptyForm);
-  const [valueFormatted, setValueFormatted] = useState('');
+  const [valueFormatted, setValueFormatted] = useState('0');
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -686,6 +702,7 @@ export default function ContractManagement({
   const approvedContracts = stats.approvedContracts !== undefined
     ? stats.approvedContracts
     : contracts.filter((c) => c.status === 'Đã duyệt' || c.status === 'Da duyệt').length;
+
   const paginatedContracts = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return contracts.slice(start, start + pageSize);
@@ -706,9 +723,10 @@ export default function ContractManagement({
       ...emptyForm,
       contract_code: 'HD' + String(Date.now()).slice(-6),
       contract_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }),
-      value: 50000000,
+      value: 0,
+      allocated_value: 0,
     });
-    setValueFormatted(cleanNumber('50000000'));
+    setValueFormatted('0');
     setFormError('');
     setIsFormOpen(true);
   };
@@ -716,6 +734,9 @@ export default function ContractManagement({
   const openEditForm = (contract: Contract) => {
     setEditingContract(contract);
     setActiveDropdown(null);
+    const contractVal = numeric(contract.value);
+    const allocatedVal = getAllocatedContractValue(contractVal, contract.contract_type);
+
     setFormData({
       contract_code: contract.contract_code || '',
       contract_date: toDateInput(contract.contract_date),
@@ -723,7 +744,8 @@ export default function ContractManagement({
       customer_name: contract.customer_name || '',
       customer_phone: contract.customer_phone || '',
       customer_address: contract.customer_address || '',
-      value: numeric(contract.value),
+      value: contractVal,
+      allocated_value: allocatedVal,
       closer_id: contract.closer_id ? String(contract.closer_id) : '',
       closer_name: contract.closer_name || '',
       closer_phone: contract.closer_phone || '',
@@ -735,7 +757,7 @@ export default function ContractManagement({
       supporter_phone: contract.supporter_phone || '',
       team_name: contract.team_name || '',
     });
-    setValueFormatted(cleanNumber(String(numeric(contract.value))));
+    setValueFormatted(cleanNumber(String(contractVal)));
     setFormError('');
     setIsFormOpen(true);
   };
@@ -888,12 +910,15 @@ export default function ContractManagement({
     setIsSubmitting(true);
     try {
       const url = editingContract ? '/api/admin/contracts/' + editingContract.id : '/api/admin/contracts';
+      const allocatedVal = getAllocatedContractValue(formData.value, formData.contract_type);
+
       const response = await fetch(url, {
         method: editingContract ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           value: numeric(formData.value),
+          allocated_value: allocatedVal,
         }),
       });
       const data = await response.json();
@@ -951,6 +976,9 @@ export default function ContractManagement({
       'SĐT khách hàng': viewingContract.customer_phone || '',
       'Địa chỉ': viewingContract.customer_address || '',
       'Giá trị hợp đồng (VNĐ)': numeric(viewingContract.value),
+      ...(isBdsContract(viewingContract.contract_type)
+        ? { 'Giá trị hợp đồng phân bổ (VNĐ)': getAllocatedContractValue(viewingContract.value, viewingContract.contract_type) }
+        : {}),
       'Đội nhóm': viewingContract.team_name?.trim() || '',
       'Người chốt': viewingContract.closer_name || '',
       'SĐT người chốt': viewingContract.closer_phone || '',
@@ -1093,7 +1121,7 @@ export default function ContractManagement({
             <select
               aria-label="Chọn năm"
               value={selectedYear}
-              onChange={(event) => setSelectedYear(event.target.value)}
+              onChange={(event) => { setSelectedYear(event.target.value); setSelectedWeek(null); }}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
             >
               {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
@@ -1176,7 +1204,7 @@ export default function ContractManagement({
                 <th className="min-w-[180px] px-3 py-3">Khách hàng &amp; SĐT</th>
                 <th className="min-w-[170px] px-3 py-3">Người chốt</th>
                 <th className="min-w-[170px] px-3 py-3">Người giới thiệu</th>
-                <th className="whitespace-nowrap px-3 py-3 text-right">Giá trị HĐ (VNĐ)</th>
+                <th className="whitespace-nowrap px-3 py-3 text-right">Giá trị hợp đồng phân bổ (VND)</th>
                 <th className="whitespace-nowrap px-3 py-3 text-center">Thao tác</th>
               </tr>
             </thead>
@@ -1212,7 +1240,7 @@ export default function ContractManagement({
                     <strong className="block max-w-[200px] truncate text-[13px] text-slate-800">{contract.referrer_name || '—'}</strong>
                     <span className="mt-0.5 block text-[11px] text-slate-400">{contract.referrer_phone || 'Chưa có SĐT'}</span>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatMoney(contract.value)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatMoney(getAllocatedContractValue(contract.value, contract.contract_type))}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-center gap-1">
                       <button
@@ -1289,30 +1317,77 @@ export default function ContractManagement({
                 </label>
                 <label className="text-xs font-semibold text-slate-700">
                   Loại hợp đồng
-                  <select value={formData.contract_type} onChange={(event) => setFormData({ ...formData, contract_type: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Chọn BĐS</option>
+                  <select
+                    value={formData.contract_type}
+                    onChange={(event) => {
+                      const nextType = event.target.value;
+                      setFormData((current) => ({
+                        ...current,
+                        contract_type: nextType,
+                        allocated_value: getAllocatedContractValue(current.value, nextType),
+                      }));
+                    }}
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Chọn</option>
                     {!contractTypes.some((type) => type.value === formData.contract_type) && formData.contract_type && <option value={formData.contract_type}>{formData.contract_type}</option>}
                     {contractTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                   </select>
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <label className="text-xs font-semibold text-slate-700">
                   Ngày ký <span className="text-rose-500">*</span>
                   <input type="date" value={formData.contract_date} onChange={(event) => setFormData({ ...formData, contract_date: event.target.value })} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" />
                 </label>
-                <label className="text-xs font-semibold text-slate-700">
-                  Giá trị hợp đồng (VNĐ) <span className="text-rose-500">*</span>
-                  <span className="relative mt-1.5 block">
-                    <input type="text" inputMode="numeric" value={valueFormatted} onChange={(event) => {
-                      const raw = event.target.value.replace(/\D/g, '');
-                      setValueFormatted(cleanNumber(event.target.value));
-                      setFormData((current) => ({ ...current, value: Number(raw) || 0 }));
-                    }} required className="w-full rounded-lg border border-slate-200 px-3 py-2.5 pr-12 text-sm font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500" placeholder="50.000.000" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">đ</span>
-                  </span>
-                </label>
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Giá trị hợp đồng (VNĐ) <span className="text-rose-500">*</span>
+                    <span className="relative mt-1.5 block">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={valueFormatted}
+                        onChange={(event) => {
+                          const raw = event.target.value.replace(/\D/g, '');
+                          const num = Number(raw) || 0;
+                          setValueFormatted(cleanNumber(event.target.value));
+                          setFormData((current) => ({
+                            ...current,
+                            value: num,
+                            allocated_value: getAllocatedContractValue(num, current.contract_type),
+                          }));
+                        }}
+                        required
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 pr-12 text-sm font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">đ</span>
+                    </span>
+                  </label>
+
+                  {isBdsContract(formData.contract_type) && (
+                    <label className="block text-xs font-semibold text-slate-700">
+                      <span className="flex items-center justify-between">
+                        <span>Giá trị hợp đồng phân bổ</span>
+                        <span className="text-[11px] font-normal text-slate-400">(Tự động: × 4 / 15)</span>
+                      </span>
+                      <span className="relative mt-1.5 block">
+                        <input
+                          type="text"
+                          readOnly
+                          disabled
+                          tabIndex={-1}
+                          value={cleanNumber(String(calculateAllocatedValue(numeric(formData.value))))}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 pr-12 text-sm font-bold text-slate-700 cursor-not-allowed outline-none select-none"
+                          placeholder="0"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">đ</span>
+                      </span>
+                    </label>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1406,6 +1481,9 @@ export default function ContractManagement({
                   <div><span className="block text-slate-400">Địa chỉ</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_address || '—'}</strong></div>
                   <div><span className="block text-slate-400">Ngày ký</span><strong className="mt-1 block text-slate-800">{formatDate(viewingContract.contract_date)}</strong></div>
                   <div><span className="block text-slate-400">Giá trị hợp đồng</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.value)}</strong></div>
+                  {isBdsContract(viewingContract.contract_type) && (
+                    <div><span className="block text-slate-400">Giá trị hợp đồng phân bổ</span><strong className="mt-1 block text-emerald-700">{formatMoney(getAllocatedContractValue(viewingContract.value, viewingContract.contract_type))}</strong></div>
+                  )}
                   <div><span className="block text-slate-400">Đội nhóm</span><strong className="mt-1 block text-slate-800">{viewingContract.team_name?.trim() || '—'}</strong></div>
                   <div><span className="block text-slate-400">Thù lao Người chốt (6%)</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.closer_fee)}</strong></div>
                   <div><span className="block text-slate-400">Thù lao Người giới thiệu (1%)</span><strong className="mt-1 block text-emerald-700">{formatMoney(viewingContract.referrer_fee)}</strong></div>

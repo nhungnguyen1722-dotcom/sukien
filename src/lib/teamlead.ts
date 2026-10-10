@@ -607,10 +607,7 @@ export async function getTeamLeadContractBreakdown(month: string, contractId: nu
   const contract = result.rows[0];
   const requestedMonth = monthKey(month);
   const contractDate = contract.contract_date.slice(0, 10);
-  const contractMonthKey = requestedMonth === '2026-09'
-    && getMonthWeekNo(contractDate, requestedMonth) !== null
-    ? requestedMonth
-    : monthKey(contractDate);
+  const contractMonthKey = monthKey(contractDate);
   const contractMonth = `${contractMonthKey}-01`;
   const weekNo = getWeekNo(contractDate, contractMonthKey);
   const roster = await loadRoster(contractMonth, weekNo, db);

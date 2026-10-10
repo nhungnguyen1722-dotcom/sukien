@@ -203,6 +203,26 @@ const FUND_SOURCE_BY_KEY: Record<string, string> = {
   leader: 'Leader team - giám đốc Kd',
 };
 
+const DEFAULT_FUNDS: Array<{ key: string; rate: number }> = [
+  { key: 'direct_sale', rate: 0.06 },
+  { key: 'tribute_connection', rate: 0.01 },
+  { key: 'tribute_support', rate: 0.005 },
+  { key: 'tribute_referral', rate: 0 },
+  { key: 'event_close', rate: 0.005 },
+  { key: 'customer_care', rate: 0.002 },
+  { key: 'training', rate: 0.003 },
+  { key: 'incentive', rate: 0.008 },
+  { key: 'travel', rate: 0.003 },
+  { key: 'operations', rate: 0.022 },
+  { key: 'support_kt', rate: 0.001 },
+  { key: 'support_cn', rate: 0.002 },
+  { key: 'leader', rate: 0.029 },
+];
+
+const DEFAULT_FUND_RATES: Record<string, number> = Object.fromEntries(
+  DEFAULT_FUNDS.map((item) => [item.key, item.rate])
+);
+
 const formatVND = (amount: number | null | undefined) =>
   `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(amount || 0)))} ₫`;
 
@@ -403,7 +423,7 @@ function formatPeriodRange(period: WeeklyAllocation) {
 }
 
 function getEffectivePeriodRange(period: WeeklyAllocation) {
-  if (period.period_month === '2026-09' && !period.period_code.endsWith('-MONTH')) {
+  if (!period.period_code.endsWith('-MONTH')) {
     const weekNo = getPeriodWeekNo(period.period_label, period.period_code, 0);
     if (weekNo) return getMonthWeekRange(period.period_month, weekNo);
   }
@@ -438,14 +458,49 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       getPeriodWeekNo(period.label, period.code, index + 1),
     ]));
 
-    return weeklyAllocations.map((row) => {
-      if (row.period_month !== '2026-09' || row.period_code.endsWith('-MONTH')) return row;
+    const mapped = weeklyAllocations.map((row) => {
+      const standardRate = DEFAULT_FUND_RATES[row.fund_key];
+      const rawRate = Number(row.allocation_rate || 0);
+      const allocation_rate = standardRate !== undefined ? standardRate : (rawRate > 1 ? rawRate / 100 : rawRate);
+      if (row.period_month !== '2026-09' || row.period_code.endsWith('-MONTH')) {
+        return { ...row, allocation_rate };
+      }
       const weekNo = weekNumbers.get(row.period_code);
-      if (!weekNo) return row;
+      if (!weekNo) return { ...row, allocation_rate };
       const range = getMonthWeekRange('2026-09', weekNo);
-      return { ...row, period_start: range.start, period_end: range.endInclusive };
+      return { ...row, allocation_rate, period_start: range.start, period_end: range.endInclusive };
     });
-  }, [weeklyAllocations]);
+
+    const hasMonthAllocations = mapped.some((row) => row.period_month === selectedMonth && !row.period_code.endsWith('-MONTH'));
+    if (hasMonthAllocations) {
+      return mapped;
+    }
+
+    const generated: WeeklyAllocation[] = [];
+    const totalWeeks = 5;
+    for (let w = 1; w <= totalWeeks; w++) {
+      const range = getMonthWeekRange(selectedMonth, w);
+      const periodCode = `${selectedMonth}-W${w}`;
+      const periodLabel = `Tuần ${w}`;
+
+      for (const fund of DEFAULT_FUNDS) {
+        generated.push({
+          period_code: periodCode,
+          period_month: selectedMonth,
+          period_label: periodLabel,
+          period_start: range.start,
+          period_end: range.endInclusive,
+          fund_key: fund.key,
+          fund_source: FUND_SOURCE_BY_KEY[fund.key] || fund.key,
+          allocation_rate: fund.rate,
+          requested_amount: 0,
+          source_sheet: 'Chính sách phân bổ 15%',
+        });
+      }
+    }
+
+    return [...mapped, ...generated];
+  }, [weeklyAllocations, selectedMonth]);
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
     const dates = [
@@ -476,9 +531,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const selectedPeriodIndex = selectedPeriod
     ? periodsForMonth.findIndex((period) => period.period_code === selectedPeriod.period_code)
     : -1;
-  const selectedPeriodHeading = selectedPeriod && selectedMonth === '2026-09'
-    ? `Tuần ${getPeriodWeekNumber(selectedPeriod, Math.max(0, selectedPeriodIndex))} · ${formatPeriodRange(selectedPeriod)}`
-    : selectedPeriod?.period_label || 'Chưa có kỳ';
+  const selectedPeriodHeading = selectedPeriod
+    ? `Tuần ${getPeriodWeekNumber(selectedPeriod, Math.max(0, selectedPeriodIndex))} · ${formatPeriodRange(selectedPeriod) || selectedPeriod.period_label}`
+    : 'Chưa có kỳ';
   const isMonthOverview = selectedPeriodCode === MONTH_OVERVIEW;
   const periodCodesForMonth = new Set(periodsForMonth.map((period) => period.period_code));
   const weeklyRowsForMonth = normalizedWeeklyAllocations.filter((row) => (
@@ -495,9 +550,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
   const monthContracts = ((selectedMonth === '2026-09' && workbookContracts.length)
     ? workbookContracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth))
-    : periodsForMonth.length
-      ? contracts.filter((contract) => periodsForMonth.some((period) => withinPeriod(contract.contract_date, period)))
-      : contracts.filter((contract) => contract.contract_date.slice(0, 7) === selectedMonth))
+    : contracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth)))
     .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   const monthBase = monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
   const selectedBase = selectedPeriod ? periodBase(selectedPeriod) : 0;
@@ -533,12 +586,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const monthlyLeaderRequests = monthLeaderRows.reduce((sum, row) => sum + row.requested_amount, 0);
 
   const selectedRows = selectedPeriod
-    ? weeklyAllocations
+    ? normalizedWeeklyAllocations
         .filter((row) => row.period_code === selectedPeriod.period_code && row.fund_key !== 'leader')
         .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
     : [];
   const monthFundRows = Array.from(
-    weeklyAllocations
+    normalizedWeeklyAllocations
       .filter((row) => periodCodesForMonth.has(row.period_code) && row.fund_key !== 'leader')
       .reduce((summaries, row) => {
         const period = periodsForMonth.find((item) => item.period_code === row.period_code);
@@ -578,11 +631,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     : null;
   const salesBaseDifference = reportedSalesBase == null ? 0 : Math.round(selectedBase - reportedSalesBase);
   const selectedRequests = selectedPeriod
-    ? weeklyAllocations
+    ? normalizedWeeklyAllocations
         .filter((row) => row.period_code === selectedPeriod.period_code)
         .reduce((sum, row) => sum + row.requested_amount, 0)
     : 0;
-  const monthRequests = weeklyAllocations
+  const monthRequests = normalizedWeeklyAllocations
     .filter((row) => periodCodesForMonth.has(row.period_code))
     .reduce((sum, row) => sum + row.requested_amount, 0);
   const selectedContracts = selectedPeriod

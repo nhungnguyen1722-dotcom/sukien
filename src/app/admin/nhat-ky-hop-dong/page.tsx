@@ -28,6 +28,7 @@ async function getContractsData(year: number): Promise<{
           c.customer_phone,
           c.customer_address,
           c.value,
+          c.allocated_value,
           c.closer_id,
           CASE 
             WHEN c.closer_name = 'Nguy?n H?ng V?' THEN 'Nguyễn Hùng Vĩ'
@@ -67,10 +68,22 @@ async function getContractsData(year: number): Promise<{
       pool.query(`
         SELECT 
           COUNT(*)::int AS total_contracts,
-          COALESCE(SUM(value), 0)::numeric AS total_value,
+          COALESCE(SUM(
+            CASE 
+              WHEN UPPER(TRIM(contract_type)) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+                THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+              ELSE COALESCE(value, 0)
+            END
+          ), 0)::numeric AS total_value,
           COALESCE(SUM(COALESCE(closer_fee, 0) + COALESCE(referrer_fee, 0) + COALESCE(supporter_fee, 0)), 0)::numeric AS total_commission,
           COUNT(CASE WHEN status IN ('Đã duyệt', 'Da duyệt', 'Da duy?t') THEN 1 END)::int AS approved_contracts,
-          COALESCE(SUM(COALESCE(allocated_value, value)), 0)::numeric AS allocation_base
+          COALESCE(SUM(
+            CASE 
+              WHEN UPPER(TRIM(contract_type)) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+                THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+              ELSE COALESCE(allocated_value, value, 0)
+            END
+          ), 0)::numeric AS allocation_base
         FROM contracts
         WHERE EXTRACT(YEAR FROM contract_date) = $1
       `, [year]),
