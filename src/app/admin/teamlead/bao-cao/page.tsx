@@ -5,9 +5,10 @@ export default async function TeamLeadReportsPage({ searchParams }: { searchPara
   const params = await searchParams;
   const parsedMonth = typeof params.month === 'string' ? parseMonth(params.month) : null;
   const month = parsedMonth?.slice(0, 7) || getCurrentMonth();
-  const requestedWeek = typeof params.week === 'string' ? Number(params.week) : 0;
-  const weekNo = Number.isInteger(requestedWeek) && requestedWeek >= 1 && requestedWeek <= 5
+  const hasWeekParam = typeof params.week === 'string';
+  const requestedWeek = hasWeekParam ? Number(params.week) : undefined;
+  const weekNo = requestedWeek !== undefined && Number.isInteger(requestedWeek) && requestedWeek >= 0 && requestedWeek <= 5
     ? requestedWeek
-    : 1;
+    : 0;
   return <TeamLeadModule activeTab="reports" initialMonth={month} initialWeekNo={weekNo} />;
 }

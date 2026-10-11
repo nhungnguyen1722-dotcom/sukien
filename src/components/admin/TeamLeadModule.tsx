@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatWeekOptionLabel } from '@/lib/weekRanges';
 import {
   BarChart3,
+  CalendarDays,
   Check,
   ChevronDown,
   Clock,
@@ -146,7 +147,8 @@ function statusText(locked: boolean, imported: boolean) {
 export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo }: { activeTab: Tab; initialMonth?: string; initialWeekNo?: number }) {
   const defaultMonth = initialMonth && /^\d{4}-\d{2}$/.test(initialMonth) ? initialMonth : currentMonthValue();
   const [month, setMonth] = useState(defaultMonth);
-  const [weekNo, setWeekNo] = useState(() => initialWeekNo && initialWeekNo >= 1 && initialWeekNo <= 5 ? Math.min(initialWeekNo, weekCountForMonth(defaultMonth)) : 1);
+  const [monthFilterMode, setMonthFilterMode] = useState<'month' | 'all'>('month');
+  const [weekNo, setWeekNo] = useState(() => initialWeekNo !== undefined && initialWeekNo >= 0 && initialWeekNo <= 5 ? initialWeekNo : 0);
   const [roster, setRoster] = useState<RosterMember[]>([]);
   const [users, setUsers] = useState<RosterUser[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
@@ -175,9 +177,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   useEffect(() => {
     if (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth)) setMonth(initialMonth);
-    if (initialWeekNo && initialWeekNo >= 1 && initialWeekNo <= 5) {
-      const periodMonth = initialMonth && /^\d{4}-\d{2}$/.test(initialMonth) ? initialMonth : defaultMonth;
-      setWeekNo(Math.min(initialWeekNo, weekCountForMonth(periodMonth)));
+    if (initialWeekNo !== undefined && initialWeekNo >= 0 && initialWeekNo <= 5) {
+      setWeekNo(initialWeekNo);
     }
   }, [defaultMonth, initialMonth, initialWeekNo]);
 
@@ -191,8 +192,9 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const updateMonthFilter = (year: number, monthNumber: number) => {
     const nextMonth = `${year}-${String(monthNumber).padStart(2, '0')}`;
     setMonth(nextMonth);
-    // Khi chuyển sang tháng mới, bộ lọc tuần reset lại từ đầu (Tuần 1)
-    setWeekNo(1);
+    setMonthFilterMode('month');
+    // Khi chuyển sang tháng mới, mặc định chọn Cả tháng (0)
+    setWeekNo(0);
     setReportWeekNo(0);
     setSelectedContract(null);
     setBreakdown(null);
@@ -423,6 +425,148 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
     }
   };
 
+  const toggleRoster30 = async (member: RosterMember) => {
+    if (rosterReadOnly || saving) return;
+    const nextVal = !member.include30;
+    updateRosterMember(member.membershipId, member.userId, { include30: nextVal });
+    if (member.membershipId) {
+      setSaving(true);
+      setError('');
+      try {
+        const response = await fetch('/api/admin/teamlead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'set-eligibility',
+            month,
+            weekNo,
+            membershipId: member.membershipId,
+            include30: nextVal,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Không thể cập nhật quyền quỹ 30%.');
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Không thể cập nhật quyền quỹ 30%.');
+        await loadRoster();
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const toggleRoster70 = async (member: RosterMember, team: TeamAssignment) => {
+    if (rosterReadOnly || saving) return;
+    const nextVal = !team.include70;
+    const nextTeams = member.teams.map((t) =>
+      t.teamId === team.teamId
+        ? { ...t, include70: nextVal, include70Default: weekNo === 0 ? nextVal : t.include70Default }
+        : t
+    );
+    updateRosterMember(member.membershipId, member.userId, { teams: nextTeams });
+    if (team.memberTeamId) {
+      setSaving(true);
+      setError('');
+      try {
+        const response = await fetch('/api/admin/teamlead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'set-eligibility',
+            month,
+            weekNo,
+            membershipId: member.membershipId,
+            memberTeamId: team.memberTeamId,
+            include70: nextVal,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Không thể cập nhật quyền quỹ 70%.');
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Không thể cập nhật quyền quỹ 70%.');
+        await loadRoster();
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const toggleAllocation30 = async (row: AllocationRow) => {
+    if (saving || allocation?.meta.locked || !row.membershipId) return;
+    const nextValue = !row.eligible30;
+    setAllocation((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rows: prev.rows.map((r) =>
+          r.membershipId === row.membershipId ? { ...r, eligible30: nextValue } : r
+        ),
+      };
+    });
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin/teamlead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-eligibility',
+          month,
+          weekNo,
+          membershipId: row.membershipId,
+          memberTeamId: row.memberTeamId,
+          include30: nextValue,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Không thể cập nhật tỷ lệ quỹ 30%.');
+      await loadAllocation();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không thể cập nhật tỷ lệ quỹ 30%.');
+      await loadAllocation();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAllocation70 = async (row: AllocationRow) => {
+    if (saving || allocation?.meta.locked || !row.memberTeamId) return;
+    const nextValue = !row.eligible70;
+    setAllocation((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        rows: prev.rows.map((r) =>
+          r.memberTeamId === row.memberTeamId ? { ...r, eligible70: nextValue } : r
+        ),
+      };
+    });
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin/teamlead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-eligibility',
+          month,
+          weekNo,
+          membershipId: row.membershipId,
+          memberTeamId: row.memberTeamId,
+          include70: nextValue,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Không thể cập nhật tỷ lệ quỹ 70%.');
+      await loadAllocation();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không thể cập nhật tỷ lệ quỹ 70%.');
+      await loadAllocation();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const loadContractBreakdown = async (contractId: number) => {
     setSelectedContract(contractId);
     setBreakdown(null);
@@ -503,68 +647,100 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               )}
             </div>
           </div>
-          <div className="mt-5 overflow-x-auto border-t border-slate-100 pt-4">
-            <div className="flex w-max min-w-full flex-nowrap items-center gap-3">
-              <label className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            {/* Hàng 1 (Năm & Tháng) */}
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
                 <span>Năm</span>
-                <select value={selectedYear} onChange={(event) => updateMonthFilter(Number(event.target.value), selectedMonthNumber)} aria-label="Lọc theo năm" className="min-w-24 bg-transparent text-sm font-semibold text-slate-800 outline-none">
-                  {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+                <select
+                  value={selectedYear}
+                  onChange={(event) => updateMonthFilter(Number(event.target.value), selectedMonthNumber)}
+                  aria-label="Lọc theo năm"
+                  className="min-w-20 bg-transparent text-xs font-semibold text-slate-800 outline-none"
+                >
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
                 </select>
               </label>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tháng</span>
-                <div role="group" aria-label="Lọc theo tháng" className="inline-flex overflow-hidden rounded-xl border border-slate-200 bg-white">
-                  {MONTH_OPTIONS.map((monthNumber) => (
-                    <button
-                      key={monthNumber}
-                      type="button"
-                      aria-label={`Tháng ${monthNumber}`}
-                      aria-pressed={selectedMonthNumber === monthNumber}
-                      onClick={() => updateMonthFilter(selectedYear, monthNumber)}
-                      className={`h-10 min-w-9 border-r border-slate-200 px-2.5 text-sm font-semibold last:border-r-0 ${selectedMonthNumber === monthNumber ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      {monthNumber}
-                    </button>
-                  ))}
-                </div>
+
+              <div className="flex shrink-0 items-center gap-1 overflow-x-auto">
+                <span className="flex shrink-0 items-center px-2 text-xs font-bold text-slate-500">Tháng</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonthFilterMode('all');
+                    setWeekNo(0);
+                    setReportWeekNo(0);
+                  }}
+                  className={
+                    'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                    (monthFilterMode === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100')
+                  }
+                  aria-pressed={monthFilterMode === 'all'}
+                >
+                  Tất cả
+                </button>
+                {MONTH_OPTIONS.map((monthNumber) => (
+                  <button
+                    type="button"
+                    key={monthNumber}
+                    onClick={() => updateMonthFilter(selectedYear, monthNumber)}
+                    className={
+                      'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                      (monthFilterMode === 'month' && selectedMonthNumber === monthNumber
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-600 hover:bg-slate-100')
+                    }
+                    aria-pressed={monthFilterMode === 'month' && selectedMonthNumber === monthNumber}
+                  >
+                    {monthNumber}
+                  </button>
+                ))}
               </div>
-              {activeTab === 'roster' && (
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
-                  <div role="group" aria-label="Chọn tuần cần cấu hình" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {weekOptions.map((week) => (
-                      <button key={week} type="button" aria-pressed={weekNo === week} onClick={() => setWeekNo(week)} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold last:border-r-0 ${weekNo === week ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                        {formatWeekOptionLabel(month, week, 'short')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {activeTab === 'allocation' && (
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
-                  <div role="group" aria-label="Chọn tuần xem" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {weekOptions.map((week) => ({ value: week, label: formatWeekOptionLabel(month, week, 'short') })).map((option) => (
-                      <button key={option.value} type="button" aria-pressed={weekNo === option.value} onClick={() => setWeekNo(option.value)} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold last:border-r-0 ${weekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {activeTab === 'reports' && (
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tuần</span>
-                  <div role="group" aria-label="Lọc hợp đồng theo tuần" className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {[{ value: 0, label: 'Tất cả' }, ...weekOptions.map((week) => ({ value: week, label: formatWeekOptionLabel(month, week, 'short') }))].map((option) => (
-                      <button key={option.value} type="button" aria-pressed={reportWeekNo === option.value} onClick={() => { setReportWeekNo(option.value); if (option.value > 0) setWeekNo(option.value); }} className={`whitespace-nowrap border-r border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold last:border-r-0 ${reportWeekNo === option.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
+
+            {/* Hàng 2 (Tuần) */}
+            {monthFilterMode !== 'all' && (
+              <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto">
+                <CalendarDays className="mr-1 h-4 w-4 shrink-0 text-slate-400" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekNo(0);
+                    setReportWeekNo(0);
+                  }}
+                  className={
+                    'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition ' +
+                    (weekNo === 0
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                  }
+                >
+                  Cả tháng
+                </button>
+                {weekOptions.map((week) => (
+                  <button
+                    type="button"
+                    key={week}
+                    onClick={() => {
+                      setWeekNo(week);
+                      setReportWeekNo(week);
+                    }}
+                    className={
+                      'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition ' +
+                      (weekNo === week
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                    }
+                  >
+                    {formatWeekOptionLabel(month, week, 'short')}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <nav className="mt-4 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4">
             {TAB_LINKS.map((tab) => {
@@ -632,6 +808,18 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                         <th className="px-4 py-3.5">Thành viên</th>
                         <th className="px-4 py-3.5">Đội nhóm</th>
                         <th className="px-4 py-3.5">Chức danh</th>
+                        <th className="px-4 py-3.5 text-center">
+                          Quỹ 30%
+                          <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
+                            {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
+                          </span>
+                        </th>
+                        <th className="px-4 py-3.5 text-center">
+                          Quỹ 70%
+                          <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
+                            {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
+                          </span>
+                        </th>
                         <th className="px-4 py-3.5 text-right">Thao tác</th>
                       </tr>
                     </thead>
@@ -661,13 +849,45 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                                 {ROLE_OPTIONS.map((item) => <option key={item} value={item}>{item} ({ROLE_WEIGHTS[item]})</option>)}
                               </select>
                             </td>
+                            <td className="px-4 py-4 text-center">
+                              <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(member.include30)}
+                                  disabled={rosterReadOnly || saving}
+                                  onChange={() => void toggleRoster30(member)}
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                                  title={weekNo === 0 ? 'Tỷ lệ 30% mặc định cả tháng (áp dụng cho tất cả các tuần)' : `Tỷ lệ 30% riêng cho tuần ${weekNo}`}
+                                />
+                              </label>
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                {member.teams.map((teamItem) => (
+                                  <label key={teamItem.memberTeamId || teamItem.teamId} className="inline-flex cursor-pointer items-center gap-1.5 p-0.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(teamItem.include70)}
+                                      disabled={rosterReadOnly || saving}
+                                      onChange={() => void toggleRoster70(member, teamItem)}
+                                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 accent-emerald-600 focus:ring-emerald-500 disabled:opacity-50"
+                                      title={weekNo === 0 ? `Tỷ lệ 70% ${teamItem.teamName} mặc định cả tháng (áp dụng cho tất cả các tuần)` : `Tỷ lệ 70% ${teamItem.teamName} riêng cho tuần ${weekNo}`}
+                                    />
+                                    {member.teams.length > 1 && (
+                                      <span className="text-[11px] text-slate-500">{teamItem.teamName}</span>
+                                    )}
+                                  </label>
+                                ))}
+                                {!member.teams.length && <span className="text-slate-300">—</span>}
+                              </div>
+                            </td>
                             <td className="px-4 py-4 text-right">
                               {!rosterReadOnly && <button onClick={() => setRoster((previous) => previous.filter((item) => item !== member))} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50">Xóa</button>}
                             </td>
                           </tr>
                         );
                       })}
-                      {!filteredRoster.length && <tr><td colSpan={4} className="px-4 py-14 text-center text-sm text-slate-500">{visibleRoster.length ? 'Không có thành viên phù hợp.' : roster.length ? 'Chưa có thành viên thuộc chức danh TeamLead trong tháng này.' : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}</td></tr>}
+                      {!filteredRoster.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">{visibleRoster.length ? 'Không có thành viên phù hợp.' : roster.length ? 'Chưa có thành viên thuộc chức danh TeamLead trong tháng này.' : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -723,8 +943,18 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                     <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
                       <tr>
                         <th className="px-4 py-3.5">Thành viên & SĐT</th><th className="px-4 py-3.5">Đội nhóm</th><th className="px-4 py-3.5">Chức danh</th>
-                        <th className="px-4 py-3.5 text-center">Quỹ 30%<span className="mt-1 block font-normal normal-case tracking-normal text-slate-400">Tháng</span></th>
-                        <th className="px-4 py-3.5 text-center">Quỹ 70%<span className="mt-1 block font-normal normal-case tracking-normal text-slate-400">{weekNo ? `Tuần ${weekNo}` : 'Tháng'}</span></th>
+                        <th className="px-4 py-3.5 text-center">
+                          Quỹ 30%
+                          <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
+                            {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
+                          </span>
+                        </th>
+                        <th className="px-4 py-3.5 text-center">
+                          Quỹ 70%
+                          <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
+                            {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
+                          </span>
+                        </th>
                         <th className="px-4 py-3.5 text-right">Doanh số đội</th><th className="px-4 py-3.5 text-right">Tiền 30% tháng</th><th className="px-4 py-3.5 text-right">Tiền 70% kỳ</th><th className="px-4 py-3.5 text-right">{weekNo ? 'Chi tuần này' : 'Tổng thực nhận'}</th>
                       </tr>
                     </thead>
@@ -734,8 +964,30 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                           <td className="px-4 py-3.5"><div className="font-semibold text-slate-900">{row.memberName}</div><div className="mt-0.5 text-xs text-slate-500">{row.memberPhone}</div></td>
                           <td className="px-4 py-3.5 text-slate-700">{row.teamName || 'Chưa gán đội'}</td>
                           <td className="px-4 py-3.5"><span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">{row.role || 'Thành viên'}</span></td>
-                          <td className="px-4 py-3.5 text-center">{row.eligible30 ? <Check className="mx-auto h-4 w-4 text-blue-600" /> : <span className="text-slate-300">—</span>}</td>
-                          <td className="px-4 py-3.5 text-center">{row.eligible70 ? <Check className="mx-auto h-4 w-4 text-emerald-600" /> : <span className="text-slate-300">—</span>}</td>
+                          <td className="px-4 py-3.5 text-center">
+                            <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(row.eligible30)}
+                                disabled={saving || Boolean(allocation?.meta.locked)}
+                                onChange={() => void toggleAllocation30(row)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                                title={weekNo === 0 ? 'Tỷ lệ 30% mặc định cả tháng (áp dụng cho tất cả các tuần)' : `Tỷ lệ 30% riêng cho tuần ${weekNo}`}
+                              />
+                            </label>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(row.eligible70)}
+                                disabled={saving || Boolean(allocation?.meta.locked)}
+                                onChange={() => void toggleAllocation70(row)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 accent-emerald-600 focus:ring-emerald-500 disabled:opacity-50"
+                                title={weekNo === 0 ? 'Tỷ lệ 70% mặc định cả tháng (áp dụng cho tất cả các tuần)' : `Tỷ lệ 70% riêng cho tuần ${weekNo}`}
+                              />
+                            </label>
+                          </td>
                           <td className="px-4 py-3.5 text-right tabular-nums text-slate-600">{money(row.salesBasis)}</td>
                           <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-violet-700">{money(row.payout30)}</td>
                           <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-amber-700">{money(row.payout70)}</td>

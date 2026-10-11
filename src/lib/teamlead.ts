@@ -63,6 +63,7 @@ export async function ensureTeamLeadSchema() {
             PRIMARY KEY (member_team_id, week_no)
           )
         `);
+        await client.query(`DO $$ BEGIN ALTER TABLE teamlead_week_eligibility ADD COLUMN include_30 BOOLEAN; EXCEPTION WHEN duplicate_column THEN NULL; END $$;`);
         await client.query(`
           CREATE TABLE IF NOT EXISTS teamlead_periods (
             id SERIAL PRIMARY KEY,
@@ -272,7 +273,8 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
     `
       SELECT m.id AS membership_id, m.member_id AS user_id, m.member_name, m.member_phone, u.title AS user_title, m.include_30,
         mt.id AS member_team_id, mt.team_id, t.name AS team_name, mt.role, mt.include_70 AS include_70_default,
-        we.include_70 AS include_70_week
+        we.include_70 AS include_70_week,
+        we.include_30 AS include_30_week
       FROM teamlead_members m
       LEFT JOIN users u ON u.id = m.member_id
       LEFT JOIN teamlead_member_teams mt ON mt.member_id = m.id
@@ -287,6 +289,9 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
   for (const row of result.rows) {
     const id = Number(row.membership_id);
     let member = byId.get(id);
+    const memberInclude30 = weekNo > 0 && row.include_30_week !== null
+      ? Boolean(row.include_30_week)
+      : Boolean(row.include_30);
     if (!member) {
       member = {
         membershipId: id,
@@ -294,10 +299,12 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
         name: row.member_name,
         phone: row.member_phone,
         title: row.user_title || null,
-        include30: Boolean(row.include_30),
+        include30: memberInclude30,
         teams: [],
       };
       byId.set(id, member);
+    } else if (weekNo > 0 && row.include_30_week !== null) {
+      member.include30 = Boolean(row.include_30_week);
     }
     if (row.member_team_id !== null) {
       member.teams.push({
@@ -306,7 +313,9 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
         teamName: row.team_name,
         role: row.role,
         include70Default: Boolean(row.include_70_default),
-        include70: row.include_70_week === null ? Boolean(row.include_70_default) : Boolean(row.include_70_week),
+        include70: weekNo > 0 && row.include_70_week !== null
+          ? Boolean(row.include_70_week)
+          : Boolean(row.include_70_default),
       });
     }
   }
@@ -529,13 +538,8 @@ async function calculateWeekRows(
       row.payout70 = team ? (payouts70.get(team.memberTeamId) || 0) : 0;
 
       const isPrimary30 = member.include30 && team && primaryTeamByMember.get(member.membershipId) === team.memberTeamId;
-      if (isPrimary30) {
-        row.eligible30 = true;
-        row.payout30 = shareByMember.get(member.membershipId) || 0;
-      } else {
-        row.eligible30 = false;
-        row.payout30 = 0;
-      }
+      row.eligible30 = Boolean(member.include30);
+      row.payout30 = isPrimary30 ? (shareByMember.get(member.membershipId) || 0) : 0;
 
       row.total = row.payout70;
       return row;
@@ -614,13 +618,8 @@ export async function getTeamLeadAllocation(month: string, weekNo: number, db: t
       row.salesBasis = team ? (monthSalesByTeam.get(key) || 0) : 0;
 
       const isPrimary30 = member.include30 && team && primaryTeamByMember.get(member.membershipId) === team.memberTeamId;
-      if (isPrimary30) {
-        row.eligible30 = true;
-        row.payout30 = monthShareByMember.get(member.membershipId) || 0;
-      } else {
-        row.eligible30 = false;
-        row.payout30 = 0;
-      }
+      row.eligible30 = Boolean(member.include30);
+      row.payout30 = isPrimary30 ? (monthShareByMember.get(member.membershipId) || 0) : 0;
       return row;
     });
   });

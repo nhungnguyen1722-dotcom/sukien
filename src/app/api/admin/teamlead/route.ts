@@ -142,16 +142,60 @@ export async function POST(request: NextRequest) {
           return Response.json({ success: false, error: 'Kỳ đã chốt nên không thể thay đổi quyền hưởng quỹ.' }, { status: 409 });
         }
         if (body.include30 !== undefined) {
-          const updated = await client.query(
-            `UPDATE teamlead_members SET include_30 = $3 WHERE id = $1 AND month = $2 RETURNING id`,
-            [membershipId, month, Boolean(body.include30)]
-          );
-          if (!updated.rows.length) {
-            await client.query('ROLLBACK');
-            return Response.json({ success: false, error: 'Không tìm thấy thành viên trong tháng.' }, { status: 404 });
+          const include30Val = Boolean(body.include30);
+          if (weekNo === 0) {
+            const updated = await client.query(
+              `UPDATE teamlead_members SET include_30 = $3 WHERE id = $1 AND month = $2 RETURNING id`,
+              [membershipId, month, include30Val]
+            );
+            if (!updated.rows.length) {
+              await client.query('ROLLBACK');
+              return Response.json({ success: false, error: 'Không tìm thấy thành viên trong tháng.' }, { status: 404 });
+            }
+            // Tự động áp dụng cho TẤT CẢ CÁC TUẦN (1..5)
+            const memberTeams = await client.query(
+              `SELECT id, include_70 FROM teamlead_member_teams WHERE member_id = $1`,
+              [membershipId]
+            );
+            for (const mt of memberTeams.rows) {
+              const mtId = Number(mt.id);
+              for (let w = 1; w <= 5; w++) {
+                await client.query(
+                  `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (member_team_id, week_no)
+                   DO UPDATE SET include_30 = EXCLUDED.include_30, updated_at = NOW()`,
+                  [mtId, w, Boolean(mt.include_70), include30Val]
+                );
+              }
+            }
+          } else if (Number.isInteger(weekNo) && weekNo >= 1 && weekNo <= 5) {
+            let targetTeamIds: number[] = [];
+            if (memberTeamId) {
+              targetTeamIds = [memberTeamId];
+            } else {
+              const memberTeams = await client.query(
+                `SELECT id, include_70 FROM teamlead_member_teams WHERE member_id = $1`,
+                [membershipId]
+              );
+              targetTeamIds = memberTeams.rows.map((r: any) => Number(r.id));
+            }
+            for (const mtId of targetTeamIds) {
+              const cur = (await client.query(`SELECT include_70 FROM teamlead_member_teams WHERE id = $1`, [mtId])).rows[0];
+              const cur70 = cur ? Boolean(cur.include_70) : true;
+              await client.query(
+                `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (member_team_id, week_no)
+                 DO UPDATE SET include_30 = EXCLUDED.include_30, updated_at = NOW()`,
+                [mtId, weekNo, cur70, include30Val]
+              );
+            }
           }
         }
+
         if (body.include70 !== undefined) {
+          const include70Val = Boolean(body.include70);
           const memberTeam = await client.query(
             `SELECT mt.id, mt.include_70 FROM teamlead_member_teams mt
              JOIN teamlead_members m ON m.id = mt.member_id
@@ -163,23 +207,35 @@ export async function POST(request: NextRequest) {
             return Response.json({ success: false, error: 'Không tìm thấy đội nhóm của thành viên.' }, { status: 404 });
           }
           if (weekNo === 0) {
-            await client.query(`UPDATE teamlead_member_teams SET include_70 = $2 WHERE id = $1`, [memberTeamId, Boolean(body.include70)]);
-          } else if (Number.isInteger(weekNo) && weekNo >= 1 && weekNo <= 5) {
-            const existingEligibility = await client.query(
-              `SELECT 1 FROM teamlead_week_eligibility WHERE member_team_id=$1 AND week_no=$2`,
-              [memberTeamId, weekNo]
-            );
-            if (existingEligibility.rows.length) {
+            await client.query(`UPDATE teamlead_member_teams SET include_70 = $2 WHERE id = $1`, [memberTeamId, include70Val]);
+            // Tự động áp dụng cho TẤT CẢ CÁC TUẦN (1..5)
+            const curMember = (await client.query(
+              `SELECT m.include_30 FROM teamlead_members m JOIN teamlead_member_teams mt ON mt.member_id = m.id WHERE mt.id = $1`,
+              [memberTeamId]
+            )).rows[0];
+            const cur30 = curMember ? Boolean(curMember.include_30) : true;
+            for (let w = 1; w <= 5; w++) {
               await client.query(
-                `UPDATE teamlead_week_eligibility SET include_70=$3, updated_at=NOW() WHERE member_team_id=$1 AND week_no=$2`,
-                [memberTeamId, weekNo, Boolean(body.include70)]
-              );
-            } else {
-              await client.query(
-                `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70) VALUES ($1,$2,$3)`,
-                [memberTeamId, weekNo, Boolean(body.include70)]
+                `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (member_team_id, week_no)
+                 DO UPDATE SET include_70 = EXCLUDED.include_70, updated_at = NOW()`,
+                [memberTeamId, w, include70Val, cur30]
               );
             }
+          } else if (Number.isInteger(weekNo) && weekNo >= 1 && weekNo <= 5) {
+            const curMember = (await client.query(
+              `SELECT m.include_30 FROM teamlead_members m JOIN teamlead_member_teams mt ON mt.member_id = m.id WHERE mt.id = $1`,
+              [memberTeamId]
+            )).rows[0];
+            const cur30 = curMember ? Boolean(curMember.include_30) : true;
+            await client.query(
+              `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (member_team_id, week_no)
+               DO UPDATE SET include_70 = EXCLUDED.include_70, updated_at = NOW()`,
+              [memberTeamId, weekNo, include70Val, cur30]
+            );
           } else {
             await client.query('ROLLBACK');
             return Response.json({ success: false, error: 'Tuần không hợp lệ.' }, { status: 400 });
@@ -309,22 +365,24 @@ export async function POST(request: NextRequest) {
               memberTeamId = Number(memberTeamResult.rows[0].id);
             }
             const weeklyEligibility = team.eligible70 === undefined ? team.include70 : team.eligible70;
-            if (weekNo > 0 && weeklyEligibility !== undefined) {
-              const existingEligibility = await client.query(
-                `SELECT 1 FROM teamlead_week_eligibility WHERE member_team_id=$1 AND week_no=$2`,
-                [memberTeamId, weekNo]
-              );
-              if (existingEligibility.rows.length) {
+            if (weekNo === 0) {
+              for (let w = 1; w <= 5; w++) {
                 await client.query(
-                  `UPDATE teamlead_week_eligibility SET include_70=$3, updated_at=NOW() WHERE member_team_id=$1 AND week_no=$2`,
-                  [memberTeamId, weekNo, Boolean(weeklyEligibility)]
-                );
-              } else {
-                await client.query(
-                  `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70) VALUES ($1,$2,$3)`,
-                  [memberTeamId, weekNo, Boolean(weeklyEligibility)]
+                  `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (member_team_id, week_no)
+                   DO UPDATE SET include_70 = EXCLUDED.include_70, include_30 = EXCLUDED.include_30, updated_at = NOW()`,
+                  [memberTeamId, w, include70Default, Boolean(input.include30)]
                 );
               }
+            } else if (weekNo > 0 && weeklyEligibility !== undefined) {
+              await client.query(
+                `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (member_team_id, week_no)
+                 DO UPDATE SET include_70 = EXCLUDED.include_70, include_30 = EXCLUDED.include_30, updated_at = NOW()`,
+                [memberTeamId, weekNo, Boolean(weeklyEligibility), Boolean(input.include30)]
+              );
             }
           }
           await client.query(
