@@ -4,19 +4,25 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
-import { calculateContractAllBeneficiaries, decomposeBeneficiarySource } from '@/lib/allocationFormulas';
+import { calculateContractAllBeneficiaries, decomposeBeneficiarySource, TEAM_LEADER_ROSTER } from '@/lib/allocationFormulas';
 import {
   AlertCircle,
+  ArrowUpDown,
+  Award,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
   Eye,
   FileSpreadsheet,
+  Filter,
   MoreVertical,
   Plus,
   Printer,
   Receipt,
   Search,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
   Trophy,
   Users,
   Wallet,
@@ -495,6 +501,97 @@ function groupContractsByPerson(contracts: FundContract[], members?: Transaction
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
 
+function resolveMemberTitle(
+  personName: string,
+  matchingMember?: TransactionMember,
+  sources?: string[],
+  contracts?: Array<{ contract: FundContract; amount: number }>
+): string {
+  const normName = normalizePersonName(personName);
+
+  // 1. Specific known executive roles
+  if (normName.includes('dinh van bac') || sources?.some((s) => s.toLowerCase().includes('tổng điều hành'))) {
+    return 'Tổng điều hành';
+  }
+  if (
+    normName.includes('vu thi cuc') &&
+    (sources?.some((s) => s.toLowerCase().includes('phó tổng') || s.toLowerCase().includes('vận hành')) || matchingMember?.title === 'Chủ tịch')
+  ) {
+    return 'Phó tổng';
+  }
+  if (normName.includes('nguyen thi huong thao') || sources?.some((s) => s.toLowerCase().includes('tri an ket noi') || s.toLowerCase().includes('kết nối phó tổng'))) {
+    return 'Tri ân kết nối Phó tổng';
+  }
+  if (normName.includes('nguyen dang an') || sources?.some((s) => s.toLowerCase().includes('bp ho tro cn') || s.toLowerCase().includes('hỗ trợ cn'))) {
+    return 'BP hỗ trợ CN';
+  }
+
+  // 2. Explicit member title if set and not generic 'Thành viên'
+  if (matchingMember?.title && matchingMember.title.trim() && matchingMember.title.trim() !== 'Thành viên') {
+    return matchingMember.title.trim();
+  }
+
+  // 3. Check TeamLead roster roles
+  for (const teamMembers of Object.values(TEAM_LEADER_ROSTER)) {
+    for (const leader of teamMembers) {
+      if (areNamesMatching(leader.name, personName)) {
+        if (leader.role.includes('Phó Giám đốc')) return 'Phó Giám đốc';
+        if (leader.role.includes('Giám đốc')) return 'Giám đốc';
+        if (leader.role.includes('Trưởng phòng')) return 'Trưởng phòng';
+      }
+    }
+  }
+
+  // 4. Inferred from contract sources
+  if (sources && sources.length > 0) {
+    const sText = sources.join(' ').toLowerCase();
+    if (sText.includes('giám đốc') && !sText.includes('phó giám đốc')) return 'Giám đốc';
+    if (sText.includes('phó giám đốc')) return 'Phó Giám đốc';
+    if (sText.includes('trưởng phòng')) return 'Trưởng phòng';
+    if (sText.includes('sale trực tiếp') || sText.includes('chốt sale')) return 'Chuyên viên tư vấn / Sale';
+    if (sText.includes('kết nối') || sText.includes('giới thiệu')) return 'Người kết nối / Giới thiệu';
+    if (sText.includes('hỗ trợ')) return 'Người hỗ trợ sale';
+  }
+
+  // 5. Inferred from contract roles (closer / referrer / supporter)
+  if (contracts && contracts.length > 0) {
+    const isCloser = contracts.some(({ contract }) => areNamesMatching(contract.closer_name, personName));
+    if (isCloser) return 'Chuyên viên tư vấn / Sale';
+    const isReferrer = contracts.some(({ contract }) => areNamesMatching(contract.referrer_name, personName));
+    if (isReferrer) return 'Người kết nối / Giới thiệu';
+    const isSupporter = contracts.some(({ contract }) => areNamesMatching(contract.supporter_name, personName));
+    if (isSupporter) return 'Người hỗ trợ sale';
+  }
+
+  return matchingMember?.title || 'Chuyên viên / Thành viên';
+}
+
+function getRoleBadgeStyle(title: string) {
+  const norm = title.toLowerCase();
+  if (norm.includes('tổng điều hành')) return 'bg-purple-100 text-purple-800 border-purple-200';
+  if (norm.includes('phó tổng') || norm.includes('chủ tịch')) return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (norm.includes('giám đốc') && !norm.includes('phó')) return 'bg-blue-100 text-blue-800 border-blue-200';
+  if (norm.includes('phó giám đốc')) return 'bg-sky-100 text-sky-800 border-sky-200';
+  if (norm.includes('trưởng phòng')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+  if (norm.includes('sale') || norm.includes('tư vấn')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (norm.includes('hỗ trợ') || norm.includes('kỹ thuật') || norm.includes('cn')) return 'bg-teal-100 text-teal-800 border-teal-200';
+  if (norm.includes('kết nối') || norm.includes('giới thiệu')) return 'bg-rose-100 text-rose-800 border-rose-200';
+  return 'bg-slate-100 text-slate-700 border-slate-200';
+}
+
+function getRoleIcon(title: string) {
+  const norm = title.toLowerCase();
+  if (norm.includes('tổng điều hành') || norm.includes('chủ tịch')) return '👑';
+  if (norm.includes('phó tổng')) return '💎';
+  if (norm.includes('giám đốc') && !norm.includes('phó')) return '🏆';
+  if (norm.includes('phó giám đốc')) return '🎖️';
+  if (norm.includes('trưởng phòng')) return '🎯';
+  if (norm.includes('sale') || norm.includes('tư vấn')) return '💼';
+  if (norm.includes('hỗ trợ')) return '🛠️';
+  if (norm.includes('kết nối') || norm.includes('giới thiệu')) return '🤝';
+  return '👤';
+}
+
 function formatPeriodRange(period: WeeklyAllocation) {
   const range = getEffectivePeriodRange(period);
   const start = range.start.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -760,6 +857,189 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   }), { pool: 0, commission: 0, remaining: 0 });
   const peopleRows = groupContractsByPerson(displayedContracts, initialMembers);
   const monthPeopleRows = isMonthOverview ? peopleRows : groupContractsByPerson(monthContracts, initialMembers);
+
+  const [personTitleFilter, setPersonTitleFilter] = useState('all');
+  const [personSortOrder, setPersonSortOrder] = useState<'amount_desc' | 'amount_asc' | 'trend_up' | 'trend_down' | 'contracts_desc' | 'name_asc'>('amount_desc');
+  const [personTrendFilter, setPersonTrendFilter] = useState<'all' | 'up' | 'down' | 'stable'>('all');
+  const [personSearchQuery, setPersonSearchQuery] = useState('');
+
+  const enrichedPeopleRows = useMemo(() => {
+    return peopleRows.map((person) => {
+      const matchingMember = initialMembers.find((m) => areNamesMatching(m.full_name, person.name));
+
+      const personSources: string[] = [];
+      for (const { contract } of person.contracts) {
+        const beneficiaries = contractBeneficiaries(contract, initialMembers);
+        for (const b of beneficiaries) {
+          if (areNamesMatching(b.name, person.name) && b.lines) {
+            for (const line of b.lines) {
+              if (line.source && !personSources.includes(line.source)) {
+                personSources.push(line.source);
+              }
+            }
+          }
+        }
+      }
+
+      const title = resolveMemberTitle(person.name, matchingMember, personSources, person.contracts);
+      const team_name = matchingMember?.team_name || person.contracts[0]?.contract.team_name || resolveContractTeam(person.contracts[0]?.contract);
+
+      const weeklyBreakdown = periodsForMonth.map((period, pIdx) => {
+        let weekAmount = 0;
+        for (const monthContract of monthContracts) {
+          const isContractInPeriod = monthContract.source_period_code === period.period_code || withinPeriod(monthContract.contract_date, period);
+          if (!isContractInPeriod) continue;
+
+          const beneficiaries = contractBeneficiaries(monthContract, initialMembers);
+          for (const b of beneficiaries) {
+            if (areNamesMatching(b.name, person.name)) {
+              weekAmount += Number(b.amount || 0);
+            }
+          }
+        }
+        return {
+          periodCode: period.period_code,
+          label: period.period_label || `Tuần ${pIdx + 1}`,
+          amount: weekAmount,
+        };
+      });
+
+      let trend: 'up' | 'down' | 'stable' = 'stable';
+      let trendPercent = 0;
+      let diffAmount = 0;
+
+      if (!isMonthOverview && selectedPeriodIndex !== -1) {
+        const currentWeekAmount = weeklyBreakdown[selectedPeriodIndex]?.amount ?? person.total;
+        if (selectedPeriodIndex > 0) {
+          const prevWeekAmount = weeklyBreakdown[selectedPeriodIndex - 1]?.amount ?? 0;
+          diffAmount = currentWeekAmount - prevWeekAmount;
+          if (prevWeekAmount > 0) {
+            trendPercent = Math.round((diffAmount / prevWeekAmount) * 100);
+          } else if (currentWeekAmount > 0) {
+            trendPercent = 100;
+          }
+          trend = diffAmount > 0 ? 'up' : diffAmount < 0 ? 'down' : 'stable';
+        } else {
+          diffAmount = currentWeekAmount;
+          trendPercent = currentWeekAmount > 0 ? 100 : 0;
+          trend = currentWeekAmount > 0 ? 'up' : 'stable';
+        }
+      } else {
+        const activeWeeks = weeklyBreakdown.filter((w) => w.amount > 0);
+        if (activeWeeks.length >= 2) {
+          const lastWeek = activeWeeks[activeWeeks.length - 1];
+          const prevWeek = activeWeeks[activeWeeks.length - 2];
+          diffAmount = lastWeek.amount - prevWeek.amount;
+          trendPercent = prevWeek.amount > 0 ? Math.round((diffAmount / prevWeek.amount) * 100) : 100;
+          trend = diffAmount > 0 ? 'up' : diffAmount < 0 ? 'down' : 'stable';
+        } else if (activeWeeks.length === 1) {
+          diffAmount = activeWeeks[0].amount;
+          trendPercent = 0;
+          trend = 'stable';
+        }
+      }
+
+      const monthTotal = weeklyBreakdown.reduce((sum, w) => sum + w.amount, 0);
+
+      return {
+        ...person,
+        matchingMember,
+        title,
+        team_name,
+        phone: matchingMember?.phone || person.contracts[0]?.contract.closer_phone || null,
+        bank_account: matchingMember?.bank_account || null,
+        weeklyBreakdown,
+        monthTotal: monthTotal > 0 ? monthTotal : person.total,
+        trend,
+        trendPercent,
+        diffAmount,
+        sources: personSources,
+      };
+    });
+  }, [peopleRows, initialMembers, periodsForMonth, monthContracts, isMonthOverview, selectedPeriodIndex]);
+
+  const titleStats = useMemo(() => {
+    const map = new Map<string, {
+      title: string;
+      count: number;
+      totalAmount: number;
+      members: string[];
+    }>();
+
+    for (const p of enrichedPeopleRows) {
+      const existing = map.get(p.title) || { title: p.title, count: 0, totalAmount: 0, members: [] };
+      existing.count += 1;
+      existing.totalAmount += p.total;
+      existing.members.push(p.name);
+      map.set(p.title, existing);
+    }
+
+    const roleOrder = [
+      'Tổng điều hành',
+      'Phó tổng',
+      'Tri ân kết nối Phó tổng',
+      'Chủ tịch',
+      'Giám đốc',
+      'Phó Giám đốc',
+      'Trưởng phòng',
+      'Chuyên viên tư vấn / Sale',
+      'BP hỗ trợ CN',
+      'Người kết nối / Giới thiệu',
+      'Người hỗ trợ sale',
+      'Chuyên viên / Thành viên',
+    ];
+
+    return Array.from(map.values()).sort((a, b) => {
+      const idxA = roleOrder.indexOf(a.title);
+      const idxB = roleOrder.indexOf(b.title);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return b.totalAmount - a.totalAmount;
+    });
+  }, [enrichedPeopleRows]);
+
+  const filteredPeopleRows = useMemo(() => {
+    const result = enrichedPeopleRows.filter((p) => {
+      if (personTitleFilter !== 'all' && p.title !== personTitleFilter) {
+        return false;
+      }
+      if (personTrendFilter === 'up' && p.trend !== 'up') return false;
+      if (personTrendFilter === 'down' && p.trend !== 'down') return false;
+      if (personTrendFilter === 'stable' && p.trend !== 'stable') return false;
+      if (personSearchQuery.trim()) {
+        const q = personSearchQuery.trim().toLowerCase();
+        const normQ = normalizePersonName(q);
+        const matchName = normalizePersonName(p.name).includes(normQ);
+        const matchTitle = (p.title || '').toLowerCase().includes(q);
+        const matchTeam = (p.team_name || '').toLowerCase().includes(q);
+        const matchPhone = (p.phone || '').includes(q);
+        if (!matchName && !matchTitle && !matchTeam && !matchPhone) return false;
+      }
+      return true;
+    });
+
+    result.sort((a, b) => {
+      switch (personSortOrder) {
+        case 'amount_desc':
+          return b.total - a.total;
+        case 'amount_asc':
+          return a.total - b.total;
+        case 'trend_up':
+          return b.diffAmount - a.diffAmount || b.total - a.total;
+        case 'trend_down':
+          return a.diffAmount - b.diffAmount || a.total - b.total;
+        case 'contracts_desc':
+          return b.contracts.length - a.contracts.length || b.total - a.total;
+        case 'name_asc':
+          return a.name.localeCompare(b.name, 'vi');
+        default:
+          return b.total - a.total;
+      }
+    });
+
+    return result;
+  }, [enrichedPeopleRows, personTitleFilter, personTrendFilter, personSearchQuery, personSortOrder]);
   const displayedWorkbookWarnings = (isMonthOverview
     ? Object.entries(workbookWarnings)
         .filter(([periodCode]) => periodCode.startsWith(selectedMonth))
@@ -1141,40 +1421,381 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                   </tfoot>
                 </table>
               ) : (
-                <table className="min-w-[900px] w-full text-left text-xs border-collapse">
-                  <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
-                    <tr>
-                      <th className="px-4 py-3 bg-slate-50">Họ và tên</th>
-                      <th className="px-3 py-3 text-right bg-slate-50">Tổng hoa hồng chia</th>
-                      <th className="px-3 py-3 bg-slate-50">Hợp đồng và phân bổ tương ứng</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {peopleRows.length ? peopleRows.map((person) => (
-                      <tr key={person.name}>
-                        <td className="px-4 py-3 font-semibold text-slate-800">{person.name}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatVND(person.total)}</td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            {person.contracts.map(({ contract, amount }) => (
-                              <button key={contract.id} type="button" onClick={() => setViewContract(contract)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] hover:border-blue-300 hover:bg-blue-50">
-                                <span className="block font-semibold text-slate-700">{contract.customer_name} · {formatDate(contract.contract_date)}</span>
-                                <span className="mt-0.5 block text-slate-500">{contract.contract_code || `HĐ #${contract.id}`} · {formatVND(amount)}</span>
+                <div className="flex flex-col min-w-[980px]">
+                  {/* Báo cáo thống kê số lượng thành viên theo từng chức danh/chức vụ nhận hoa hồng */}
+                  <div className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                          <Users className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                            Thống kê thành viên nhận hoa hồng theo chức danh / chức vụ
+                          </h3>
+                          <p className="text-[11px] text-slate-500">
+                            {isMonthOverview
+                              ? `Tổng quan Tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}: ${enrichedPeopleRows.length} nhân sự thụ hưởng · ${titleStats.length} nhóm chức danh`
+                              : `${selectedPeriodHeading}: ${enrichedPeopleRows.length} nhân sự thụ hưởng · ${titleStats.length} nhóm chức danh`}
+                          </p>
+                        </div>
+                      </div>
+                      {personTitleFilter !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setPersonTitleFilter('all')}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          <X className="h-3 w-3" />
+                          Xóa lọc chức danh ({personTitleFilter})
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Danh sách thẻ chức danh/chức vụ (Quick filter pills) */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPersonTitleFilter('all')}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                          personTitleFilter === 'all'
+                            ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
+                        }`}
+                      >
+                        <span>Tất cả</span>
+                        <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                          personTitleFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {enrichedPeopleRows.length} người
+                        </span>
+                        <span className={`text-[10px] font-bold ${personTitleFilter === 'all' ? 'text-blue-100' : 'text-slate-600'}`}>
+                          · {formatVND(displayedContractTotals.commission)}
+                        </span>
+                      </button>
+
+                      {titleStats.map((stat) => {
+                        const isSelected = personTitleFilter === stat.title;
+                        const sharePct = displayedContractTotals.commission > 0
+                          ? ((stat.totalAmount / displayedContractTotals.commission) * 100).toFixed(1)
+                          : '0';
+                        return (
+                          <button
+                            key={stat.title}
+                            type="button"
+                            onClick={() => setPersonTitleFilter(isSelected ? 'all' : stat.title)}
+                            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
+                            }`}
+                            title={`${stat.title}: ${stat.count} thành viên nhận hoa hồng, tổng ${formatVND(stat.totalAmount)} (${sharePct}%)`}
+                          >
+                            <span>{getRoleIcon(stat.title)} {stat.title}</span>
+                            <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                              isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {stat.count} người
+                            </span>
+                            <span className={`text-[10px] font-bold ${isSelected ? 'text-blue-100' : 'text-emerald-700'}`}>
+                              · {formatVND(stat.totalAmount)}
+                            </span>
+                            <span className={`text-[9px] ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
+                              ({sharePct}%)
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Thanh công cụ Bộ lọc & Sắp xếp */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Lọc theo chức danh */}
+                      <select
+                        value={personTitleFilter}
+                        onChange={(e) => setPersonTitleFilter(e.target.value)}
+                        className="rounded-lg border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-700 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Lọc theo chức danh / chức vụ"
+                      >
+                        <option value="all">Tất cả chức danh / chức vụ ({enrichedPeopleRows.length} người)</option>
+                        {titleStats.map((stat) => (
+                          <option key={stat.title} value={stat.title}>
+                            {stat.title} ({stat.count} người · {formatVND(stat.totalAmount)})
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Lọc theo biến động */}
+                      <select
+                        value={personTrendFilter}
+                        onChange={(e) => setPersonTrendFilter(e.target.value as any)}
+                        className="rounded-lg border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-700 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Lọc theo biến động tăng giảm"
+                      >
+                        <option value="all">Tất cả biến động</option>
+                        <option value="up">📈 Tăng trưởng (+) ({enrichedPeopleRows.filter((p) => p.trend === 'up').length} người)</option>
+                        <option value="down">📉 Giảm (-) ({enrichedPeopleRows.filter((p) => p.trend === 'down').length} người)</option>
+                        <option value="stable">➖ Ổn định / 1 kỳ ({enrichedPeopleRows.filter((p) => p.trend === 'stable').length} người)</option>
+                      </select>
+
+                      {/* Sắp xếp theo số tiền tăng giảm */}
+                      <select
+                        value={personSortOrder}
+                        onChange={(e) => setPersonSortOrder(e.target.value as any)}
+                        className="rounded-lg border border-slate-300 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-slate-700 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        title="Sắp xếp danh sách"
+                      >
+                        <option value="amount_desc">💰 Số tiền giảm dần (Cao nhất)</option>
+                        <option value="amount_asc">📉 Số tiền tăng dần (Thấp nhất)</option>
+                        <option value="trend_up">📈 Biến động tăng nhiều nhất</option>
+                        <option value="trend_down">📉 Biến động giảm nhiều nhất</option>
+                        <option value="contracts_desc">📋 Số lượng HĐ (Nhiều nhất)</option>
+                        <option value="name_asc">🔤 Họ và tên (A → Z)</option>
+                      </select>
+                    </div>
+
+                    {/* Ô tìm kiếm nhân sự */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-44 sm:w-56">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Tìm tên, SĐT, đội nhóm..."
+                          value={personSearchQuery}
+                          onChange={(e) => setPersonSearchQuery(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        {personSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setPersonSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {(personTitleFilter !== 'all' || personTrendFilter !== 'all' || personSearchQuery !== '' || personSortOrder !== 'amount_desc') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPersonTitleFilter('all');
+                            setPersonTrendFilter('all');
+                            setPersonSearchQuery('');
+                            setPersonSortOrder('amount_desc');
+                          }}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 transition"
+                          title="Đặt lại toàn bộ bộ lọc"
+                        >
+                          Đặt lại
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bảng chi tiết nhân sự */}
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="sticky top-[108px] z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
+                      <tr>
+                        <th className="px-4 py-3 bg-slate-50">Thành viên & Chức vụ</th>
+                        <th className="px-3 py-3 text-center bg-slate-50">Số HĐ</th>
+                        <th className="px-3 py-3 bg-slate-50">Biến động theo thời gian (Tuần 1–5)</th>
+                        <th className="px-3 py-3 text-right bg-slate-50">Tổng hoa hồng</th>
+                        <th className="px-3 py-3 bg-slate-50">Hợp đồng & Chi tiết phân bổ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredPeopleRows.length ? (
+                        filteredPeopleRows.map((person) => {
+                          const maxWeekly = Math.max(...person.weeklyBreakdown.map((w) => w.amount), 1);
+                          const initials = person.name.trim().split(/\s+/).slice(-2).map((p) => p[0]).join('').toUpperCase() || 'NV';
+                          return (
+                            <tr key={person.name} className="hover:bg-blue-50/40 transition">
+                              {/* Thông tin nhân sự & Chức vụ */}
+                              <td className="px-4 py-3">
+                                <div className="flex items-start gap-2.5">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-[11px] font-bold text-white shadow-2xs">
+                                    {initials}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                      <span>{person.name}</span>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                      <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${getRoleBadgeStyle(person.title)}`}>
+                                        <span>{getRoleIcon(person.title)}</span>
+                                        <span>{person.title}</span>
+                                      </span>
+                                      {person.team_name && (
+                                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                                          Đội: {person.team_name}
+                                        </span>
+                                      )}
+                                      {person.phone && (
+                                        <span className="text-[10px] text-slate-400">
+                                          · {person.phone}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Số lượng hợp đồng */}
+                              <td className="px-3 py-3 text-center whitespace-nowrap">
+                                <span className="inline-flex items-center justify-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                                  {person.contracts.length} HĐ
+                                </span>
+                              </td>
+
+                              {/* Biến động theo thời gian & Mini biểu đồ tuần */}
+                              <td className="px-3 py-3">
+                                <div className="min-w-[170px] max-w-[210px]">
+                                  {/* Chỉ báo biến động */}
+                                  <div className="flex items-center justify-between mb-1">
+                                    {person.trend === 'up' && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                                        <TrendingUp className="h-3 w-3" />
+                                        +{person.trendPercent}% ({formatVND(person.diffAmount)})
+                                      </span>
+                                    )}
+                                    {person.trend === 'down' && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600">
+                                        <TrendingDown className="h-3 w-3" />
+                                        {person.trendPercent}% ({formatVND(person.diffAmount)})
+                                      </span>
+                                    )}
+                                    {person.trend === 'stable' && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                                        {isMonthOverview
+                                          ? `${person.weeklyBreakdown.filter((w) => w.amount > 0).length} kỳ phát sinh`
+                                          : 'Mới trong kỳ'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Cột biểu đồ mini 5 tuần (W1-W5) */}
+                                  <div className="flex items-end gap-1 h-6 rounded bg-slate-50 p-1 border border-slate-100">
+                                    {person.weeklyBreakdown.map((w, idx) => {
+                                      const heightPct = w.amount > 0 ? Math.max(20, Math.round((w.amount / maxWeekly) * 100)) : 6;
+                                      const isCurrent = !isMonthOverview && selectedPeriodIndex === idx;
+                                      return (
+                                        <div
+                                          key={w.periodCode}
+                                          className="group relative flex-1 flex flex-col items-center justify-end h-full"
+                                        >
+                                          <div
+                                            style={{ height: `${heightPct}%` }}
+                                            className={`w-full rounded-xs transition ${
+                                              w.amount > 0
+                                                ? isCurrent
+                                                  ? 'bg-blue-600'
+                                                  : 'bg-indigo-400 group-hover:bg-indigo-600'
+                                                : 'bg-slate-200'
+                                            }`}
+                                          />
+                                          {/* Tooltip khi hover vào tuần */}
+                                          <div className="pointer-events-none absolute bottom-full mb-1 hidden group-hover:block z-20 whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 text-[9px] text-white shadow-md">
+                                            {w.label}: {formatVND(w.amount)}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="flex justify-between text-[8px] text-slate-400 mt-0.5 px-0.5">
+                                    <span>T1</span>
+                                    <span>T2</span>
+                                    <span>T3</span>
+                                    <span>T4</span>
+                                    <span>T5</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Tổng số tiền hoa hồng */}
+                              <td className="whitespace-nowrap px-3 py-3 text-right">
+                                <div className="font-extrabold text-slate-900 text-sm">
+                                  {formatVND(person.total)}
+                                </div>
+                                {displayedContractTotals.commission > 0 && (
+                                  <div className="mt-0.5 text-[10px] font-medium text-slate-500">
+                                    {((person.total / displayedContractTotals.commission) * 100).toFixed(1)}% tổng quỹ
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Danh sách hợp đồng tương ứng */}
+                              <td className="px-3 py-3">
+                                <div className="flex flex-wrap gap-1.5 max-w-[380px]">
+                                  {person.contracts.map(({ contract, amount }) => (
+                                    <button
+                                      key={contract.id}
+                                      type="button"
+                                      onClick={() => setViewContract(contract)}
+                                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-left text-[10px] hover:border-blue-400 hover:bg-blue-50/80 transition"
+                                      title="Nhấn để xem chi tiết hợp đồng"
+                                    >
+                                      <span className="block font-semibold text-slate-700 truncate max-w-[200px]">
+                                        {contract.customer_name}
+                                      </span>
+                                      <span className="mt-0.5 block text-slate-500">
+                                        {contract.contract_code || `HĐ #${contract.id}`} · <span className="font-bold text-blue-700">{formatVND(amount)}</span>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Users className="h-8 w-8 text-slate-300" />
+                              <p className="font-medium text-slate-600">Không tìm thấy thành viên nào phù hợp với bộ lọc.</p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPersonTitleFilter('all');
+                                  setPersonTrendFilter('all');
+                                  setPersonSearchQuery('');
+                                  setPersonSortOrder('amount_desc');
+                                }}
+                                className="mt-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100"
+                              >
+                                Xóa tất cả bộ lọc
                               </button>
-                            ))}
-                          </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
+                      <tr>
+                        <td className="px-4 py-3 bg-blue-50">
+                          TỔNG CỘNG ({filteredPeopleRows.length} / {enrichedPeopleRows.length} thành viên)
+                        </td>
+                        <td className="px-3 py-3 text-center bg-blue-50">
+                          {filteredPeopleRows.reduce((sum, p) => sum + p.contracts.length, 0)} lượt HĐ
+                        </td>
+                        <td className="px-3 py-3 text-slate-500 bg-blue-50 text-[10px]">
+                          {personTitleFilter !== 'all' ? `Lọc: ${personTitleFilter}` : 'Tất cả chức danh'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50 text-blue-700 font-extrabold text-sm">
+                          {formatVND(filteredPeopleRows.reduce((sum, p) => sum + p.total, 0))}
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 bg-blue-50 text-[11px]">
+                          {displayedContracts.length} hợp đồng trong kỳ
                         </td>
                       </tr>
-                    )) : <tr><td colSpan={3} className="px-4 py-12 text-center text-slate-500">Chưa có nhân sự thụ hưởng trong kỳ này.</td></tr>}
-                  </tbody>
-                  <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
-                    <tr>
-                      <td className="px-4 py-3 bg-blue-50">TỔNG CỘNG</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.commission)}</td>
-                      <td className="px-3 py-3 text-slate-600 bg-blue-50">{peopleRows.length} nhân sự · {displayedContracts.length} hợp đồng</td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </tfoot>
+                  </table>
+                </div>
               )}
             </div>
           </Panel>
