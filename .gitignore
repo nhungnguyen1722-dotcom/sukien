@@ -39,12 +39,7 @@ yarn-error.log*
 sukien/
 
 # local data
-imagedata/*
-!imagedata/DN_thanh_toan_HH_Tuan3_T9.xlsx
-!imagedata/DN_thanh_toan_HH_Tuan4_T9.xlsx
-!imagedata/DN_thanh_toan_HH_Tuan5_T9.xlsx
-!imagedata/DN_thanh_toan_HH_Tuan1_T10.xlsx
-!imagedata/Tong-hop-DNTT-T9-T10.xlsx
+imagedata/
 
 # typescript
 *.tsbuildinfo

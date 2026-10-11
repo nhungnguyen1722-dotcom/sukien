@@ -17,10 +17,12 @@ import {
   Printer,
   Receipt,
   Search,
+  Trophy,
   Wallet,
   X,
   XCircle,
 } from 'lucide-react';
+import LeaderboardManagement from '@/components/admin/LeaderboardManagement';
 
 export interface TransactionLog {
   id: number;
@@ -519,7 +521,17 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
 
 export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, currentMonth }: Props) {
   const [logs, setLogs] = useState(() => initialLogs.map(sanitizeTransactionLogNames));
-  const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers'>('cashflow');
+  const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers' | 'leaderboard'>('cashflow');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'leaderboard' || tabParam === 'cashflow' || tabParam === 'event' || tabParam === 'vouchers') {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, []);
   const [selectedYear, setSelectedYear] = useState(currentMonth.slice(0, 4));
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const normalizedWeeklyAllocations = useMemo(() => {
@@ -960,11 +972,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       </header>
 
       <Panel className="p-2">
-        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-3">
+        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
             { id: 'event' as const, title: 'Quỹ Sự kiện & Chốt hợp đồng', subtitle: 'Tổng hợp tháng' },
             { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
+            { id: 'leaderboard' as const, title: 'Bảng xếp hạng thi đua & Vinh danh', subtitle: 'Doanh số & xét thăng hạng' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -981,7 +994,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         </nav>
       </Panel>
 
-      {activeTab !== 'vouchers' && <Panel className="p-3">
+      {activeTab !== 'vouchers' && activeTab !== 'leaderboard' && <Panel className="p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex items-center gap-2">
@@ -1345,6 +1358,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           </table>
         </div>
       </Panel>}
+
+      {activeTab === 'leaderboard' && (
+        <LeaderboardManagement initialMonth={selectedMonth} />
+      )}
 
       {isCreateOpen && <Modal onClose={() => setIsCreateOpen(false)} title="Tạo phiếu đề xuất chi">
         <form onSubmit={handleCreate} className="space-y-3 p-5 text-xs">

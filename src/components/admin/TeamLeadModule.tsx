@@ -20,10 +20,12 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Trophy,
   Users,
   Wallet,
   X,
 } from 'lucide-react';
+import LeaderboardManagement from '@/components/admin/LeaderboardManagement';
 
 type Tab = 'roster' | 'allocation' | 'reports';
 type TeamOption = { id: number; name: string };
@@ -157,6 +159,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const [allocation, setAllocation] = useState<Allocation | null>(null);
   const [ratePercent, setRatePercent] = useState('2.9');
   const [reportWeekNo, setReportWeekNo] = useState(0);
+  const [reportSubTab, setReportSubTab] = useState<'leaderboard' | 'contracts'>('leaderboard');
   const [teamFilter, setTeamFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [reportContracts, setReportContracts] = useState<Contract[]>([]);
@@ -1321,56 +1324,87 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
         )}
 
         {activeTab === 'reports' && (
-          <>
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.85fr)]">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div><h2 className="font-bold text-slate-900">Hợp đồng trong {monthTitle(month)}</h2><p className="mt-1 text-xs text-slate-500">Chọn một hợp đồng để xem phần 70% theo đội và quyền 30% tháng.</p></div>
-                </div>
-                <div className="max-h-[620px] overflow-auto">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-300"><tr><th className="px-4 py-3">Mã hợp đồng</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3">Ngày ký</th><th className="px-4 py-3">Đội nhóm</th><th className="px-4 py-3 text-right">Giá trị</th><th className="px-4 py-3">Tuần</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredContracts.map((contract) => (
-                        <tr key={contract.id} onClick={() => void loadContractBreakdown(contract.id)} className={`cursor-pointer transition hover:bg-blue-50/70 ${selectedContract === contract.id ? 'bg-blue-50' : ''}`}>
-                          <td className="px-4 py-3 font-semibold text-blue-700">{contract.contract_code || `HĐ #${contract.id}`}</td><td className="px-4 py-3 text-slate-800">{contract.customer_name}</td><td className="px-4 py-3 whitespace-nowrap text-slate-500">{shortDate(contract.contract_date)}</td><td className="px-4 py-3 text-slate-600">{contract.team_name || 'Chưa gán đội'}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{money(contract.value)}</td><td className="px-4 py-3 text-slate-500">{contract.weekNo}</td>
-                        </tr>
-                      ))}
-                      {!filteredContracts.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">Không có hợp đồng trong kỳ lọc.</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 p-4"><div className="flex items-center gap-2"><Receipt className="h-4 w-4 text-blue-600" /><h2 className="font-bold text-slate-900">Chi tiết phân bổ</h2></div><p className="mt-1 text-xs text-slate-500">Chọn hợp đồng ở bảng bên trái để xem người hưởng.</p></div>
-                {!breakdown ? <div className="px-5 py-16 text-center text-sm text-slate-500">{selectedContract ? 'Đang tải chi tiết…' : 'Chưa chọn hợp đồng.'}</div> : (
-                  <div className="space-y-5 p-4">
-                    <div className="rounded-xl bg-slate-50 p-3.5">
-                      <div className="font-bold text-slate-900">{breakdown.contract.contractCode || `HĐ #${breakdown.contract.id}`} · {breakdown.contract.customerName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{shortDate(breakdown.contract.contractDate)} · Tuần {breakdown.contract.weekNo} · {breakdown.contract.teamName || 'Chưa gán đội'}</div>
-                      <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-sm"><span>Giá trị hợp đồng</span><strong>{money(breakdown.contract.value)}</strong></div>
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setReportSubTab('leaderboard')}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                  reportSubTab === 'leaderboard'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Trophy className="h-4 w-4" /> Bảng xếp hạng thi đua & Vinh danh doanh số
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportSubTab('contracts')}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                  reportSubTab === 'contracts'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Receipt className="h-4 w-4" /> Tra cứu hợp đồng & Chi tiết phân bổ
+              </button>
+            </div>
+
+            {reportSubTab === 'leaderboard' ? (
+              <LeaderboardManagement initialMonth={month} />
+            ) : (
+              <>
+                <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.85fr)]">
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div><h2 className="font-bold text-slate-900">Hợp đồng trong {monthTitle(month)}</h2><p className="mt-1 text-xs text-slate-500">Chọn một hợp đồng để xem phần 70% theo đội và quyền 30% tháng.</p></div>
                     </div>
-                    <div>
-                      <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-bold text-amber-800">Quỹ 70% theo hợp đồng</h3><span className="text-xs text-slate-500">Tỷ lệ nguồn {(breakdown.fundRate * 100).toFixed(2)}%</span></div>
-                      <div className="overflow-hidden rounded-lg border border-slate-200">
-                        {breakdown.allocations70.map((row, index) => <div key={`${row.memberPhone}-${row.teamName}-${index}`} className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"><div><div className="text-sm font-semibold text-slate-800">{row.memberName}</div><div className="text-[11px] text-slate-500">{row.teamName} · {row.role}</div></div><div className="text-sm font-bold tabular-nums text-amber-700">{money(row.payout)}</div></div>)}
-                        {!breakdown.allocations70.length && <p className="px-3 py-4 text-xs text-slate-500">Đội này chưa có thành viên được chọn hưởng quỹ 70% trong tuần.</p>}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="mb-2 text-sm font-bold text-violet-800">Quỹ 30% chia đều trong tháng</h3>
-                      <p className="mb-2 text-xs text-slate-500">Khoản 30% là phân bổ tháng, không gắn thành khoản chi riêng của hợp đồng này.</p>
-                      <div className="max-h-52 overflow-auto rounded-lg border border-slate-200">
-                        {breakdown.allocations30.map((row) => <div key={row.memberPhone} className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"><div className="text-sm font-medium text-slate-800">{row.memberName}</div><div className="text-sm font-semibold tabular-nums text-violet-700">{money(row.payout)}</div></div>)}
-                        {!breakdown.allocations30.length && <p className="px-3 py-4 text-xs text-slate-500">Chưa có thành viên được chọn chia quỹ 30% tháng.</p>}
-                      </div>
+                    <div className="max-h-[620px] overflow-auto">
+                      <table className="w-full min-w-[640px] text-left text-sm">
+                        <thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-300"><tr><th className="px-4 py-3">Mã hợp đồng</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3">Ngày ký</th><th className="px-4 py-3">Đội nhóm</th><th className="px-4 py-3 text-right">Giá trị</th><th className="px-4 py-3">Tuần</th></tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredContracts.map((contract) => (
+                            <tr key={contract.id} onClick={() => void loadContractBreakdown(contract.id)} className={`cursor-pointer transition hover:bg-blue-50/70 ${selectedContract === contract.id ? 'bg-blue-50' : ''}`}>
+                              <td className="px-4 py-3 font-semibold text-blue-700">{contract.contract_code || `HĐ #${contract.id}`}</td><td className="px-4 py-3 text-slate-800">{contract.customer_name}</td><td className="px-4 py-3 whitespace-nowrap text-slate-500">{shortDate(contract.contract_date)}</td><td className="px-4 py-3 text-slate-600">{contract.team_name || 'Chưa gán đội'}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{money(contract.value)}</td><td className="px-4 py-3 text-slate-500">{contract.weekNo}</td>
+                            </tr>
+                          ))}
+                          {!filteredContracts.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">Không có hợp đồng trong kỳ lọc.</td></tr>}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                )}
-              </div>
-            </section>
-            <section className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800"><span className="font-semibold">Cách đọc báo cáo:</span> quỹ 70% gắn với doanh số đội của hợp đồng; quỹ 30% được chia đều theo danh sách tháng và được quyết toán riêng cuối tháng.</section>
-          </>
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="border-b border-slate-100 p-4"><div className="flex items-center gap-2"><Receipt className="h-4 w-4 text-blue-600" /><h2 className="font-bold text-slate-900">Chi tiết phân bổ</h2></div><p className="mt-1 text-xs text-slate-500">Chọn hợp đồng ở bảng bên trái để xem người hưởng.</p></div>
+                    {!breakdown ? <div className="px-5 py-16 text-center text-sm text-slate-500">{selectedContract ? 'Đang tải chi tiết…' : 'Chưa chọn hợp đồng.'}</div> : (
+                      <div className="space-y-5 p-4">
+                        <div className="rounded-xl bg-slate-50 p-3.5">
+                          <div className="font-bold text-slate-900">{breakdown.contract.contractCode || `HĐ #${breakdown.contract.id}`} · {breakdown.contract.customerName}</div>
+                          <div className="mt-1 text-xs text-slate-500">{shortDate(breakdown.contract.contractDate)} · Tuần {breakdown.contract.weekNo} · {breakdown.contract.teamName || 'Chưa gán đội'}</div>
+                          <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-sm"><span>Giá trị hợp đồng</span><strong>{money(breakdown.contract.value)}</strong></div>
+                        </div>
+                        <div>
+                          <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-bold text-amber-800">Quỹ 70% theo hợp đồng</h3><span className="text-xs text-slate-500">Tỷ lệ nguồn {(breakdown.fundRate * 100).toFixed(2)}%</span></div>
+                          <div className="overflow-hidden rounded-lg border border-slate-200">
+                            {breakdown.allocations70.map((row, index) => <div key={`${row.memberPhone}-${row.teamName}-${index}`} className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"><div><div className="text-sm font-semibold text-slate-800">{row.memberName}</div><div className="text-[11px] text-slate-500">{row.teamName} · {row.role}</div></div><div className="text-sm font-bold tabular-nums text-amber-700">{money(row.payout)}</div></div>)}
+                            {!breakdown.allocations70.length && <p className="px-3 py-4 text-xs text-slate-500">Đội này chưa có thành viên được chọn hưởng quỹ 70% trong tuần.</p>}
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="mb-2 text-sm font-bold text-violet-800">Quỹ 30% chia đều trong tháng</h3>
+                          <p className="mb-2 text-xs text-slate-500">Khoản 30% là phân bổ tháng, không gắn thành khoản chi riêng của hợp đồng này.</p>
+                          <div className="max-h-52 overflow-auto rounded-lg border border-slate-200">
+                            {breakdown.allocations30.map((row) => <div key={row.memberPhone} className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"><div className="text-sm font-medium text-slate-800">{row.memberName}</div><div className="text-sm font-semibold tabular-nums text-violet-700">{money(row.payout)}</div></div>)}
+                            {!breakdown.allocations30.length && <p className="px-3 py-4 text-xs text-slate-500">Chưa có thành viên được chọn chia quỹ 30% tháng.</p>}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+                <section className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800"><span className="font-semibold">Cách đọc báo cáo:</span> quỹ 70% gắn với doanh số đội của hợp đồng; quỹ 30% được chia đều theo danh sách tháng và được quyết toán riêng cuối tháng.</section>
+              </>
+            )}
+          </div>
         )}
       </div>
 

@@ -51,6 +51,7 @@ const policySupportSubItems = [
   { label: 'Quỹ TeamLead', href: '/admin/teamlead' },
   { label: 'Chính sách phân bổ', href: '/admin/teamlead/chinh-sach' },
   { label: 'Quỹ vận hành và hỗ trợ', href: '/admin/quy-van-hanh-ho-tro' },
+  { label: 'Vinh danh & Bảng xếp hạng', href: '/admin/vinh-danh' },
 ];
 
 interface AdminSidebarProps {
