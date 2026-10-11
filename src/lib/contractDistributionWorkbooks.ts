@@ -218,15 +218,38 @@ function readFileBuffer(filePath: string): Buffer {
   }
 }
 
+export function resolveWorkbookPath(fileName: string): string | null {
+  const candidateDirs = [
+    path.join(process.cwd(), 'imagedata'),
+    path.join(process.cwd(), 'New folder'),
+    path.join(process.cwd(), '..', 'New folder'),
+    path.join(process.cwd(), '..', 'imagedata'),
+    'D:\\ProjectNextJS\\New folder',
+    'D:\\ProjectNextJS\\sukien\\imagedata',
+    'D:\\ProjectNextJS\\imagedata',
+  ];
+  for (const dir of candidateDirs) {
+    try {
+      const fullPath = path.join(dir, fileName);
+      if (fs.existsSync(fullPath)) {
+        return fullPath;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
 function readSource(source: WorkbookSource, memberNames: string[]) {
-  const filePath = path.join(process.cwd(), 'imagedata', source.fileName);
-  if (!fs.existsSync(filePath)) {
+  const resolvedPath = resolveWorkbookPath(source.fileName);
+  if (!resolvedPath || !fs.existsSync(resolvedPath)) {
     return {
       contracts: [],
       warnings: [],
     };
   }
-  const fileBuffer = readFileBuffer(filePath);
+  const fileBuffer = readFileBuffer(resolvedPath);
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: false });
   const worksheetName = workbook.SheetNames[0];
   const worksheet = worksheetName ? workbook.Sheets[worksheetName] : undefined;
@@ -325,14 +348,14 @@ function readMatrixSource(
   databaseContracts: DatabaseContract[],
   usedContractIds: Set<number>,
 ) {
-  const filePath = path.join(process.cwd(), 'imagedata', source.fileName);
-  if (!fs.existsSync(filePath)) {
+  const resolvedPath = resolveWorkbookPath(source.fileName);
+  if (!resolvedPath || !fs.existsSync(resolvedPath)) {
     return {
       contracts: [],
       warnings: [],
     };
   }
-  const fileBuffer = readFileBuffer(filePath);
+  const fileBuffer = readFileBuffer(resolvedPath);
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', sheets: [source.sheetName], cellDates: false });
   const worksheet = workbook.Sheets[source.sheetName];
   if (!worksheet) {
