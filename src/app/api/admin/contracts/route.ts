@@ -28,16 +28,14 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       conditions.push(`(
-        c.contract_code ILIKE $${idx} 
-        OR c.customer_name ILIKE $${idx} 
+        c.contract_code ILIKE $${idx}
+        OR c.customer_name ILIKE $${idx}
         OR c.customer_phone ILIKE $${idx}
         OR c.customer_address ILIKE $${idx}
-        OR u_closer.full_name ILIKE $${idx}
-        OR c.closer_name ILIKE $${idx}
-        OR u_referrer.full_name ILIKE $${idx}
-        OR c.referrer_name ILIKE $${idx}
-        OR u_supporter.full_name ILIKE $${idx}
-        OR c.supporter_name ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.closer_name), ''), u_closer.full_name) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone) ILIKE $${idx}
       )`);
       values.push(`%${search}%`);
       idx++;

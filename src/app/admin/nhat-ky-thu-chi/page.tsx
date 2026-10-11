@@ -44,6 +44,7 @@ async function getTransactionsData() {
         c.customer_name,
         c.value::float8 AS value,
         COALESCE(c.contract_type, '') AS contract_type,
+        COALESCE(NULLIF(BTRIM(c.team_name), ''), '') AS team_name,
         CASE
           WHEN UPPER(TRIM(COALESCE(c.contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
             THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
@@ -113,6 +114,7 @@ async function getTransactionsData() {
     closer_name: sanitizeVietnameseText(row.closer_name),
     referrer_name: sanitizeVietnameseText(row.referrer_name),
     supporter_name: sanitizeVietnameseText(row.supporter_name),
+    team_name: sanitizeVietnameseText(row.team_name),
     status: sanitizeVietnameseText(row.status),
   })) as FundContract[];
   const members = membersRes.rows.map((row) => ({
@@ -129,6 +131,7 @@ async function getTransactionsData() {
     closer_name: sanitizeVietnameseText(contract.closer_name),
     referrer_name: sanitizeVietnameseText(contract.referrer_name),
     supporter_name: sanitizeVietnameseText(contract.supporter_name),
+    team_name: sanitizeVietnameseText(contract.team_name),
     status: sanitizeVietnameseText(contract.status),
     source_beneficiaries: contract.source_beneficiaries?.map((person) => ({
       ...person,

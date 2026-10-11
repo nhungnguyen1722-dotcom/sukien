@@ -26,6 +26,17 @@ async function inspectNeon() {
       const cntRes = await pool.query(`SELECT COUNT(*) as cnt FROM "${row.table_name}"`);
       console.log(`- ${row.table_name}: ${cntRes.rows[0].cnt} rows`);
     }
+
+    const viewsRes = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.views 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    console.log('\nViews on Neon:');
+    for (const row of viewsRes.rows) {
+      console.log(`- ${row.table_name}`);
+    }
   } catch (err) {
     console.error('Error inspecting Neon:', err);
   } finally {

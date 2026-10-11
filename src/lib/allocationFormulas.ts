@@ -250,3 +250,334 @@ export function calculateAllFundAllocations(contractRevenue: number) {
     allocations,
   };
 }
+
+// ============================================================================
+// 6. PHÂN BỔ NHÂN SỰ THỤ HƯỞNG THEO HỢP ĐỒNG (QUỸ VẬN HÀNH & TEAMLEAD)
+// ============================================================================
+
+export interface DetailedBeneficiaryLine {
+  source: string;
+  calculation: string;
+  amount: number;
+}
+
+export interface DetailedBeneficiary {
+  name: string;
+  amount: number;
+  phone?: string | null;
+  bank_account?: string | null;
+  bank_name?: string | null;
+  lines: DetailedBeneficiaryLine[];
+}
+
+/** Danh sách thành viên/bộ phận thụ hưởng cố định Quỹ Vận hành & Hỗ trợ (2,5%) */
+export const OPERATIONS_BENEFICIARIES_ROSTER = [
+  {
+    department: 'Tri ân kết nối phó tổng',
+    fullName: 'Nguyễn Thị Hương Thảo',
+    phone: '000006',
+    bankAccount: '0965749223',
+    bankName: 'Vpbank',
+    rate: 0.005,
+    fundSource: 'Quỹ vận hành → Tri ân kết nối phó tổng',
+  },
+  {
+    department: 'Tổng điều hành',
+    fullName: 'Đinh Văn Bắc',
+    phone: '000007',
+    bankAccount: '19033903936017',
+    bankName: 'Techcombank',
+    rate: 0.005,
+    fundSource: 'Quỹ vận hành → Tổng điều hành',
+  },
+  {
+    department: 'Phó tổng',
+    fullName: 'Vũ Thị Cúc',
+    phone: '0889225989',
+    bankAccount: '2589225989',
+    bankName: 'Techcombank',
+    rate: 0.012,
+    fundSource: 'Quỹ vận hành → Phó tổng',
+  },
+  {
+    department: 'Quỹ hỗ trợ & dự phòng (CN)',
+    fullName: 'Nguyễn Đăng An',
+    phone: '0343781580',
+    bankAccount: '183093983',
+    bankName: 'VP Bank',
+    rate: 0.002,
+    fundSource: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN',
+  },
+  {
+    department: 'Quỹ hỗ trợ & dự phòng (KT)',
+    fullName: 'Quỹ hỗ trợ & dự phòng (KT)',
+    phone: '',
+    bankAccount: '',
+    bankName: '',
+    rate: 0.001,
+    fundSource: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ KT',
+  },
+] as const;
+
+/** Cấu hình lãnh đạo các đội nhóm cho quỹ hiệu quả TeamLead 70% */
+export const TEAM_LEADER_ROSTER: Record<string, Array<{
+  name: string;
+  role: string;
+  share70: number;
+  phone?: string;
+  bankAccount?: string;
+  bankName?: string;
+}>> = {
+  'ong vang': [
+    { name: 'Nguyễn Hùng Vĩ', role: 'Giám đốc Đội Ong Vàng', share70: 0.50, phone: '0326894993', bankAccount: '31978686868', bankName: 'Techcombank' },
+    { name: 'Phạm Minh Tuấn', role: 'Phó Giám đốc Đội Ong Vàng', share70: 0.30, phone: '0768635148' },
+    { name: 'Vũ Hùng Vỹ', role: 'Trưởng phòng Đội Ong Vàng', share70: 0.10, phone: '0984065555' },
+    { name: 'Diệp Thị Huế', role: 'Trưởng phòng Đội Ong Vàng', share70: 0.10, phone: '0915095848' },
+  ],
+  'loc phat': [
+    { name: 'Nguyễn Hùng Vĩ', role: 'Giám đốc Đội Lộc Phát', share70: 0.50, phone: '0326894993', bankAccount: '31978686868', bankName: 'Techcombank' },
+    { name: 'Phượng Ngọc Thu', role: 'Trưởng phòng Đội Lộc Phát', share70: 0.50, phone: '0969881698' },
+  ],
+  'kien vang': [
+    { name: 'Nguyễn Hùng Vĩ', role: 'Giám đốc Đội Kiến Vàng', share70: 0.50, phone: '0326894993', bankAccount: '31978686868', bankName: 'Techcombank' },
+    { name: 'Cung Thu Hà', role: 'Trưởng phòng Đội Kiến Vàng', share70: 0.25, phone: '0965759559' },
+    { name: 'Phượng Ngọc Thu', role: 'Trưởng phòng Đội Kiến Vàng', share70: 0.25, phone: '0969881698' },
+  ],
+  'happy': [
+    { name: 'Vũ Thị Cúc', role: 'Giám đốc Đội Happy', share70: 0.50, phone: '0889225989', bankAccount: '2589225989', bankName: 'Techcombank' },
+    { name: 'Nguyễn Đức Vĩnh', role: 'Phó Giám đốc Đội Happy', share70: 0.30, phone: '0984398568' },
+    { name: 'Hoàng Thị Chích', role: 'Trưởng phòng Đội Happy', share70: 0.20, phone: '0384081272' },
+  ],
+  'thanh cong': [
+    { name: 'Nguyễn Hùng Vĩ', role: 'Giám đốc Đội Thành Công', share70: 1.00, phone: '0326894993', bankAccount: '31978686868', bankName: 'Techcombank' },
+  ],
+  'kim cuong': [
+    { name: 'Nguyễn Hùng Vĩ', role: 'Giám đốc Đội Biệt đội Kim Cương', share70: 0.50, phone: '0326894993', bankAccount: '31978686868', bankName: 'Techcombank' },
+    { name: 'Dương Hồng Phương', role: 'Trưởng phòng Đội Biệt đội Kim Cương', share70: 0.50, phone: '0979345229' },
+  ],
+  'thinh vuong': [
+    { name: 'Vũ Thị Cúc', role: 'Giám đốc Đội Thịnh Vượng', share70: 0.50, phone: '0889225989', bankAccount: '2589225989', bankName: 'Techcombank' },
+    { name: 'Phạm Thị Hương', role: 'Giám đốc Đội Thịnh Vượng', share70: 0.50, phone: '0947876133' },
+  ],
+  'hai dang vang': [
+    { name: 'Nguyễn Hùng Vĩ', role: 'Giám đốc Đội Hải Đăng Vàng', share70: 1.00, phone: '0326894993', bankAccount: '31978686868', bankName: 'Techcombank' },
+  ],
+};
+
+export function resolveContractTeamName(teamName?: string | null, customerName?: string | null): string {
+  if (teamName && teamName.trim()) return teamName.trim();
+  const cust = (customerName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase();
+  if (cust.includes('thoa') || cust.includes('le thi thao') || cust.includes('nguyen hung vi')) return 'Thành Công';
+  if (cust.includes('lan huong') || cust.includes('thanh phuong') || cust.includes('doan') || cust.includes('minh') || cust.includes('chich') || cust.includes('loan') || cust.includes('long') || cust.includes('nguyen thi cuc')) return 'Happy';
+  if (cust.includes('dau') || cust.includes('hung vy') || cust.includes('my') || cust.includes('trang') || cust.includes('huong') || cust.includes('thu')) return 'Ong Vàng';
+  if (cust.includes('dieu') || cust.includes('ha')) return 'Kiến Vàng';
+  if (cust.includes('thang')) return 'Lộc Phát';
+  if (cust.includes('phuong')) return 'Biệt đội Kim Cương';
+  return '';
+}
+
+export function getTeamLeaders(teamName?: string | null, customerName?: string | null) {
+  const resolved = resolveContractTeamName(teamName, customerName);
+  const norm = resolved
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .trim();
+  for (const [key, roster] of Object.entries(TEAM_LEADER_ROSTER)) {
+    if (norm.includes(key)) return roster;
+  }
+  return TEAM_LEADER_ROSTER['thanh cong'];
+}
+
+function formatVndAmount(value: number): string {
+  return `${new Intl.NumberFormat('vi-VN').format(Math.round(value))} ₫`;
+}
+
+/**
+ * Tính toán danh sách đầy đủ nhân sự thụ hưởng của một hợp đồng
+ * Gồm:
+ * 1. Phí hoa hồng hợp đồng: Sale trực tiếp (6%), Tri ân kết nối (1%), Tri ân hỗ trợ (0,5%)
+ * 2. Quỹ vận hành & hỗ trợ (2,5%): 5 thành viên/bộ phận
+ * 3. Quỹ TeamLead (2,9% × 70%): Lãnh đạo đội nhóm tương ứng
+ */
+export function calculateContractAllBeneficiaries(contract: {
+  id?: number;
+  contract_code?: string | null;
+  customer_name?: string | null;
+  value: number;
+  contract_type?: string | null;
+  allocated_value?: number;
+  closer_name?: string | null;
+  closer_fee?: number | null;
+  referrer_name?: string | null;
+  referrer_fee?: number | null;
+  supporter_name?: string | null;
+  supporter_fee?: number | null;
+  team_name?: string | null;
+}): DetailedBeneficiary[] {
+  const contractBase = Number(
+    contract.allocated_value ?? calculateContractAllocatedValue(contract.value, contract.contract_type)
+  );
+  if (!contractBase || contractBase <= 0) return [];
+
+  type RawItem = {
+    name: string;
+    amount: number;
+    phone?: string | null;
+    bankAccount?: string | null;
+    bankName?: string | null;
+    source: string;
+    calculation: string;
+    priority: number;
+  };
+
+  const rawItems: RawItem[] = [];
+
+  // 1. Phí hoa hồng bán hàng trực tiếp trên hợp đồng
+  const closerName = (contract.closer_name || '').trim();
+  if (closerName) {
+    const fee = contract.closer_fee && contract.closer_fee > 0 ? Number(contract.closer_fee) : Math.round(contractBase * 0.06);
+    rawItems.push({
+      name: closerName,
+      amount: fee,
+      source: 'Sale trực tiếp · chốt sale',
+      calculation: contract.closer_fee && contract.closer_fee > 0
+        ? `Phí được ghi trên hợp đồng: ${formatVndAmount(fee)} (6% × ${formatVndAmount(contractBase)})`
+        : `6% × ${formatVndAmount(contractBase)} = ${formatVndAmount(fee)}`,
+      priority: 1,
+    });
+  }
+
+  const referrerName = (contract.referrer_name || '').trim();
+  if (referrerName) {
+    const fee = contract.referrer_fee && contract.referrer_fee > 0 ? Number(contract.referrer_fee) : Math.round(contractBase * 0.01);
+    rawItems.push({
+      name: referrerName,
+      amount: fee,
+      source: 'Tri ân kết nối sale trực tiếp · giới thiệu sale',
+      calculation: contract.referrer_fee && contract.referrer_fee > 0
+        ? `Phí được ghi trên hợp đồng: ${formatVndAmount(fee)} (1% × ${formatVndAmount(contractBase)})`
+        : `1% × ${formatVndAmount(contractBase)} = ${formatVndAmount(fee)}`,
+      priority: 2,
+    });
+  }
+
+  const supporterName = (contract.supporter_name || '').trim();
+  if (supporterName) {
+    const fee = contract.supporter_fee && contract.supporter_fee > 0 ? Number(contract.supporter_fee) : Math.round(contractBase * 0.005);
+    rawItems.push({
+      name: supporterName,
+      amount: fee,
+      source: 'Tri ân hỗ trợ sale',
+      calculation: contract.supporter_fee && contract.supporter_fee > 0
+        ? `Phí được ghi trên hợp đồng: ${formatVndAmount(fee)} (0,5% × ${formatVndAmount(contractBase)})`
+        : `0,5% × ${formatVndAmount(contractBase)} = ${formatVndAmount(fee)}`,
+      priority: 3,
+    });
+  }
+
+  // 2. Quỹ vận hành & hỗ trợ (2,5%): 5 thành viên/bộ phận niêm yết
+  for (const row of OPERATIONS_BENEFICIARIES_ROSTER) {
+    const amount = Math.round(contractBase * row.rate);
+    const ratePercent = `${(row.rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
+    rawItems.push({
+      name: row.fullName,
+      amount,
+      phone: row.phone || null,
+      bankAccount: row.bankAccount || null,
+      bankName: row.bankName || null,
+      source: row.fundSource,
+      calculation: `${ratePercent} × ${formatVndAmount(contractBase)} = ${formatVndAmount(amount)}`,
+      priority: 10,
+    });
+  }
+
+  // 3. Quỹ TeamLead (2,9% × 70% = 2,03% quỹ hiệu quả tuần)
+  const pool70 = Math.round(contractBase * TEAMLEAD_FUND_RATE * TEAMLEAD_SHARE_70);
+  if (pool70 > 0) {
+    const leaders = getTeamLeaders(contract.team_name, contract.customer_name);
+    for (const leader of leaders) {
+      const leaderAmount = Math.round(pool70 * leader.share70);
+      const sharePercent = `${(leader.share70 * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
+      rawItems.push({
+        name: leader.name,
+        amount: leaderAmount,
+        phone: leader.phone || null,
+        bankAccount: leader.bankAccount || null,
+        bankName: leader.bankName || null,
+        source: `Quỹ TeamLead · Quỹ hiệu quả (${leader.role})`,
+        calculation: `${sharePercent} × (2,9% × 70% × ${formatVndAmount(contractBase)}) = ${formatVndAmount(leaderAmount)}`,
+        priority: 5,
+      });
+    }
+  }
+
+  // 4. Nhóm theo tên nhân sự và tổng hợp các nguồn/công thức tính
+  const normalizeKey = (val: string) => val
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  const grouped = new Map<string, {
+    name: string;
+    amount: number;
+    phone?: string | null;
+    bank_account?: string | null;
+    bank_name?: string | null;
+    lines: DetailedBeneficiaryLine[];
+    minPriority: number;
+  }>();
+
+  for (const item of rawItems) {
+    if (!item.name || item.amount <= 0) continue;
+    const key = normalizeKey(item.name);
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        name: item.name,
+        amount: item.amount,
+        phone: item.phone,
+        bank_account: item.bankAccount,
+        bank_name: item.bankName,
+        lines: [{
+          source: item.source,
+          calculation: item.calculation,
+          amount: item.amount,
+        }],
+        minPriority: item.priority,
+      });
+    } else {
+      existing.amount += item.amount;
+      existing.lines.push({
+        source: item.source,
+        calculation: item.calculation,
+        amount: item.amount,
+      });
+      if (item.bankAccount && !existing.bank_account) existing.bank_account = item.bankAccount;
+      if (item.bankName && !existing.bank_name) existing.bank_name = item.bankName;
+      if (item.phone && !existing.phone) existing.phone = item.phone;
+      if (item.priority < existing.minPriority) existing.minPriority = item.priority;
+    }
+  }
+
+  return Array.from(grouped.values())
+    .sort((a, b) => a.minPriority - b.minPriority || b.amount - a.amount)
+    .map(({ name, amount, phone, bank_account, bank_name, lines }) => ({
+      name,
+      amount,
+      phone,
+      bank_account,
+      bank_name,
+      lines,
+    }));
+}
+

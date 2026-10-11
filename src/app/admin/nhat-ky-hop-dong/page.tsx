@@ -181,7 +181,6 @@ export default async function NhatKyHopDongPage() {
       initialContracts={data.contracts}
       initialStats={data.stats}
       initialUsers={data.users}
-      initialClosers={data.closers}
       initialTeams={data.teams}
       currentYear={currentYear}
     />

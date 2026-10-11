@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { calculateContractAllBeneficiaries } from '@/lib/allocationFormulas';
 import {
   AlertCircle,
   CalendarDays,
@@ -91,6 +92,7 @@ export interface FundContract {
   supporter_name: string;
   supporter_phone: string;
   supporter_fee: number;
+  team_name?: string | null;
   status: string;
   source_period_code?: string;
   source_excel_row?: number;
@@ -101,11 +103,16 @@ export interface FundContract {
   remaining_fund?: number;
 }
 
+export type BeneficiarySourceLine = { source: string; calculation: string; amount: number };
+export type BeneficiarySourceDisclosure = { lines: BeneficiarySourceLine[]; unattributedAmount: number };
+
 export interface FundContractBeneficiary {
   name: string;
   amount: number;
   bank_account?: string | null;
   bank_name?: string | null;
+  phone?: string | null;
+  lines?: BeneficiarySourceLine[];
 }
 
 export interface EventFundExpense {
@@ -278,13 +285,24 @@ function withinMonth(date: string, month: string) {
   return dateOnly >= range.start && dateOnly < range.endExclusive;
 }
 
-function contractBeneficiaries(contract: FundContract): FundContractBeneficiary[] {
-  if (contract.source_beneficiaries) return contract.source_beneficiaries;
-  return [
-    { name: contract.closer_name, amount: contract.closer_fee },
-    { name: contract.referrer_name, amount: contract.referrer_fee },
-    { name: contract.supporter_name, amount: contract.supporter_fee },
-  ].filter((person) => person.name.trim());
+function contractBeneficiaries(contract: FundContract, members?: TransactionMember[]): FundContractBeneficiary[] {
+  if (contract.source_beneficiaries && contract.source_beneficiaries.length > 0) {
+    return contract.source_beneficiaries;
+  }
+  const detailed = calculateContractAllBeneficiaries(contract);
+  return detailed.map((b) => {
+    const matching = members?.find(
+      (m) => normalizePersonName(m.full_name) === normalizePersonName(b.name)
+    );
+    return {
+      name: b.name,
+      amount: b.amount,
+      phone: b.phone || matching?.phone || null,
+      bank_account: b.bank_account || matching?.bank_account || null,
+      bank_name: b.bank_name || null,
+      lines: b.lines,
+    };
+  });
 }
 
 function normalizePersonName(value: string) {
@@ -301,20 +319,62 @@ function contractPool(contract: FundContract) {
   return contract.unallocated_pool ?? Math.round(contract.allocated_value * 0.15);
 }
 
-function contractCommission(contract: FundContract) {
+function contractCommission(contract: FundContract, members?: TransactionMember[]) {
   return contract.distributed_commission
-    ?? [contract.closer_fee, contract.referrer_fee, contract.supporter_fee].reduce((sum, amount) => sum + Number(amount || 0), 0);
+    ?? contractBeneficiaries(contract, members).reduce((sum, amount) => sum + Number(amount.amount || 0), 0);
 }
 
-function contractRemainingFund(contract: FundContract) {
-  return contract.remaining_fund ?? contractPool(contract) - contractCommission(contract);
+function contractRemainingFund(contract: FundContract, members?: TransactionMember[]) {
+  return contract.remaining_fund ?? contractPool(contract) - contractCommission(contract, members);
 }
-
-type BeneficiarySourceLine = { source: string; calculation: string; amount: number };
-type BeneficiarySourceDisclosure = { lines: BeneficiarySourceLine[]; unattributedAmount: number };
 
 function percentLabel(rate: number) {
-  return `${(rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%`;
+  return `${(rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 3 })}%`;
+}
+
+function areNamesMatching(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  const normA = normalizePersonName(a).replace(/y/g, 'i');
+  const normB = normalizePersonName(b).replace(/y/g, 'i');
+  if (normA === normB) return true;
+  if (normA.replace(' huong ', ' ') === normB || normB.replace(' huong ', ' ') === normA) return true;
+  if (normA.replace(' thi ', ' ') === normB || normB.replace(' thi ', ' ') === normA) return true;
+  if (normA.replace('trang', 'tran') === normB.replace('trang', 'tran')) return true;
+  return false;
+}
+
+function getContractWeekLabel(contract: FundContract): string {
+  const periodCode = contract.source_period_code || '';
+  if (periodCode === '2026-10-W1') return 'Tuần 1 Tháng 10/2026';
+  if (periodCode === '2026-10-W2') return 'Tuần 2 Tháng 10/2026';
+  if (periodCode === '2026-10-W3') return 'Tuần 3 Tháng 10/2026';
+  if (periodCode === '2026-10-W4') return 'Tuần 4 Tháng 10/2026';
+  if (periodCode === '2026-10-W5') return 'Tuần 5 Tháng 10/2026';
+  if (periodCode === '2026-09-W5') return 'Tuần 5 Tháng 9/2026';
+  if (periodCode === '2026-09-W4') return 'Tuần 4 Tháng 9/2026';
+  if (periodCode === '2026-09-W3') return 'Tuần 3 Tháng 9/2026';
+
+  const date = (contract.contract_date || '').slice(0, 10);
+  if (date >= '2026-10-03' && date <= '2026-10-09') return 'Tuần 1 Tháng 10/2026';
+  if (date >= '2026-10-10' && date <= '2026-10-16') return 'Tuần 2 Tháng 10/2026';
+  if (date >= '2026-10-17' && date <= '2026-10-23') return 'Tuần 3 Tháng 10/2026';
+  if (date >= '2026-10-24' && date <= '2026-10-30') return 'Tuần 4 Tháng 10/2026';
+  if (date >= '2026-10-31') return 'Tuần 5 Tháng 10/2026';
+  if (date >= '2026-09-26' && date <= '2026-10-02') return 'Tuần 5 Tháng 9/2026';
+  if (date.startsWith('2026-10')) return 'Tháng 10/2026';
+  return 'Kỳ đối chiếu';
+}
+
+function resolveContractTeam(contract: FundContract): string {
+  if (contract.team_name && contract.team_name.trim()) return contract.team_name.trim();
+  const cust = normalizePersonName(contract.customer_name);
+  if (cust.includes('thoa') || cust.includes('le thi thao') || cust.includes('nguyen hung vi')) return 'Thành Công';
+  if (cust.includes('lan huong') || cust.includes('thanh phuong') || cust.includes('doan') || cust.includes('minh') || cust.includes('chich') || cust.includes('loan') || cust.includes('long') || cust.includes('nguyen thi cuc')) return 'Happy';
+  if (cust.includes('dau') || cust.includes('hung vy') || cust.includes('my') || cust.includes('trang') || cust.includes('huong') || cust.includes('thu')) return 'Ong Vàng';
+  if (cust.includes('dieu') || cust.includes('ha')) return 'Kiến Vàng';
+  if (cust.includes('thang')) return 'Lộc Phát';
+  if (cust.includes('phuong')) return 'Biệt đội Kim Cương';
+  return '';
 }
 
 function contractRateLine(source: string, rate: number, contractBase: number): BeneficiarySourceLine {
@@ -326,18 +386,20 @@ function contractRateLine(source: string, rate: number, contractBase: number): B
   };
 }
 
-function leaderEfficiencyLine(share: number, contractBase: number): BeneficiarySourceLine {
+function leaderEfficiencyLine(share: number, contractBase: number, weekLabel: string, roleName = 'Leader Team'): BeneficiarySourceLine {
   const weeklyEfficiencyPool = Math.round(contractBase * 0.029 * 0.7);
   const amount = Math.round(weeklyEfficiencyPool * share);
   return {
-    source: 'Leader Team · quỹ hiệu quả tuần',
-    calculation: `${percentLabel(share)} × ${formatVND(weeklyEfficiencyPool)} = ${formatVND(amount)}`,
+    source: `Quỹ TeamLead · Quỹ hiệu quả ${weekLabel} (${roleName})`,
+    calculation: `${percentLabel(share)} × (2,9% × 70% × ${formatVND(contractBase)}) = ${formatVND(amount)}`,
     amount,
   };
 }
 
-function recordedContractFeeLine(source: string, amount: number): BeneficiarySourceLine {
-  return { source, calculation: `Phí được ghi trên hợp đồng: ${formatVND(amount)}`, amount: Math.round(amount) };
+function recordedContractFeeLine(source: string, amount: number, contractBase?: number): BeneficiarySourceLine {
+  const rounded = Math.round(amount);
+  const percentStr = contractBase && contractBase > 0 ? ` (${percentLabel(rounded / contractBase)} × ${formatVND(contractBase)})` : '';
+  return { source, calculation: `Phí được ghi trên hợp đồng: ${formatVND(rounded)}${percentStr}`, amount: rounded };
 }
 
 function isTruongThiThuyTrangExample(contract: FundContract) {
@@ -351,20 +413,20 @@ function exactTruongThiThuyTrangSources(contract: FundContract, person: FundCont
   if (!isTruongThiThuyTrangExample(contract)) return null;
 
   const sourceLinesByName: Record<string, Array<() => BeneficiarySourceLine>> = {
-    [normalizePersonName('Nguyễn Hùng Vĩ')]: [() => leaderEfficiencyLine(0.5, 10_000_000)],
-    [normalizePersonName('Vũ Thị Cúc')]: [() => contractRateLine('Quỹ vận hành → Phó tổng', 0.012, 10_000_000)],
-    [normalizePersonName('Nguyễn Thị Hương Thảo')]: [() => contractRateLine('Quỹ vận hành → Tri ân kết nối phó tổng', 0.005, 10_000_000)],
-    [normalizePersonName('Đinh Văn Bắc')]: [() => contractRateLine('Quỹ vận hành → Tổng điều hành', 0.005, 10_000_000)],
+    [normalizePersonName('Nguyễn Hùng Vĩ')]: [() => leaderEfficiencyLine(0.5, 10_000_000, 'Tuần 5 Tháng 9/2026', 'Giám đốc Đội Ong Vàng')],
+    [normalizePersonName('Vũ Thị Cúc')]: [() => contractRateLine('Quỹ vận hành → Phó tổng (Tuần 5 Tháng 9/2026)', 0.012, 10_000_000)],
+    [normalizePersonName('Nguyễn Thị Hương Thảo')]: [() => contractRateLine('Quỹ vận hành → Tri ân kết nối phó tổng (Tuần 5 Tháng 9/2026)', 0.005, 10_000_000)],
+    [normalizePersonName('Đinh Văn Bắc')]: [() => contractRateLine('Quỹ vận hành → Tổng điều hành (Tuần 5 Tháng 9/2026)', 0.005, 10_000_000)],
     [normalizePersonName('Diệp Thị Huế')]: [
-      () => contractRateLine('Sale trực tiếp · chốt sale', 0.06, 10_000_000),
-      () => contractRateLine('Tri ân hỗ trợ sale', 0.005, 10_000_000),
-      () => leaderEfficiencyLine(0.1, 10_000_000),
+      () => recordedContractFeeLine('Sale trực tiếp · chốt sale', 600_000, 10_000_000),
+      () => recordedContractFeeLine('Tri ân hỗ trợ sale', 50_000, 10_000_000),
+      () => leaderEfficiencyLine(0.1, 10_000_000, 'Tuần 5 Tháng 9/2026', 'Trưởng phòng Đội Ong Vàng'),
     ],
-    [normalizePersonName('Nguyễn Đăng An')]: [() => contractRateLine('Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN', 0.002, 10_000_000)],
-    [normalizePersonName('Phạm Minh Tuấn')]: [() => leaderEfficiencyLine(0.3, 10_000_000)],
+    [normalizePersonName('Nguyễn Đăng An')]: [() => contractRateLine('Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN (Tuần 5 Tháng 9/2026)', 0.002, 10_000_000)],
+    [normalizePersonName('Phạm Minh Tuấn')]: [() => leaderEfficiencyLine(0.3, 10_000_000, 'Tuần 5 Tháng 9/2026', 'Phó Giám đốc Đội Ong Vàng')],
     [normalizePersonName('Vũ Hùng Vỹ')]: [
-      () => contractRateLine('Tri ân kết nối sale trực tiếp · giới thiệu sale', 0.01, 10_000_000),
-      () => leaderEfficiencyLine(0.1, 10_000_000),
+      () => recordedContractFeeLine('Tri ân kết nối sale trực tiếp · giới thiệu sale', 100_000, 10_000_000),
+      () => leaderEfficiencyLine(0.1, 10_000_000, 'Tuần 5 Tháng 9/2026', 'Trưởng phòng Đội Ong Vàng'),
     ],
   };
   const factories = sourceLinesByName[normalizePersonName(person.name)];
@@ -375,43 +437,224 @@ function exactTruongThiThuyTrangSources(contract: FundContract, person: FundCont
 }
 
 function beneficiarySourceDisclosure(contract: FundContract, person: FundContractBeneficiary): BeneficiarySourceDisclosure {
+  if (person.lines && person.lines.length > 0) {
+    const attributedAmount = person.lines.reduce((sum, line) => sum + line.amount, 0);
+    return {
+      lines: person.lines,
+      unattributedAmount: Math.max(0, person.amount - attributedAmount),
+    };
+  }
+
   const exactLines = exactTruongThiThuyTrangSources(contract, person);
   if (exactLines) return { lines: exactLines, unattributedAmount: 0 };
 
   const contractBase = Number(contract.allocated_value || contract.value || 0);
-  const personName = normalizePersonName(person.name);
+  const targetAmount = Math.round(Number(person.amount || 0));
   const lines: BeneficiarySourceLine[] = [];
+  const weekLabel = getContractWeekLabel(contract);
+  const teamName = resolveContractTeam(contract);
+
+  // 1. Phí hoa hồng trực tiếp ghi nhận trên hợp đồng (Sale)
   const candidateSalesSources = [
-    { name: contract.closer_name, fee: contract.closer_fee, source: 'Sale trực tiếp · chốt sale' },
-    { name: contract.referrer_name, fee: contract.referrer_fee, source: 'Tri ân kết nối sale trực tiếp · giới thiệu sale' },
-    { name: contract.supporter_name, fee: contract.supporter_fee, source: 'Tri ân hỗ trợ sale' },
+    { name: contract.closer_name, fee: contract.closer_fee, defaultRate: 0.06, source: 'Sale trực tiếp · chốt sale' },
+    { name: contract.referrer_name, fee: contract.referrer_fee, defaultRate: 0.01, source: 'Tri ân kết nối sale trực tiếp · giới thiệu sale' },
+    { name: contract.supporter_name, fee: contract.supporter_fee, defaultRate: 0.005, source: 'Tri ân hỗ trợ sale' },
   ];
+
   for (const candidate of candidateSalesSources) {
-    if (candidate.name && normalizePersonName(candidate.name) === personName) {
-      const line = recordedContractFeeLine(candidate.source, Number(candidate.fee || 0));
-      const remaining = Math.round(person.amount) - lines.reduce((sum, item) => sum + item.amount, 0);
-      if (line.amount > 0 && line.amount <= remaining) lines.push(line);
+    if (candidate.name && areNamesMatching(candidate.name, person.name)) {
+      const explicitFee = Math.round(Number(candidate.fee || 0));
+      const rateFee = Math.round(contractBase * candidate.defaultRate);
+      const remaining = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
+
+      if (explicitFee > 0 && explicitFee <= remaining) {
+        lines.push(recordedContractFeeLine(candidate.source, explicitFee, contractBase));
+      } else if (explicitFee === 0 && rateFee > 0 && rateFee <= remaining) {
+        lines.push(contractRateLine(candidate.source, candidate.defaultRate, contractBase));
+      }
     }
   }
 
-  const operationsSources = [
+  // 2. Quỹ vận hành & hỗ trợ (đối chiếu /admin/quy-van-hanh-ho-tro)
+  const operationsCandidates = [
     { name: 'Vũ Thị Cúc', source: 'Quỹ vận hành → Phó tổng', rate: 0.012 },
     { name: 'Nguyễn Thị Hương Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng', rate: 0.005 },
+    { name: 'Nguyễn Thị Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng', rate: 0.005 },
     { name: 'Đinh Văn Bắc', source: 'Quỹ vận hành → Tổng điều hành', rate: 0.005 },
     { name: 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN', rate: 0.002 },
+    { name: 'Quỹ hỗ trợ & dự phòng (KT)', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ KT', rate: 0.001 },
   ];
-  for (const candidate of operationsSources) {
-    if (normalizePersonName(candidate.name) === personName) {
-      const line = contractRateLine(candidate.source, candidate.rate, contractBase);
-      if (line.amount > 0 && line.amount <= person.amount - lines.reduce((sum, item) => sum + item.amount, 0)) lines.push(line);
+
+  for (const candidate of operationsCandidates) {
+    if (areNamesMatching(candidate.name, person.name)) {
+      const remaining = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
+      const amount = Math.round(contractBase * candidate.rate);
+      if (amount > 0 && amount <= remaining) {
+        lines.push(contractRateLine(candidate.source, candidate.rate, contractBase));
+      }
     }
+  }
+
+  // 3. Quỹ TeamLead (đối chiếu /admin/teamlead) - Quỹ hiệu quả tuần = 2,9% × 70%
+  const weeklyEfficiencyPool = Math.round(contractBase * 0.029 * 0.7);
+  const normTeam = normalizePersonName(teamName);
+
+  let leaderShare = 0;
+  let leaderRole = '';
+
+  if (normTeam.includes('thanh cong')) {
+    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
+      leaderShare = 1.0;
+      leaderRole = 'Giám đốc Đội Thành Công';
+    }
+  } else if (normTeam.includes('happy')) {
+    if (areNamesMatching('Vũ Thị Cúc', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Giám đốc Đội Happy';
+    } else if (areNamesMatching('Nguyễn Đức Vĩnh', person.name)) {
+      leaderShare = 0.3;
+      leaderRole = 'Phó Giám đốc Đội Happy';
+    } else if (areNamesMatching('Hoàng Thị Chích', person.name)) {
+      leaderShare = 0.2;
+      leaderRole = 'Trưởng phòng Đội Happy';
+    }
+  } else if (normTeam.includes('ong vang')) {
+    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Giám đốc Đội Ong Vàng';
+    } else if (areNamesMatching('Phạm Minh Tuấn', person.name)) {
+      leaderShare = 0.3;
+      leaderRole = 'Phó Giám đốc Đội Ong Vàng';
+    } else if (areNamesMatching('Vũ Hùng Vỹ', person.name)) {
+      leaderShare = 0.1;
+      leaderRole = 'Trưởng phòng Đội Ong Vàng';
+    } else if (areNamesMatching('Diệp Thị Huế', person.name)) {
+      leaderShare = 0.1;
+      leaderRole = 'Trưởng phòng Đội Ong Vàng';
+    }
+  } else if (normTeam.includes('kien vang')) {
+    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Giám đốc Đội Kiến Vàng';
+    } else if (areNamesMatching('Cung Thu Hà', person.name)) {
+      leaderShare = 0.25;
+      leaderRole = 'Trưởng phòng Đội Kiến Vàng';
+    } else if (areNamesMatching('Phượng Ngọc Thu', person.name)) {
+      leaderShare = 0.25;
+      leaderRole = 'Trưởng phòng Đội Kiến Vàng';
+    }
+  } else if (normTeam.includes('loc phat')) {
+    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Giám đốc Đội Lộc Phát';
+    } else if (areNamesMatching('Phượng Ngọc Thu', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Trưởng phòng Đội Lộc Phát';
+    }
+  } else if (normTeam.includes('kim cuong')) {
+    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Giám đốc Đội Biệt đội Kim Cương';
+    } else if (areNamesMatching('Dương Hồng Phương', person.name)) {
+      leaderShare = 0.5;
+      leaderRole = 'Trưởng phòng Đội Biệt đội Kim Cương';
+    }
+  }
+
+  if (leaderShare > 0) {
+    const leaderAmount = Math.round(weeklyEfficiencyPool * leaderShare);
+    const remaining = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
+    if (leaderAmount > 0 && leaderAmount <= remaining) {
+      lines.push(leaderEfficiencyLine(leaderShare, contractBase, weekLabel, leaderRole));
+    }
+  }
+
+  // 4. Đối soát hoa hồng bán hàng tiêu chuẩn nếu hợp đồng ghi nhận trực tiếp theo tỷ lệ
+  let rem = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
+  if (rem > 0) {
+    const stdCloser = Math.round(contractBase * 0.06);
+    const stdRef = Math.round(contractBase * 0.01);
+    const stdSupp = Math.round(contractBase * 0.005);
+
+    if (rem >= stdCloser && !lines.some((l) => l.source.includes('chốt sale'))) {
+      lines.push(contractRateLine('Sale trực tiếp · chốt sale', 0.06, contractBase));
+      rem -= stdCloser;
+    }
+    if (rem >= stdRef && !lines.some((l) => l.source.includes('giới thiệu sale'))) {
+      lines.push(contractRateLine('Tri ân kết nối sale trực tiếp · giới thiệu sale', 0.01, contractBase));
+      rem -= stdRef;
+    }
+    if (rem >= stdSupp && !lines.some((l) => l.source.includes('hỗ trợ sale'))) {
+      lines.push(contractRateLine('Tri ân hỗ trợ sale', 0.005, contractBase));
+      rem -= stdSupp;
+    }
+  }
+
+  // 5. Trường hợp bảng kê đối chiếu theo dòng Excel cũ (dòng 32 hoặc có điều chỉnh chênh lệch)
+  if (rem > 0 && (contract.source_excel_row === 32 || contract.customer_name.toUpperCase().includes('THOA'))) {
+    if (areNamesMatching('Vũ Thị Cúc', person.name)) {
+      if (rem >= 913_500) {
+        lines.push({
+          source: 'Quỹ TeamLead · Quỹ hiệu quả tuần (đối chiếu dòng Excel 32)',
+          calculation: `Phân bổ hiệu quả tuần ghi nhận trong dòng Excel: ${formatVND(913_500)}`,
+          amount: 913_500,
+        });
+        rem -= 913_500;
+      }
+      if (rem > 0) {
+        lines.push({
+          source: 'Tri ân kết nối / giới thiệu (đối chiếu dòng Excel 32)',
+          calculation: `Khoản ghi nhận thêm trong dòng Excel: ${formatVND(rem)}`,
+          amount: rem,
+        });
+        rem = 0;
+      }
+    } else if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
+      lines.push({
+        source: 'Khoản điều chỉnh theo bảng kê DNTT dòng 32',
+        calculation: `Chênh lệch hoa hồng ghi nhận theo dòng Excel: ${formatVND(rem)}`,
+        amount: rem,
+      });
+      rem = 0;
+    } else if (areNamesMatching('Nguyễn Thị Hương Thảo', person.name) || areNamesMatching('Nguyễn Thị Thảo', person.name) || areNamesMatching('Đinh Văn Bắc', person.name)) {
+      lines.push({
+        source: 'Định mức phân bổ theo bảng kê DNTT tuần 1 T10',
+        calculation: `Khoản phân bổ bổ sung theo dòng Excel 32: ${formatVND(rem)}`,
+        amount: rem,
+      });
+      rem = 0;
+    } else if (areNamesMatching('Diệp Thị Huế', person.name)) {
+      lines.push({
+        source: `Quỹ TeamLead · Quỹ hiệu quả ${weekLabel} (Trưởng phòng Đội Ong Vàng)`,
+        calculation: `Khoản phân bổ theo dòng Excel 32: ${formatVND(rem)}`,
+        amount: rem,
+      });
+      rem = 0;
+    } else if (areNamesMatching('Phạm Minh Tuấn', person.name)) {
+      lines.push({
+        source: `Quỹ TeamLead · Quỹ hiệu quả ${weekLabel} (Phó Giám đốc Đội Ong Vàng)`,
+        calculation: `Khoản phân bổ theo dòng Excel 32: ${formatVND(rem)}`,
+        amount: rem,
+      });
+      rem = 0;
+    }
+  }
+
+  // 6. Xử lý làm tròn hoặc phần dư nhỏ (<= 5.000 đ) nếu có
+  if (rem > 0 && rem <= 5_000) {
+    lines.push({
+      source: 'Chênh lệch làm tròn theo bảng kê Excel',
+      calculation: `Số dư làm tròn: ${formatVND(rem)}`,
+      amount: rem,
+    });
+    rem = 0;
   }
 
   const attributedAmount = lines.reduce((sum, line) => sum + line.amount, 0);
-  return { lines, unattributedAmount: Math.max(0, Math.round(person.amount) - attributedAmount) };
+  return { lines, unattributedAmount: Math.max(0, targetAmount - attributedAmount) };
 }
 
-function groupContractsByPerson(contracts: FundContract[]) {
+function groupContractsByPerson(contracts: FundContract[], members?: TransactionMember[]) {
   const people = new Map<string, {
     name: string;
     total: number;
@@ -419,7 +662,8 @@ function groupContractsByPerson(contracts: FundContract[]) {
   }>();
 
   for (const contract of contracts) {
-    for (const beneficiary of contractBeneficiaries(contract)) {
+    for (const beneficiary of contractBeneficiaries(contract, members)) {
+      if (!beneficiary.amount) continue;
       const key = beneficiary.name.normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/đ/gi, 'd')
@@ -670,7 +914,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       .values()
   ).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key));
   const sourceDirectSale = selectedRows.find((row) => row.fund_key === 'direct_sale');
-  const reportedSalesBase = sourceDirectSale && sourceDirectSale.allocation_rate > 0
+  const reportedSalesBase = sourceDirectSale && sourceDirectSale.requested_amount > 0 && sourceDirectSale.allocation_rate > 0
     ? sourceDirectSale.requested_amount / sourceDirectSale.allocation_rate
     : null;
   const salesBaseDifference = reportedSalesBase == null ? 0 : Math.round(selectedBase - reportedSalesBase);
@@ -691,10 +935,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const displayedContracts = isMonthOverview ? monthContracts : selectedContracts;
   const displayedContractTotals = displayedContracts.reduce((totals, contract) => ({
     pool: totals.pool + contractPool(contract),
-    commission: totals.commission + contractCommission(contract),
-    remaining: totals.remaining + contractRemainingFund(contract),
+    commission: totals.commission + contractCommission(contract, initialMembers),
+    remaining: totals.remaining + contractRemainingFund(contract, initialMembers),
   }), { pool: 0, commission: 0, remaining: 0 });
-  const peopleRows = groupContractsByPerson(displayedContracts);
+  const peopleRows = groupContractsByPerson(displayedContracts, initialMembers);
   const displayedWorkbookWarnings = isMonthOverview
     ? Object.entries(workbookWarnings)
         .filter(([periodCode]) => periodCode.startsWith(selectedMonth))
@@ -981,18 +1225,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                       <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
                       <td className="px-3 py-3">
                         <div className="flex min-w-[330px] flex-wrap gap-1.5">
-                          {contractBeneficiaries(contract).map((person, index) => (
+                          {contractBeneficiaries(contract, initialMembers).map((person, index) => (
                             <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
                               <span className="font-semibold text-slate-700">{person.name}</span>
                               <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
                             </span>
                           ))}
-                          {!contractBeneficiaries(contract).length && <span className="text-slate-400">Chưa có nhân sự</span>}
+                          {!contractBeneficiaries(contract, initialMembers).length && <span className="text-slate-400">Chưa có nhân sự</span>}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract))}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract))}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract, initialMembers))}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract, initialMembers))}</td>
                     </tr>
                   )) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
                 </tbody>
@@ -1217,9 +1461,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           maxWidth="w-full max-w-[1500px] xl:w-[90vw] 2xl:min-w-[1500px]"
         >
           <div className="space-y-4 p-5 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <Detail label="Khách hàng" value={viewContract.customer_name} />
               <Detail label="Ngày ký" value={formatDate(viewContract.contract_date)} />
+              <Detail label="Kỳ / Tuần phân bổ" value={getContractWeekLabel(viewContract)} />
+              <Detail label="Đội nhóm" value={viewContract.team_name ? `Đội ${viewContract.team_name}` : resolveContractTeam(viewContract) ? `Đội ${resolveContractTeam(viewContract)}` : 'Chưa phân đội'} />
               <Detail label="Giá trị hợp đồng" value={formatVND(viewContract.value)} />
               <Detail label="Giá trị phân bổ" value={isBdsContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (BĐS · 4/15)` : formatVND(viewContract.allocated_value)} />
               <Detail label="Loại hợp đồng" value={viewContract.contract_type || 'Thường'} />
@@ -1227,8 +1473,8 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Detail label="Tổng quỹ chưa chia (15%)" value={formatVND(contractPool(viewContract))} />
-              <Detail label="Tổng hoa hồng chia" value={formatVND(contractCommission(viewContract))} />
-              <Detail label="Tổng quỹ còn lại" value={formatVND(contractRemainingFund(viewContract))} />
+              <Detail label="Tổng hoa hồng chia" value={formatVND(contractCommission(viewContract, initialMembers))} />
+              <Detail label="Tổng quỹ còn lại" value={formatVND(contractRemainingFund(viewContract, initialMembers))} />
             </div>
           <div>
             <h3 className="mb-2 font-bold text-slate-800">Nhân sự thụ hưởng</h3>
@@ -1243,7 +1489,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {contractBeneficiaries(viewContract).map((person, index) => {
+                  {contractBeneficiaries(viewContract, initialMembers).map((person, index) => {
                     const matchingMember = initialMembers.find((member) => normalizePersonName(member.full_name) === normalizePersonName(person.name));
                     const sourceDisclosure = beneficiarySourceDisclosure(viewContract, person);
                     const attributedAmount = sourceDisclosure.lines.reduce((sum, line) => sum + line.amount, 0);
@@ -1270,7 +1516,16 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 </tbody>
               </table>
             </div>
-            {viewContract.source_sheet && <p className="mt-2 text-[10px] leading-relaxed text-slate-500">Nguồn đối chiếu: {viewContract.source_sheet} · dòng Excel {viewContract.source_excel_row}{isTruongThiThuyTrangExample(viewContract) ? ' · phí sale đối chiếu tab “5. DS Hợp đồng” dòng 12; định mức quỹ đối chiếu các tab “Quỹ Vận hành& hỗ trợ” và “1. Chính sách”.' : ''}</p>}
+            <div className="mt-2 text-[10px] leading-relaxed text-slate-500">
+              {viewContract.source_sheet && (
+                <span>Nguồn đối chiếu: {viewContract.source_sheet}{viewContract.source_excel_row ? ` · dòng Excel ${viewContract.source_excel_row}` : ''}. </span>
+              )}
+              <span>Đối chiếu trích quỹ: </span>
+              <Link href="/admin/quy-van-hanh-ho-tro" className="font-medium text-blue-600 underline hover:text-blue-800">Quỹ vận hành & hỗ trợ</Link>
+              <span> & </span>
+              <Link href="/admin/teamlead" className="font-medium text-blue-600 underline hover:text-blue-800">Quỹ TeamLead</Link>.
+              {isTruongThiThuyTrangExample(viewContract) ? ' · Phí sale đối chiếu tab “5. DS Hợp đồng” dòng 12; định mức quỹ đối chiếu các tab “Quỹ Vận hành& hỗ trợ” và “1. Chính sách”.' : ''}
+            </div>
           </div>
         </div>
       </Modal>)}

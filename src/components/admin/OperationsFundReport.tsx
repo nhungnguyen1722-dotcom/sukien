@@ -223,7 +223,7 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
     .filter((log) => PAID_STATUSES.has(log.status))
     .reduce((sum, log) => sum + paidAmountFor(log), 0);
 
-  const reportedFund = selectedAllocations.length ? recordedAllocation : fundBudget;
+  const reportedFund = contractBase > 0 ? fundBudget : (selectedAllocations.length ? recordedAllocation : fundBudget);
   const remaining = reportedFund - paidTotal;
 
   // Tính phân bổ theo từng bộ phận

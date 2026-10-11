@@ -86,7 +86,6 @@ interface ContractManagementProps {
   initialContracts: Contract[];
   initialStats: Stats;
   initialUsers: UserOption[];
-  initialClosers: UserOption[];
   initialTeams: TeamOption[];
   currentYear: number;
 }
@@ -603,7 +602,6 @@ export default function ContractManagement({
   initialContracts,
   initialStats,
   initialUsers,
-  initialClosers,
   initialTeams,
   currentYear,
 }: ContractManagementProps) {
@@ -612,11 +610,9 @@ export default function ContractManagement({
   const [allocationBase, setAllocationBase] = useState(initialStats.allocationBase ?? initialStats.totalValue);
   const [actualFundSpending, setActualFundSpending] = useState<{ fund_source: string; actual_spent: number }[]>([]);
   const [users, setUsers] = useState<UserOption[]>(() => (initialUsers || []).map(normalizeUserOption));
-  const [closers, setClosers] = useState<UserOption[]>(() => (initialClosers || []).map(normalizeUserOption));
   const [teams, setTeams] = useState(initialTeams);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [closerFilter, setCloserFilter] = useState('all');
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const activeMonthRef = useRef<HTMLButtonElement | null>(null);
@@ -652,7 +648,6 @@ export default function ContractManagement({
     if (selectedMonth !== 'all') params.set('month', String(selectedMonth));
     if (selectedMonth !== 'all' && selectedWeek) params.set('week', String(selectedWeek));
     if (searchQuery.trim()) params.set('search', searchQuery.trim());
-    if (closerFilter !== 'all') params.set('closer_id', closerFilter);
 
     try {
       const response = await fetch('/api/admin/contracts?' + params.toString());
@@ -662,14 +657,13 @@ export default function ContractManagement({
       setStats(data.stats || initialStats);
       setAllocationBase(numeric(data.allocationBase ?? data.stats?.totalValue));
       setActualFundSpending(data.actualFundSpending || []);
-      if (data.closers) setClosers((data.closers || []).map(normalizeUserOption));
       if (data.users) setUsers((data.users || []).map(normalizeUserOption));
       if (data.teams) setTeams(data.teams);
       setCurrentPage(1);
     } catch (error) {
       console.error('Lỗi tải danh sách hợp đồng:', error);
     }
-  }, [closerFilter, initialStats, searchQuery, selectedMonth, selectedYear, selectedWeek]);
+  }, [initialStats, searchQuery, selectedMonth, selectedYear, selectedWeek]);
 
   useEffect(() => {
     void refreshData();
@@ -710,7 +704,6 @@ export default function ContractManagement({
 
   const handleResetFilters = () => {
     setSearchQuery('');
-    setCloserFilter('all');
     setSelectedYear(String(currentYear));
     setSelectedMonth('all');
     setSelectedWeek(null);
@@ -1114,7 +1107,7 @@ export default function ContractManagement({
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Tìm mã hợp đồng, khách hàng..."
+                placeholder="Tìm mã HĐ, khách hàng, người chốt, người giới thiệu..."
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
               />
             </div>
@@ -1125,15 +1118,6 @@ export default function ContractManagement({
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
             >
               {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
-            <select
-              aria-label="Lọc theo người chốt"
-              value={closerFilter}
-              onChange={(event) => setCloserFilter(event.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
-            >
-              <option value="all">Tất cả người chốt</option>
-              {closers.map((closer) => <option key={closer.id} value={closer.id}>{closer.full_name}</option>)}
             </select>
             <button
               type="button"

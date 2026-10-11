@@ -16,6 +16,7 @@ export interface WorkbookContractDistribution {
   customer_name: string;
   value: number;
   allocated_value: number;
+  team_name?: string | null;
   closer_name: string;
   closer_phone: string;
   closer_fee: number;
@@ -42,6 +43,7 @@ interface DatabaseContract {
   customer_name: string;
   value: number;
   allocated_value: number;
+  team_name?: string | null;
   closer_name: string;
   closer_phone: string;
   closer_fee: number;
@@ -339,10 +341,13 @@ function readMatrixSource(
   }
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
-  const headerRowIdx = rows.findIndex((r) => {
-    const c1 = String(r[1] ?? '').trim();
-    return c1 === 'Hợp đồng' || c1.includes('Họ tên/Hợp đồng');
-  });
+  let headerRowIdx = rows.findIndex((r) => String(r[1] ?? '').includes('Họ tên/Hợp đồng'));
+  if (headerRowIdx < 0) {
+    headerRowIdx = rows.findIndex((r) => {
+      const c1 = String(r[1] ?? '').trim();
+      return c1 === 'Hợp đồng' || c1.includes('Họ tên/Hợp đồng');
+    });
+  }
   if (headerRowIdx < 0) {
     return {
       contracts: [],
@@ -567,6 +572,7 @@ function readMatrixSource(
       customer_name: matched?.customer_name || col.customerName,
       value: col.contractValue,
       allocated_value: col.contractValue,
+      team_name: matched?.team_name ?? '',
       closer_name: matched?.closer_name ?? '',
       closer_phone: matched?.closer_phone ?? '',
       closer_fee: matched?.closer_fee ?? 0,
@@ -584,6 +590,61 @@ function readMatrixSource(
       unallocated_pool: unallocatedPool,
       distributed_commission: distributedCommission,
       remaining_fund: remainingFund,
+    });
+  }
+
+  const remainingDbContracts = databaseContracts.filter((c) => (
+    !usedContractIds.has(c.id)
+    && c.contract_date >= '2026-10-03'
+    && c.contract_date <= '2026-10-31'
+  ));
+  for (const dbContract of remainingDbContracts) {
+    usedContractIds.add(dbContract.id);
+    const actualValue = Math.round(dbContract.allocated_value || dbContract.value);
+    const unallocatedPool = Math.round(actualValue * 0.15);
+    const sourceBeneficiaries: WorkbookBeneficiary[] = [];
+    if (dbContract.closer_name && dbContract.closer_fee > 0) {
+      sourceBeneficiaries.push({ name: dbContract.closer_name, amount: Math.round(dbContract.closer_fee) });
+    }
+    if (dbContract.referrer_name && dbContract.referrer_fee > 0) {
+      sourceBeneficiaries.push({ name: dbContract.referrer_name, amount: Math.round(dbContract.referrer_fee) });
+    }
+    if (dbContract.supporter_name && dbContract.supporter_fee > 0) {
+      sourceBeneficiaries.push({ name: dbContract.supporter_name, amount: Math.round(dbContract.supporter_fee) });
+    }
+    const distributedCommission = sourceBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
+    const dStr = (dbContract.contract_date || '').slice(0, 10);
+    let octWeek = source.periodCode;
+    if (dStr >= '2026-10-10' && dStr <= '2026-10-16') octWeek = '2026-10-W2';
+    else if (dStr >= '2026-10-17' && dStr <= '2026-10-23') octWeek = '2026-10-W3';
+    else if (dStr >= '2026-10-24' && dStr <= '2026-10-30') octWeek = '2026-10-W4';
+    else if (dStr >= '2026-10-31') octWeek = '2026-10-W5';
+
+    contracts.push({
+      id: dbContract.id,
+      contract_code: dbContract.contract_code ?? null,
+      contract_date: dbContract.contract_date,
+      customer_name: dbContract.customer_name,
+      value: actualValue,
+      allocated_value: actualValue,
+      team_name: dbContract.team_name ?? '',
+      closer_name: dbContract.closer_name,
+      closer_phone: dbContract.closer_phone,
+      closer_fee: dbContract.closer_fee,
+      referrer_name: dbContract.referrer_name,
+      referrer_phone: dbContract.referrer_phone,
+      referrer_fee: dbContract.referrer_fee,
+      supporter_name: dbContract.supporter_name,
+      supporter_phone: dbContract.supporter_phone,
+      supporter_fee: dbContract.supporter_fee,
+      status: dbContract.status || 'Chờ duyệt',
+      source_period_code: octWeek,
+      source_excel_row: 999,
+      source_sheet: source.sheetName,
+      source_beneficiaries: sourceBeneficiaries,
+      unallocated_pool: unallocatedPool,
+      distributed_commission: distributedCommission,
+      remaining_fund: unallocatedPool - distributedCommission,
     });
   }
 
@@ -609,6 +670,7 @@ export function loadSeptemberContractDistributions(
           ...row,
           id: identity,
           contract_code: matched?.contract_code ?? null,
+          team_name: matched?.team_name ?? '',
           closer_name: matched?.closer_name ?? '',
           closer_phone: matched?.closer_phone ?? '',
           closer_fee: matched?.closer_fee ?? 0,

@@ -52,7 +52,9 @@ export async function GET(request: NextRequest) {
         OR c.customer_phone ILIKE $${idx}
         OR c.customer_address ILIKE $${idx}
         OR COALESCE(NULLIF(BTRIM(c.closer_name), ''), u_closer.full_name) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone) ILIKE $${idx}
         OR COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone) ILIKE $${idx}
       )`);
       values.push(`%${search}%`);
       idx += 1;
