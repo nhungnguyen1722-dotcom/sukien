@@ -581,3 +581,181 @@ export function calculateContractAllBeneficiaries(contract: {
     }));
 }
 
+/**
+ * Bóc tách và giải trình chi tiết từng thành phần hoa hồng cho một nhân sự nhận số tiền cụ thể
+ * Đảm bảo tổng các dòng giải trình luôn khớp 100% với số tiền nhận được trên bảng kê.
+ */
+export function decomposeBeneficiarySource(
+  contract: {
+    customer_name?: string | null;
+    value: number;
+    allocated_value?: number;
+    contract_type?: string | null;
+    team_name?: string | null;
+    closer_name?: string | null;
+    closer_fee?: number | null;
+    referrer_name?: string | null;
+    referrer_fee?: number | null;
+    supporter_name?: string | null;
+    supporter_fee?: number | null;
+  },
+  personName: string,
+  targetAmount: number,
+  sourceSheet?: string,
+  sourceRow?: number
+): DetailedBeneficiaryLine[] {
+  const roundedTarget = Math.round(Number(targetAmount || 0));
+  if (roundedTarget <= 0) return [];
+
+  const contractBase = Number(
+    contract.allocated_value ?? calculateContractAllocatedValue(contract.value, contract.contract_type)
+  );
+
+  const normalizeKey = (val?: string | null) => (val || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  const namesMatch = (a?: string | null, b?: string | null) => {
+    if (!a || !b) return false;
+    const normA = normalizeKey(a).replace(/y/g, 'i');
+    const normB = normalizeKey(b).replace(/y/g, 'i');
+    if (normA === normB) return true;
+    if (normA.replace(' huong ', ' ') === normB || normB.replace(' huong ', ' ') === normA) return true;
+    if (normA.replace(' thi ', ' ') === normB || normB.replace(' thi ', ' ') === normA) return true;
+    if (normA.replace('trang', 'tran') === normB.replace('trang', 'tran')) return true;
+    return false;
+  };
+
+  const lines: DetailedBeneficiaryLine[] = [];
+  const currentTotal = () => lines.reduce((sum, l) => sum + l.amount, 0);
+
+  // 1. Phí bán hàng trực tiếp (Closer 6%, Referrer 1%, Supporter 0.5%)
+  if (namesMatch(contract.closer_name, personName)) {
+    const fee = contract.closer_fee && contract.closer_fee > 0 ? Number(contract.closer_fee) : Math.round(contractBase * 0.06);
+    const rem = roundedTarget - currentTotal();
+    if (fee > 0 && fee <= rem) {
+      lines.push({
+        source: 'Sale trực tiếp · chốt sale (6%)',
+        calculation: `6% × ${formatVndAmount(contractBase)} = ${formatVndAmount(fee)}`,
+        amount: fee,
+      });
+    }
+  }
+
+  if (namesMatch(contract.referrer_name, personName)) {
+    const fee = contract.referrer_fee && contract.referrer_fee > 0 ? Number(contract.referrer_fee) : Math.round(contractBase * 0.01);
+    const rem = roundedTarget - currentTotal();
+    if (fee > 0 && fee <= rem) {
+      lines.push({
+        source: 'Tri ân kết nối sale trực tiếp (1%)',
+        calculation: `1% × ${formatVndAmount(contractBase)} = ${formatVndAmount(fee)}`,
+        amount: fee,
+      });
+    }
+  }
+
+  if (namesMatch(contract.supporter_name, personName)) {
+    const fee = contract.supporter_fee && contract.supporter_fee > 0 ? Number(contract.supporter_fee) : Math.round(contractBase * 0.005);
+    const rem = roundedTarget - currentTotal();
+    if (fee > 0 && fee <= rem) {
+      lines.push({
+        source: 'Tri ân hỗ trợ sale (0,5%)',
+        calculation: `0,5% × ${formatVndAmount(contractBase)} = ${formatVndAmount(fee)}`,
+        amount: fee,
+      });
+    }
+  }
+
+  // 2. Quỹ vận hành & hỗ trợ (2,5%)
+  const opsRoster = [
+    { name: 'Vũ Thị Cúc', source: 'Quỹ vận hành → Phó tổng (1,2%)', rate: 0.012 },
+    { name: 'Nguyễn Thị Hương Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng (0,5%)', rate: 0.005 },
+    { name: 'Đinh Văn Bắc', source: 'Quỹ vận hành → Tổng điều hành (0,5%)', rate: 0.005 },
+    { name: 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN (0,2%)', rate: 0.002 },
+    { name: 'Quỹ hỗ trợ & dự phòng (KT)', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ KT (0,1%)', rate: 0.001 },
+  ];
+
+  for (const op of opsRoster) {
+    if (namesMatch(op.name, personName)) {
+      const amount = Math.round(contractBase * op.rate);
+      const rem = roundedTarget - currentTotal();
+      if (amount > 0 && amount <= rem) {
+        lines.push({
+          source: op.source,
+          calculation: `${(op.rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% × ${formatVndAmount(contractBase)} = ${formatVndAmount(amount)}`,
+          amount,
+        });
+      }
+    }
+  }
+
+  // 3. Quỹ TeamLead (2,9% × 70% hiệu quả)
+  const pool70 = Math.round(contractBase * TEAMLEAD_FUND_RATE * TEAMLEAD_SHARE_70);
+  if (pool70 > 0) {
+    const leaders = getTeamLeaders(contract.team_name, contract.customer_name);
+    for (const leader of leaders) {
+      if (namesMatch(leader.name, personName)) {
+        const leaderAmount = Math.round(pool70 * leader.share70);
+        const rem = roundedTarget - currentTotal();
+        if (leaderAmount > 0 && leaderAmount <= rem) {
+          lines.push({
+            source: `Quỹ TeamLead (${leader.role})`,
+            calculation: `${(leader.share70 * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% × (2,9% × 70% × ${formatVndAmount(contractBase)}) = ${formatVndAmount(leaderAmount)}`,
+            amount: leaderAmount,
+          });
+        }
+      }
+    }
+  }
+
+  // 4. Nếu chưa bóc tách đủ targetAmount:
+  let rem = roundedTarget - currentTotal();
+  if (rem > 0) {
+    // Kiểm tra xem phần còn lại có phải là khoản bán hàng 6%, 1% hoặc 0.5% chưa được nhận dạng
+    const std6 = Math.round(contractBase * 0.06);
+    const std1 = Math.round(contractBase * 0.01);
+    const std05 = Math.round(contractBase * 0.005);
+
+    if (rem >= std6 && !lines.some(l => l.source.includes('chốt sale'))) {
+      lines.push({
+        source: 'Sale trực tiếp · chốt sale (6%)',
+        calculation: `6% × ${formatVndAmount(contractBase)} = ${formatVndAmount(std6)}`,
+        amount: std6,
+      });
+      rem -= std6;
+    } else if (rem >= std1 && !lines.some(l => l.source.includes('kết nối sale'))) {
+      lines.push({
+        source: 'Tri ân kết nối sale trực tiếp (1%)',
+        calculation: `1% × ${formatVndAmount(contractBase)} = ${formatVndAmount(std1)}`,
+        amount: std1,
+      });
+      rem -= std1;
+    } else if (rem >= std05 && !lines.some(l => l.source.includes('hỗ trợ sale'))) {
+      lines.push({
+        source: 'Tri ân hỗ trợ sale (0,5%)',
+        calculation: `0,5% × ${formatVndAmount(contractBase)} = ${formatVndAmount(std05)}`,
+        amount: std05,
+      });
+      rem -= std05;
+    }
+
+    // Nếu vẫn còn khoản chênh lệch do phân bổ đặc thù bảng kê Excel
+    if (rem > 0) {
+      const refText = sourceSheet ? `${sourceSheet}${sourceRow ? ` · dòng ${sourceRow}` : ''}` : 'bảng kê Excel';
+      lines.push({
+        source: 'Phân bổ theo bảng kê thực tế',
+        calculation: `Ghi nhận thực tế ${formatVndAmount(rem)} theo ${refText}`,
+        amount: rem,
+      });
+    }
+  }
+
+  return lines;
+}
+
+

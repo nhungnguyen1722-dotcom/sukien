@@ -12,6 +12,7 @@ import {
   Copy,
   Download,
   FileSpreadsheet,
+  LayoutGrid,
   LockKeyhole,
   Plus,
   Printer,
@@ -173,6 +174,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [viewMode, setViewMode] = useState<'member' | 'group'>('member');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string | number, boolean>>({});
   const autoCloneAttempted = useRef(new Set<string>());
 
   useEffect(() => {
@@ -283,8 +286,69 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const filteredRoster = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('vi-VN');
-    return visibleRoster.filter((member) => !term || `${member.name} ${member.phone}`.toLocaleLowerCase('vi-VN').includes(term));
+    return visibleRoster.filter((member) => {
+      if (!term) return true;
+      const teamNames = member.teams.map((t) => t.teamName).join(' ');
+      return `${member.name} ${member.phone} ${teamNames}`.toLocaleLowerCase('vi-VN').includes(term);
+    });
   }, [visibleRoster, search]);
+
+  const groupedRoster = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; items: Array<{ member: RosterMember; teamAssignment?: TeamAssignment }> }>();
+
+    teams.forEach((t) => {
+      map.set(t.id, { id: t.id, name: t.name, items: [] });
+    });
+
+    const unassignedItems: Array<{ member: RosterMember; teamAssignment?: TeamAssignment }> = [];
+
+    filteredRoster.forEach((member) => {
+      if (!member.teams || member.teams.length === 0) {
+        unassignedItems.push({ member });
+        return;
+      }
+
+      member.teams.forEach((teamItem) => {
+        let group = map.get(teamItem.teamId);
+        if (!group) {
+          group = { id: teamItem.teamId, name: teamItem.teamName || 'Đội khác', items: [] };
+          map.set(teamItem.teamId, group);
+        }
+        group.items.push({ member, teamAssignment: teamItem });
+      });
+    });
+
+    const result = Array.from(map.values()).filter((g) => g.items.length > 0);
+
+    if (unassignedItems.length > 0) {
+      result.push({
+        id: 0,
+        name: 'Chưa phân nhóm',
+        items: unassignedItems,
+      });
+    }
+
+    return result;
+  }, [teams, filteredRoster]);
+
+  const toggleGroupCollapse = (groupId: string | number) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupId]: !prev[groupId],
+    }));
+  };
+
+  const collapseAllGroups = () => {
+    const next: Record<string | number, boolean> = {};
+    groupedRoster.forEach((g) => {
+      next[g.id] = true;
+    });
+    setCollapsedGroups(next);
+  };
+
+  const expandAllGroups = () => {
+    setCollapsedGroups({});
+  };
 
   const filteredAllocationRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('vi-VN');
@@ -345,6 +409,15 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const updateRole = (member: RosterMember, role: string) => {
     updateRosterMember(member.membershipId, member.userId, { teams: member.teams.map((team) => ({ ...team, role })) });
+  };
+
+  const removeMemberFromGroup = (member: RosterMember, teamId?: number) => {
+    if (teamId && teamId !== 0 && member.teams.length > 1) {
+      const remainingTeamIds = member.teams.filter((t) => t.teamId !== teamId).map((t) => t.teamId);
+      updateMemberTeams(member, remainingTeamIds);
+    } else {
+      setRoster((previous) => previous.filter((item) => item !== member));
+    }
   };
 
   const createTeam = async () => {
@@ -785,9 +858,37 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="font-bold text-slate-900">{monthTitle(month)}</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">{visibleRoster.length} thành viên · {teams.length} đội nhóm</p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div>
+                    <h2 className="font-bold text-slate-900">{monthTitle(month)}</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">{visibleRoster.length} thành viên · {teams.length} đội nhóm</p>
+                  </div>
+                  <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 text-xs font-semibold text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('member')}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                        viewMode === 'member'
+                          ? 'bg-white text-blue-600 shadow-sm font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      Xem theo thành viên
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('group')}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition ${
+                        viewMode === 'group'
+                          ? 'bg-white text-blue-600 shadow-sm font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                      Xem theo nhóm
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
@@ -800,7 +901,9 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                   <button onClick={saveRoster} disabled={saving || rosterReadOnly} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Đang lưu…' : 'Lưu danh sách'}</button>
                 </div>
               </div>
-              {loading ? <div className="p-12 text-center text-sm text-slate-500">Đang tải dữ liệu…</div> : (
+              {loading ? (
+                <div className="p-12 text-center text-sm text-slate-500">Đang tải dữ liệu…</div>
+              ) : viewMode === 'member' ? (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[900px] text-left text-sm">
                     <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
@@ -890,6 +993,208 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       {!filteredRoster.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">{visibleRoster.length ? 'Không có thành viên phù hợp.' : roster.length ? 'Chưa có thành viên thuộc chức danh TeamLead trong tháng này.' : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}</td></tr>}
                     </tbody>
                   </table>
+                </div>
+              ) : (
+                <div className="space-y-4 p-4 sm:p-5 bg-slate-50/50">
+                  {groupedRoster.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-700">{groupedRoster.length} đội nhóm</span>
+                          <span>·</span>
+                          <span>{filteredRoster.length} thành viên</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={expandAllGroups}
+                            className="font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            Mở rộng tất cả
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={collapseAllGroups}
+                            className="font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                          >
+                            Thu gọn tất cả
+                          </button>
+                        </div>
+                      </div>
+
+                      {groupedRoster.map((group) => {
+                        const isCollapsed = Boolean(collapsedGroups[group.id]);
+                        return (
+                          <div
+                            key={group.id}
+                            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300"
+                          >
+                            <div
+                              onClick={() => toggleGroupCollapse(group.id)}
+                              className="flex cursor-pointer items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3 select-none hover:bg-slate-100/70 transition"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700">
+                                  <Users className="h-4 w-4" />
+                                </div>
+                                <div className="flex items-center gap-2.5">
+                                  <span className="font-bold text-slate-900 text-sm sm:text-base">
+                                    {group.name}
+                                  </span>
+                                  <span className="rounded-full bg-blue-50 border border-blue-200/70 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                                    {group.items.length} thành viên
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 font-medium">
+                                  {isCollapsed ? 'Nhấn để mở' : 'Thu gọn'}
+                                </span>
+                                <ChevronDown
+                                  className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
+                                    isCollapsed ? '-rotate-90' : ''
+                                  }`}
+                                />
+                              </div>
+                            </div>
+
+                            {!isCollapsed && (
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[800px] text-left text-sm">
+                                  <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
+                                    <tr>
+                                      <th className="px-4 py-3.5">Thành viên</th>
+                                      <th className="px-4 py-3.5">Chức danh</th>
+                                      <th className="px-4 py-3.5 text-center">
+                                        Quỹ 30%
+                                        <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
+                                          {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
+                                        </span>
+                                      </th>
+                                      <th className="px-4 py-3.5 text-center">
+                                        Quỹ 70%
+                                        <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
+                                          {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
+                                        </span>
+                                      </th>
+                                      <th className="px-4 py-3.5 text-right">Thao tác</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {group.items.map(({ member, teamAssignment }) => {
+                                      const role = teamAssignment?.role || member.teams[0]?.role || '';
+                                      return (
+                                        <tr
+                                          key={`${group.id}-${member.membershipId}-${member.userId}`}
+                                          className="align-middle hover:bg-slate-50/70"
+                                        >
+                                          <td className="px-4 py-4">
+                                            <div className="font-semibold text-slate-900">{member.name}</div>
+                                            <div className="mt-1 text-xs text-slate-500">
+                                              {member.phone || 'Chưa có số điện thoại'}
+                                            </div>
+                                            {!member.userId && (
+                                              <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                                                Dữ liệu nhập Excel
+                                              </span>
+                                            )}
+                                            {member.teams.length > 1 && (
+                                              <div className="mt-1 flex flex-wrap gap-1">
+                                                {member.teams
+                                                  .filter((t) => t.teamId !== group.id)
+                                                  .map((t) => (
+                                                    <span
+                                                      key={t.teamId}
+                                                      className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                                                    >
+                                                      Kiêm: {t.teamName}
+                                                    </span>
+                                                  ))}
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="px-4 py-4">
+                                            <select
+                                              value={role}
+                                              onChange={(event) => updateRole(member, event.target.value)}
+                                              disabled={!member.teams.length || rosterReadOnly}
+                                              className="w-44 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                                            >
+                                              {!role && <option value="">Chưa gán chức danh</option>}
+                                              {ROLE_OPTIONS.map((item) => (
+                                                <option key={item} value={item}>
+                                                  {item} ({ROLE_WEIGHTS[item]})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </td>
+                                          <td className="px-4 py-4 text-center">
+                                            <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                                              <input
+                                                type="checkbox"
+                                                checked={Boolean(member.include30)}
+                                                disabled={rosterReadOnly || saving}
+                                                onChange={() => void toggleRoster30(member)}
+                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                                                title={
+                                                  weekNo === 0
+                                                    ? 'Tỷ lệ 30% mặc định cả tháng (áp dụng cho tất cả các tuần)'
+                                                    : `Tỷ lệ 30% riêng cho tuần ${weekNo}`
+                                                }
+                                              />
+                                            </label>
+                                          </td>
+                                          <td className="px-4 py-4 text-center">
+                                            {teamAssignment ? (
+                                              <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={Boolean(teamAssignment.include70)}
+                                                  disabled={rosterReadOnly || saving}
+                                                  onChange={() => void toggleRoster70(member, teamAssignment)}
+                                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 accent-emerald-600 focus:ring-emerald-500 disabled:opacity-50"
+                                                  title={
+                                                    weekNo === 0
+                                                      ? `Tỷ lệ 70% ${teamAssignment.teamName} mặc định cả tháng (áp dụng cho tất cả các tuần)`
+                                                      : `Tỷ lệ 70% ${teamAssignment.teamName} riêng cho tuần ${weekNo}`
+                                                  }
+                                                />
+                                              </label>
+                                            ) : (
+                                              <span className="text-slate-300">—</span>
+                                            )}
+                                          </td>
+                                          <td className="px-4 py-4 text-right">
+                                            {!rosterReadOnly && (
+                                              <button
+                                                onClick={() => removeMemberFromGroup(member, group.id)}
+                                                className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                              >
+                                                Xóa
+                                              </button>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <div className="p-12 text-center text-sm text-slate-500">
+                      {visibleRoster.length
+                        ? 'Không có thành viên phù hợp.'
+                        : roster.length
+                        ? 'Chưa có thành viên thuộc chức danh TeamLead trong tháng này.'
+                        : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}
+                    </div>
+                  )}
                 </div>
               )}
               {rosterLocked && <div className="flex items-center gap-2 border-t border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800"><LockKeyhole className="h-4 w-4" /> Danh sách và quyền hưởng quỹ tháng này đã được chốt.</div>}

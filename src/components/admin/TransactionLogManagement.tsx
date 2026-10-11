@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
-import { calculateContractAllBeneficiaries } from '@/lib/allocationFormulas';
+import { calculateContractAllBeneficiaries, decomposeBeneficiarySource } from '@/lib/allocationFormulas';
 import {
   AlertCircle,
   CalendarDays,
@@ -159,6 +159,7 @@ const FUND_ORDER = [
   'training',
   'incentive',
   'travel',
+  'leader',
   'operations',
   'support_kt',
   'support_cn',
@@ -441,217 +442,22 @@ function beneficiarySourceDisclosure(contract: FundContract, person: FundContrac
     const attributedAmount = person.lines.reduce((sum, line) => sum + line.amount, 0);
     return {
       lines: person.lines,
-      unattributedAmount: Math.max(0, person.amount - attributedAmount),
+      unattributedAmount: Math.max(0, Math.round(person.amount) - attributedAmount),
     };
   }
 
-  const exactLines = exactTruongThiThuyTrangSources(contract, person);
-  if (exactLines) return { lines: exactLines, unattributedAmount: 0 };
-
-  const contractBase = Number(contract.allocated_value || contract.value || 0);
-  const targetAmount = Math.round(Number(person.amount || 0));
-  const lines: BeneficiarySourceLine[] = [];
-  const weekLabel = getContractWeekLabel(contract);
-  const teamName = resolveContractTeam(contract);
-
-  // 1. Phí hoa hồng trực tiếp ghi nhận trên hợp đồng (Sale)
-  const candidateSalesSources = [
-    { name: contract.closer_name, fee: contract.closer_fee, defaultRate: 0.06, source: 'Sale trực tiếp · chốt sale' },
-    { name: contract.referrer_name, fee: contract.referrer_fee, defaultRate: 0.01, source: 'Tri ân kết nối sale trực tiếp · giới thiệu sale' },
-    { name: contract.supporter_name, fee: contract.supporter_fee, defaultRate: 0.005, source: 'Tri ân hỗ trợ sale' },
-  ];
-
-  for (const candidate of candidateSalesSources) {
-    if (candidate.name && areNamesMatching(candidate.name, person.name)) {
-      const explicitFee = Math.round(Number(candidate.fee || 0));
-      const rateFee = Math.round(contractBase * candidate.defaultRate);
-      const remaining = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
-
-      if (explicitFee > 0 && explicitFee <= remaining) {
-        lines.push(recordedContractFeeLine(candidate.source, explicitFee, contractBase));
-      } else if (explicitFee === 0 && rateFee > 0 && rateFee <= remaining) {
-        lines.push(contractRateLine(candidate.source, candidate.defaultRate, contractBase));
-      }
-    }
-  }
-
-  // 2. Quỹ vận hành & hỗ trợ (đối chiếu /admin/quy-van-hanh-ho-tro)
-  const operationsCandidates = [
-    { name: 'Vũ Thị Cúc', source: 'Quỹ vận hành → Phó tổng', rate: 0.012 },
-    { name: 'Nguyễn Thị Hương Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng', rate: 0.005 },
-    { name: 'Nguyễn Thị Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng', rate: 0.005 },
-    { name: 'Đinh Văn Bắc', source: 'Quỹ vận hành → Tổng điều hành', rate: 0.005 },
-    { name: 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN', rate: 0.002 },
-    { name: 'Quỹ hỗ trợ & dự phòng (KT)', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ KT', rate: 0.001 },
-  ];
-
-  for (const candidate of operationsCandidates) {
-    if (areNamesMatching(candidate.name, person.name)) {
-      const remaining = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
-      const amount = Math.round(contractBase * candidate.rate);
-      if (amount > 0 && amount <= remaining) {
-        lines.push(contractRateLine(candidate.source, candidate.rate, contractBase));
-      }
-    }
-  }
-
-  // 3. Quỹ TeamLead (đối chiếu /admin/teamlead) - Quỹ hiệu quả tuần = 2,9% × 70%
-  const weeklyEfficiencyPool = Math.round(contractBase * 0.029 * 0.7);
-  const normTeam = normalizePersonName(teamName);
-
-  let leaderShare = 0;
-  let leaderRole = '';
-
-  if (normTeam.includes('thanh cong')) {
-    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
-      leaderShare = 1.0;
-      leaderRole = 'Giám đốc Đội Thành Công';
-    }
-  } else if (normTeam.includes('happy')) {
-    if (areNamesMatching('Vũ Thị Cúc', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Giám đốc Đội Happy';
-    } else if (areNamesMatching('Nguyễn Đức Vĩnh', person.name)) {
-      leaderShare = 0.3;
-      leaderRole = 'Phó Giám đốc Đội Happy';
-    } else if (areNamesMatching('Hoàng Thị Chích', person.name)) {
-      leaderShare = 0.2;
-      leaderRole = 'Trưởng phòng Đội Happy';
-    }
-  } else if (normTeam.includes('ong vang')) {
-    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Giám đốc Đội Ong Vàng';
-    } else if (areNamesMatching('Phạm Minh Tuấn', person.name)) {
-      leaderShare = 0.3;
-      leaderRole = 'Phó Giám đốc Đội Ong Vàng';
-    } else if (areNamesMatching('Vũ Hùng Vỹ', person.name)) {
-      leaderShare = 0.1;
-      leaderRole = 'Trưởng phòng Đội Ong Vàng';
-    } else if (areNamesMatching('Diệp Thị Huế', person.name)) {
-      leaderShare = 0.1;
-      leaderRole = 'Trưởng phòng Đội Ong Vàng';
-    }
-  } else if (normTeam.includes('kien vang')) {
-    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Giám đốc Đội Kiến Vàng';
-    } else if (areNamesMatching('Cung Thu Hà', person.name)) {
-      leaderShare = 0.25;
-      leaderRole = 'Trưởng phòng Đội Kiến Vàng';
-    } else if (areNamesMatching('Phượng Ngọc Thu', person.name)) {
-      leaderShare = 0.25;
-      leaderRole = 'Trưởng phòng Đội Kiến Vàng';
-    }
-  } else if (normTeam.includes('loc phat')) {
-    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Giám đốc Đội Lộc Phát';
-    } else if (areNamesMatching('Phượng Ngọc Thu', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Trưởng phòng Đội Lộc Phát';
-    }
-  } else if (normTeam.includes('kim cuong')) {
-    if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Giám đốc Đội Biệt đội Kim Cương';
-    } else if (areNamesMatching('Dương Hồng Phương', person.name)) {
-      leaderShare = 0.5;
-      leaderRole = 'Trưởng phòng Đội Biệt đội Kim Cương';
-    }
-  }
-
-  if (leaderShare > 0) {
-    const leaderAmount = Math.round(weeklyEfficiencyPool * leaderShare);
-    const remaining = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
-    if (leaderAmount > 0 && leaderAmount <= remaining) {
-      lines.push(leaderEfficiencyLine(leaderShare, contractBase, weekLabel, leaderRole));
-    }
-  }
-
-  // 4. Đối soát hoa hồng bán hàng tiêu chuẩn nếu hợp đồng ghi nhận trực tiếp theo tỷ lệ
-  let rem = targetAmount - lines.reduce((sum, item) => sum + item.amount, 0);
-  if (rem > 0) {
-    const stdCloser = Math.round(contractBase * 0.06);
-    const stdRef = Math.round(contractBase * 0.01);
-    const stdSupp = Math.round(contractBase * 0.005);
-
-    if (rem >= stdCloser && !lines.some((l) => l.source.includes('chốt sale'))) {
-      lines.push(contractRateLine('Sale trực tiếp · chốt sale', 0.06, contractBase));
-      rem -= stdCloser;
-    }
-    if (rem >= stdRef && !lines.some((l) => l.source.includes('giới thiệu sale'))) {
-      lines.push(contractRateLine('Tri ân kết nối sale trực tiếp · giới thiệu sale', 0.01, contractBase));
-      rem -= stdRef;
-    }
-    if (rem >= stdSupp && !lines.some((l) => l.source.includes('hỗ trợ sale'))) {
-      lines.push(contractRateLine('Tri ân hỗ trợ sale', 0.005, contractBase));
-      rem -= stdSupp;
-    }
-  }
-
-  // 5. Trường hợp bảng kê đối chiếu theo dòng Excel cũ (dòng 32 hoặc có điều chỉnh chênh lệch)
-  if (rem > 0 && (contract.source_excel_row === 32 || contract.customer_name.toUpperCase().includes('THOA'))) {
-    if (areNamesMatching('Vũ Thị Cúc', person.name)) {
-      if (rem >= 913_500) {
-        lines.push({
-          source: 'Quỹ TeamLead · Quỹ hiệu quả tuần (đối chiếu dòng Excel 32)',
-          calculation: `Phân bổ hiệu quả tuần ghi nhận trong dòng Excel: ${formatVND(913_500)}`,
-          amount: 913_500,
-        });
-        rem -= 913_500;
-      }
-      if (rem > 0) {
-        lines.push({
-          source: 'Tri ân kết nối / giới thiệu (đối chiếu dòng Excel 32)',
-          calculation: `Khoản ghi nhận thêm trong dòng Excel: ${formatVND(rem)}`,
-          amount: rem,
-        });
-        rem = 0;
-      }
-    } else if (areNamesMatching('Nguyễn Hùng Vĩ', person.name)) {
-      lines.push({
-        source: 'Khoản điều chỉnh theo bảng kê DNTT dòng 32',
-        calculation: `Chênh lệch hoa hồng ghi nhận theo dòng Excel: ${formatVND(rem)}`,
-        amount: rem,
-      });
-      rem = 0;
-    } else if (areNamesMatching('Nguyễn Thị Hương Thảo', person.name) || areNamesMatching('Nguyễn Thị Thảo', person.name) || areNamesMatching('Đinh Văn Bắc', person.name)) {
-      lines.push({
-        source: 'Định mức phân bổ theo bảng kê DNTT tuần 1 T10',
-        calculation: `Khoản phân bổ bổ sung theo dòng Excel 32: ${formatVND(rem)}`,
-        amount: rem,
-      });
-      rem = 0;
-    } else if (areNamesMatching('Diệp Thị Huế', person.name)) {
-      lines.push({
-        source: `Quỹ TeamLead · Quỹ hiệu quả ${weekLabel} (Trưởng phòng Đội Ong Vàng)`,
-        calculation: `Khoản phân bổ theo dòng Excel 32: ${formatVND(rem)}`,
-        amount: rem,
-      });
-      rem = 0;
-    } else if (areNamesMatching('Phạm Minh Tuấn', person.name)) {
-      lines.push({
-        source: `Quỹ TeamLead · Quỹ hiệu quả ${weekLabel} (Phó Giám đốc Đội Ong Vàng)`,
-        calculation: `Khoản phân bổ theo dòng Excel 32: ${formatVND(rem)}`,
-        amount: rem,
-      });
-      rem = 0;
-    }
-  }
-
-  // 6. Xử lý làm tròn hoặc phần dư nhỏ (<= 5.000 đ) nếu có
-  if (rem > 0 && rem <= 5_000) {
-    lines.push({
-      source: 'Chênh lệch làm tròn theo bảng kê Excel',
-      calculation: `Số dư làm tròn: ${formatVND(rem)}`,
-      amount: rem,
-    });
-    rem = 0;
-  }
-
+  const lines = decomposeBeneficiarySource(
+    contract,
+    person.name,
+    person.amount,
+    contract.source_sheet,
+    contract.source_excel_row
+  );
   const attributedAmount = lines.reduce((sum, line) => sum + line.amount, 0);
-  return { lines, unattributedAmount: Math.max(0, targetAmount - attributedAmount) };
+  return {
+    lines,
+    unattributedAmount: Math.max(0, Math.round(person.amount) - attributedAmount),
+  };
 }
 
 function groupContractsByPerson(contracts: FundContract[], members?: TransactionMember[]) {
@@ -875,12 +681,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
   const selectedRows = selectedPeriod
     ? normalizedWeeklyAllocations
-        .filter((row) => row.period_code === selectedPeriod.period_code && row.fund_key !== 'leader')
+        .filter((row) => row.period_code === selectedPeriod.period_code)
         .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
     : [];
   const monthFundRows = Array.from(
     normalizedWeeklyAllocations
-      .filter((row) => periodCodesForMonth.has(row.period_code) && row.fund_key !== 'leader')
+      .filter((row) => periodCodesForMonth.has(row.period_code))
       .reduce((summaries, row) => {
         const period = periodsForMonth.find((item) => item.period_code === row.period_code);
         const current = summaries.get(row.fund_key);
@@ -1086,6 +892,21 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         || normalizeFund(log.fund_source) === target;
     })
     .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
+
+  const fundRowsToDisplay = isMonthOverview ? monthFundRows : selectedRows;
+  const summaryTotals = useMemo(() => {
+    return fundRowsToDisplay.reduce((acc, row) => {
+      const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
+      const paid = paidAmountForFund(row.fund_key, row.fund_source);
+      const remaining = allocation - paid;
+      return {
+        allocation: acc.allocation + allocation,
+        requested: acc.requested + Number(row.requested_amount || 0),
+        paid: acc.paid + paid,
+        remaining: acc.remaining + remaining,
+      };
+    }, { allocation: 0, requested: 0, paid: 0, remaining: 0 });
+  }, [fundRowsToDisplay, isMonthOverview, selectedBase, logs, selectedMonth, selectedPeriod]);
 
   return (
     <div className="space-y-5 px-[30px] pt-6 pb-8">
@@ -1303,33 +1124,77 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
               </div>
               <div className="flex-1 min-h-0 overflow-x-auto">
-                <table className="min-w-[520px] w-full text-left text-[10px]">
-                  <thead className="border-b border-slate-200 text-slate-500">
-                    <tr><th className="px-2 py-2">Quỹ</th><th className="px-2 py-2 text-right">Phân bổ</th><th className="px-2 py-2 text-right">Đã chi</th><th className="px-2 py-2 text-right">Còn tồn</th></tr>
+                <table className="min-w-[580px] w-full text-left text-[10px]">
+                  <thead className="border-b border-slate-200 bg-slate-50/60 font-semibold text-slate-500">
+                    <tr>
+                      <th className="px-2 py-2">Quỹ</th>
+                      <th className="px-2 py-2 text-center">Tỷ lệ</th>
+                      <th className="px-2 py-2 text-right">Phân bổ (15%)</th>
+                      <th className="px-2 py-2 text-right text-amber-700">Đề nghị chi</th>
+                      <th className="px-2 py-2 text-right text-emerald-700">Đã chi</th>
+                      <th className="px-2 py-2 text-right">Còn tồn</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(isMonthOverview ? monthFundRows : selectedRows).map((row) => {
+                    {fundRowsToDisplay.map((row) => {
                       const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
                       const periodCount = 'periods' in row ? row.periods : 0;
                       const paid = paidAmountForFund(row.fund_key, row.fund_source);
                       const remaining = allocation - paid;
+                      const ratePct = row.allocation_rate > 1 ? row.allocation_rate : row.allocation_rate * 100;
+                      const rateStr = isMonthOverview
+                        ? `${(row.allocation_rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}% (${periodCount} kỳ)`
+                        : `${ratePct.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
                       return (
-                        <tr key={row.fund_key}>
-                          <td className="px-2 py-2 align-top"><div className="flex items-start gap-1.5"><span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><span><span className="block font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</span><span className="mt-0.5 block text-[9px] text-slate-500">{isMonthOverview ? `${periodCount} kỳ tuần` : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}%`} · Đề nghị {formatVND(row.requested_amount)}</span></span></div></td>
+                        <tr key={row.fund_key} className="hover:bg-slate-50/60">
+                          <td className="px-2 py-2 align-middle">
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} />
+                              <span className="font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</span>
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-center text-slate-600 font-medium">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700">
+                              {rateStr}
+                            </span>
+                          </td>
                           <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-slate-800">{formatVND(allocation)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-amber-700 bg-amber-50/30">{formatVND(row.requested_amount)}</td>
                           <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-emerald-700">{formatVND(paid)}</td>
                           <td className={`whitespace-nowrap px-2 py-2 text-right font-bold ${remaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatVND(remaining)}</td>
                         </tr>
                       );
                     })}
-                    {!(isMonthOverview ? monthFundRows : selectedRows).length && <tr><td colSpan={4} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
+                    {!fundRowsToDisplay.length && <tr><td colSpan={6} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
                   </tbody>
+                  {fundRowsToDisplay.length > 0 && (
+                    <tfoot className="border-t-2 border-slate-200 bg-slate-50/80 font-bold text-slate-900">
+                      <tr>
+                        <td className="px-2 py-2">TỔNG CỘNG</td>
+                        <td className="px-2 py-2 text-center text-blue-700">15%</td>
+                        <td className="px-2 py-2 text-right text-blue-700">{formatVND(summaryTotals.allocation)}</td>
+                        <td className="px-2 py-2 text-right text-amber-700">{formatVND(summaryTotals.requested)}</td>
+                        <td className="px-2 py-2 text-right text-emerald-700">{formatVND(summaryTotals.paid)}</td>
+                        <td className={`px-2 py-2 text-right ${summaryTotals.remaining < 0 ? 'text-red-600' : 'text-slate-900'}`}>{formatVND(summaryTotals.remaining)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
-            <div className="mt-3 shrink-0 rounded-xl bg-slate-900 p-3 text-white">
-              <div className="flex justify-between text-xs font-bold"><span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span><span>{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span></div>
-              <div className="mt-1 text-[10px] text-slate-300">{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</div>
+            <div className="mt-3 shrink-0 rounded-xl bg-slate-900 p-3 text-white space-y-1.5">
+              <div className="flex justify-between text-xs font-bold">
+                <span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span>
+                <span className="text-emerald-400">{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-300">
+                <span>Tổng đề nghị chi DNTT:</span>
+                <span className="font-semibold text-amber-300">{formatVND(summaryTotals.requested)}</span>
+              </div>
+              <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
+                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</span>
+                <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthBase : selectedBase)}</strong></span>
+              </div>
             </div>
           </Panel>
         </div>
@@ -1522,10 +1387,17 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                         </td>
                         <td className="px-3 py-2 align-top text-[11px] text-slate-700">
                           {sourceDisclosure.lines.length ? <div className="space-y-1.5">
-                            {sourceDisclosure.lines.map((line, lineIndex) => <div key={`${line.source}-${lineIndex}`} className="leading-relaxed"><span className="font-semibold text-slate-800">{line.source}:</span> <span>{line.calculation}</span></div>)}
+                            {sourceDisclosure.lines.map((line, lineIndex) => (
+                              <div key={`${line.source}-${lineIndex}`} className="leading-relaxed flex flex-wrap items-baseline gap-1.5">
+                                <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-blue-50 text-blue-700 shrink-0">
+                                  {line.source}
+                                </span>
+                                <span className="text-slate-800 font-mono text-[10px]">{line.calculation}</span>
+                              </div>
+                            ))}
                             {sourceDisclosure.unattributedAmount > 0
                               ? <div className="rounded-md bg-amber-50 px-2 py-1 text-[10px] leading-relaxed text-amber-800">Còn {formatVND(sourceDisclosure.unattributedAmount)} chưa được tách nguồn trong dòng Excel.</div>
-                              : <div className="text-[10px] font-semibold text-emerald-700">Đã đối chiếu đủ {formatVND(attributedAmount)}.</div>}
+                              : <div className="text-[10px] font-semibold text-emerald-700">✓ Đã đối chiếu đủ {formatVND(attributedAmount)} (100%).</div>}
                           </div> : <div className="max-w-[390px] leading-relaxed text-slate-500">Bảng kê ghi tổng {formatVND(person.amount)} cho người nhận nhưng không có cấu phần theo nguồn quỹ. Nguồn đối chiếu: {viewContract.source_sheet || 'bảng kê Excel'}{viewContract.source_excel_row ? ` · dòng ${viewContract.source_excel_row}` : ''}.</div>}
                         </td>
                         <td className="px-3 py-2 text-right font-bold tabular-nums">{formatVND(person.amount)}</td>

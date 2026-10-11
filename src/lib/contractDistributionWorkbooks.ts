@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
+import { decomposeBeneficiarySource, DetailedBeneficiaryLine } from './allocationFormulas';
 
 export interface WorkbookBeneficiary {
   name: string;
   amount: number;
   bank_account?: string | null;
   bank_name?: string | null;
+  lines?: DetailedBeneficiaryLine[];
 }
 
 export interface WorkbookContractDistribution {
@@ -423,7 +425,29 @@ function readMatrixSource(
         }
       }
 
-      const distributedCommission = sourceBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
+      const enrichedBeneficiaries = sourceBeneficiaries.map((b) => ({
+        ...b,
+        lines: decomposeBeneficiarySource(
+          {
+            customer_name: matched?.customer_name || customerName,
+            value: actualValue,
+            allocated_value: actualValue,
+            closer_name: matched?.closer_name,
+            closer_fee: matched?.closer_fee,
+            referrer_name: matched?.referrer_name,
+            referrer_fee: matched?.referrer_fee,
+            supporter_name: matched?.supporter_name,
+            supporter_fee: matched?.supporter_fee,
+            team_name: matched?.team_name,
+          },
+          b.name,
+          b.amount,
+          source.sheetName,
+          r + 1
+        ),
+      }));
+
+      const distributedCommission = enrichedBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
       const remainingFund = unallocatedPool - distributedCommission;
       const identity = matched?.id ?? 910_000 + source.weekNumber * 10_000 + r;
 
@@ -447,7 +471,7 @@ function readMatrixSource(
         source_period_code: source.periodCode,
         source_excel_row: r + 1,
         source_sheet: source.sheetName,
-        source_beneficiaries: sourceBeneficiaries,
+        source_beneficiaries: enrichedBeneficiaries,
         unallocated_pool: unallocatedPool,
         distributed_commission: distributedCommission,
         remaining_fund: remainingFund,
@@ -473,7 +497,28 @@ function readMatrixSource(
       if (dbContract.supporter_name && dbContract.supporter_fee > 0) {
         sourceBeneficiaries.push({ name: dbContract.supporter_name, amount: Math.round(dbContract.supporter_fee) });
       }
-      const distributedCommission = sourceBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
+      const enrichedBeneficiaries = sourceBeneficiaries.map((b) => ({
+        ...b,
+        lines: decomposeBeneficiarySource(
+          {
+            customer_name: dbContract.customer_name,
+            value: actualValue,
+            allocated_value: actualValue,
+            closer_name: dbContract.closer_name,
+            closer_fee: dbContract.closer_fee,
+            referrer_name: dbContract.referrer_name,
+            referrer_fee: dbContract.referrer_fee,
+            supporter_name: dbContract.supporter_name,
+            supporter_fee: dbContract.supporter_fee,
+            team_name: dbContract.team_name,
+          },
+          b.name,
+          b.amount,
+          source.sheetName,
+          999
+        ),
+      }));
+      const distributedCommission = enrichedBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
       contracts.push({
         id: dbContract.id,
         contract_code: dbContract.contract_code ?? null,
@@ -494,7 +539,7 @@ function readMatrixSource(
         source_period_code: source.periodCode,
         source_excel_row: 999,
         source_sheet: source.sheetName,
-        source_beneficiaries: sourceBeneficiaries,
+        source_beneficiaries: enrichedBeneficiaries,
         unallocated_pool: unallocatedPool,
         distributed_commission: distributedCommission,
         remaining_fund: unallocatedPool - distributedCommission,
@@ -565,6 +610,27 @@ function readMatrixSource(
     if (matched) usedContractIds.add(matched.id);
 
     const identity = matched?.id ?? 910_000 + source.weekNumber * 10_000 + col.colIndex;
+    const enrichedBeneficiaries = sourceBeneficiaries.map((b) => ({
+      ...b,
+      lines: decomposeBeneficiarySource(
+        {
+          customer_name: matched?.customer_name || col.customerName,
+          value: col.contractValue,
+          allocated_value: col.contractValue,
+          closer_name: matched?.closer_name,
+          closer_fee: matched?.closer_fee,
+          referrer_name: matched?.referrer_name,
+          referrer_fee: matched?.referrer_fee,
+          supporter_name: matched?.supporter_name,
+          supporter_fee: matched?.supporter_fee,
+          team_name: matched?.team_name,
+        },
+        b.name,
+        b.amount,
+        source.sheetName,
+        headerRowIdx + 1
+      ),
+    }));
     contracts.push({
       id: identity,
       contract_code: matched?.contract_code ?? null,
@@ -586,7 +652,7 @@ function readMatrixSource(
       source_period_code: source.periodCode,
       source_excel_row: headerRowIdx + 1,
       source_sheet: source.sheetName,
-      source_beneficiaries: sourceBeneficiaries,
+      source_beneficiaries: enrichedBeneficiaries,
       unallocated_pool: unallocatedPool,
       distributed_commission: distributedCommission,
       remaining_fund: remainingFund,
@@ -612,7 +678,28 @@ function readMatrixSource(
     if (dbContract.supporter_name && dbContract.supporter_fee > 0) {
       sourceBeneficiaries.push({ name: dbContract.supporter_name, amount: Math.round(dbContract.supporter_fee) });
     }
-    const distributedCommission = sourceBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
+    const enrichedBeneficiaries = sourceBeneficiaries.map((b) => ({
+      ...b,
+      lines: decomposeBeneficiarySource(
+        {
+          customer_name: dbContract.customer_name,
+          value: actualValue,
+          allocated_value: actualValue,
+          closer_name: dbContract.closer_name,
+          closer_fee: dbContract.closer_fee,
+          referrer_name: dbContract.referrer_name,
+          referrer_fee: dbContract.referrer_fee,
+          supporter_name: dbContract.supporter_name,
+          supporter_fee: dbContract.supporter_fee,
+          team_name: dbContract.team_name,
+        },
+        b.name,
+        b.amount,
+        source.sheetName,
+        999
+      ),
+    }));
+    const distributedCommission = enrichedBeneficiaries.reduce((sum, b) => sum + b.amount, 0);
     const dStr = (dbContract.contract_date || '').slice(0, 10);
     let octWeek = source.periodCode;
     if (dStr >= '2026-10-10' && dStr <= '2026-10-16') octWeek = '2026-10-W2';
@@ -641,7 +728,7 @@ function readMatrixSource(
       source_period_code: octWeek,
       source_excel_row: 999,
       source_sheet: source.sheetName,
-      source_beneficiaries: sourceBeneficiaries,
+      source_beneficiaries: enrichedBeneficiaries,
       unallocated_pool: unallocatedPool,
       distributed_commission: distributedCommission,
       remaining_fund: unallocatedPool - distributedCommission,
@@ -666,6 +753,27 @@ export function loadSeptemberContractDistributions(
       for (const row of result.contracts) {
         const matched = findDatabaseContract(row, databaseContracts, usedContractIds);
         const identity = matched?.id ?? 900_000 + source.weekNumber * 10_000 + row.source_excel_row;
+        const enrichedBeneficiaries = row.source_beneficiaries.map((b) => ({
+          ...b,
+          lines: decomposeBeneficiarySource(
+            {
+              customer_name: matched?.customer_name || row.customer_name,
+              value: row.value,
+              allocated_value: row.allocated_value,
+              closer_name: matched?.closer_name,
+              closer_fee: matched?.closer_fee,
+              referrer_name: matched?.referrer_name,
+              referrer_fee: matched?.referrer_fee,
+              supporter_name: matched?.supporter_name,
+              supporter_fee: matched?.supporter_fee,
+              team_name: matched?.team_name,
+            },
+            b.name,
+            b.amount,
+            source.sheetLabel,
+            row.source_excel_row
+          ),
+        }));
         contracts.push({
           ...row,
           id: identity,
@@ -681,6 +789,7 @@ export function loadSeptemberContractDistributions(
           supporter_phone: matched?.supporter_phone ?? '',
           supporter_fee: matched?.supporter_fee ?? 0,
           status: matched?.status || 'Theo bảng Excel',
+          source_beneficiaries: enrichedBeneficiaries,
         });
       }
     } catch (error) {
