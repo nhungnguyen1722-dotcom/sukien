@@ -1,46 +1,182 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import path from 'node:path';
 import fs from 'node:fs';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import pool from '@/lib/db';
 import { loadSeptemberContractDistributions } from '@/lib/contractDistributionWorkbooks';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import {
+  createStyledWeeklySheet,
+  createStyledMonthlySheet,
+  WeeklyReportData,
+  MonthlyReportData,
+  WeeklyFundRow,
+  WeeklyContractMatrixRow,
+  MonthlyRecipientRow,
+  STANDARD_RATES,
+  formatRateText,
+} from '@/lib/excelExportStyles';
 
 export const dynamic = 'force-dynamic';
 
-const STANDARD_RATES = [
-  { key: 'direct_sale', name: 'Sale trực tiếp - Pro sale (Nguồn khách) (6%)', rate: 0.06 },
-  { key: 'tribute_connection', name: 'Tri ân kết nối sale trực tiếp (1%)', rate: 0.01 },
-  { key: 'tribute_support', name: 'Tri ân hỗ trợ sale (0,5%)', rate: 0.005 },
-  { key: 'event_close', name: 'Quỹ Sự kiện & Chốt hợp đồng (0,5%)', rate: 0.005 },
-  { key: 'customer_care', name: 'Quỹ Chăm sóc khách hàng (0,2%)', rate: 0.002 },
-  { key: 'training', name: 'Quỹ Đào tạo Chuyên môn & Kỹ năng (0,3%)', rate: 0.003 },
-  { key: 'incentive', name: 'Quỹ Thi đua & Chương trình thúc đẩy (0,8%)', rate: 0.008 },
-  { key: 'travel', name: 'Chi phí Công tác phí (0,3%)', rate: 0.003 },
-  { key: 'leader_70', name: 'Leader team - giám đốc Kd (2,9%)-70%', rate: 0.0203 },
-  { key: 'leader_30', name: 'Leader team - giám đốc Kd (2,9%)-30%', rate: 0.0087 },
-  { key: 'operations', name: 'Quỹ Vận hành (2,2%)', rate: 0.022 },
-  { key: 'support_kt', name: 'Bộ phận hỗ trợ KT (0,1%)', rate: 0.001 },
-  { key: 'support_cn', name: 'Bộ phận hỗ trợ CN (0,2)', rate: 0.002 },
-];
-
-function formatVND(value: number): string {
-  return Math.round(value).toLocaleString('vi-VN') + ' đ';
-}
-
-function tryReadExactSheet(fileName: string, sheetName: string): XLSX.WorkSheet | null {
+function parseWeeklySheetFromFile(filePath: string, sheetName: string, weekLabel: string): WeeklyReportData | null {
   try {
-    const filePath = path.join(process.cwd(), 'imagedata', fileName);
     if (!fs.existsSync(filePath)) return null;
     const fileBuffer = fs.readFileSync(filePath);
     const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: false });
-    if (wb.Sheets[sheetName]) {
-      return wb.Sheets[sheetName];
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) return null;
+
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+
+    // 1. Tìm dòng Doanh số HĐ (100%)
+    const salesRowIdx = rows.findIndex((r) => r.some((c) => String(c).includes('Doanh số HĐ')));
+    if (salesRowIdx < 0) return null;
+    const salesRow = rows[salesRowIdx];
+    const salesBase = Number(salesRow.find((c) => typeof c === 'number' && c > 1000000)) || 0;
+
+    // 2. Tìm dòng Tổng qũy của bảng 1
+    const totalFundIdx = rows.findIndex((r, i) => i > salesRowIdx && r.some((c) => String(c).trim().toLowerCase().startsWith('tổng q')));
+    if (totalFundIdx < 0) return null;
+    const totalFundRow = rows[totalFundIdx];
+
+    const funds: WeeklyFundRow[] = [];
+    for (let r = salesRowIdx + 1; r < totalFundIdx; r++) {
+      const row = rows[r];
+      if (!row[0]) continue;
+      const rateVal = typeof row[4] === 'number' ? row[4] : 0;
+      funds.push({
+        name: String(row[0]).trim(),
+        rate: rateVal,
+        rateText: formatRateText(rateVal),
+        allocated: Number(row[5]) || 0,
+        spent: Number(row[6]) || 0,
+        remaining: Number(row[7]) || 0,
+      });
     }
+
+    // 3. Tìm bảng ma trận (dòng chứa "Tổng quỹ chưa chia")
+    const matrixHeaderIdx = rows.findIndex((r) => r.some((c) => String(c).includes('Tổng quỹ chưa chia')));
+    if (matrixHeaderIdx < 0) return null;
+    const headerRow = rows[matrixHeaderIdx];
+    const poolIdx = headerRow.findIndex((c) => String(c).includes('Tổng quỹ chưa chia'));
+
+    const beneficiaryColumns = headerRow.slice(2, poolIdx).map((c) => {
+      const parts = String(c).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      return {
+        name: parts[0] || '',
+        bankAccount: (parts[1] || '').replace(/^STK:\s*/i, '').trim(),
+        bankName: parts[2] || '',
+      };
+    });
+
+    const matrixTotalIdx = rows.findIndex((r, i) => i > matrixHeaderIdx && String(r[0]).trim() === 'Tổng');
+    const contractRows: WeeklyContractMatrixRow[] = [];
+    const limit = matrixTotalIdx > 0 ? matrixTotalIdx : rows.length;
+    for (let r = matrixHeaderIdx + 1; r < limit; r++) {
+      const row = rows[r];
+      if (!row[0] && !row[1]) continue;
+      contractRows.push({
+        stt: row[0] as number | string,
+        contractDesc: String(row[1] || '').trim(),
+        beneficiaryAmounts: row.slice(2, poolIdx).map((v) => (typeof v === 'number' ? v : null)),
+        unallocatedPool: Number(row[poolIdx]) || 0,
+        distributedCommission: Number(row[poolIdx + 1]) || 0,
+        remainingFund: Number(row[poolIdx + 2]) || 0,
+      });
+    }
+
+    const matrixTotalRow = matrixTotalIdx > 0 ? rows[matrixTotalIdx] : [];
+    const beneficiaryTotals = matrixTotalRow.slice(2, poolIdx).map((v) => Number(v) || 0);
+
+    return {
+      periodCode: '',
+      weekLabel,
+      salesBase,
+      funds,
+      totalAllocated: Number(totalFundRow[5]) || 0,
+      totalSpent: Number(totalFundRow[6]) || 0,
+      totalRemaining: Number(totalFundRow[7]) || 0,
+      beneficiaryColumns,
+      contractRows,
+      beneficiaryTotals,
+      matrixTotalPool: Number(matrixTotalRow[poolIdx]) || 0,
+      matrixTotalDistributed: Number(matrixTotalRow[poolIdx + 1]) || 0,
+      matrixTotalRemaining: Number(matrixTotalRow[poolIdx + 2]) || 0,
+    };
   } catch (err) {
-    console.warn(`Could not read ${sheetName} from ${fileName}:`, err);
+    console.warn(`Error parsing weekly file ${filePath}:`, err);
+    return null;
   }
-  return null;
+}
+
+function parseMonthlySheetFromFile(filePath: string, sheetName: string, month: string): MonthlyReportData | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const fileBuffer = fs.readFileSync(filePath);
+    const wb = XLSX.read(fileBuffer, { type: 'buffer', cellDates: false });
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) return null;
+
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+
+    const salesRowIdx = rows.findIndex((r) => r.some((c) => String(c).includes('Doanh số HĐ')));
+    if (salesRowIdx < 0) return null;
+    const salesRow = rows[salesRowIdx];
+    const salesBase = Number(salesRow.find((c) => typeof c === 'number' && c > 1000000)) || 0;
+
+    const totalFundIdx = rows.findIndex((r, i) => i > salesRowIdx && r.some((c) => String(c).trim().toLowerCase().startsWith('tổng q')));
+    if (totalFundIdx < 0) return null;
+    const totalFundRow = rows[totalFundIdx];
+
+    const funds: WeeklyFundRow[] = [];
+    for (let r = salesRowIdx + 1; r < totalFundIdx; r++) {
+      const row = rows[r];
+      if (!row[0]) continue;
+      const rateVal = typeof row[4] === 'number' ? row[4] : 0;
+      funds.push({
+        name: String(row[0]).trim(),
+        rate: rateVal,
+        rateText: formatRateText(rateVal),
+        allocated: Number(row[5]) || 0,
+        spent: Number(row[6]) || 0,
+        remaining: Number(row[7]) || 0,
+      });
+    }
+
+    const recHeaderIdx = rows.findIndex((r) => r.some((c) => String(c).includes('Mã Người nhận')));
+    const recipients: MonthlyRecipientRow[] = [];
+    if (recHeaderIdx >= 0) {
+      for (let r = recHeaderIdx + 1; r < rows.length; r++) {
+        const row = rows[r];
+        if (row[0] && typeof row[0] === 'number' && (row[2] || row[7])) {
+          recipients.push({
+            stt: row[0],
+            code: String(row[1] || ''),
+            info: String(row[2] || '').trim(),
+            details: String(row[5] || '').trim(),
+            totalAmount: Number(row[7]) || 0,
+          });
+        }
+      }
+    }
+
+    return {
+      month,
+      startDate: '01/09/2026',
+      endDate: '02/10/2026',
+      salesBase,
+      funds,
+      totalAllocated: Number(totalFundRow[5]) || 0,
+      totalSpent: Number(totalFundRow[6]) || 0,
+      totalRemaining: Number(totalFundRow[7]) || 0,
+      recipients,
+    };
+  } catch (err) {
+    console.warn(`Error parsing monthly file ${filePath}:`, err);
+    return null;
+  }
 }
 
 async function getContractsAndMembers() {
@@ -86,30 +222,28 @@ export async function GET(request: NextRequest) {
 
     const isMonthOverview = !periodCode || periodCode === 'MONTH_OVERVIEW' || periodCode === 'ALL' || periodCode.endsWith('-MONTH');
 
-    const workbook = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
     let exportFileName = '';
 
     if (isMonthOverview) {
-      // BÁO CÁO THÁNG (Cả tháng)
+      // ======================================================================
+      // BÁO CÁO THÁNG (Cả tháng) - Chuẩn màu sắc tab "Chốt quỹ t9 (1.9-2.10)"
+      // ======================================================================
       exportFileName = `Bao-cao-chot-quy-thang-${month}.xlsx`;
 
-      // Ưu tiên trích xuất từ file nguồn mẫu nếu là tháng 9
-      let sheet: XLSX.WorkSheet | null = null;
+      let monthlyData: MonthlyReportData | null = null;
       if (month === '2026-09') {
-        sheet = tryReadExactSheet('DN_thanh_toan_HH_T9_T10.xlsx', 'Chốt quỹ t9 (1.9-2.10)')
-          || tryReadExactSheet('Tong-hop-DNTT-T9-T10.xlsx', 'Chốt quỹ t9 (1.9-2.10)');
+        const monthFilePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_T9_T10.xlsx');
+        monthlyData = parseMonthlySheetFromFile(monthFilePath, 'Chốt quỹ t9 (1.9-2.10)', month);
       }
 
-      if (sheet) {
-        XLSX.utils.book_append_sheet(workbook, sheet, 'Chốt quỹ t9 (1.9-2.10)');
-      } else {
-        // Tạo bảng tổng hợp tháng động theo đúng cấu trúc Chốt quỹ tháng
+      if (!monthlyData) {
+        // Tạo dữ liệu tháng động từ database
         const { databaseContracts, memberNames } = await getContractsAndMembers();
         const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
         const monthContracts = contracts.filter((c) => c.contract_date.startsWith(month));
         const totalMonthRevenue = monthContracts.reduce((sum, c) => sum + (c.allocated_value || c.value || 0), 0);
 
-        // Lấy dữ liệu đề nghị chi theo quỹ từ database
         const fundAllocationsRes = await pool.query(
           `SELECT fund_key, SUM(requested_amount) as total_requested 
            FROM fund_weekly_allocations 
@@ -122,17 +256,9 @@ export async function GET(request: NextRequest) {
           requestedByFund[row.fund_key] = Number(row.total_requested || 0);
         }
 
-        const aoa: any[][] = [
-          ['CÔNG TY CỔ PHẦN TẬP ĐOÀN NGHIÊNG COMPLEX\nML 6-24 Vinhomes Greenbay, Đường Lương Thế Vinh, Đại Mỗ, Hà Nội', null, null, null, null, null, null, null, null, 'Từ ngày', `${month}-01`],
-          [null, null, null, null, null, null, null, null, null, 'Tới ngày', `${month}-31`],
-          [],
-          [`Quyết toán Quỹ tháng ${parseInt(month.slice(5), 10)}`],
-          [],
-          ['Doanh số HĐ (100%)', null, null, null, null, totalMonthRevenue, 'Tổng chi quỹ', 'Còn lại quỹ'],
-        ];
-
         let sumAllocated = 0;
         let sumSpent = 0;
+        const funds: WeeklyFundRow[] = [];
 
         for (const item of STANDARD_RATES) {
           const allocated = Math.round(totalMonthRevenue * item.rate);
@@ -148,32 +274,14 @@ export async function GET(request: NextRequest) {
           sumAllocated += allocated;
           sumSpent += spent;
 
-          aoa.push([
-            item.name,
-            null,
-            null,
-            null,
-            item.rate,
+          funds.push({
+            name: item.name,
+            rate: item.rate,
             allocated,
             spent,
             remaining,
-          ]);
+          });
         }
-
-        aoa.push([
-          'Tổng qũy',
-          null,
-          null,
-          null,
-          null,
-          sumAllocated,
-          sumSpent,
-          sumAllocated - sumSpent,
-        ]);
-        aoa.push([]);
-
-        // Bảng tổng hợp thu chi theo từng người nhận
-        aoa.push(['STT', 'Mã Người nhận', 'Thông tin người nhận', null, null, 'Chi tiết nội dung nhận', null, 'Tổng tiền']);
 
         const personMap = new Map<string, {
           name: string;
@@ -201,67 +309,76 @@ export async function GET(request: NextRequest) {
             p.totalAmount += b.amount;
             if (b.lines && b.lines.length) {
               for (const l of b.lines) {
-                p.lines.push(`- ${l.source}: ${formatVND(l.amount)}`);
+                p.lines.push(`- ${l.source}: ${l.calculation}`);
               }
             } else {
-              p.lines.push(`- Hoa hồng phân bổ: ${formatVND(b.amount)}`);
+              p.lines.push(`- Hoa hồng phân bổ: ${b.amount.toLocaleString('vi-VN')} đ`);
             }
           }
         }
 
+        const recipients: MonthlyRecipientRow[] = [];
         let stt = 1;
         for (const [, p] of personMap) {
           const info = `${p.name}\nSTK: ${p.bankAccount || '—'}\n${p.bankName || '—'}`;
           const details = Array.from(new Set(p.lines)).join('\n');
-          aoa.push([stt++, p.phone || '—', info, null, null, details, null, p.totalAmount]);
+          recipients.push({
+            stt: stt++,
+            code: p.phone || '—',
+            info,
+            details,
+            totalAmount: p.totalAmount,
+          });
         }
 
-        const dynamicSheet = XLSX.utils.aoa_to_sheet(aoa);
-        dynamicSheet['!cols'] = [
-          { wch: 8 },
-          { wch: 16 },
-          { wch: 32 },
-          { wch: 8 },
-          { wch: 10 },
-          { wch: 45 },
-          { wch: 16 },
-          { wch: 16 },
-        ];
-        XLSX.utils.book_append_sheet(workbook, dynamicSheet, `Chốt quỹ tháng ${parseInt(month.slice(5), 10)}`);
+        monthlyData = {
+          month,
+          startDate: `01/${month.slice(5)}/${month.slice(0, 4)}`,
+          endDate: `31/${month.slice(5)}/${month.slice(0, 4)}`,
+          salesBase: totalMonthRevenue,
+          funds,
+          totalAllocated: sumAllocated,
+          totalSpent: sumSpent,
+          totalRemaining: sumAllocated - sumSpent,
+          recipients,
+        };
       }
+
+      createStyledMonthlySheet(workbook, monthlyData, `Chốt quỹ tháng ${parseInt(month.slice(5), 10)}`);
     } else {
-      // BÁO CÁO TUẦN (Tuần cụ thể)
+      // ======================================================================
+      // BÁO CÁO TUẦN (Tuần cụ thể) - Chuẩn màu sắc tab "DNTT HH tuần 4 T9"
+      // ======================================================================
       exportFileName = `DNTT-hoa-hong-${periodCode}.xlsx`;
 
-      let sheet: XLSX.WorkSheet | null = null;
+      let weeklyData: WeeklyReportData | null = null;
+      let sheetTitle = 'DNTT tuần';
+
       if (periodCode === '2026-09-W4') {
-        sheet = tryReadExactSheet('DN_thanh_toan_HH_Tuan4_T9.xlsx', 'DNTT HH tuần 4 T9')
-          || tryReadExactSheet('Tong-hop-DNTT-T9-T10.xlsx', 'DNTT HH tuần 4 T9');
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan4_T9.xlsx');
+        sheetTitle = 'DNTT HH tuần 4 T9';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 4 tháng 9');
       } else if (periodCode === '2026-09-W3') {
-        sheet = tryReadExactSheet('DN_thanh_toan_HH_Tuan3_T9.xlsx', 'DN thanh toán HH tuần 3 T9')
-          || tryReadExactSheet('Tong-hop-DNTT-T9-T10.xlsx', 'DN thanh toán HH tuần 3 T9');
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan3_T9.xlsx');
+        sheetTitle = 'DN thanh toán HH tuần 3 T9';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 3 tháng 9');
       } else if (periodCode === '2026-09-W5') {
-        sheet = tryReadExactSheet('DN_thanh_toan_HH_Tuan5_T9.xlsx', 'DNTT tuần 5 T9')
-          || tryReadExactSheet('Tong-hop-DNTT-T9-T10.xlsx', 'DNTT tuần 5 T9');
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan5_T9.xlsx');
+        sheetTitle = 'DNTT tuần 5 T9';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 5 tháng 9');
       } else if (periodCode === '2026-10-W1') {
-        sheet = tryReadExactSheet('DN_thanh_toan_HH_Tuan1_T10.xlsx', 'DNTT HH tuần 1 T10')
-          || tryReadExactSheet('Tong-hop-DNTT-T9-T10.xlsx', 'DNTT HH tuần 1 T10');
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan1_T10.xlsx');
+        sheetTitle = 'DNTT HH tuần 1 T10';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 1 tháng 10');
       }
 
-      if (sheet) {
-        const sheetName = periodCode === '2026-09-W4' ? 'DNTT HH tuần 4 T9'
-          : periodCode === '2026-09-W3' ? 'DN thanh toán HH tuần 3 T9'
-          : periodCode === '2026-09-W5' ? 'DNTT tuần 5 T9'
-          : 'DNTT tuần';
-        XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
-      } else {
-        // Tạo bảng tuần động theo đúng cấu trúc DNTT HH tuần
+      if (!weeklyData) {
+        // Tạo dữ liệu tuần động từ database
         const { databaseContracts, memberNames } = await getContractsAndMembers();
         const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
         const weekContracts = contracts.filter((c) => c.source_period_code === periodCode);
         const totalWeekRevenue = weekContracts.reduce((sum, c) => sum + (c.allocated_value || c.value || 0), 0);
 
-        // Lấy đề nghị chi tuần từ database
         const weeklyFundRes = await pool.query(
           `SELECT fund_key, requested_amount 
            FROM fund_weekly_allocations 
@@ -273,19 +390,10 @@ export async function GET(request: NextRequest) {
           requestedByFund[row.fund_key] = Number(row.requested_amount || 0);
         }
 
-        const aoa: any[][] = [
-          ['CÔNG TY CỔ PHẦN TẬP ĐOÀN NGHIÊNG COMPLEX\nML 6-24 Vinhomes Greenbay, Đường Lương Thế Vinh, Đại Mỗ, Hà Nội'],
-          [],
-          ['ĐỀ NGHỊ THANH TOÁN'],
-          [],
-          [`Phân bổ hoa hồng và thù lao ${periodCode}`],
-          ['Doanh số HĐ (100%)', null, null, null, 'Tỷ lệ', totalWeekRevenue, 'Tổng chi quỹ', 'Còn lại quỹ'],
-        ];
-
         let sumAllocated = 0;
         let sumSpent = 0;
+        const funds: WeeklyFundRow[] = [];
         const WEEK_RATES = STANDARD_RATES.filter((item) => item.key !== 'leader_70' && item.key !== 'leader_30');
-        // Thêm leader (2.9%)
         WEEK_RATES.push({ key: 'leader', name: 'Leader team - giám đốc Kd (2,9%)', rate: 0.029 });
 
         for (const item of WEEK_RATES) {
@@ -295,36 +403,16 @@ export async function GET(request: NextRequest) {
           sumAllocated += allocated;
           sumSpent += spent;
 
-          aoa.push([
-            item.name,
-            null,
-            null,
-            null,
-            item.rate,
+          funds.push({
+            name: item.name,
+            rate: item.rate,
             allocated,
             spent,
             remaining,
-          ]);
+          });
         }
 
-        aoa.push([
-          'Tổng qũy',
-          null,
-          null,
-          null,
-          null,
-          sumAllocated,
-          sumSpent,
-          sumAllocated - sumSpent,
-        ]);
-        aoa.push([]);
-        aoa.push(['                   NGƯỜI LẬP                                                PHÓ CHỦ TỊCH                                               TỔNG GIÁM ĐỐC ']);
-        aoa.push([]);
-        aoa.push(['                   Vũ Thị Cúc                                             Nguyễn Thị Thương Hiếu                                  Nguyễn Thị Hương Thảo']);
-        aoa.push([]);
-
-        // Bảng ma trận hợp đồng & người nhận
-        const recipientList: { name: string; bankAccount: string; bankName: string }[] = [];
+        const beneficiaryColumns: { name: string; bankAccount?: string; bankName?: string }[] = [];
         const seenRecipients = new Set<string>();
 
         for (const contract of weekContracts) {
@@ -332,7 +420,7 @@ export async function GET(request: NextRequest) {
             const key = b.name.trim();
             if (!seenRecipients.has(key)) {
               seenRecipients.add(key);
-              recipientList.push({
+              beneficiaryColumns.push({
                 name: b.name,
                 bankAccount: b.bank_account || '',
                 bankName: b.bank_name || '',
@@ -341,62 +429,63 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const matrixHeader: any[] = ['STT', 'Hợp đồng'];
-        for (const r of recipientList) {
-          matrixHeader.push(`${r.name}\nSTK: ${r.bankAccount || '—'}\n${r.bankName || '—'}`);
-        }
-        matrixHeader.push('Tổng quỹ chưa chia (15%)', 'Tổng hoa hồng chia', 'Tổng quỹ còn lại');
-        aoa.push(matrixHeader);
-
-        const colTotals = new Array(recipientList.length).fill(0);
-        let totalPool15 = 0;
-        let totalDistributed = 0;
-        let totalRemaining = 0;
+        const contractRows: WeeklyContractMatrixRow[] = [];
+        const beneficiaryTotals = new Array(beneficiaryColumns.length).fill(0);
+        let matrixTotalPool = 0;
+        let matrixTotalDistributed = 0;
+        let matrixTotalRemaining = 0;
 
         weekContracts.forEach((contract, idx) => {
-          const contractDesc = `Ngày ${contract.contract_date}\nKH: ${contract.customer_name}\nGiá trị: ${formatVND(contract.allocated_value || contract.value)}`;
-          const row: any[] = [idx + 1, contractDesc];
-
+          const contractDesc = `Ngày ${contract.contract_date}\nKH: ${contract.customer_name}\nGiá trị: ${Number(contract.allocated_value || contract.value).toLocaleString('vi-VN')} đ`;
           const benMap = new Map((contract.source_beneficiaries || []).map((b) => [b.name.trim(), b.amount]));
           let contractTotalShared = 0;
 
-          recipientList.forEach((r, rIdx) => {
+          const beneficiaryAmounts = beneficiaryColumns.map((r, rIdx) => {
             const amt = benMap.get(r.name.trim()) || 0;
-            row.push(amt > 0 ? amt : null);
-            colTotals[rIdx] += amt;
+            beneficiaryTotals[rIdx] += amt;
             contractTotalShared += amt;
+            return amt > 0 ? amt : null;
           });
 
           const pool15 = Math.round((contract.allocated_value || contract.value) * 0.15);
           const rem = pool15 - contractTotalShared;
 
-          totalPool15 += pool15;
-          totalDistributed += contractTotalShared;
-          totalRemaining += rem;
+          matrixTotalPool += pool15;
+          matrixTotalDistributed += contractTotalShared;
+          matrixTotalRemaining += rem;
 
-          row.push(pool15, contractTotalShared, rem);
-          aoa.push(row);
+          contractRows.push({
+            stt: idx + 1,
+            contractDesc,
+            beneficiaryAmounts,
+            unallocatedPool: pool15,
+            distributedCommission: contractTotalShared,
+            remainingFund: rem,
+          });
         });
 
-        // Dòng tổng cộng ma trận
-        const summaryRow: any[] = ['Tổng', totalWeekRevenue];
-        for (const cTot of colTotals) {
-          summaryRow.push(cTot);
-        }
-        summaryRow.push(totalPool15, totalDistributed, totalRemaining);
-        aoa.push(summaryRow);
-
-        aoa.push([]);
-        aoa.push(['NGƯỜI LẬP', null, null, null, null, null, null, null, 'PHÓ CHỦ TỊCH', null, null, null, null, null, null, 'TỔNG GIÁM ĐỐC']);
-        aoa.push(['Vũ Thị Cúc', null, null, null, null, null, null, null, 'Nguyễn Thị Thương Hiếu', null, null, null, null, null, null, 'Nguyễn Thị Hương Thảo']);
-
-        const dynamicSheet = XLSX.utils.aoa_to_sheet(aoa);
-        XLSX.utils.book_append_sheet(workbook, dynamicSheet, `DNTT ${periodCode}`);
+        weeklyData = {
+          periodCode,
+          weekLabel: periodCode,
+          salesBase: totalWeekRevenue,
+          funds,
+          totalAllocated: sumAllocated,
+          totalSpent: sumSpent,
+          totalRemaining: sumAllocated - sumSpent,
+          beneficiaryColumns,
+          contractRows,
+          beneficiaryTotals,
+          matrixTotalPool,
+          matrixTotalDistributed,
+          matrixTotalRemaining,
+        };
       }
+
+      createStyledWeeklySheet(workbook, weeklyData, sheetTitle);
     }
 
-    const bytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-    const body = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const body = new Uint8Array(buffer);
 
     return new Response(body as unknown as BodyInit, {
       status: 200,
@@ -408,7 +497,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error generating transaction log export:', error);
-    return NextResponse.json(
+    return Response.json(
       { success: false, error: error.message || 'Không thể xuất báo cáo Excel.' },
       { status: 500 }
     );
