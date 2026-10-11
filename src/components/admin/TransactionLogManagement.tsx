@@ -18,6 +18,7 @@ import {
   Receipt,
   Search,
   Trophy,
+  Users,
   Wallet,
   X,
   XCircle,
@@ -758,6 +759,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     remaining: totals.remaining + contractRemainingFund(contract, initialMembers),
   }), { pool: 0, commission: 0, remaining: 0 });
   const peopleRows = groupContractsByPerson(displayedContracts, initialMembers);
+  const monthPeopleRows = isMonthOverview ? peopleRows : groupContractsByPerson(monthContracts, initialMembers);
   const displayedWorkbookWarnings = isMonthOverview
     ? Object.entries(workbookWarnings)
         .filter(([periodCode]) => periodCode.startsWith(selectedMonth))
@@ -1051,7 +1053,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         <StatCard icon={<Wallet className="h-5 w-5" />} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthBase : selectedBase)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
         <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
         <StatCard icon={<Receipt className="h-5 w-5" />} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
-        <StatCard icon={<CalendarDays className="h-5 w-5" />} label="Quỹ tích lũy tháng" value={formatVND(monthPool)} note={`Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}`} tint="emerald" />
+        <StatCard icon={<Users className="h-5 w-5" />} label={isMonthOverview ? 'Số người được nhận hoa hồng theo tháng' : 'Số người được nhận hoa hồng'} value={`${(isMonthOverview ? peopleRows : monthPeopleRows).length} người`} note={isMonthOverview ? `Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}` : `Kỳ tuần: ${peopleRows.length} người · Cả tháng: ${monthPeopleRows.length} người`} tint="emerald" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-12 items-stretch">
