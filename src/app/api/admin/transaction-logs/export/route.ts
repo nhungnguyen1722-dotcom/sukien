@@ -300,7 +300,14 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month') || '2026-09';
     const periodCode = searchParams.get('period_code') || 'MONTH_OVERVIEW';
 
-    const isMonthOverview = !periodCode || periodCode === 'MONTH_OVERVIEW' || periodCode === 'ALL' || periodCode.endsWith('-MONTH');
+    const pCodeNorm = (periodCode || '').trim().toLowerCase();
+    const isMonthOverview =
+      !periodCode ||
+      pCodeNorm === 'month_overview' ||
+      pCodeNorm === '__month_overview__' ||
+      pCodeNorm === 'all' ||
+      pCodeNorm.includes('month') ||
+      pCodeNorm.endsWith('-month');
 
     const workbook = new ExcelJS.Workbook();
     let exportFileName = '';
@@ -312,7 +319,7 @@ export async function GET(request: NextRequest) {
       exportFileName = `Bao-cao-chot-quy-thang-${month}.xlsx`;
 
       let monthlyData: MonthlyReportData | null = null;
-      if (month === '2026-09') {
+      if (month === '2026-09' || month.includes('09') || month.includes('-9')) {
         const monthFilePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_T9_T10.xlsx');
         monthlyData = parseMonthlySheetFromFile(monthFilePath, 'Chốt quỹ t9 (1.9-2.10)', month);
       }

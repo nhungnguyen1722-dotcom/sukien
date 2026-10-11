@@ -914,7 +914,8 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
-      const url = `/api/admin/transaction-logs/export?month=${encodeURIComponent(selectedMonth)}&period_code=${encodeURIComponent(selectedPeriodCode)}`;
+      const periodParam = isMonthOverview ? 'MONTH_OVERVIEW' : selectedPeriodCode;
+      const url = `/api/admin/transaction-logs/export?month=${encodeURIComponent(selectedMonth)}&period_code=${encodeURIComponent(periodParam)}`;
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
