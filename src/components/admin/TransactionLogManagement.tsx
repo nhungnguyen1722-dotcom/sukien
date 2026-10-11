@@ -760,11 +760,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   }), { pool: 0, commission: 0, remaining: 0 });
   const peopleRows = groupContractsByPerson(displayedContracts, initialMembers);
   const monthPeopleRows = isMonthOverview ? peopleRows : groupContractsByPerson(monthContracts, initialMembers);
-  const displayedWorkbookWarnings = isMonthOverview
+  const displayedWorkbookWarnings = (isMonthOverview
     ? Object.entries(workbookWarnings)
         .filter(([periodCode]) => periodCode.startsWith(selectedMonth))
         .flatMap(([, warnings]) => warnings)
-    : workbookWarnings[selectedPeriod?.period_code || ''] || [];
+    : workbookWarnings[selectedPeriod?.period_code || ''] || []
+  ).filter((warning) => !warning.toLowerCase().includes('không tìm thấy file') && !warning.toLowerCase().includes('không tìm thấy trang tính'));
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFund, setSelectedFund] = useState('all');

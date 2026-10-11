@@ -223,7 +223,7 @@ function readSource(source: WorkbookSource, memberNames: string[]) {
   if (!fs.existsSync(filePath)) {
     return {
       contracts: [],
-      warnings: [`Không tìm thấy file ${source.fileName}.`],
+      warnings: [],
     };
   }
   const fileBuffer = readFileBuffer(filePath);
@@ -329,7 +329,7 @@ function readMatrixSource(
   if (!fs.existsSync(filePath)) {
     return {
       contracts: [],
-      warnings: [`Không tìm thấy file ${source.fileName}.`],
+      warnings: [],
     };
   }
   const fileBuffer = readFileBuffer(filePath);
