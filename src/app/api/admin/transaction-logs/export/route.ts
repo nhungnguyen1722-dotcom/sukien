@@ -229,10 +229,11 @@ function parseMonthlySheetFromFile(filePath: string, sheetName: string, month: s
     if (recHeaderIdx >= 0) {
       for (let r = recHeaderIdx + 1; r < rows.length; r++) {
         const row = rows[r];
-        if (row[0] && typeof row[0] === 'number' && (row[2] || row[7])) {
+        const stt = typeof row[0] === 'number' ? row[0] : parseInt(String(row[0]), 10);
+        if (!isNaN(stt) && stt > 0 && (row[2] || row[5] || row[7])) {
           recipients.push({
-            stt: row[0],
-            code: String(row[1] || ''),
+            stt,
+            code: String(row[1] || '').trim(),
             info: String(row[2] || '').trim(),
             details: String(row[5] || '').trim(),
             totalAmount: Number(row[7]) || 0,

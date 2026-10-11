@@ -585,18 +585,19 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
     views: [{ showGridLines: true }],
   });
 
+  // Thiết lập độ rộng các cột khớp 100% file gốc
   ws.columns = [
-    { width: 6 },  // A: STT
-    { width: 16 }, // B: Mã Người nhận
-    { width: 28 }, // C: Thông tin người nhận
-    { width: 8 },  // D: (Merged C:D)
-    { width: 14 }, // E: Tỷ lệ / (Merged E:G)
-    { width: 22 }, // F: Doanh số
-    { width: 22 }, // G: Tổng chi quỹ
-    { width: 20 }, // H: Còn lại quỹ / Tổng tiền
-    { width: 12 }, // I
-    { width: 12 }, // J
-    { width: 14 }, // K
+    { width: 6 },                 // A: STT / Tên quỹ
+    { width: 22 },                // B: Mã Người nhận
+    { width: 24 },                // C: Thông tin người nhận
+    { width: 2 },                 // D: (Merged C:D)
+    { width: 14, hidden: true },  // E: Tỷ lệ (BỊ ẨN hidden: true như file gốc)
+    { width: 26 },                // F: Doanh số / Chi tiết nhận (Merged F:G)
+    { width: 36 },                // G: Tổng chi quỹ / (Merged F:G)
+    { width: 20 },                // H: Còn lại quỹ / Tổng tiền
+    { width: 4 },                 // I: Khoảng đệm
+    { width: 12 },                // J: Từ ngày / Tới ngày
+    { width: 16 },                // K: 01/09/2026 / 02/10/2026
   ];
 
   // 1. Tiêu đề công ty & Ngày tháng
@@ -609,35 +610,38 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
   ws.getCell('J1').font = { name: 'Arial', size: 10 };
   ws.getCell('K1').value = data.startDate;
   ws.getCell('K1').font = { name: 'Arial', size: 10 };
+  ws.getCell('K1').alignment = { horizontal: 'center', vertical: 'middle' };
 
   ws.getCell('J2').value = 'Tới ngày';
   ws.getCell('J2').font = { name: 'Arial', size: 10 };
   ws.getCell('K2').value = data.endDate;
   ws.getCell('K2').font = { name: 'Arial', size: 10 };
+  ws.getCell('K2').alignment = { horizontal: 'center', vertical: 'middle' };
 
-  // 2. Tiêu đề bảng quyết toán (MÀU XANH ĐẬM #5B9BD5)
-  ws.mergeCells('A4:H4');
-  const cellA4 = ws.getCell('A4');
-  cellA4.value = `Quyết toán Quỹ tháng ${parseInt(data.month.slice(5), 10)}`;
-  cellA4.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF000000' } };
-  cellA4.fill = primaryHeaderFill;
-  cellA4.alignment = { horizontal: 'center', vertical: 'middle' };
-  cellA4.border = thinBorder;
-  ws.getRow(4).height = 24;
+  // 2. Tiêu đề bảng quyết toán (MÀU XANH ĐẬM #5B9BD5 - DÒNG 5)
+  ws.mergeCells('A5:H5');
+  const cellA5 = ws.getCell('A5');
+  cellA5.value = `Quyết toán Quỹ tháng ${parseInt(data.month.slice(5), 10)}`;
+  cellA5.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF000000' } };
+  cellA5.fill = primaryHeaderFill;
+  cellA5.alignment = { horizontal: 'center', vertical: 'middle' };
+  cellA5.border = thinBorder;
+  ws.getRow(5).height = 24;
 
-  // 3. Tiêu đề các cột bảng 1 (MÀU XANH DỊU #8EB0E8)
+  // 3. Tiêu đề các cột bảng 1 (MÀU XANH DỊU #8EB0E8 - DÒNG 6)
   ws.mergeCells('A6:D6');
   ws.getCell('A6').value = 'Doanh số HĐ (100%)';
-  ws.getCell('E6').value = 'Tỷ lệ';
   ws.getCell('F6').value = formatVND(data.salesBase);
   ws.getCell('G6').value = 'Tổng chi quỹ';
   ws.getCell('H6').value = 'Còn lại quỹ';
 
+  // Format header row 6 cho các cột A..D, F, G, H
   for (let c = 1; c <= 8; c++) {
+    if (c === 5) continue; // Bỏ qua cột E ẩn
     const cell = ws.getRow(6).getCell(c);
     cell.fill = columnHeaderFill;
     cell.font = { name: 'Arial', size: 10, bold: true };
-    cell.alignment = { horizontal: c === 6 ? 'right' : 'center', vertical: 'middle' };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
     cell.border = thinBorder;
   }
   ws.getRow(6).height = 22;
@@ -652,16 +656,13 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
     nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
     nameCell.border = thinBorder;
 
-    const rateCell = ws.getCell(`E${currentRow}`);
-    rateCell.value = fund.rateText || formatRateText(fund.rate);
-    rateCell.font = { name: 'Arial', size: 10 };
-    rateCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    rateCell.border = thinBorder;
+    // Cột E (ẩn) lưu trữ tỷ lệ
+    ws.getCell(`E${currentRow}`).value = fund.rate;
 
     const allocCell = ws.getCell(`F${currentRow}`);
     allocCell.value = formatVND(fund.allocated);
     allocCell.font = { name: 'Arial', size: 10 };
-    allocCell.alignment = { horizontal: 'right', vertical: 'middle' };
+    allocCell.alignment = { horizontal: 'center', vertical: 'middle' };
     allocCell.border = thinBorder;
 
     const spentCell = ws.getCell(`G${currentRow}`);
@@ -671,7 +672,7 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
       size: 10,
       color: { argb: fund.spent === 0 ? COLOR_RED_TEXT : 'FF000000' },
     };
-    spentCell.alignment = { horizontal: 'right', vertical: 'middle' };
+    spentCell.alignment = { horizontal: 'center', vertical: 'middle' };
     spentCell.border = thinBorder;
 
     const remCell = ws.getCell(`H${currentRow}`);
@@ -681,42 +682,47 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
       size: 10,
       color: { argb: fund.remaining === 0 ? COLOR_RED_TEXT : 'FF000000' },
     };
-    remCell.alignment = { horizontal: 'right', vertical: 'middle' };
+    remCell.alignment = { horizontal: 'center', vertical: 'middle' };
     remCell.border = thinBorder;
 
     for (let c = 1; c <= 8; c++) {
+      if (c === 5) continue;
       ws.getRow(currentRow).getCell(c).border = thinBorder;
     }
-    ws.getRow(currentRow).height = 20;
+    ws.getRow(currentRow).height = 21.75;
     currentRow++;
   }
 
-  // 5. Dòng Tổng quỹ
-  ws.mergeCells(`A${currentRow}:E${currentRow}`);
+  // 5. Dòng Tổng quỹ (Dòng 20)
+  ws.mergeCells(`A${currentRow}:D${currentRow}`);
   const totalLabel = ws.getCell(`A${currentRow}`);
-  totalLabel.value = 'Tổng qũy';
+  totalLabel.value = 'Tổng quỹ';
   totalLabel.font = { name: 'Arial', size: 10, bold: true };
   totalLabel.alignment = { horizontal: 'center', vertical: 'middle' };
 
   const totalAlloc = ws.getCell(`F${currentRow}`);
   totalAlloc.value = formatVND(data.totalAllocated);
   totalAlloc.font = { name: 'Arial', size: 10, bold: true };
-  totalAlloc.alignment = { horizontal: 'right', vertical: 'middle' };
+  totalAlloc.alignment = { horizontal: 'center', vertical: 'middle' };
 
   const totalSpent = ws.getCell(`G${currentRow}`);
   totalSpent.value = formatVND(data.totalSpent);
   totalSpent.font = { name: 'Arial', size: 10, bold: true };
-  totalSpent.alignment = { horizontal: 'right', vertical: 'middle' };
+  totalSpent.alignment = { horizontal: 'center', vertical: 'middle' };
 
   const totalRem = ws.getCell(`H${currentRow}`);
   totalRem.value = formatVND(data.totalRemaining);
   totalRem.font = { name: 'Arial', size: 10, bold: true };
-  totalRem.alignment = { horizontal: 'right', vertical: 'middle' };
+  totalRem.alignment = { horizontal: 'center', vertical: 'middle' };
 
   for (let c = 1; c <= 8; c++) {
+    if (c === 5) continue;
     ws.getRow(currentRow).getCell(c).border = thinBorder;
   }
   ws.getRow(currentRow).height = 22;
+
+  // Dòng 21: Khoảng trống giữa 2 bảng
+  ws.getRow(21).height = 14;
 
   // ==========================================================================
   // BẢNG 2: TỔNG HỢP THU CHI THEO TỪNG NGƯỜI NHẬN (Dòng 22)
@@ -726,11 +732,12 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
   ws.getCell(`B${currentRow}`).value = 'Mã Người nhận';
   ws.mergeCells(`C${currentRow}:D${currentRow}`);
   ws.getCell(`C${currentRow}`).value = 'Thông tin người nhận';
-  ws.mergeCells(`E${currentRow}:G${currentRow}`);
-  ws.getCell(`E${currentRow}`).value = 'Chi tiết nội dung nhận';
+  ws.mergeCells(`F${currentRow}:G${currentRow}`);
+  ws.getCell(`F${currentRow}`).value = 'Chi tiết nội dung nhận';
   ws.getCell(`H${currentRow}`).value = 'Tổng tiền';
 
   for (let c = 1; c <= 8; c++) {
+    if (c === 5) continue;
     const cell = ws.getRow(currentRow).getCell(c);
     cell.fill = columnHeaderFill; // MÀU XANH DỊU #8EB0E8
     cell.font = { name: 'Arial', size: 10, bold: true };
@@ -743,7 +750,7 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
   currentRow++;
   for (const rec of data.recipients) {
     const r = ws.getRow(currentRow);
-    r.height = Math.max(36, (rec.details.split('\n').length * 16));
+    r.height = Math.max(45, (rec.details.split('\n').length * 16));
 
     const cellStt = r.getCell(1);
     cellStt.value = rec.stt;
@@ -761,18 +768,19 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
     cellInfo.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
     cellInfo.font = { name: 'Arial', size: 10 };
 
-    ws.mergeCells(`E${currentRow}:G${currentRow}`);
-    const cellDetails = ws.getCell(`E${currentRow}`);
+    ws.mergeCells(`F${currentRow}:G${currentRow}`);
+    const cellDetails = ws.getCell(`F${currentRow}`);
     cellDetails.value = rec.details;
     cellDetails.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
     cellDetails.font = { name: 'Arial', size: 9 };
 
     const cellTotal = r.getCell(8);
     cellTotal.value = formatVND(rec.totalAmount);
-    cellTotal.alignment = { horizontal: 'right', vertical: 'middle' };
+    cellTotal.alignment = { horizontal: 'center', vertical: 'middle' };
     cellTotal.font = { name: 'Arial', size: 10, bold: true };
 
     for (let c = 1; c <= 8; c++) {
+      if (c === 5) continue;
       r.getCell(c).border = thinBorder;
     }
 
@@ -786,7 +794,7 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
   ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
   ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
 
-  ws.mergeCells(`C${currentRow}:E${currentRow}`);
+  ws.mergeCells(`C${currentRow}:D${currentRow}`);
   ws.getCell(`C${currentRow}`).value = 'PHÓ CHỦ TỊCH';
   ws.getCell(`C${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
   ws.getCell(`C${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
@@ -802,7 +810,7 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
   ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10 };
   ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
 
-  ws.mergeCells(`C${currentRow}:E${currentRow}`);
+  ws.mergeCells(`C${currentRow}:D${currentRow}`);
   ws.getCell(`C${currentRow}`).value = 'Nguyễn Thị Thương Hiếu';
   ws.getCell(`C${currentRow}`).font = { name: 'Arial', size: 10 };
   ws.getCell(`C${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
