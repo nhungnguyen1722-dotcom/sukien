@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Eye,
+  FileSpreadsheet,
   MoreVertical,
   Plus,
   Printer,
@@ -908,6 +909,41 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     }, { allocation: 0, requested: 0, paid: 0, remaining: 0 });
   }, [fundRowsToDisplay, isMonthOverview, selectedBase, logs, selectedMonth, selectedPeriod]);
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      const url = `/api/admin/transaction-logs/export?month=${encodeURIComponent(selectedMonth)}&period_code=${encodeURIComponent(selectedPeriodCode)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || 'Không thể xuất file Excel.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition');
+      let filename = isMonthOverview
+        ? `Bao_cao_chot_quy_thang_${selectedMonth}.xlsx`
+        : `DNTT_hoa_hong_${selectedPeriodCode}.xlsx`;
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match?.[1]) filename = decodeURIComponent(match[1]);
+      }
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Có lỗi khi xuất file Excel.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5 px-[30px] pt-6 pb-8">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
@@ -945,39 +981,53 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       </Panel>
 
       {activeTab !== 'vouchers' && <Panel className="p-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex items-center gap-2">
-            <label htmlFor="transaction-log-year" className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Năm</label>
-            <select
-              id="transaction-log-year"
-              aria-label="Chọn năm"
-              value={selectedYear}
-              onChange={(event) => changeYear(event.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2">
+              <label htmlFor="transaction-log-year" className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Năm</label>
+              <select
+                id="transaction-log-year"
+                aria-label="Chọn năm"
+                value={selectedYear}
+                onChange={(event) => changeYear(event.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </div>
+            <div className="hidden h-6 w-px bg-slate-300 sm:block" />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tháng</span>
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                <button key={month} onClick={() => changeMonth(month)} className={`min-w-9 rounded-lg border px-3 py-2 text-xs font-semibold ${Number(selectedMonth.slice(5, 7)) === month ? 'border-blue-700 bg-slate-900 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                  {month}
+                </button>
+              ))}
+            </div>
+            <div className="hidden h-6 w-px bg-slate-300 sm:block" />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tuần</span>
+              <button onClick={() => setSelectedPeriodCode(MONTH_OVERVIEW)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                Cả tháng
+              </button>
+              {periodsForMonth.map((period, index) => (
+                <button key={period.period_code} onClick={() => setSelectedPeriodCode(period.period_code)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                  {getPeriodWeekNumber(period, index)} · {formatPeriodRange(period) || period.period_label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50"
+              title={isMonthOverview ? `Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
             >
-              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
-          </div>
-          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tháng</span>
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-              <button key={month} onClick={() => changeMonth(month)} className={`min-w-9 rounded-lg border px-3 py-2 text-xs font-semibold ${Number(selectedMonth.slice(5, 7)) === month ? 'border-blue-700 bg-slate-900 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                {month}
-              </button>
-            ))}
-          </div>
-          <div className="hidden h-6 w-px bg-slate-300 sm:block" />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tuần</span>
-            <button onClick={() => setSelectedPeriodCode(MONTH_OVERVIEW)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-              Cả tháng
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Báo Cáo Excel'}</span>
             </button>
-            {periodsForMonth.map((period, index) => (
-              <button key={period.period_code} onClick={() => setSelectedPeriodCode(period.period_code)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-                {getPeriodWeekNumber(period, index)} · {formatPeriodRange(period) || period.period_label}
-              </button>
-            ))}
           </div>
         </div>
       </Panel>}
