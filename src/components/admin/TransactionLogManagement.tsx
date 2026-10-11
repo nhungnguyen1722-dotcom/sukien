@@ -1169,184 +1169,204 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         <StatCard icon={<CalendarDays className="h-5 w-5" />} label="Quỹ tích lũy tháng" value={formatVND(monthPool)} note={`Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}`} tint="emerald" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-12">
-        <Panel className="overflow-hidden xl:col-span-8">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}</h2>
-                <p className="mt-1 text-xs text-slate-500">Hiển thị danh sách nhân sự và số tiền phân bổ theo từng hợp đồng.</p>
-              </div>
-              <div role="group" aria-label="Chế độ xem bảng kê" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                <button type="button" aria-pressed={distributionView === 'contract'} onClick={() => setDistributionView('contract')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'contract' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
-                  Xem theo hợp đồng
-                </button>
-                <button type="button" aria-pressed={distributionView === 'person'} onClick={() => setDistributionView('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
-                  Xem theo Họ và tên
-                </button>
-              </div>
-            </div>
-            {!isMonthOverview && Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
-            {displayedWorkbookWarnings.map((warning) => <p key={warning} className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-950">{warning}</p>)}
-          </div>
-          <div className="overflow-x-auto">
-            {distributionView === 'contract' ? (
-              <table className="min-w-[1120px] w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Ngày / HĐ / Khách hàng</th>
-                    <th className="px-3 py-3 text-right">Giá trị phân bổ</th>
-                    <th className="px-3 py-3">Danh sách nhân sự thụ hưởng</th>
-                    <th className="px-3 py-3 text-right">Quỹ chưa chia (15%)</th>
-                    <th className="px-3 py-3 text-right">Hoa hồng chia</th>
-                    <th className="px-3 py-3 text-right">Quỹ còn lại</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {displayedContracts.length ? displayedContracts.map((contract) => (
-                    <tr
-                      key={contract.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setViewContract(contract)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setViewContract(contract);
-                        }
-                      }}
-                      title="Xem chi tiết hợp đồng"
-                      className="cursor-pointer hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
-                        <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex min-w-[330px] flex-wrap gap-1.5">
-                          {contractBeneficiaries(contract, initialMembers).map((person, index) => (
-                            <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
-                              <span className="font-semibold text-slate-700">{person.name}</span>
-                              <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
-                            </span>
-                          ))}
-                          {!contractBeneficiaries(contract, initialMembers).length && <span className="text-slate-400">Chưa có nhân sự</span>}
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract, initialMembers))}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract, initialMembers))}</td>
-                    </tr>
-                  )) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
-                </tbody>
-                <tfoot className="bg-blue-50 font-bold text-slate-800">
-                  <tr>
-                    <td className="px-4 py-3">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700">{formatVND(isMonthOverview ? monthBase : selectedBase)}</td>
-                    <td className="px-3 py-3 text-slate-600">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.commission)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.remaining)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            ) : (
-              <table className="min-w-[900px] w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                  <tr><th className="px-4 py-3">Họ và tên</th><th className="px-3 py-3 text-right">Tổng hoa hồng chia</th><th className="px-3 py-3">Hợp đồng và phân bổ tương ứng</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {peopleRows.length ? peopleRows.map((person) => (
-                    <tr key={person.name}>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{person.name}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatVND(person.total)}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {person.contracts.map(({ contract, amount }) => (
-                            <button key={contract.id} type="button" onClick={() => setViewContract(contract)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] hover:border-blue-300 hover:bg-blue-50">
-                              <span className="block font-semibold text-slate-700">{contract.customer_name} · {formatDate(contract.contract_date)}</span>
-                              <span className="mt-0.5 block text-slate-500">{contract.contract_code || `HĐ #${contract.id}`} · {formatVND(amount)}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )) : <tr><td colSpan={3} className="px-4 py-12 text-center text-slate-500">Chưa có nhân sự thụ hưởng trong kỳ này.</td></tr>}
-                </tbody>
-                <tfoot className="bg-blue-50 font-bold text-slate-800">
-                  <tr><td className="px-4 py-3">TỔNG CỘNG</td><td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(displayedContractTotals.commission)}</td><td className="px-3 py-3 text-slate-600">{peopleRows.length} nhân sự · {displayedContracts.length} hợp đồng</td></tr>
-                </tfoot>
-              </table>
-            )}
-          </div>
-        </Panel>
-
-        <div className="space-y-5 xl:col-span-4">
-          <Panel className="p-4">
-            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
-              <div><h2 className="font-bold text-slate-900">{isMonthOverview ? 'Phân bổ quỹ trong tháng' : 'Phân bổ quỹ kỳ tuần'}</h2><p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p></div>
-              <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-[520px] w-full text-left text-[10px]">
-                <thead className="border-b border-slate-200 text-slate-500">
-                  <tr><th className="px-2 py-2">Quỹ</th><th className="px-2 py-2 text-right">Phân bổ</th><th className="px-2 py-2 text-right">Đã chi</th><th className="px-2 py-2 text-right">Còn tồn</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-              {(isMonthOverview ? monthFundRows : selectedRows).map((row) => {
-                const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
-                const periodCount = 'periods' in row ? row.periods : 0;
-                const paid = paidAmountForFund(row.fund_key, row.fund_source);
-                const remaining = allocation - paid;
-                return (
-                  <tr key={row.fund_key}>
-                    <td className="px-2 py-2 align-top"><div className="flex items-start gap-1.5"><span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><span><span className="block font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</span><span className="mt-0.5 block text-[9px] text-slate-500">{isMonthOverview ? `${periodCount} kỳ tuần` : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}%`} · Đề nghị {formatVND(row.requested_amount)}</span></span></div></td>
-                    <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-slate-800">{formatVND(allocation)}</td>
-                    <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-emerald-700">{formatVND(paid)}</td>
-                    <td className={`whitespace-nowrap px-2 py-2 text-right font-bold ${remaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatVND(remaining)}</td>
-                  </tr>
-                );
-              })}
-              {!(isMonthOverview ? monthFundRows : selectedRows).length && <tr><td colSpan={4} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3 rounded-xl bg-slate-900 p-3 text-white">
-              <div className="flex justify-between text-xs font-bold"><span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span><span>{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span></div>
-              <div className="mt-1 text-[10px] text-slate-300">{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</div>
-            </div>
-          </Panel>
-
-          <Panel className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900">{isMonthOverview ? 'Leader Team & Giám đốc KD' : `Leader Team · ${selectedPeriodHeading.split('·')[0].trim()}`}</h2>
-                <p className="mt-1 text-[11px] text-slate-500">{isMonthOverview ? 'Tổng hợp tháng, chia tỷ lệ 30% / 70%.' : '30% chia đều tháng; 70% theo hiệu quả tuần.'}</p>
-              </div>
-              <span className="rounded-full bg-pink-50 px-2 py-1 text-[10px] font-bold text-pink-700">2,9%</span>
-            </div>
-            <div className="space-y-2 text-xs">
-              <SplitRow label={isMonthOverview ? "Quỹ Leader Team (30%)" : "Quỹ 30% chia đều"} amount={Math.round((isMonthOverview ? monthlyLeaderPool : selectedLeaderPool) * 0.3)} color="text-pink-700" />
-              <SplitRow label={isMonthOverview ? "Quỹ Giám đốc KD (70%)" : "Quỹ 70% hiệu quả tuần"} amount={Math.round((isMonthOverview ? monthlyLeaderPool : selectedLeaderPool) * 0.7)} color="text-blue-700" />
-              <div className="flex justify-between border-t border-slate-100 pt-2 font-bold">
-                <span>{isMonthOverview ? 'Tổng quỹ lũy kế tháng' : 'Tổng quỹ Leader tuần'}</span>
-                <span>{formatVND(isMonthOverview ? monthlyLeaderPool : selectedLeaderPool)}</span>
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-500">
-                <span>{isMonthOverview ? 'Đề nghị chi trong DNTT tháng' : 'Đề nghị chi tuần này'}</span>
-                <span>{formatVND(isMonthOverview ? monthlyLeaderRequests : (selectedLeaderRequests || Math.round(selectedLeaderPool * 0.7)))}</span>
-              </div>
-              {!isMonthOverview && (
-                <div className="flex justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
-                  <span>Lũy kế tháng (2,9%):</span>
-                  <span className="font-semibold text-slate-600">{formatVND(monthlyLeaderPool)}</span>
+      <div className="grid gap-5 lg:grid-cols-12 items-stretch">
+        <div className="lg:col-span-7 xl:col-span-8 relative min-h-[580px]">
+          <Panel className="flex flex-col overflow-hidden h-full lg:absolute lg:inset-0">
+            <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="font-bold text-slate-900">Bảng kê hợp đồng & nhân sự thụ hưởng — {isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}</h2>
+                  <p className="mt-1 text-xs text-slate-500">Hiển thị danh sách nhân sự và số tiền phân bổ theo từng hợp đồng.</p>
                 </div>
+                <div role="group" aria-label="Chế độ xem bảng kê" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                  <button type="button" aria-pressed={distributionView === 'contract'} onClick={() => setDistributionView('contract')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'contract' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+                    Xem theo hợp đồng
+                  </button>
+                  <button type="button" aria-pressed={distributionView === 'person'} onClick={() => setDistributionView('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+                    Xem theo Họ và tên
+                  </button>
+                </div>
+              </div>
+              {!isMonthOverview && Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
+              {displayedWorkbookWarnings.map((warning) => <p key={warning} className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-950">{warning}</p>)}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scrollbar-thin [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-transparent">
+              {distributionView === 'contract' ? (
+                <table className="min-w-[1120px] w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
+                    <tr>
+                      <th className="px-4 py-3 bg-slate-50">Ngày / HĐ / Khách hàng</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Giá trị phân bổ</th>
+                      <th className="px-3 py-3 bg-slate-50">Danh sách nhân sự thụ hưởng</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Quỹ chưa chia (15%)</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Hoa hồng chia</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Quỹ còn lại</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {displayedContracts.length ? displayedContracts.map((contract) => (
+                      <tr
+                        key={contract.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setViewContract(contract)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setViewContract(contract);
+                          }
+                        }}
+                        title="Xem chi tiết hợp đồng"
+                        className="cursor-pointer hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
+                          <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex min-w-[330px] flex-wrap gap-1.5">
+                            {contractBeneficiaries(contract, initialMembers).map((person, index) => (
+                              <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
+                                <span className="font-semibold text-slate-700">{person.name}</span>
+                                <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
+                              </span>
+                            ))}
+                            {!contractBeneficiaries(contract, initialMembers).length && <span className="text-slate-400">Chưa có nhân sự</span>}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract, initialMembers))}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract, initialMembers))}</td>
+                      </tr>
+                    )) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
+                    <tr>
+                      <td className="px-4 py-3 bg-blue-50">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700 bg-blue-50">{formatVND(isMonthOverview ? monthBase : selectedBase)}</td>
+                      <td className="px-3 py-3 text-slate-600 bg-blue-50">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.commission)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.remaining)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                <table className="min-w-[900px] w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
+                    <tr>
+                      <th className="px-4 py-3 bg-slate-50">Họ và tên</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Tổng hoa hồng chia</th>
+                      <th className="px-3 py-3 bg-slate-50">Hợp đồng và phân bổ tương ứng</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {peopleRows.length ? peopleRows.map((person) => (
+                      <tr key={person.name}>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{person.name}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">{formatVND(person.total)}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            {person.contracts.map(({ contract, amount }) => (
+                              <button key={contract.id} type="button" onClick={() => setViewContract(contract)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[10px] hover:border-blue-300 hover:bg-blue-50">
+                                <span className="block font-semibold text-slate-700">{contract.customer_name} · {formatDate(contract.contract_date)}</span>
+                                <span className="mt-0.5 block text-slate-500">{contract.contract_code || `HĐ #${contract.id}`} · {formatVND(amount)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )) : <tr><td colSpan={3} className="px-4 py-12 text-center text-slate-500">Chưa có nhân sự thụ hưởng trong kỳ này.</td></tr>}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
+                    <tr>
+                      <td className="px-4 py-3 bg-blue-50">TỔNG CỘNG</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.commission)}</td>
+                      <td className="px-3 py-3 text-slate-600 bg-blue-50">{peopleRows.length} nhân sự · {displayedContracts.length} hợp đồng</td>
+                    </tr>
+                  </tfoot>
+                </table>
               )}
             </div>
           </Panel>
         </div>
+
+        <div className="lg:col-span-5 xl:col-span-4 flex flex-col">
+          <Panel className="p-4 flex flex-col justify-between h-full">
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="mb-3 flex shrink-0 items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="font-bold text-slate-900">{isMonthOverview ? 'Phân bổ quỹ trong tháng' : 'Phân bổ quỹ kỳ tuần'}</h2>
+                  <p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p>
+                </div>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-x-auto">
+                <table className="min-w-[520px] w-full text-left text-[10px]">
+                  <thead className="border-b border-slate-200 text-slate-500">
+                    <tr><th className="px-2 py-2">Quỹ</th><th className="px-2 py-2 text-right">Phân bổ</th><th className="px-2 py-2 text-right">Đã chi</th><th className="px-2 py-2 text-right">Còn tồn</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(isMonthOverview ? monthFundRows : selectedRows).map((row) => {
+                      const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
+                      const periodCount = 'periods' in row ? row.periods : 0;
+                      const paid = paidAmountForFund(row.fund_key, row.fund_source);
+                      const remaining = allocation - paid;
+                      return (
+                        <tr key={row.fund_key}>
+                          <td className="px-2 py-2 align-top"><div className="flex items-start gap-1.5"><span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: FUND_COLORS[row.fund_key] || '#64748b' }} /><span><span className="block font-bold text-slate-800">{FUND_LABELS[row.fund_key] || row.fund_source}</span><span className="mt-0.5 block text-[9px] text-slate-500">{isMonthOverview ? `${periodCount} kỳ tuần` : `${(row.allocation_rate * 100).toLocaleString('vi-VN')}%`} · Đề nghị {formatVND(row.requested_amount)}</span></span></div></td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-slate-800">{formatVND(allocation)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-emerald-700">{formatVND(paid)}</td>
+                          <td className={`whitespace-nowrap px-2 py-2 text-right font-bold ${remaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatVND(remaining)}</td>
+                        </tr>
+                      );
+                    })}
+                    {!(isMonthOverview ? monthFundRows : selectedRows).length && <tr><td colSpan={4} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="mt-3 shrink-0 rounded-xl bg-slate-900 p-3 text-white">
+              <div className="flex justify-between text-xs font-bold"><span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span><span>{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span></div>
+              <div className="mt-1 text-[10px] text-slate-300">{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</div>
+            </div>
+          </Panel>
+        </div>
       </div>
+
+      <Panel className="p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-slate-900">{isMonthOverview ? 'Leader Team & Giám đốc KD' : `Leader Team · ${selectedPeriodHeading.split('·')[0].trim()}`}</h2>
+            <p className="mt-1 text-[11px] text-slate-500">{isMonthOverview ? 'Tổng hợp tháng, chia tỷ lệ 30% / 70%.' : '30% chia đều tháng; 70% theo hiệu quả tuần.'}</p>
+          </div>
+          <span className="rounded-full bg-pink-50 px-2 py-1 text-[10px] font-bold text-pink-700">2,9%</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <span className="block font-medium text-slate-500">{isMonthOverview ? "Quỹ Leader Team (30%)" : "Quỹ 30% chia đều"}</span>
+            <span className="mt-1 block text-base font-bold text-pink-700">{formatVND(Math.round((isMonthOverview ? monthlyLeaderPool : selectedLeaderPool) * 0.3))}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <span className="block font-medium text-slate-500">{isMonthOverview ? "Quỹ Giám đốc KD (70%)" : "Quỹ 70% hiệu quả tuần"}</span>
+            <span className="mt-1 block text-base font-bold text-blue-700">{formatVND(Math.round((isMonthOverview ? monthlyLeaderPool : selectedLeaderPool) * 0.7))}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <span className="block font-medium text-slate-500">{isMonthOverview ? 'Tổng quỹ lũy kế tháng' : 'Tổng quỹ Leader tuần'}</span>
+            <span className="mt-1 block text-base font-bold text-slate-900">{formatVND(isMonthOverview ? monthlyLeaderPool : selectedLeaderPool)}</span>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <span className="block font-medium text-slate-500">{isMonthOverview ? 'Đề nghị chi trong DNTT tháng' : 'Đề nghị chi tuần này'}</span>
+            <span className="mt-1 block text-base font-bold text-amber-700">{formatVND(isMonthOverview ? monthlyLeaderRequests : (selectedLeaderRequests || Math.round(selectedLeaderPool * 0.7)))}</span>
+            {!isMonthOverview && (
+              <div className="mt-1 text-[10px] text-slate-400">
+                Lũy kế tháng (2,9%): <strong className="text-slate-600">{formatVND(monthlyLeaderPool)}</strong>
+              </div>
+            )}
+          </div>
+        </div>
+      </Panel>
 
       </>}
 
