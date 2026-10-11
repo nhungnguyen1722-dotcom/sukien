@@ -71,6 +71,25 @@ export interface WeeklyContractMatrixRow {
   remainingFund: number;
 }
 
+export interface WeeklyPersonMatrixRow {
+  info: string;
+  amounts: (number | null)[];
+  totalSpent: number;
+}
+
+export interface WeeklyPersonMatrixSummaryRow {
+  label: string;
+  values: number[];
+}
+
+export interface WeeklyPersonMatrixData {
+  titleColumn: string;
+  columns: string[];
+  totalColumn: string;
+  rows: WeeklyPersonMatrixRow[];
+  summaries: WeeklyPersonMatrixSummaryRow[];
+}
+
 export interface WeeklyReportData {
   periodCode: string;
   weekLabel: string;
@@ -79,12 +98,13 @@ export interface WeeklyReportData {
   totalAllocated: number;
   totalSpent: number;
   totalRemaining: number;
-  beneficiaryColumns: { name: string; bankAccount?: string; bankName?: string }[];
-  contractRows: WeeklyContractMatrixRow[];
-  beneficiaryTotals: number[];
-  matrixTotalPool: number;
-  matrixTotalDistributed: number;
-  matrixTotalRemaining: number;
+  beneficiaryColumns?: { name: string; bankAccount?: string; bankName?: string }[];
+  contractRows?: WeeklyContractMatrixRow[];
+  beneficiaryTotals?: number[];
+  matrixTotalPool?: number;
+  matrixTotalDistributed?: number;
+  matrixTotalRemaining?: number;
+  personMatrix?: WeeklyPersonMatrixData | null;
 }
 
 export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: WeeklyReportData, sheetName: string) {
@@ -93,19 +113,30 @@ export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: Weekly
   });
 
   // Cấu hình chiều rộng các cột
-  const cols: Partial<ExcelJS.Column>[] = [
-    { width: 6 },  // A: STT
-    { width: 36 }, // B: Hợp đồng / Tên quỹ
-  ];
-  for (let i = 0; i < data.beneficiaryColumns.length; i++) {
-    cols.push({ width: 22 });
+  if (data.personMatrix && data.personMatrix.rows.length > 0) {
+    const cols: Partial<ExcelJS.Column>[] = [
+      { width: 34 }, // A: Họ tên/Hợp đồng & thông tin người nhận
+    ];
+    for (let i = 0; i < data.personMatrix.columns.length; i++) {
+      cols.push({ width: 22 }); // Contracts
+    }
+    cols.push({ width: 22 }); // Tổng chi
+    ws.columns = cols;
+  } else {
+    const cols: Partial<ExcelJS.Column>[] = [
+      { width: 6 },  // A: STT
+      { width: 36 }, // B: Hợp đồng / Tên quỹ
+    ];
+    for (let i = 0; i < (data.beneficiaryColumns?.length || 0); i++) {
+      cols.push({ width: 22 });
+    }
+    cols.push(
+      { width: 24 }, // Tổng quỹ chưa chia (15%)
+      { width: 22 }, // Tổng hoa hồng chia
+      { width: 20 }, // Tổng quỹ còn lại
+    );
+    ws.columns = cols;
   }
-  cols.push(
-    { width: 24 }, // Tổng quỹ chưa chia (15%)
-    { width: 22 }, // Tổng hoa hồng chia
-    { width: 20 }, // Tổng quỹ còn lại
-  );
-  ws.columns = cols;
 
   // 1. Tiêu đề công ty
   ws.getCell('A1').value = 'CÔNG TY CỔ PHẦN TẬP ĐOÀN NGHIÊNG COMPLEX';
@@ -258,155 +289,275 @@ export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: Weekly
   ws.getCell(`G${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
 
   // ==========================================================================
-  // BẢNG 2: MA TRẬN HỢP ĐỒNG & NHÂN SỰ THỤ HƯỞNG (Dòng 30)
+  // BẢNG 2: MA TRẬN NHÂN SỰ & HỢP ĐỒNG (Dòng 30)
   // ==========================================================================
-  currentRow = 30;
-  const matrixHeaders = ['STT', 'Hợp đồng'];
-  for (const b of data.beneficiaryColumns) {
-    const parts = [b.name];
-    if (b.bankAccount) {
-      const cleanAcc = b.bankAccount.replace(/^STK:\s*/i, '').trim();
-      parts.push(`STK: ${cleanAcc}`);
+  if (data.personMatrix && data.personMatrix.rows.length > 0) {
+    currentRow = 30;
+    const pm = data.personMatrix;
+    const headers = [pm.titleColumn, ...pm.columns, pm.totalColumn];
+
+    const matrixHeaderRow = ws.getRow(currentRow);
+    matrixHeaderRow.height = 48;
+    for (let c = 0; c < headers.length; c++) {
+      const cell = matrixHeaderRow.getCell(c + 1);
+      cell.value = headers[c];
+      cell.fill = columnHeaderFill; // MÀU XANH DỊU #8EB0E8
+      cell.font = { name: 'Arial', size: 10, bold: true };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = thinBorder;
     }
-    if (b.bankName) parts.push(b.bankName);
-    matrixHeaders.push(parts.join('\n'));
-  }
-  matrixHeaders.push('Tổng quỹ chưa chia (15%)', 'Tổng hoa hồng chia', 'Tổng quỹ còn lại');
-
-  const matrixHeaderRow = ws.getRow(currentRow);
-  matrixHeaderRow.height = 46;
-  for (let c = 0; c < matrixHeaders.length; c++) {
-    const cell = matrixHeaderRow.getCell(c + 1);
-    cell.value = matrixHeaders[c];
-    cell.fill = columnHeaderFill; // MÀU XANH DỊU #8EB0E8
-    cell.font = { name: 'Arial', size: 10, bold: true };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.border = thinBorder;
-  }
-
-  // Dòng hợp đồng
-  currentRow++;
-  for (const row of data.contractRows) {
-    const r = ws.getRow(currentRow);
-    r.height = 48;
-
-    const cellStt = r.getCell(1);
-    cellStt.value = row.stt;
-    cellStt.alignment = { horizontal: 'center', vertical: 'middle' };
-    cellStt.border = thinBorder;
-
-    const cellDesc = r.getCell(2);
-    cellDesc.value = row.contractDesc;
-    cellDesc.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-    cellDesc.font = { name: 'Arial', size: 9 };
-    cellDesc.border = thinBorder;
-
-    let colIdx = 3;
-    for (const amt of row.beneficiaryAmounts) {
-      const cellAmt = r.getCell(colIdx);
-      cellAmt.value = amt ? formatVND(amt) : '';
-      cellAmt.alignment = { horizontal: 'right', vertical: 'middle' };
-      cellAmt.font = { name: 'Arial', size: 10 };
-      cellAmt.border = thinBorder;
-      colIdx++;
-    }
-
-    const cellPool = r.getCell(colIdx++);
-    cellPool.value = formatVND(row.unallocatedPool);
-    cellPool.alignment = { horizontal: 'right', vertical: 'middle' };
-    cellPool.border = thinBorder;
-
-    const cellDist = r.getCell(colIdx++);
-    cellDist.value = formatVND(row.distributedCommission);
-    cellDist.alignment = { horizontal: 'right', vertical: 'middle' };
-    cellDist.border = thinBorder;
-
-    const cellRem = r.getCell(colIdx);
-    cellRem.value = formatVND(row.remainingFund);
-    cellRem.alignment = { horizontal: 'right', vertical: 'middle' };
-    cellRem.border = thinBorder;
 
     currentRow++;
+    for (const row of pm.rows) {
+      const r = ws.getRow(currentRow);
+      r.height = Math.max(38, row.info.split('\n').length * 16);
+
+      const cellInfo = r.getCell(1);
+      cellInfo.value = row.info;
+      cellInfo.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      cellInfo.font = { name: 'Arial', size: 10 };
+      cellInfo.border = thinBorder;
+
+      let colIdx = 2;
+      for (const amt of row.amounts) {
+        const cellAmt = r.getCell(colIdx);
+        if (amt !== null && amt !== undefined) {
+          cellAmt.value = formatVND(amt);
+          cellAmt.font = {
+            name: 'Arial',
+            size: 10,
+            color: { argb: amt === 0 ? COLOR_RED_TEXT : 'FF000000' },
+          };
+        } else {
+          cellAmt.value = '';
+          cellAmt.font = { name: 'Arial', size: 10 };
+        }
+        cellAmt.alignment = { horizontal: 'right', vertical: 'middle' };
+        cellAmt.border = thinBorder;
+        colIdx++;
+      }
+
+      const cellTotal = r.getCell(colIdx);
+      cellTotal.value = formatVND(row.totalSpent);
+      cellTotal.font = { name: 'Arial', size: 10, bold: true };
+      cellTotal.alignment = { horizontal: 'right', vertical: 'middle' };
+      cellTotal.border = thinBorder;
+
+      currentRow++;
+    }
+
+    // Dòng tổng kết phía dưới (Tổng quỹ chưa chia 15%, Tổng hoa hồng chia, Tổng quỹ còn lại)
+    for (const s of pm.summaries) {
+      const sRow = ws.getRow(currentRow);
+      sRow.height = 24;
+
+      const cellLabel = sRow.getCell(1);
+      cellLabel.value = s.label;
+      cellLabel.font = { name: 'Arial', size: 10, bold: true };
+      cellLabel.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      cellLabel.border = thinBorder;
+
+      let cIdx = 2;
+      for (const val of s.values) {
+        const cVal = sRow.getCell(cIdx);
+        cVal.value = formatVND(val);
+        cVal.font = { name: 'Arial', size: 10, bold: true };
+        cVal.alignment = { horizontal: 'right', vertical: 'middle' };
+        cVal.border = thinBorder;
+        cIdx++;
+      }
+
+      currentRow++;
+    }
+
+    // Chữ ký dưới cùng bảng Person Matrix
+    currentRow += 2;
+    ws.mergeCells(`A${currentRow}:B${currentRow}`);
+    ws.getCell(`A${currentRow}`).value = 'NGƯỜI LẬP';
+    ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
+    ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const midCol = Math.floor(headers.length / 2);
+    const midLetter1 = ws.getColumn(Math.max(4, midCol - 1)).letter;
+    const midLetter2 = ws.getColumn(Math.max(4, midCol + 1)).letter;
+    ws.mergeCells(`${midLetter1}${currentRow}:${midLetter2}${currentRow}`);
+    ws.getCell(`${midLetter1}${currentRow}`).value = 'PHÓ CHỦ TỊCH';
+    ws.getCell(`${midLetter1}${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
+    ws.getCell(`${midLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const lastColIdx = headers.length;
+    const tgCol1 = Math.max(1, lastColIdx - 2);
+    const colLetter1 = ws.getColumn(tgCol1).letter;
+    const colLetter2 = ws.getColumn(lastColIdx).letter;
+    ws.mergeCells(`${colLetter1}${currentRow}:${colLetter2}${currentRow}`);
+    ws.getCell(`${colLetter1}${currentRow}`).value = 'TỔNG GIÁM ĐỐC';
+    ws.getCell(`${colLetter1}${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
+    ws.getCell(`${colLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    currentRow += 5;
+    ws.mergeCells(`A${currentRow}:B${currentRow}`);
+    ws.getCell(`A${currentRow}`).value = 'Vũ Thị Cúc';
+    ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10 };
+    ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(`${midLetter1}${currentRow}:${midLetter2}${currentRow}`);
+    ws.getCell(`${midLetter1}${currentRow}`).value = 'Nguyễn Thị Thương Hiếu';
+    ws.getCell(`${midLetter1}${currentRow}`).font = { name: 'Arial', size: 10 };
+    ws.getCell(`${midLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(`${colLetter1}${currentRow}:${colLetter2}${currentRow}`);
+    ws.getCell(`${colLetter1}${currentRow}`).value = 'Nguyễn Thị Hương Thảo';
+    ws.getCell(`${colLetter1}${currentRow}`).font = { name: 'Arial', size: 10 };
+    ws.getCell(`${colLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+  } else if (data.contractRows && data.contractRows.length > 0 && data.beneficiaryColumns) {
+    currentRow = 30;
+    const matrixHeaders = ['STT', 'Hợp đồng'];
+    for (const b of data.beneficiaryColumns) {
+      const parts = [b.name];
+      if (b.bankAccount) {
+        const cleanAcc = b.bankAccount.replace(/^STK:\s*/i, '').trim();
+        parts.push(`STK: ${cleanAcc}`);
+      }
+      if (b.bankName) parts.push(b.bankName);
+      matrixHeaders.push(parts.join('\n'));
+    }
+    matrixHeaders.push('Tổng quỹ chưa chia (15%)', 'Tổng hoa hồng chia', 'Tổng quỹ còn lại');
+
+    const matrixHeaderRow = ws.getRow(currentRow);
+    matrixHeaderRow.height = 46;
+    for (let c = 0; c < matrixHeaders.length; c++) {
+      const cell = matrixHeaderRow.getCell(c + 1);
+      cell.value = matrixHeaders[c];
+      cell.fill = columnHeaderFill; // MÀU XANH DỊU #8EB0E8
+      cell.font = { name: 'Arial', size: 10, bold: true };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = thinBorder;
+    }
+
+    // Dòng hợp đồng
+    currentRow++;
+    for (const row of data.contractRows) {
+      const r = ws.getRow(currentRow);
+      r.height = 48;
+
+      const cellStt = r.getCell(1);
+      cellStt.value = row.stt;
+      cellStt.alignment = { horizontal: 'center', vertical: 'middle' };
+      cellStt.border = thinBorder;
+
+      const cellDesc = r.getCell(2);
+      cellDesc.value = row.contractDesc;
+      cellDesc.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      cellDesc.font = { name: 'Arial', size: 9 };
+      cellDesc.border = thinBorder;
+
+      let colIdx = 3;
+      for (const amt of row.beneficiaryAmounts) {
+        const cellAmt = r.getCell(colIdx);
+        cellAmt.value = amt ? formatVND(amt) : '';
+        cellAmt.alignment = { horizontal: 'right', vertical: 'middle' };
+        cellAmt.font = { name: 'Arial', size: 10 };
+        cellAmt.border = thinBorder;
+        colIdx++;
+      }
+
+      const cellPool = r.getCell(colIdx++);
+      cellPool.value = formatVND(row.unallocatedPool);
+      cellPool.alignment = { horizontal: 'right', vertical: 'middle' };
+      cellPool.border = thinBorder;
+
+      const cellDist = r.getCell(colIdx++);
+      cellDist.value = formatVND(row.distributedCommission);
+      cellDist.alignment = { horizontal: 'right', vertical: 'middle' };
+      cellDist.border = thinBorder;
+
+      const cellRem = r.getCell(colIdx);
+      cellRem.value = formatVND(row.remainingFund);
+      cellRem.alignment = { horizontal: 'right', vertical: 'middle' };
+      cellRem.border = thinBorder;
+
+      currentRow++;
+    }
+
+    // Dòng Tổng ma trận
+    const totalRow = ws.getRow(currentRow);
+    totalRow.height = 24;
+    totalRow.getCell(1).value = 'Tổng';
+    totalRow.getCell(1).font = { name: 'Arial', size: 10, bold: true };
+    totalRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    totalRow.getCell(1).border = thinBorder;
+
+    totalRow.getCell(2).value = formatVND(data.salesBase);
+    totalRow.getCell(2).font = { name: 'Arial', size: 10, bold: true };
+    totalRow.getCell(2).alignment = { horizontal: 'right', vertical: 'middle' };
+    totalRow.getCell(2).border = thinBorder;
+
+    let totCol = 3;
+    for (const bTot of (data.beneficiaryTotals || [])) {
+      const c = totalRow.getCell(totCol);
+      c.value = formatVND(bTot);
+      c.font = { name: 'Arial', size: 10, bold: true };
+      c.alignment = { horizontal: 'right', vertical: 'middle' };
+      c.border = thinBorder;
+      totCol++;
+    }
+
+    const cPool = totalRow.getCell(totCol++);
+    cPool.value = formatVND(data.matrixTotalPool || 0);
+    cPool.font = { name: 'Arial', size: 10, bold: true };
+    cPool.alignment = { horizontal: 'right', vertical: 'middle' };
+    cPool.border = thinBorder;
+
+    const cDist = totalRow.getCell(totCol++);
+    cDist.value = formatVND(data.matrixTotalDistributed || 0);
+    cDist.font = { name: 'Arial', size: 10, bold: true };
+    cDist.alignment = { horizontal: 'right', vertical: 'middle' };
+    cDist.border = thinBorder;
+
+    const cRem = totalRow.getCell(totCol);
+    cRem.value = formatVND(data.matrixTotalRemaining || 0);
+    cRem.font = { name: 'Arial', size: 10, bold: true };
+    cRem.alignment = { horizontal: 'right', vertical: 'middle' };
+    cRem.border = thinBorder;
+
+    // Chữ ký dưới cùng bảng ma trận
+    currentRow += 2;
+    ws.mergeCells(`A${currentRow}:B${currentRow}`);
+    ws.getCell(`A${currentRow}`).value = 'NGƯỜI LẬP';
+    ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
+    ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(`I${currentRow}:L${currentRow}`);
+    ws.getCell(`I${currentRow}`).value = 'PHÓ CHỦ TỊCH';
+    ws.getCell(`I${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
+    ws.getCell(`I${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const lastColIdx = matrixHeaders.length;
+    const tgCol1 = Math.max(1, lastColIdx - 2);
+    const tgCol2 = lastColIdx;
+    const colLetter1 = ws.getColumn(tgCol1).letter;
+    const colLetter2 = ws.getColumn(tgCol2).letter;
+    ws.mergeCells(`${colLetter1}${currentRow}:${colLetter2}${currentRow}`);
+    ws.getCell(`${colLetter1}${currentRow}`).value = 'TỔNG GIÁM ĐỐC';
+    ws.getCell(`${colLetter1}${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
+    ws.getCell(`${colLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    currentRow += 5;
+    ws.mergeCells(`A${currentRow}:B${currentRow}`);
+    ws.getCell(`A${currentRow}`).value = 'Vũ Thị Cúc';
+    ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10 };
+    ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(`I${currentRow}:L${currentRow}`);
+    ws.getCell(`I${currentRow}`).value = 'Nguyễn Thị Thương Hiếu';
+    ws.getCell(`I${currentRow}`).font = { name: 'Arial', size: 10 };
+    ws.getCell(`I${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells(`${colLetter1}${currentRow}:${colLetter2}${currentRow}`);
+    ws.getCell(`${colLetter1}${currentRow}`).value = 'Nguyễn Thị Hương Thảo';
+    ws.getCell(`${colLetter1}${currentRow}`).font = { name: 'Arial', size: 10 };
+    ws.getCell(`${colLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
   }
-
-  // Dòng Tổng ma trận
-  const totalRow = ws.getRow(currentRow);
-  totalRow.height = 24;
-  totalRow.getCell(1).value = 'Tổng';
-  totalRow.getCell(1).font = { name: 'Arial', size: 10, bold: true };
-  totalRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
-  totalRow.getCell(1).border = thinBorder;
-
-  totalRow.getCell(2).value = formatVND(data.salesBase);
-  totalRow.getCell(2).font = { name: 'Arial', size: 10, bold: true };
-  totalRow.getCell(2).alignment = { horizontal: 'right', vertical: 'middle' };
-  totalRow.getCell(2).border = thinBorder;
-
-  let totCol = 3;
-  for (const bTot of data.beneficiaryTotals) {
-    const c = totalRow.getCell(totCol);
-    c.value = formatVND(bTot);
-    c.font = { name: 'Arial', size: 10, bold: true };
-    c.alignment = { horizontal: 'right', vertical: 'middle' };
-    c.border = thinBorder;
-    totCol++;
-  }
-
-  const cPool = totalRow.getCell(totCol++);
-  cPool.value = formatVND(data.matrixTotalPool);
-  cPool.font = { name: 'Arial', size: 10, bold: true };
-  cPool.alignment = { horizontal: 'right', vertical: 'middle' };
-  cPool.border = thinBorder;
-
-  const cDist = totalRow.getCell(totCol++);
-  cDist.value = formatVND(data.matrixTotalDistributed);
-  cDist.font = { name: 'Arial', size: 10, bold: true };
-  cDist.alignment = { horizontal: 'right', vertical: 'middle' };
-  cDist.border = thinBorder;
-
-  const cRem = totalRow.getCell(totCol);
-  cRem.value = formatVND(data.matrixTotalRemaining);
-  cRem.font = { name: 'Arial', size: 10, bold: true };
-  cRem.alignment = { horizontal: 'right', vertical: 'middle' };
-  cRem.border = thinBorder;
-
-  // Chữ ký dưới cùng bảng ma trận
-  currentRow += 2;
-  ws.mergeCells(`A${currentRow}:B${currentRow}`);
-  ws.getCell(`A${currentRow}`).value = 'NGƯỜI LẬP';
-  ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
-  ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-  ws.mergeCells(`I${currentRow}:L${currentRow}`);
-  ws.getCell(`I${currentRow}`).value = 'PHÓ CHỦ TỊCH';
-  ws.getCell(`I${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
-  ws.getCell(`I${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-  const lastColIdx = matrixHeaders.length;
-  const tgCol1 = Math.max(1, lastColIdx - 2);
-  const tgCol2 = lastColIdx;
-  const colLetter1 = ws.getColumn(tgCol1).letter;
-  const colLetter2 = ws.getColumn(tgCol2).letter;
-  ws.mergeCells(`${colLetter1}${currentRow}:${colLetter2}${currentRow}`);
-  ws.getCell(`${colLetter1}${currentRow}`).value = 'TỔNG GIÁM ĐỐC';
-  ws.getCell(`${colLetter1}${currentRow}`).font = { name: 'Arial', size: 10, bold: true };
-  ws.getCell(`${colLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-  currentRow += 5;
-  ws.mergeCells(`A${currentRow}:B${currentRow}`);
-  ws.getCell(`A${currentRow}`).value = 'Vũ Thị Cúc';
-  ws.getCell(`A${currentRow}`).font = { name: 'Arial', size: 10 };
-  ws.getCell(`A${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-  ws.mergeCells(`I${currentRow}:L${currentRow}`);
-  ws.getCell(`I${currentRow}`).value = 'Nguyễn Thị Thương Hiếu';
-  ws.getCell(`I${currentRow}`).font = { name: 'Arial', size: 10 };
-  ws.getCell(`I${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-  ws.mergeCells(`${colLetter1}${currentRow}:${colLetter2}${currentRow}`);
-  ws.getCell(`${colLetter1}${currentRow}`).value = 'Nguyễn Thị Hương Thảo';
-  ws.getCell(`${colLetter1}${currentRow}`).font = { name: 'Arial', size: 10 };
-  ws.getCell(`${colLetter1}${currentRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
 }
 
 export interface MonthlyRecipientRow {

@@ -14,6 +14,7 @@ import {
   WeeklyFundRow,
   WeeklyContractMatrixRow,
   MonthlyRecipientRow,
+  WeeklyPersonMatrixData,
   STANDARD_RATES,
   formatRateText,
 } from '@/lib/excelExportStyles';
@@ -56,39 +57,116 @@ function parseWeeklySheetFromFile(filePath: string, sheetName: string, weekLabel
       });
     }
 
-    // 3. Tìm bảng ma trận (dòng chứa "Tổng quỹ chưa chia")
-    const matrixHeaderIdx = rows.findIndex((r) => r.some((c) => String(c).includes('Tổng quỹ chưa chia')));
-    if (matrixHeaderIdx < 0) return null;
-    const headerRow = rows[matrixHeaderIdx];
-    const poolIdx = headerRow.findIndex((c) => String(c).includes('Tổng quỹ chưa chia'));
+    // 3. Tìm Person Matrix ("Họ tên/Hợp đồng") nếu có (như Tuần 1 T10 và Tuần 5 T9)
+    const personHeaderIdx = rows.findIndex((r) => r.some((c) => String(c).toLowerCase().includes('họ tên/hợp đồng') || String(c).toLowerCase().includes('họ tên / hợp đồng')));
+    let personMatrix: WeeklyPersonMatrixData | null = null;
 
-    const beneficiaryColumns = headerRow.slice(2, poolIdx).map((c) => {
-      const parts = String(c).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-      return {
-        name: parts[0] || '',
-        bankAccount: (parts[1] || '').replace(/^STK:\s*/i, '').trim(),
-        bankName: parts[2] || '',
+    if (personHeaderIdx >= 0) {
+      const pHeaderRow = rows[personHeaderIdx];
+      const startCol = pHeaderRow.findIndex((c) => String(c).toLowerCase().includes('họ tên'));
+      const headers: { colIdx: number; text: string }[] = [];
+      for (let c = startCol; c < pHeaderRow.length; c++) {
+        const val = String(pHeaderRow[c] || '').trim();
+        if (val) headers.push({ colIdx: c, text: val });
+      }
+
+      const pRows = [];
+      const pSummaries = [];
+
+      for (let r = personHeaderIdx + 1; r < rows.length; r++) {
+        const row = rows[r];
+        const firstCell = String(row[startCol] || '').trim();
+        if (!firstCell) continue;
+
+        if (firstCell.toLowerCase().startsWith('tổng quỹ') || firstCell.toLowerCase().startsWith('tổng hoa hồng') || firstCell.toLowerCase().startsWith('tổng')) {
+          pSummaries.push({
+            label: firstCell,
+            values: headers.slice(1).map((h) => Number(row[h.colIdx]) || 0),
+          });
+          continue;
+        }
+
+        if (firstCell.toLowerCase().includes('người lập') || firstCell.toLowerCase().includes('chủ tịch') || firstCell.toLowerCase().includes('giám đốc')) {
+          break;
+        }
+
+        const amounts = headers.slice(1, -1).map((h) => {
+          const v = row[h.colIdx];
+          if (typeof v === 'number') return v;
+          if (typeof v === 'string' && v.trim() !== '') {
+            const parsed = Number(v.replace(/[^0-9.-]+/g, ''));
+            return isNaN(parsed) ? null : parsed;
+          }
+          return null;
+        });
+        const lastH = headers[headers.length - 1];
+        const totalSpent = Number(row[lastH.colIdx]) || 0;
+
+        pRows.push({
+          info: firstCell,
+          amounts,
+          totalSpent,
+        });
+      }
+
+      personMatrix = {
+        titleColumn: headers[0].text,
+        columns: headers.slice(1, -1).map((h) => h.text),
+        totalColumn: headers[headers.length - 1].text,
+        rows: pRows,
+        summaries: pSummaries,
       };
-    });
-
-    const matrixTotalIdx = rows.findIndex((r, i) => i > matrixHeaderIdx && String(r[0]).trim() === 'Tổng');
-    const contractRows: WeeklyContractMatrixRow[] = [];
-    const limit = matrixTotalIdx > 0 ? matrixTotalIdx : rows.length;
-    for (let r = matrixHeaderIdx + 1; r < limit; r++) {
-      const row = rows[r];
-      if (!row[0] && !row[1]) continue;
-      contractRows.push({
-        stt: row[0] as number | string,
-        contractDesc: String(row[1] || '').trim(),
-        beneficiaryAmounts: row.slice(2, poolIdx).map((v) => (typeof v === 'number' ? v : null)),
-        unallocatedPool: Number(row[poolIdx]) || 0,
-        distributedCommission: Number(row[poolIdx + 1]) || 0,
-        remainingFund: Number(row[poolIdx + 2]) || 0,
-      });
     }
 
-    const matrixTotalRow = matrixTotalIdx > 0 ? rows[matrixTotalIdx] : [];
-    const beneficiaryTotals = matrixTotalRow.slice(2, poolIdx).map((v) => Number(v) || 0);
+    // 4. Tìm Contract Matrix (Row chứa "STT" và "Hợp đồng")
+    let contractRows: WeeklyContractMatrixRow[] = [];
+    let beneficiaryColumns: { name: string; bankAccount?: string; bankName?: string }[] = [];
+    let beneficiaryTotals: number[] = [];
+    let matrixTotalPool = 0;
+    let matrixTotalDistributed = 0;
+    let matrixTotalRemaining = 0;
+
+    const sttHeaderIdx = rows.findIndex((r) => r.some((c) => String(c).trim() === 'STT') && r.some((c) => String(c).toLowerCase().includes('hợp đồng')));
+    if (sttHeaderIdx >= 0) {
+      const sHeaderRow = rows[sttHeaderIdx];
+      const poolIdx = sHeaderRow.findIndex((c) => String(c).includes('Tổng quỹ chưa chia'));
+      const endBenCol = poolIdx > 0 ? poolIdx : sHeaderRow.length;
+
+      beneficiaryColumns = sHeaderRow.slice(2, endBenCol).map((c) => {
+        const parts = String(c).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        return {
+          name: parts[0] || '',
+          bankAccount: (parts[1] || '').replace(/^STK:\s*/i, '').trim(),
+          bankName: parts[2] || '',
+        };
+      });
+
+      const matrixTotalIdx = rows.findIndex((r, i) => i > sttHeaderIdx && String(r[0]).trim() === 'Tổng');
+      const limit = matrixTotalIdx > 0 ? matrixTotalIdx : (personHeaderIdx > sttHeaderIdx ? personHeaderIdx : rows.length);
+      for (let r = sttHeaderIdx + 1; r < limit; r++) {
+        const row = rows[r];
+        if (!row[0] && !row[1]) continue;
+        if (String(row[0]).trim().toLowerCase().includes('người lập')) break;
+        contractRows.push({
+          stt: row[0] as number | string,
+          contractDesc: String(row[1] || '').trim(),
+          beneficiaryAmounts: row.slice(2, endBenCol).map((v) => (typeof v === 'number' ? v : null)),
+          unallocatedPool: poolIdx > 0 ? (Number(row[poolIdx]) || 0) : 0,
+          distributedCommission: poolIdx > 0 ? (Number(row[poolIdx + 1]) || 0) : 0,
+          remainingFund: poolIdx > 0 ? (Number(row[poolIdx + 2]) || 0) : 0,
+        });
+      }
+
+      const matrixTotalRow = matrixTotalIdx > 0 ? rows[matrixTotalIdx] : [];
+      beneficiaryTotals = matrixTotalRow.slice(2, endBenCol).map((v) => Number(v) || 0);
+      if (poolIdx > 0) {
+        matrixTotalPool = Number(matrixTotalRow[poolIdx]) || 0;
+        matrixTotalDistributed = Number(matrixTotalRow[poolIdx + 1]) || 0;
+        matrixTotalRemaining = Number(matrixTotalRow[poolIdx + 2]) || 0;
+      }
+    }
+
+
 
     return {
       periodCode: '',
@@ -98,12 +176,13 @@ function parseWeeklySheetFromFile(filePath: string, sheetName: string, weekLabel
       totalAllocated: Number(totalFundRow[5]) || 0,
       totalSpent: Number(totalFundRow[6]) || 0,
       totalRemaining: Number(totalFundRow[7]) || 0,
+      personMatrix,
       beneficiaryColumns,
       contractRows,
       beneficiaryTotals,
-      matrixTotalPool: Number(matrixTotalRow[poolIdx]) || 0,
-      matrixTotalDistributed: Number(matrixTotalRow[poolIdx + 1]) || 0,
-      matrixTotalRemaining: Number(matrixTotalRow[poolIdx + 2]) || 0,
+      matrixTotalPool,
+      matrixTotalDistributed,
+      matrixTotalRemaining,
     };
   } catch (err) {
     console.warn(`Error parsing weekly file ${filePath}:`, err);
@@ -354,22 +433,23 @@ export async function GET(request: NextRequest) {
       let weeklyData: WeeklyReportData | null = null;
       let sheetTitle = 'DNTT tuần';
 
-      if (periodCode === '2026-09-W4') {
-        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan4_T9.xlsx');
-        sheetTitle = 'DNTT HH tuần 4 T9';
-        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 4 tháng 9');
-      } else if (periodCode === '2026-09-W3') {
-        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan3_T9.xlsx');
-        sheetTitle = 'DN thanh toán HH tuần 3 T9';
-        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 3 tháng 9');
-      } else if (periodCode === '2026-09-W5') {
-        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan5_T9.xlsx');
-        sheetTitle = 'DNTT tuần 5 T9';
-        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 5 tháng 9');
-      } else if (periodCode === '2026-10-W1') {
+      const pUpper = periodCode.toUpperCase().replace(/\s+/g, '');
+      if (pUpper.includes('10') && (pUpper.includes('W1') || pUpper.includes('TUAN1') || pUpper.endsWith('-1') || pUpper.endsWith('_1'))) {
         const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan1_T10.xlsx');
         sheetTitle = 'DNTT HH tuần 1 T10';
         weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 1 tháng 10');
+      } else if (pUpper.includes('09') && (pUpper.includes('W5') || pUpper.includes('TUAN5') || pUpper.endsWith('-5') || pUpper.endsWith('_5'))) {
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan5_T9.xlsx');
+        sheetTitle = 'DNTT tuần 5 T9';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 5 tháng 9');
+      } else if (pUpper.includes('09') && (pUpper.includes('W4') || pUpper.includes('TUAN4') || pUpper.endsWith('-4') || pUpper.endsWith('_4'))) {
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan4_T9.xlsx');
+        sheetTitle = 'DNTT HH tuần 4 T9';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 4 tháng 9');
+      } else if (pUpper.includes('09') && (pUpper.includes('W3') || pUpper.includes('TUAN3') || pUpper.endsWith('-3') || pUpper.endsWith('_3'))) {
+        const filePath = path.join(process.cwd(), 'imagedata', 'DN_thanh_toan_HH_Tuan3_T9.xlsx');
+        sheetTitle = 'DN thanh toán HH tuần 3 T9';
+        weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 3 tháng 9');
       }
 
       if (!weeklyData) {
@@ -472,6 +552,7 @@ export async function GET(request: NextRequest) {
           totalAllocated: sumAllocated,
           totalSpent: sumSpent,
           totalRemaining: sumAllocated - sumSpent,
+          personMatrix: null,
           beneficiaryColumns,
           contractRows,
           beneficiaryTotals,
