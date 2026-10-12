@@ -84,6 +84,12 @@ export async function POST(request: Request) {
     const beneficiaryBankAccount = String(body.beneficiaryBankAccount || '').trim() || null;
     const beneficiaryBankName = String(body.beneficiaryBankName || body.bankName || '').trim() || null;
     const paidImmediately = ['Đã thanh toán', 'Đã thực hiện', 'Đã chi'].includes(status);
+    const approvalDate = ['Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi'].includes(status)
+      ? (body.requestDate || new Date().toISOString().slice(0, 10))
+      : null;
+    const paymentDate = paidImmediately
+      ? (body.requestDate || new Date().toISOString().slice(0, 10))
+      : null;
 
     const client = await pool.connect();
     try {
@@ -100,9 +106,7 @@ export async function POST(request: Request) {
           items, note
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,TRUE,'Thủ công',
-          CASE WHEN $19 IN ('Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END,
-          CASE WHEN $19 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN CURRENT_DATE ELSE NULL END,
-          $22::jsonb, $23
+          $22, $23, $24::jsonb, $25
         )
         RETURNING id`,
         [
@@ -127,6 +131,8 @@ export async function POST(request: Request) {
           status,
           paidImmediately ? Number(body.actualExpense ?? amount) : 0,
           body.receiptUrl || null,
+          approvalDate,
+          paymentDate,
           JSON.stringify(items),
           note || null,
         ]

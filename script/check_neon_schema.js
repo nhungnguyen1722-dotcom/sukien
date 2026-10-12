@@ -6,28 +6,19 @@ const pool = new Pool({
 });
 
 async function main() {
-  const cols = await pool.query(`
-    SELECT column_name, data_type 
-    FROM information_schema.columns 
-    WHERE table_name = 'transaction_logs'
-    ORDER BY ordinal_position;
-  `);
-  console.log('Columns in transaction_logs:');
-  cols.rows.forEach(r => console.log(`  - ${r.column_name}: ${r.data_type}`));
-
-  const tables = await pool.query(`
-    SELECT table_name 
-    FROM information_schema.tables 
-    WHERE table_schema = 'public'
-    ORDER BY table_name;
-  `);
-  console.log('\nTables in database:');
-  console.log(tables.rows.map(r => r.table_name).join(', '));
-
-  await pool.end();
+  try {
+    const res = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'transaction_log_items'
+      ORDER BY ordinal_position;
+    `);
+    console.log('Columns in transaction_log_items:', res.rows.map(r => `${r.column_name} (${r.data_type})`).join(', '));
+  } catch (err) {
+    console.error('Error:', err);
+  } finally {
+    await pool.end();
+  }
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+main();

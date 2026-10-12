@@ -69,5 +69,7 @@ h1, h2, h3, h4, h5 {
     color: #0f172a;
     background: #fff;
     font-family: Arial, sans-serif;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

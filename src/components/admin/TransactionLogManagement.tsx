@@ -38,6 +38,30 @@ const LeaderboardManagement = dynamic(() => import('@/components/admin/Leaderboa
   ),
 });
 
+import CreatePaymentProposalModal from '@/components/admin/CreatePaymentProposalModal';
+import { numberToVietnameseWords } from '@/lib/numberToWords';
+
+export interface TransactionLogItem {
+  id?: number;
+  order?: number;
+  title: string;
+  subtitle?: string;
+  fund_source?: string;
+  fundSource?: string;
+  beneficiary_name?: string;
+  beneficiaryName?: string;
+  beneficiary_phone?: string | null;
+  beneficiaryPhone?: string | null;
+  beneficiary_bank_account?: string | null;
+  beneficiaryBankAccount?: string | null;
+  beneficiary_bank_name?: string | null;
+  beneficiaryBankName?: string | null;
+  beneficiary_user_id?: number | null;
+  beneficiaryUserId?: number | null;
+  amount: number;
+  note?: string;
+}
+
 export interface TransactionLog {
   id: number;
   request_code: string;
@@ -68,6 +92,8 @@ export interface TransactionLog {
   source_contract_id?: number | null;
   beneficiary_role?: string | null;
   beneficiary_team?: string | null;
+  items?: TransactionLogItem[];
+  note?: string | null;
 }
 
 export interface TransactionMember {
@@ -2272,50 +2298,104 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         <LeaderboardManagement initialMonth={selectedMonth} />
       )}
 
-      {isCreateOpen && <Modal onClose={() => setIsCreateOpen(false)} title="Tạo phiếu đề xuất chi">
-        <form onSubmit={handleCreate} className="space-y-3 p-5 text-xs">
-          <div className="grid gap-3 sm:grid-cols-2"><Field label="Mã phiếu"><input readOnly disabled tabIndex={-1} value={form.requestCode} className={`${inputClass} bg-slate-100 text-slate-500 font-medium cursor-not-allowed select-none`} /></Field><Field label="Ngày đề xuất"><input type="date" value={form.requestDate} onChange={(e) => setForm({ ...form, requestDate: e.target.value })} className={inputClass} /></Field></div>
-          <Field label="Nguồn quỹ"><select value={form.fundSource} onChange={(e) => setForm({ ...form, fundSource: e.target.value })} className={inputClass}>{[...Object.values(FUND_SOURCE_BY_KEY)].map((fund) => <option key={fund}>{fund}</option>)}</select></Field>
-          <Field label="Nội dung chi tiết"><textarea required rows={3} value={form.detailContent} onChange={(e) => setForm({ ...form, detailContent: e.target.value })} className={inputClass} /></Field>
-          <Field label="Số tiền đề xuất (VND)"><input required type="number" min="1" value={form.proposedAmount} onChange={(e) => setForm({ ...form, proposedAmount: e.target.value })} className={inputClass} /></Field>
-          <Field label="Trạng thái phiếu"><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}><option>Chờ duyệt</option><option>Đã duyệt</option><option>Đã thanh toán</option><option>Đã thực hiện</option><option>Từ chối</option></select></Field>
-          <div className="grid gap-3 sm:grid-cols-2"><PersonFields title="Người đề xuất" name={form.requesterName} phone={form.requesterPhone} onName={(v) => setForm({ ...form, requesterName: v })} onPhone={(v) => setForm({ ...form, requesterPhone: v })} /><PersonFields title="Người duyệt" name={form.approverName} phone={form.approverPhone} onName={(v) => setForm({ ...form, approverName: v })} onPhone={(v) => setForm({ ...form, approverPhone: v })} /></div>
-          <BeneficiaryFields
-            members={initialMembers}
-            name={form.beneficiaryName}
-            phone={form.beneficiaryPhone}
-            bankAccount={form.beneficiaryBankAccount}
-            onChange={(name, member) => setForm((current) => ({
-              ...current,
-              beneficiaryName: name,
-              beneficiaryUserId: member ? String(member.id) : '',
-              beneficiaryPhone: member ? (member.phone || '') : current.beneficiaryPhone,
-              beneficiaryBankAccount: member ? (member.bank_account || '') : current.beneficiaryBankAccount,
-            }))}
-            onPhone={(beneficiaryPhone) => setForm((current) => ({ ...current, beneficiaryPhone }))}
-            onBankAccount={(beneficiaryBankAccount) => setForm((current) => ({ ...current, beneficiaryBankAccount }))}
-          />
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setIsCreateOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2">Hủy</button><button disabled={isSubmitting} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{isSubmitting ? 'Đang lưu…' : 'Lưu phiếu'}</button></div>
-        </form>
-      </Modal>}
-      {viewLog && <Modal onClose={() => setViewLog(null)} title={`Chi tiết phiếu ${viewLog.request_code}`}>
-        <div className="grid gap-3 p-5 text-xs sm:grid-cols-2">
-          <Detail label="Ngày đề xuất" value={formatDate(viewLog.request_date)} />
-          <Detail label="Phân loại" value={viewLog.expense_type || 'Thủ công'} />
-          <Detail label="Nguồn quỹ" value={viewLog.fund_source} />
-          <Detail label="Trạng thái" value={viewLog.status} />
-          <Detail label="Số tiền đề xuất" value={viewLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(viewLog.proposed_amount)} />
-          <Detail label="Số tiền thực chi" value={formatVND(viewLog.actual_expense)} />
-          <Detail label="Người đề xuất" value={`${safeText(viewLog.requester_name)} · ${viewLog.requester_phone || '—'}`} />
-          <Detail label="Người duyệt" value={`${safeText(viewLog.approver_name)} · ${viewLog.approver_phone || '—'}`} />
-          <Detail label="Người thụ hưởng" value={`${safeText(viewLog.beneficiary_name)} · ${viewLog.beneficiary_phone || '—'}`} />
-          <Detail label="Đội nhóm thụ hưởng" value={viewLog.beneficiary_team || 'Chưa phân đội'} />
-          <Detail label="Ngân hàng nhận" value={viewLog.beneficiary_bank_account || '—'} />
-          <div className="rounded-lg bg-slate-50 p-3 sm:col-span-2"><div className="mb-1 text-slate-500">Nội dung</div>{safeText(viewLog.detail_content)}</div>
-          {viewLog.receipt_url && <a href={viewLog.receipt_url} target="_blank" rel="noreferrer" className="text-blue-600 underline sm:col-span-2">Mở chứng từ</a>}
-          <button type="button" onClick={() => setPrintLog(viewLog)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white sm:col-span-2"><Printer className="h-4 w-4" /> In / Lưu PDF</button>
-        </div>
-      </Modal>}
+      {isCreateOpen && (
+        <CreatePaymentProposalModal
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          members={initialMembers}
+          eventExpenses={eventExpenses}
+          onSuccess={(newLog) => {
+            setLogs((current) => [sanitizeTransactionLogNames(newLog), ...current]);
+          }}
+          onTriggerPrint={(tempLog) => {
+            setPrintLog(tempLog);
+          }}
+        />
+      )}
+
+      {viewLog && (
+        <Modal onClose={() => setViewLog(null)} title={`Chi tiết phiếu ${viewLog.request_code}`} maxWidth="max-w-4xl">
+          <div className="p-6 text-xs space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              <Detail label="Ngày đề xuất" value={formatDate(viewLog.request_date)} />
+              <Detail label="Phân loại" value={viewLog.expense_type || 'Thủ công'} />
+              <Detail label="Trạng thái" value={viewLog.status} />
+              <Detail label="Nguồn quỹ" value={viewLog.fund_source} />
+              <Detail label="Tổng tiền đề xuất" value={viewLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(viewLog.proposed_amount)} />
+              <Detail label="Số tiền thực chi" value={formatVND(viewLog.actual_expense)} />
+              <Detail label="Người đề xuất" value={`${safeText(viewLog.requester_name)} · ${viewLog.requester_phone || '—'}`} />
+              <Detail label="Người duyệt" value={`${safeText(viewLog.approver_name)} · ${viewLog.approver_phone || '—'}`} />
+              <Detail label="Người thụ hưởng" value={`${safeText(viewLog.beneficiary_name)} · ${viewLog.beneficiary_phone || '—'}`} />
+              <Detail label="Đội nhóm thụ hưởng" value={viewLog.beneficiary_team || 'Chưa phân đội'} />
+              <Detail label="Ngân hàng nhận" value={viewLog.beneficiary_bank_account || '—'} />
+            </div>
+
+            {viewLog.items && viewLog.items.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Danh mục các khoản mục chi ({viewLog.items.length} dòng)
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-center w-10">STT</th>
+                        <th className="px-3 py-2">Khoản mục & nội dung chi</th>
+                        <th className="px-3 py-2">Nguồn quỹ</th>
+                        <th className="px-3 py-2">Người nhận</th>
+                        <th className="px-3 py-2 text-right">Số tiền (VNĐ)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {viewLog.items.map((it, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/60">
+                          <td className="px-3 py-2 text-center text-slate-500">{idx + 1}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-bold text-slate-900">{it.title}</div>
+                            {it.subtitle && <div className="text-[10px] text-blue-600">{it.subtitle}</div>}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{it.fundSource || it.fund_source || viewLog.fund_source}</td>
+                          <td className="px-3 py-2 text-slate-700">
+                            <div>{it.beneficiaryName || it.beneficiary_name || viewLog.beneficiary_name}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {it.beneficiaryBankAccount || it.beneficiary_bank_account || ''} {it.beneficiaryBankName || it.beneficiary_bank_name || ''}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold tabular-nums text-slate-900">
+                            {formatVND(it.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-xl bg-slate-50 p-3 border border-slate-100">
+              <div className="mb-1 font-semibold text-slate-500">Nội dung / Ghi chú</div>
+              <div className="text-slate-800 whitespace-pre-line">{safeText(viewLog.note || viewLog.detail_content)}</div>
+            </div>
+
+            {viewLog.receipt_url && (
+              <a href={viewLog.receipt_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                Mở chứng từ
+              </a>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPrintLog(viewLog)}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 cursor-pointer"
+              >
+                <Printer className="h-4 w-4" /> In / Lưu PDF
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {viewContract && (
         <Modal
           onClose={() => setViewContract(null)}
@@ -2398,28 +2478,162 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           </div>
         </div>
       </Modal>)}
-      {printLog && <div className="print-sheet">
-        <div className="mb-8 border-b-2 border-slate-900 pb-4 text-center">
-          <h1 className="text-sm font-bold uppercase">Công ty Cổ phần Tập đoàn Nghiêng Complex</h1>
-          <h2 className="mt-5 text-xl font-bold uppercase">Phiếu đề nghị thanh toán</h2>
-          <p className="mt-2 text-sm">Mã phiếu: {printLog.request_code} · Ngày: {formatDate(printLog.request_date)}</p>
+
+      {printLog && (
+        <div className="print-sheet">
+          <div className="mb-6 border-b-2 border-slate-900 pb-4 text-center">
+            <h1 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+              CÔNG TY CỔ PHẦN TẬP ĐOÀN NGHIÊNG COMPLEX
+            </h1>
+            <p className="mt-1 text-[11px] text-slate-600">
+              Hệ thống quản lý sự kiện & phân bổ nguồn quỹ tự động
+            </p>
+            <h2 className="mt-4 text-2xl font-black uppercase tracking-tight text-slate-900">
+              PHIẾU ĐỀ NGHỊ THANH TOÁN
+            </h2>
+            <p className="mt-1.5 text-xs font-medium text-slate-600">
+              Mã phiếu: <strong>{printLog.request_code}</strong> · Ngày đề xuất: <strong>{formatDate(printLog.request_date)}</strong>
+            </p>
+          </div>
+
+          <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
+            <div>
+              <span className="text-slate-600">Người đề xuất:</span>{' '}
+              <strong className="text-slate-900">{safeText(printLog.requester_name)}</strong>
+              {printLog.requester_phone && <span> · {printLog.requester_phone}</span>}
+            </div>
+            <div>
+              <span className="text-slate-600">Người phê duyệt:</span>{' '}
+              <strong className="text-slate-900">{safeText(printLog.approver_name)}</strong>
+            </div>
+            <div>
+              <span className="text-slate-600">Người thụ hưởng:</span>{' '}
+              <strong className="text-slate-900">{safeText(printLog.beneficiary_name)}</strong>
+              {printLog.beneficiary_phone && <span> · {printLog.beneficiary_phone}</span>}
+            </div>
+            <div>
+              <span className="text-slate-600">Số tài khoản / Ngân hàng:</span>{' '}
+              <strong className="text-slate-900">
+                {printLog.beneficiary_bank_account || '—'} {printLog.beneficiary_bank_name || ''}
+              </strong>
+            </div>
+            <div>
+              <span className="text-slate-600">Nguồn quỹ trích:</span>{' '}
+              <strong className="text-slate-900">{printLog.fund_source}</strong>
+            </div>
+            <div>
+              <span className="text-slate-600">Trạng thái phiếu:</span>{' '}
+              <strong className="text-slate-900 uppercase">{printLog.status}</strong>
+            </div>
+            {printLog.note && (
+              <div className="col-span-2 mt-1 rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+                <span className="font-semibold text-slate-700">Căn cứ / Ghi chú đề xuất:</span>{' '}
+                <span className="text-slate-800">{printLog.note}</span>
+              </div>
+            )}
+          </div>
+
+          {/* ITEM BREAKDOWN TABLE */}
+          <div className="mb-6">
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">
+              Danh mục các khoản chi chi tiết
+            </h3>
+            <table className="w-full border-collapse border border-slate-400 text-xs">
+              <thead>
+                <tr className="bg-slate-100 font-bold text-slate-900">
+                  <th className="border border-slate-400 p-2 text-center w-12">STT</th>
+                  <th className="border border-slate-400 p-2 text-left">Nội dung chi tiết</th>
+                  <th className="border border-slate-400 p-2 text-left">Nguồn quỹ trích</th>
+                  <th className="border border-slate-400 p-2 text-left">Người thụ hưởng & TK nhận</th>
+                  <th className="border border-slate-400 p-2 text-right w-36">Số tiền (VNĐ)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printLog.items && printLog.items.length > 0 ? (
+                  printLog.items.map((it, idx) => (
+                    <tr key={idx}>
+                      <td className="border border-slate-400 p-2 text-center">{idx + 1}</td>
+                      <td className="border border-slate-400 p-2">
+                        <div className="font-bold text-slate-900">{it.title}</div>
+                        {it.subtitle && <div className="text-[11px] text-slate-600">{it.subtitle}</div>}
+                      </td>
+                      <td className="border border-slate-400 p-2">{it.fundSource || it.fund_source || printLog.fund_source}</td>
+                      <td className="border border-slate-400 p-2">
+                        <div>{it.beneficiaryName || it.beneficiary_name || printLog.beneficiary_name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {it.beneficiaryBankAccount || it.beneficiary_bank_account || ''} {it.beneficiaryBankName || it.beneficiary_bank_name || ''}
+                        </div>
+                      </td>
+                      <td className="border border-slate-400 p-2 text-right font-bold tabular-nums">
+                        {formatVND(it.amount)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="border border-slate-400 p-2 text-center">1</td>
+                    <td className="border border-slate-400 p-2 font-bold">{safeText(printLog.detail_content)}</td>
+                    <td className="border border-slate-400 p-2">{printLog.fund_source}</td>
+                    <td className="border border-slate-400 p-2">
+                      <div>{safeText(printLog.beneficiary_name)}</div>
+                      <div className="text-[11px] text-slate-500">{printLog.beneficiary_bank_account || '—'}</div>
+                    </td>
+                    <td className="border border-slate-400 p-2 text-right font-bold tabular-nums">
+                      {formatVND(printLog.proposed_amount)}
+                    </td>
+                  </tr>
+                )}
+                <tr className="bg-slate-50 font-bold">
+                  <td colSpan={4} className="border border-slate-400 p-2 text-right uppercase">
+                    Tổng cộng tiền đề xuất chi:
+                  </td>
+                  <td className="border border-slate-400 p-2 text-right font-black text-sm text-slate-950 tabular-nums">
+                    {formatVND(printLog.proposed_amount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="mt-2 text-xs text-slate-800 italic">
+              <strong>Số tiền viết bằng chữ:</strong> {numberToVietnameseWords(printLog.proposed_amount)}
+            </div>
+          </div>
+
+          {/* SIGNATURES BLOCK */}
+          <div className="mt-14 grid grid-cols-4 gap-4 text-center text-xs">
+            <div>
+              <div className="font-bold uppercase text-slate-900">NGƯỜI ĐỀ NGHỊ</div>
+              <div className="text-[11px] text-slate-500 italic mt-0.5">(Ký, họ tên)</div>
+              <div className="mt-16 font-bold text-slate-800">{safeText(printLog.requester_name)}</div>
+            </div>
+            <div>
+              <div className="font-bold uppercase text-slate-900">PHỤ TRÁCH QUỸ</div>
+              <div className="text-[11px] text-slate-500 italic mt-0.5">(Ký, họ tên)</div>
+              <div className="mt-16 font-bold text-slate-800">&nbsp;</div>
+            </div>
+            <div>
+              <div className="font-bold uppercase text-slate-900">KẾ TOÁN THANH TOÁN</div>
+              <div className="text-[11px] text-slate-500 italic mt-0.5">(Ký, họ tên)</div>
+              <div className="mt-16 font-bold text-slate-800">&nbsp;</div>
+            </div>
+            <div>
+              <div className="font-bold uppercase text-slate-900">BAN GIÁM ĐỐC</div>
+              <div className="text-[11px] text-slate-500 italic mt-0.5">(Phê duyệt chi)</div>
+              <div className="mt-16 font-bold text-slate-800">{safeText(printLog.approver_name)}</div>
+            </div>
+          </div>
         </div>
-        <div className="space-y-4 text-sm">
-          <p><strong>Loại phiếu:</strong> {printLog.expense_type || 'Thủ công'}</p>
-          <p><strong>Nguồn quỹ:</strong> {printLog.fund_source}</p>
-          <p><strong>Nội dung thanh toán:</strong> {safeText(printLog.detail_content)}</p>
-          <p><strong>Số tiền đề nghị:</strong> {printLog.proposed_amount == null ? 'Chưa có số liệu' : formatVND(printLog.proposed_amount)}</p>
-          <p><strong>Người thụ hưởng:</strong> {safeText(printLog.beneficiary_name)} · {printLog.beneficiary_phone || '—'}</p>
-          <p><strong>Tài khoản / Ngân hàng:</strong> {printLog.beneficiary_bank_account || '—'}</p>
-          <p><strong>Người đề xuất:</strong> {safeText(printLog.requester_name)} · {printLog.requester_phone || '—'}</p>
-          <p><strong>Người duyệt:</strong> {safeText(printLog.approver_name)} · {printLog.approver_phone || '—'}</p>
-          <p><strong>Trạng thái:</strong> {printLog.status}</p>
-        </div>
-        <div className="mt-20 grid grid-cols-3 gap-6 text-center text-xs font-bold">
-          <div>NGƯỜI ĐỀ NGHỊ</div><div>PHỤ TRÁCH QUỸ</div><div>PHÊ DUYỆT</div>
-        </div>
-      </div>}
-      <button type="button" onClick={openCreateForm} aria-label="Tạo phiếu chi" title="Tạo phiếu chi" className="fixed bottom-5 right-5 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 sm:hidden"><Plus className="h-6 w-6" /></button>
+      )}
+
+      {/* FLOATING ACTION BUTTON */}
+      <button
+        type="button"
+        onClick={openCreateForm}
+        aria-label="Tạo phiếu đề xuất chi"
+        title="Tạo phiếu đề xuất chi"
+        className="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-2xl hover:bg-blue-700 hover:scale-105 transition-all cursor-pointer"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }

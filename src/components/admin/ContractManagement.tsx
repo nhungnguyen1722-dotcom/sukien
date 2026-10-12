@@ -1423,25 +1423,39 @@ export default function ContractManagement({
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 {memberSelect('closer', 'Người chốt', formData.closer_name, formData.closer_phone, formData.closer_id)}
                 {memberSelect('referrer', 'Người giới thiệu F1', formData.referrer_name, formData.referrer_phone, formData.referrer_id)}
-                {memberSelect('supporter', 'Người hỗ trợ sale', formData.supporter_name, formData.supporter_phone, formData.supporter_id)}
-              </div>
-
-              <div className="grid grid-cols-1 gap-3">
-                <label className="text-xs font-semibold text-slate-700">
-                  Đội nhóm
-                  <span className="mt-1.5 flex gap-2">
-                    <select value={formData.team_name} onChange={(event) => setFormData({ ...formData, team_name: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+                {memberSelect('supporter', 'Người hỗ trợ Sale', formData.supporter_name, formData.supporter_phone, formData.supporter_id)}
+                <div className="relative rounded-xl border border-slate-200 bg-white p-3 flex flex-col justify-between">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <label htmlFor="team-select" className="text-xs font-semibold text-slate-700">
+                      Đội nhóm
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => openQuickAdd('team')}
+                      aria-label="Thêm nhanh Đội nhóm"
+                      title="Thêm nhanh đội nhóm"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <select
+                      id="team-select"
+                      value={formData.team_name}
+                      onChange={(event) => setFormData({ ...formData, team_name: event.target.value })}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    >
                       <option value="">Chọn đội nhóm</option>
                       {CONTRACT_TEAM_OPTIONS.map((team) => <option key={team} value={team}>{team}</option>)}
                       {teams.filter((team) => !(CONTRACT_TEAM_OPTIONS as readonly string[]).includes(team.name)).map((team) => <option key={team.id} value={team.name}>{team.name}</option>)}
                       {formData.team_name && !teams.some((team) => team.name === formData.team_name) && !(CONTRACT_TEAM_OPTIONS as readonly string[]).includes(formData.team_name) && <option value={formData.team_name}>{formData.team_name}</option>}
                     </select>
-                    <button type="button" onClick={() => openQuickAdd('team')} aria-label="Thêm đội nhóm" title="Thêm đội nhóm" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><Plus className="h-4 w-4" /></button>
-                  </span>
-                </label>
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
