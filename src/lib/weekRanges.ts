@@ -20,7 +20,7 @@ function addDays(value: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function formatDateDM(value: string): string {
+export function formatDateDM(value: string): string {
   const parts = value.split('-');
   return `${parts[2]}/${parts[1]}`;
 }

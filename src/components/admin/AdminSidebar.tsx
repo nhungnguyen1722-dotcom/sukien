@@ -21,6 +21,8 @@ import {
   Sparkles,
   ChevronDown,
   Wallet,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import SystemLogo from '@/components/SystemLogo';
 import { safeDecodeURI } from '@/lib/authUtils';
@@ -57,11 +59,15 @@ const policySupportSubItems = [
 interface AdminSidebarProps {
   adminName?: string;
   adminRole?: string;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export default function AdminSidebar({
   adminName: defaultAdminName = 'Nhung Nguyễn',
   adminRole: defaultAdminRole = 'ADMIN',
+  isCollapsed = false,
+  onToggleCollapse,
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -190,29 +196,48 @@ export default function AdminSidebar({
       )}
 
       <aside
-        className={`w-[260px] min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none transition-transform duration-200 ease-in-out ${
+        className={`min-h-screen bg-[#0f172a] flex flex-col fixed left-0 top-0 bottom-0 z-50 text-white select-none transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'w-[260px] md:w-[76px]' : 'w-[260px]'
+        } ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Brand Header (Mục 12 - Hình 13: Căn giữa logo, object-fit contain, không méo, không padding dư thừa) */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/60">
-          <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center flex-1 group">
-            <div
-              className="bg-white px-3 py-1.5 rounded-2xl shadow-sm flex items-center justify-center w-full max-w-[200px] h-12 hover:shadow-md transition-all"
-              style={{
-                maxHeight: '100%',
-                height: '100%',
-              }}
-            >
-              <SystemLogo
-                className="h-9 w-auto max-h-9 max-w-full object-contain transition-transform group-hover:scale-105 duration-200"
-                style={{
-                  maxHeight: '100%',
-                  height: '100%',
-                }}
-              />
+        {/* Brand Header */}
+        <div className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'justify-between px-3 py-3'} border-b border-slate-800/60 min-h-[64px]`}>
+          {!isCollapsed ? (
+            <>
+              <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center flex-1 group mr-2">
+                <div
+                  className="bg-white px-3 py-1.5 rounded-2xl shadow-sm flex items-center justify-center w-full max-w-[180px] h-11 hover:shadow-md transition-all"
+                >
+                  <SystemLogo
+                    className="h-8 w-auto max-h-8 max-w-full object-contain transition-transform group-hover:scale-105 duration-200"
+                  />
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+                title="Thu gọn menu"
+                aria-label="Thu gọn menu"
+              >
+                <PanelLeftClose className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <div className="hidden md:flex w-full items-center justify-center">
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="flex items-center justify-center p-2.5 rounded-xl text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 transition-all cursor-pointer shadow-xs group"
+                title="Mở rộng menu"
+                aria-label="Mở rộng menu"
+              >
+                <PanelLeftOpen className="w-5 h-5 text-blue-400 group-hover:scale-110 transition-transform" />
+              </button>
             </div>
-          </Link>
+          )}
           <button
             type="button"
             onClick={() => setIsMobileOpen(false)}
@@ -224,7 +249,7 @@ export default function AdminSidebar({
         </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 px-4 mt-2 overflow-y-auto">
+      <nav className={`flex-1 ${isCollapsed ? 'px-2' : 'px-4'} mt-2 overflow-y-auto`}>
         <ul className="space-y-1.5">
           {visibleMenuItems.map((item) => {
             const isActive =
@@ -239,14 +264,17 @@ export default function AdminSidebar({
                   <li>
                     <Link
                       href={item.href}
-                      className={`flex items-center gap-3.5 px-4 py-3 rounded-xl text-[14px] font-medium transition-all ${
+                      title={isCollapsed ? item.label : undefined}
+                      className={`flex items-center ${
+                        isCollapsed ? 'justify-center px-0 py-3' : 'gap-3.5 px-4 py-3'
+                      } rounded-xl text-[14px] font-medium transition-all ${
                         isActive
                           ? 'bg-[#2563eb] text-white shadow-md'
                           : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                       }`}
                     >
                       <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span>{item.label}</span>
+                      {!isCollapsed && <span className="truncate">{item.label}</span>}
                     </Link>
                   </li>
                 )}
@@ -256,29 +284,41 @@ export default function AdminSidebar({
                   <li className="space-y-1">
                     <button
                       type="button"
-                      onClick={() => setIsWheelMenuOpen(!isWheelMenuOpen)}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
+                      onClick={() => {
+                        if (isCollapsed && onToggleCollapse) {
+                          onToggleCollapse();
+                          setIsWheelMenuOpen(true);
+                        } else {
+                          setIsWheelMenuOpen(!isWheelMenuOpen);
+                        }
+                      }}
+                      title={isCollapsed ? "Vòng quay sự kiện" : undefined}
+                      className={`w-full flex items-center ${
+                        isCollapsed ? 'justify-center px-0 py-3' : 'justify-between px-4 py-3'
+                      } rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
                         isWheelRoute
                           ? 'bg-slate-800 text-amber-400 font-semibold shadow-xs'
                           : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                       }`}
                     >
-                      <div className="flex items-center gap-3.5">
+                      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3.5'}`}>
                         <Sparkles
                           className={`w-5 h-5 flex-shrink-0 ${
                             isWheelRoute ? 'text-amber-400' : 'text-slate-400'
                           }`}
                         />
-                        <span>Vòng quay sự kiện</span>
+                        {!isCollapsed && <span>Vòng quay sự kiện</span>}
                       </div>
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform duration-200 ${
-                          isWheelMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'
-                        }`}
-                      />
+                      {!isCollapsed && (
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            isWheelMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'
+                          }`}
+                        />
+                      )}
                     </button>
 
-                    {isWheelMenuOpen && (
+                    {!isCollapsed && isWheelMenuOpen && (
                       <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
                         {luckyWheelSubItems.map((sub) => {
                           const isSubActive = pathname === sub.href;
@@ -310,21 +350,33 @@ export default function AdminSidebar({
                   <li className="space-y-1">
                     <button
                       type="button"
-                      onClick={() => setIsPolicySupportMenuOpen(!isPolicySupportMenuOpen)}
+                      onClick={() => {
+                        if (isCollapsed && onToggleCollapse) {
+                          onToggleCollapse();
+                          setIsPolicySupportMenuOpen(true);
+                        } else {
+                          setIsPolicySupportMenuOpen(!isPolicySupportMenuOpen);
+                        }
+                      }}
+                      title={isCollapsed ? "Chính sách hỗ trợ" : undefined}
                       aria-expanded={isPolicySupportMenuOpen}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
+                      className={`w-full flex items-center ${
+                        isCollapsed ? 'justify-center px-0 py-3' : 'justify-between px-4 py-3'
+                      } rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
                         isPolicySupportRoute
                           ? 'bg-slate-800 text-emerald-300 font-semibold shadow-xs'
                           : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                       }`}
                     >
-                      <div className="flex items-center gap-3.5">
+                      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3.5'}`}>
                         <Wallet className={`w-5 h-5 flex-shrink-0 ${isPolicySupportRoute ? 'text-emerald-300' : 'text-slate-400'}`} />
-                        <span>Chính sách hỗ trợ</span>
+                        {!isCollapsed && <span>Chính sách hỗ trợ</span>}
                       </div>
-                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPolicySupportMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                      {!isCollapsed && (
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPolicySupportMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                      )}
                     </button>
-                    {isPolicySupportMenuOpen && (
+                    {!isCollapsed && isPolicySupportMenuOpen && (
                       <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
                         {policySupportSubItems.map((sub) => {
                           const isSubActive =
@@ -356,30 +408,35 @@ export default function AdminSidebar({
       </nav>
 
       {/* User Info / Profile at bottom */}
-      <div className="p-4 border-t border-slate-800/80">
-        <div className="flex items-center gap-3 px-2 py-2">
+      <div className={`border-t border-slate-800/80 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        <div className={`flex items-center ${isCollapsed ? 'flex-col gap-2.5 py-1' : 'gap-3 px-2 py-2'}`}>
           {/* Avatar */}
-          <div className="w-10 h-10 rounded-full bg-[#2563eb] flex items-center justify-center text-white text-base font-bold flex-shrink-0 shadow-sm">
+          <div
+            className="w-10 h-10 rounded-full bg-[#2563eb] flex items-center justify-center text-white text-base font-bold flex-shrink-0 shadow-sm"
+            title={currentName}
+          >
             {currentName ? currentName.trim().charAt(0).toUpperCase() : 'N'}
           </div>
 
-          {/* Name & Role (Đã xóa khung đỏ theo Hình 2.2 Mục 2) */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center">
-              <span className="text-white text-sm font-semibold truncate max-w-[140px]" title={currentName}>
-                {currentName}
-              </span>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center">
+                <span className="text-white text-sm font-semibold truncate max-w-[140px]" title={currentName}>
+                  {currentName}
+                </span>
+              </div>
+              <p className="text-slate-400 text-xs truncate">
+                {isReception ? 'Nhân viên lễ tân' : isAdmin ? 'Quản trị viên' : currentRole}
+              </p>
             </div>
-            <p className="text-slate-400 text-xs truncate">
-              {isReception ? 'Nhân viên lễ tân' : isAdmin ? 'Quản trị viên' : currentRole}
-            </p>
-          </div>
+          )}
 
           {/* Logout Button */}
           <button
             onClick={handleLogout}
-            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-800"
+            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer"
             title="Đăng xuất"
+            aria-label="Đăng xuất"
           >
             <LogOut className="w-4 h-4" />
           </button>

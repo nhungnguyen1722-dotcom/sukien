@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import AdminSidebar from '@/components/admin/AdminSidebar';
+import AdminShell from '@/components/admin/AdminShell';
 import pool from '@/lib/db';
 import { safeDecodeURI } from '@/lib/authUtils';
 
@@ -31,11 +31,8 @@ export default async function AdminLayout({
   const currentName = rawName ? safeDecodeURI(rawName) : await getAdminName();
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc]">
-      <AdminSidebar adminName={currentName} adminRole={currentRole} />
-      <main className="flex-1 ml-0 md:ml-[260px] pt-12 md:pt-0 overflow-y-auto min-h-screen">
-        {children}
-      </main>
-    </div>
+    <AdminShell currentName={currentName} currentRole={currentRole}>
+      {children}
+    </AdminShell>
   );
 }

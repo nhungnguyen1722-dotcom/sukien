@@ -7,6 +7,7 @@ import { CONTRACT_TEAM_OPTIONS } from '@/lib/teamOptions';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { getOperationsSupportFundKey, OPERATIONS_SUPPORT_FUND_RATE } from '@/lib/operationsFunds';
 import { formatWeekOptionLabel } from '@/lib/weekRanges';
+import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import {
   AlertCircle,
   CalendarDays,
@@ -35,6 +36,7 @@ export interface Contract {
   contract_date: string;
   customer_name: string;
   customer_phone?: string | null;
+  customer_birth_date?: string | null;
   customer_address?: string | null;
   value: number | string;
   allocated_value?: number | string | null;
@@ -96,6 +98,7 @@ interface ContractFormData {
   contract_type: string;
   customer_name: string;
   customer_phone: string;
+  customer_birth_date: string;
   customer_address: string;
   value: number;
   allocated_value: number;
@@ -117,6 +120,7 @@ const emptyForm: ContractFormData = {
   contract_type: '',
   customer_name: '',
   customer_phone: '',
+  customer_birth_date: '',
   customer_address: '',
   value: 0,
   allocated_value: 0,
@@ -733,6 +737,20 @@ export default function ContractManagement({
     setSelectedWeek(null);
   };
 
+  const handleYearChange = useCallback((year: number) => {
+    setSelectedYear(String(year));
+    setSelectedWeek(null);
+  }, []);
+
+  const handleMonthChange = useCallback((month: number | 'all') => {
+    setSelectedMonth(month);
+    setSelectedWeek(null);
+  }, []);
+
+  const handleWeekChange = useCallback((weekNo: number) => {
+    setSelectedWeek(weekNo === 0 ? null : weekNo);
+  }, []);
+
   const openAddForm = () => {
     setEditingContract(null);
     setActiveDropdown(null);
@@ -740,6 +758,7 @@ export default function ContractManagement({
       ...emptyForm,
       contract_code: 'HD' + String(Date.now()).slice(-6),
       contract_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }),
+      customer_birth_date: '',
       value: 0,
       allocated_value: 0,
     });
@@ -760,6 +779,7 @@ export default function ContractManagement({
       contract_type: contract.contract_type || '',
       customer_name: contract.customer_name || '',
       customer_phone: contract.customer_phone || '',
+      customer_birth_date: contract.customer_birth_date ? toDateInput(contract.customer_birth_date) : '',
       customer_address: contract.customer_address || '',
       value: contractVal,
       allocated_value: allocatedVal,
@@ -991,6 +1011,7 @@ export default function ContractManagement({
       'Ngày ký': formatDate(viewingContract.contract_date),
       'Khách hàng': viewingContract.customer_name,
       'SĐT khách hàng': viewingContract.customer_phone || '',
+      'Ngày sinh khách hàng': viewingContract.customer_birth_date ? formatDate(viewingContract.customer_birth_date) : '',
       'Địa chỉ': viewingContract.customer_address || '',
       'Giá trị hợp đồng (VNĐ)': numeric(viewingContract.value),
       ...((isBdsContract(viewingContract.contract_type) || isTwoYearContract(viewingContract.contract_type))
@@ -1124,7 +1145,7 @@ export default function ContractManagement({
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
-          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+          <div className="mb-3 flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -1135,68 +1156,29 @@ export default function ContractManagement({
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
               />
             </div>
-            <select
-              aria-label="Chọn năm"
-              value={selectedYear}
-              onChange={(event) => { setSelectedYear(event.target.value); setSelectedWeek(null); }}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
-            >
-              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
             <button
               type="button"
               onClick={handleResetFilters}
               title="Đặt lại bộ lọc"
               aria-label="Đặt lại bộ lọc"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer"
             >
               <RotateCw className="h-4 w-4" />
             </button>
           </div>
-          <div className="mt-3 flex gap-1 overflow-x-auto border-b border-slate-100 pb-2">
-            <span className="flex shrink-0 items-center px-2 text-xs font-bold text-slate-500">Tháng</span>
-            <button
-              type="button"
-              ref={selectedMonth === 'all' ? activeMonthRef : undefined}
-              onClick={() => { setSelectedMonth('all'); setSelectedWeek(null); }}
-              className={'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' + (selectedMonth === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100')}
-              aria-pressed={selectedMonth === 'all'}
-            >
-              Tất cả
-            </button>
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-              <button
-                type="button"
-                key={month}
-                ref={selectedMonth === month ? activeMonthRef : undefined}
-                onClick={() => { setSelectedMonth(month); setSelectedWeek(null); }}
-                className={'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' + (selectedMonth === month ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100')}
-                aria-pressed={selectedMonth === month}
-              >
-                {month}
-              </button>
-            ))}
-          </div>
-          {selectedMonth !== 'all' && <div className="mt-2 flex items-center gap-1.5 overflow-x-auto">
-            <CalendarDays className="mr-1 h-4 w-4 shrink-0 text-slate-400" />
-            <button
-              type="button"
-              onClick={() => setSelectedWeek(null)}
-              className={'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ' + (!selectedWeek ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}
-            >
-              Cả tháng
-            </button>
-            {weekOptions.map((week) => (
-              <button
-                type="button"
-                key={week}
-                onClick={() => setSelectedWeek(week)}
-                className={'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ' + (selectedWeek === week ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}
-              >
-                {formatWeekLabel(selectedYear, selectedMonth, week)}
-              </button>
-            ))}
-          </div>}
+
+          <AdminTimeFilter
+            selectedYear={Number(selectedYear)}
+            yearOptions={yearOptions}
+            onYearChange={handleYearChange}
+            selectedMonth={selectedMonth}
+            onMonthChange={handleMonthChange}
+            allowAllMonths={true}
+            selectedWeek={selectedWeek}
+            onWeekChange={handleWeekChange}
+            hideWeekRow={selectedMonth === 'all'}
+            className="border-0 !p-0 !shadow-none"
+          />
         </div>
       </div>
 
@@ -1302,7 +1284,7 @@ export default function ContractManagement({
 
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-5">
-          <div className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+          <div className="flex max-h-[94vh] w-full max-w-5xl xl:max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
               <h2 className="text-base font-bold text-slate-900">{editingContract ? 'Sửa hợp đồng' : 'Thêm mới hợp đồng'}</h2>
               <button type="button" onClick={() => setIsFormOpen(false)} aria-label="Đóng form" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
@@ -1375,12 +1357,12 @@ export default function ContractManagement({
                     </span>
                   </label>
 
-                  {(isBdsContract(formData.contract_type) || isTwoYearContract(formData.contract_type)) && (
+                  {isBdsContract(formData.contract_type) && (
                     <label className="block text-xs font-semibold text-slate-700">
                       <span className="flex items-center justify-between">
                         <span>Giá trị hợp đồng phân bổ</span>
                         <span className="text-[11px] font-normal text-slate-400">
-                          {isBdsContract(formData.contract_type) ? '(Tự động: × 4 / 15)' : '(Tự động: 70%)'}
+                          (Tự động: × 4 / 15)
                         </span>
                       </span>
                       <span className="relative mt-1.5 block">
@@ -1400,22 +1382,48 @@ export default function ContractManagement({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 <label className="text-xs font-semibold text-slate-700">
                   Khách hàng <span className="text-rose-500">*</span>
-                  <input value={formData.customer_name} onChange={(event) => setFormData({ ...formData, customer_name: event.target.value })} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Họ tên khách hàng" />
+                  <input
+                    value={formData.customer_name}
+                    onChange={(event) => setFormData({ ...formData, customer_name: event.target.value })}
+                    required
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Họ tên khách hàng"
+                  />
                 </label>
                 <label className="text-xs font-semibold text-slate-700">
                   Số điện thoại khách hàng
-                  <input type="tel" value={formData.customer_phone} onChange={(event) => setFormData({ ...formData, customer_phone: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Số điện thoại" />
+                  <input
+                    type="tel"
+                    value={formData.customer_phone}
+                    onChange={(event) => setFormData({ ...formData, customer_phone: event.target.value })}
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Số điện thoại"
+                  />
                 </label>
                 <label className="text-xs font-semibold text-slate-700">
-                  Địa chỉ khách hàng
-                  <input value={formData.customer_address} onChange={(event) => setFormData({ ...formData, customer_address: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Địa chỉ" />
+                  Ngày tháng năm sinh
+                  <input
+                    type="date"
+                    value={formData.customer_birth_date}
+                    onChange={(event) => setFormData({ ...formData, customer_birth_date: event.target.value })}
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-slate-700">
+                  Địa chỉ
+                  <input
+                    value={formData.customer_address}
+                    onChange={(event) => setFormData({ ...formData, customer_address: event.target.value })}
+                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Địa chỉ"
+                  />
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {memberSelect('closer', 'Người chốt', formData.closer_name, formData.closer_phone, formData.closer_id)}
                 {memberSelect('referrer', 'Người giới thiệu F1', formData.referrer_name, formData.referrer_phone, formData.referrer_id)}
                 {memberSelect('supporter', 'Người hỗ trợ sale', formData.supporter_name, formData.supporter_phone, formData.supporter_id)}
@@ -1488,6 +1496,7 @@ export default function ContractManagement({
                   <div><span className="block text-slate-400">Loại hợp đồng</span><strong className="mt-1 block text-slate-800">{viewingContract.contract_type || '—'}</strong></div>
                   <div><span className="block text-slate-400">Khách hàng</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_name}</strong></div>
                   <div><span className="block text-slate-400">SĐT khách hàng</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_phone || '—'}</strong></div>
+                  <div><span className="block text-slate-400">Ngày sinh</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_birth_date ? formatDate(viewingContract.customer_birth_date) : '—'}</strong></div>
                   <div><span className="block text-slate-400">Địa chỉ</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_address || '—'}</strong></div>
                   <div><span className="block text-slate-400">Ngày ký</span><strong className="mt-1 block text-slate-800">{formatDate(viewingContract.contract_date)}</strong></div>
                   <div><span className="block text-slate-400">Giá trị hợp đồng</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.value)}</strong></div>

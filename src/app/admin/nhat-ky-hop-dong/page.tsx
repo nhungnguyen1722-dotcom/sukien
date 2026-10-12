@@ -26,6 +26,7 @@ async function getContractsData(year: number): Promise<{
           c.contract_date::text AS contract_date_text,
           c.customer_name,
           c.customer_phone,
+          c.customer_birth_date::text AS customer_birth_date,
           c.customer_address,
           c.value,
           c.allocated_value,

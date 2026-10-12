@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
+import { formatDateDM, getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
+import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { calculateContractAllBeneficiaries, decomposeBeneficiarySource, TEAM_LEADER_ROSTER } from '@/lib/allocationFormulas';
 import {
@@ -757,6 +758,22 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       .forEach((row) => unique.set(row.period_code, row));
     return Array.from(unique.values()).sort((a, b) => a.period_start.localeCompare(b.period_start));
   }, [normalizedWeeklyAllocations, selectedMonth]);
+
+  const timeFilterWeeks = useMemo(() => {
+    return periodsForMonth.map((period, index) => {
+      const wNo = getPeriodWeekNumber(period, index);
+      const range = getEffectivePeriodRange(period);
+      const dateRange = range.start && range.endInclusive
+        ? `${formatDateDM(range.start)} - ${formatDateDM(range.endInclusive)}`
+        : formatPeriodRange(period) || period.period_label;
+      return {
+        weekNo: wNo,
+        weekKey: period.period_code,
+        label: `Tuần ${wNo}`,
+        dateRange,
+      };
+    });
+  }, [periodsForMonth]);
   const [selectedPeriodCode, setSelectedPeriodCode] = useState(MONTH_OVERVIEW);
   const selectedPeriod = useMemo(() => {
     return selectedPeriodCode === MONTH_OVERVIEW
@@ -1305,20 +1322,32 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     setActionMenuId(null);
   };
 
-  const changeYear = (year: string) => {
-    setSelectedYear(year);
+  const handleYearChange = useCallback((year: number) => {
+    setSelectedYear(String(year));
     setSelectedMonth(`${year}-${selectedMonth.slice(5, 7)}`);
     setSelectedPeriodCode(MONTH_OVERVIEW);
     setCashflowContractPage(1);
     setCashflowPeoplePage(1);
-  };
+  }, [selectedMonth]);
 
-  const changeMonth = (month: number) => {
-    setSelectedMonth(`${selectedYear}-${String(month).padStart(2, '0')}`);
-    setSelectedPeriodCode(MONTH_OVERVIEW);
+  const handleMonthChange = useCallback((month: number | 'all') => {
+    if (typeof month === 'number') {
+      setSelectedMonth(`${selectedYear}-${String(month).padStart(2, '0')}`);
+      setSelectedPeriodCode(MONTH_OVERVIEW);
+      setCashflowContractPage(1);
+      setCashflowPeoplePage(1);
+    }
+  }, [selectedYear]);
+
+  const handleWeekChange = useCallback((weekNo: number, weekKey?: string) => {
+    if (weekNo === 0 || !weekKey || weekKey === '__MONTH_OVERVIEW__') {
+      setSelectedPeriodCode(MONTH_OVERVIEW);
+    } else {
+      setSelectedPeriodCode(weekKey);
+    }
     setCashflowContractPage(1);
     setCashflowPeoplePage(1);
-  };
+  }, []);
 
   const paidAmountForFund = useCallback((fundKey: string, fundSource: string) => {
     const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
@@ -1433,72 +1462,30 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         </nav>
       </Panel>
 
-      {activeTab !== 'vouchers' && activeTab !== 'leaderboard' && <Panel className="p-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="flex items-center gap-2">
-              <label htmlFor="transaction-log-year" className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Năm</label>
-              <select
-                id="transaction-log-year"
-                aria-label="Chọn năm"
-                value={selectedYear}
-                onChange={(event) => changeYear(event.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
-              >
-                {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-              </select>
-            </div>
-            <div className="hidden h-6 w-px bg-slate-300 sm:block" />
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tháng</span>
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <button key={month} onClick={() => changeMonth(month)} className={`min-w-9 rounded-lg border px-3 py-2 text-xs font-semibold ${Number(selectedMonth.slice(5, 7)) === month ? 'border-blue-700 bg-slate-900 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                  {month}
-                </button>
-              ))}
-            </div>
-            <div className="hidden h-6 w-px bg-slate-300 sm:block" />
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tuần</span>
-              <button
-                onClick={() => {
-                  setSelectedPeriodCode(MONTH_OVERVIEW);
-                  setCashflowContractPage(1);
-                  setCashflowPeoplePage(1);
-                }}
-                className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-              >
-                Cả tháng
-              </button>
-              {periodsForMonth.map((period, index) => (
-                <button
-                  key={period.period_code}
-                  onClick={() => {
-                    setSelectedPeriodCode(period.period_code);
-                    setCashflowContractPage(1);
-                    setCashflowPeoplePage(1);
-                  }}
-                  className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-                >
-                  {getPeriodWeekNumber(period, index)} · {formatPeriodRange(period) || period.period_label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0">
+      {activeTab !== 'vouchers' && activeTab !== 'leaderboard' && (
+        <AdminTimeFilter
+          selectedYear={Number(selectedYear)}
+          yearOptions={yearOptions}
+          onYearChange={handleYearChange}
+          selectedMonth={Number(selectedMonth.slice(5, 7))}
+          onMonthChange={handleMonthChange}
+          selectedWeek={isMonthOverview ? 0 : selectedPeriodCode}
+          onWeekChange={handleWeekChange}
+          customWeeks={timeFilterWeeks}
+          rightSlot={
             <button
               type="button"
               onClick={handleExportExcel}
               disabled={isExporting}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
               title={isMonthOverview ? `Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
             >
               <FileSpreadsheet className="h-4 w-4" />
               <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Báo Cáo Excel'}</span>
             </button>
-          </div>
-        </div>
-      </Panel>}
+          }
+        />
+      )}
 
       {activeTab === 'cashflow' && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -2287,7 +2274,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
       {isCreateOpen && <Modal onClose={() => setIsCreateOpen(false)} title="Tạo phiếu đề xuất chi">
         <form onSubmit={handleCreate} className="space-y-3 p-5 text-xs">
-          <div className="grid gap-3 sm:grid-cols-2"><Field label="Mã phiếu"><input readOnly value={form.requestCode} className={`${inputClass} bg-slate-100`} /></Field><Field label="Ngày đề xuất"><input type="date" value={form.requestDate} onChange={(e) => setForm({ ...form, requestDate: e.target.value })} className={inputClass} /></Field></div>
+          <div className="grid gap-3 sm:grid-cols-2"><Field label="Mã phiếu"><input readOnly disabled tabIndex={-1} value={form.requestCode} className={`${inputClass} bg-slate-100 text-slate-500 font-medium cursor-not-allowed select-none`} /></Field><Field label="Ngày đề xuất"><input type="date" value={form.requestDate} onChange={(e) => setForm({ ...form, requestDate: e.target.value })} className={inputClass} /></Field></div>
           <Field label="Nguồn quỹ"><select value={form.fundSource} onChange={(e) => setForm({ ...form, fundSource: e.target.value })} className={inputClass}>{[...Object.values(FUND_SOURCE_BY_KEY)].map((fund) => <option key={fund}>{fund}</option>)}</select></Field>
           <Field label="Nội dung chi tiết"><textarea required rows={3} value={form.detailContent} onChange={(e) => setForm({ ...form, detailContent: e.target.value })} className={inputClass} /></Field>
           <Field label="Số tiền đề xuất (VND)"><input required type="number" min="1" value={form.proposedAmount} onChange={(e) => setForm({ ...form, proposedAmount: e.target.value })} className={inputClass} /></Field>

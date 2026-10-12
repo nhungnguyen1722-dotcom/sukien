@@ -4,6 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatWeekOptionLabel } from '@/lib/weekRanges';
+import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import {
   BarChart3,
   CalendarDays,
@@ -225,7 +226,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const maximumYear = Math.max(new Date().getFullYear() + 1, selectedYear);
   const yearOptions = Array.from({ length: maximumYear - 1999 }, (_, index) => maximumYear - index);
 
-  const updateMonthFilter = (year: number, monthNumber: number) => {
+  const updateMonthFilter = useCallback((year: number, monthNumber: number) => {
     const nextMonth = `${year}-${String(monthNumber).padStart(2, '0')}`;
     setMonth(nextMonth);
     setMonthFilterMode('month');
@@ -237,7 +238,26 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
     setRosterPage(1);
     setAllocationPage(1);
     setReportPage(1);
-  };
+  }, []);
+
+  const handleYearChange = useCallback((year: number) => {
+    updateMonthFilter(year, selectedMonthNumber);
+  }, [selectedMonthNumber, updateMonthFilter]);
+
+  const handleMonthChange = useCallback((m: number | 'all') => {
+    if (m === 'all') {
+      setMonthFilterMode('all');
+      setWeekNo(0);
+      setReportWeekNo(0);
+    } else {
+      updateMonthFilter(selectedYear, m);
+    }
+  }, [selectedYear, updateMonthFilter]);
+
+  const handleWeekChange = useCallback((w: number) => {
+    setWeekNo(w);
+    setReportWeekNo(w);
+  }, []);
 
   const loadRoster = useCallback(async (forceRefresh = false) => {
     const cacheKey = `${month}_${weekNo}`;
@@ -862,99 +882,17 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
             </div>
           </div>
           <div className="mt-5 border-t border-slate-100 pt-4">
-            {/* Hàng 1 (Năm & Tháng) */}
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                <span>Năm</span>
-                <select
-                  value={selectedYear}
-                  onChange={(event) => updateMonthFilter(Number(event.target.value), selectedMonthNumber)}
-                  aria-label="Lọc theo năm"
-                  className="min-w-20 bg-transparent text-xs font-semibold text-slate-800 outline-none"
-                >
-                  {yearOptions.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="flex shrink-0 items-center gap-1 overflow-x-auto">
-                <span className="flex shrink-0 items-center px-2 text-xs font-bold text-slate-500">Tháng</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMonthFilterMode('all');
-                    setWeekNo(0);
-                    setReportWeekNo(0);
-                  }}
-                  className={
-                    'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' +
-                    (monthFilterMode === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100')
-                  }
-                  aria-pressed={monthFilterMode === 'all'}
-                >
-                  Tất cả
-                </button>
-                {MONTH_OPTIONS.map((monthNumber) => (
-                  <button
-                    type="button"
-                    key={monthNumber}
-                    onClick={() => updateMonthFilter(selectedYear, monthNumber)}
-                    className={
-                      'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' +
-                      (monthFilterMode === 'month' && selectedMonthNumber === monthNumber
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-600 hover:bg-slate-100')
-                    }
-                    aria-pressed={monthFilterMode === 'month' && selectedMonthNumber === monthNumber}
-                  >
-                    {monthNumber}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Hàng 2 (Tuần) */}
-            {monthFilterMode !== 'all' && (
-              <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto">
-                <CalendarDays className="mr-1 h-4 w-4 shrink-0 text-slate-400" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWeekNo(0);
-                    setReportWeekNo(0);
-                  }}
-                  className={
-                    'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition ' +
-                    (weekNo === 0
-                      ? 'bg-slate-800 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
-                  }
-                >
-                  Cả tháng
-                </button>
-                {weekOptions.map((week) => (
-                  <button
-                    type="button"
-                    key={week}
-                    onClick={() => {
-                      setWeekNo(week);
-                      setReportWeekNo(week);
-                    }}
-                    className={
-                      'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition ' +
-                      (weekNo === week
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
-                    }
-                  >
-                    {formatWeekOptionLabel(month, week, 'short')}
-                  </button>
-                ))}
-              </div>
-            )}
+            <AdminTimeFilter
+              selectedYear={selectedYear}
+              yearOptions={yearOptions}
+              onYearChange={handleYearChange}
+              selectedMonth={monthFilterMode === 'all' ? 'all' : selectedMonthNumber}
+              onMonthChange={handleMonthChange}
+              allowAllMonths={true}
+              selectedWeek={weekNo}
+              onWeekChange={handleWeekChange}
+              hideWeekRow={monthFilterMode === 'all'}
+            />
           </div>
           <nav className="mt-4 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4">
             {TAB_LINKS.map((tab) => {

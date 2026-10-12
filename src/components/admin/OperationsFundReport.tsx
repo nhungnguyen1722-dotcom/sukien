@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
+import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import * as XLSX from 'xlsx';
 import {
   Calendar,
@@ -161,6 +162,53 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
     for (const contract of contracts) if (contract.contract_date) months.add(contract.contract_date.slice(0, 7));
     return Array.from(months).filter((m) => /^\d{4}-\d{2}$/.test(m)).sort();
   }, [allocations, contracts, initialMonth]);
+
+  const selectedYear = Number(selectedMonth.slice(0, 4));
+  const selectedMonthNumber = Number(selectedMonth.slice(5, 7));
+
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    const current = new Date().getFullYear();
+    years.add(current);
+    years.add(2026);
+    years.add(2027);
+    for (const alloc of allocations) {
+      if (alloc.period_month) {
+        const y = Number(alloc.period_month.slice(0, 4));
+        if (y) years.add(y);
+      }
+    }
+    for (const contract of contracts) {
+      if (contract.contract_date) {
+        const y = Number(contract.contract_date.slice(0, 4));
+        if (y) years.add(y);
+      }
+    }
+    years.add(selectedYear);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [allocations, contracts, selectedYear]);
+
+  const handleYearChange = useCallback((year: number) => {
+    setSelectedMonth(`${year}-${selectedMonth.slice(5, 7)}`);
+    setViewMode('month');
+  }, [selectedMonth]);
+
+  const handleMonthChange = useCallback((monthNum: number | 'all') => {
+    if (typeof monthNum === 'number') {
+      setSelectedMonth(`${selectedYear}-${String(monthNum).padStart(2, '0')}`);
+      setViewMode('month');
+      setSelectedWeek(1);
+    }
+  }, [selectedYear]);
+
+  const handleWeekChange = useCallback((weekNo: number) => {
+    if (weekNo === 0) {
+      setViewMode('month');
+    } else {
+      setViewMode('week');
+      setSelectedWeek(weekNo);
+    }
+  }, []);
 
   // Tính khoảng ngày cho kỳ được chọn
   const range = useMemo(() => {
@@ -437,85 +485,17 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
         </div>
       </header>
 
-      {/* ===== THANH BỘ LỌC THỜI GIAN (TABS THÁNG / TUẦN) ===== */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        {/* Tab chọn Tháng */}
-        <div className="flex items-center gap-1.5">
-          {availableMonths.map((monthKey) => {
-            const m = Number(monthKey.slice(5, 7));
-            const isActive = selectedMonth === monthKey;
-            return (
-              <button
-                key={monthKey}
-                type="button"
-                onClick={() => {
-                  setSelectedMonth(monthKey);
-                  setSelectedWeek(1);
-                }}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-600'
-                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                Tháng {m}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Chuyển đổi Tháng / Tuần */}
-        <div className="flex items-center rounded-xl bg-slate-200/80 p-1 shadow-inner">
-          <button
-            type="button"
-            onClick={() => setViewMode('month')}
-            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
-              viewMode === 'month'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Xem theo Tháng
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('week')}
-            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
-              viewMode === 'week'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Xem theo Tuần
-          </button>
-        </div>
-
-        {/* Các nút Tuần khi chọn viewMode === 'week' */}
-        {viewMode === 'week' && (
-          <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-150">
-            {weekOptions.map((opt) => {
-              const isWeekActive = selectedWeek === opt.weekNo;
-              return (
-                <button
-                  key={opt.weekNo}
-                  type="button"
-                  onClick={() => setSelectedWeek(opt.weekNo)}
-                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                    isWeekActive
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                  }`}
-                  title={opt.range}
-                >
-                  <span>{opt.label}</span>
-                  <span className={`text-[10px] ${isWeekActive ? 'text-slate-300' : 'text-slate-400'}`}>
-                    ({opt.range})
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+      {/* ===== THANH BỘ LỌC THỜI GIAN 2 HÀNG ===== */}
+      <div className="mb-6">
+        <AdminTimeFilter
+          selectedYear={selectedYear}
+          yearOptions={yearOptions}
+          onYearChange={handleYearChange}
+          selectedMonth={selectedMonthNumber}
+          onMonthChange={handleMonthChange}
+          selectedWeek={viewMode === 'month' ? 0 : selectedWeek}
+          onWeekChange={handleWeekChange}
+        />
       </div>
 
       {/* ===== 4 CARDS THỐNG KÊ (HÌNH 7.3) ===== */}

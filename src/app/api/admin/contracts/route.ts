@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
         c.contract_date::text AS contract_date_text,
         c.customer_name,
         c.customer_phone,
+        c.customer_birth_date::text AS customer_birth_date,
         c.customer_address,
         c.value,
         c.allocated_value,
@@ -303,6 +304,7 @@ export async function POST(request: NextRequest) {
       contract_date,
       customer_name,
       customer_phone,
+      customer_birth_date,
       customer_address,
       value,
       closer_id,
@@ -355,6 +357,7 @@ export async function POST(request: NextRequest) {
         contract_date,
         customer_name,
         customer_phone,
+        customer_birth_date,
         customer_address,
         value,
         closer_id,
@@ -376,7 +379,7 @@ export async function POST(request: NextRequest) {
         approved_date,
         notes,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'Đã duyệt', $20, $21, NULL, NULL, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 'Đã duyệt', $21, $22, NULL, NULL, CURRENT_TIMESTAMP)
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
@@ -384,6 +387,7 @@ export async function POST(request: NextRequest) {
         contract_date,
         customer_name.trim(),
         customer_phone ? String(customer_phone).trim() : null,
+        customer_birth_date ? String(customer_birth_date).trim() : null,
         customer_address ? String(customer_address).trim() : null,
         numValue,
         closer_id && Number.isInteger(Number(closer_id)) ? Number(closer_id) : null,
