@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { calculateContractAllBeneficiaries, decomposeBeneficiarySource, TEAM_LEADER_ROSTER } from '@/lib/allocationFormulas';
@@ -19,6 +20,7 @@ import {
   Plus,
   Printer,
   Receipt,
+  RefreshCw,
   Search,
   Sparkles,
   TrendingDown,
@@ -29,7 +31,11 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import LeaderboardManagement from '@/components/admin/LeaderboardManagement';
+const LeaderboardManagement = dynamic(() => import('@/components/admin/LeaderboardManagement'), {
+  loading: () => (
+    <div aria-busy="true" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" />
+  ),
+});
 
 export interface TransactionLog {
   id: number;
@@ -1052,6 +1058,42 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       && (selectedType === 'all' || (log.expense_type || 'Thủ công') === selectedType);
   });
 
+  // Phân trang cho danh sách phiếu thu chi
+  const [voucherPage, setVoucherPage] = useState(1);
+  const [voucherPageSize, setVoucherPageSize] = useState(25);
+
+  const paginatedLogs = useMemo(() => {
+    if (voucherPageSize === 0) return filteredLogs;
+    const start = (voucherPage - 1) * voucherPageSize;
+    return filteredLogs.slice(start, start + voucherPageSize);
+  }, [filteredLogs, voucherPage, voucherPageSize]);
+
+  const totalVoucherPages = voucherPageSize === 0 ? 1 : Math.ceil(filteredLogs.length / voucherPageSize) || 1;
+
+  // Phân trang cho bảng hợp đồng dòng tiền
+  const [cashflowContractPage, setCashflowContractPage] = useState(1);
+  const [cashflowContractPageSize, setCashflowContractPageSize] = useState(25);
+
+  const paginatedContracts = useMemo(() => {
+    if (cashflowContractPageSize === 0) return displayedContracts;
+    const start = (cashflowContractPage - 1) * cashflowContractPageSize;
+    return displayedContracts.slice(start, start + cashflowContractPageSize);
+  }, [displayedContracts, cashflowContractPage, cashflowContractPageSize]);
+
+  const totalContractPages = cashflowContractPageSize === 0 ? 1 : Math.ceil(displayedContracts.length / cashflowContractPageSize) || 1;
+
+  // Phân trang cho bảng nhân sự thụ hưởng
+  const [cashflowPeoplePage, setCashflowPeoplePage] = useState(1);
+  const [cashflowPeoplePageSize, setCashflowPeoplePageSize] = useState(20);
+
+  const paginatedPeopleRows = useMemo(() => {
+    if (cashflowPeoplePageSize === 0) return filteredPeopleRows;
+    const start = (cashflowPeoplePage - 1) * cashflowPeoplePageSize;
+    return filteredPeopleRows.slice(start, start + cashflowPeoplePageSize);
+  }, [filteredPeopleRows, cashflowPeoplePage, cashflowPeoplePageSize]);
+
+  const totalPeoplePages = cashflowPeoplePageSize === 0 ? 1 : Math.ceil(filteredPeopleRows.length / cashflowPeoplePageSize) || 1;
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [viewLog, setViewLog] = useState<TransactionLog | null>(null);
   const [viewContract, setViewContract] = useState<FundContract | null>(null);
@@ -1059,6 +1101,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const [printLog, setPrintLog] = useState<TransactionLog | null>(null);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingSlips, setIsGeneratingSlips] = useState(false);
   const [form, setForm] = useState({
     requestCode: 'YC',
     requestDate: new Date().toISOString().slice(0, 10),
@@ -1085,17 +1128,21 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     setIsCreateOpen(true);
   };
 
-  useEffect(() => {
-    let active = true;
-    fetch('/api/admin/transaction-logs/generate', { method: 'POST' })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || 'Không tạo được phiếu tự động.');
-        if (active) setLogs((result.logs || []).map(sanitizeTransactionLogNames));
-      })
-      .catch((error) => console.error('Automatic contract slip generation failed:', error));
-    return () => { active = false; };
-  }, []);
+  const handleGenerateAutomaticSlips = async () => {
+    if (!confirm('Bạn có muốn tự động kiểm tra và tạo / đồng bộ phiếu chi từ các hợp đồng trong hệ thống?')) return;
+    setIsGeneratingSlips(true);
+    try {
+      const response = await fetch('/api/admin/transaction-logs/generate', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Không tạo được phiếu tự động.');
+      if (result.logs) setLogs((result.logs || []).map(sanitizeTransactionLogNames));
+      alert('Tạo và đồng bộ phiếu tự động thành công!');
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Có lỗi khi tạo phiếu tự động.');
+    } finally {
+      setIsGeneratingSlips(false);
+    }
+  };
 
   useEffect(() => {
     if (!printLog) return;
@@ -1165,11 +1212,15 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     setSelectedYear(year);
     setSelectedMonth(`${year}-${selectedMonth.slice(5, 7)}`);
     setSelectedPeriodCode(MONTH_OVERVIEW);
+    setCashflowContractPage(1);
+    setCashflowPeoplePage(1);
   };
 
   const changeMonth = (month: number) => {
     setSelectedMonth(`${selectedYear}-${String(month).padStart(2, '0')}`);
     setSelectedPeriodCode(MONTH_OVERVIEW);
+    setCashflowContractPage(1);
+    setCashflowPeoplePage(1);
   };
 
   const paidAmountForFund = (fundKey: string, fundSource: string) => logs
@@ -1242,9 +1293,21 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Nhật ký dòng tiền & phân bổ quỹ</h1>
         </div>
-        <button onClick={openCreateForm} className="hidden sm:inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
-          <Plus className="h-4 w-4" /> Thêm phiếu chi
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleGenerateAutomaticSlips}
+            disabled={isGeneratingSlips}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-blue-700 shadow-2xs transition hover:bg-blue-50 disabled:opacity-60 cursor-pointer"
+            title="Đồng bộ phiếu tự động từ danh sách hợp đồng hệ thống"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isGeneratingSlips ? 'animate-spin' : ''}`} />
+            <span>{isGeneratingSlips ? 'Đang tạo phiếu...' : 'Tạo phiếu tự động từ HĐ'}</span>
+          </button>
+          <button onClick={openCreateForm} className="hidden sm:inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+            <Plus className="h-4 w-4" /> Thêm phiếu chi
+          </button>
+        </div>
       </header>
 
       <Panel className="p-2">
@@ -1351,7 +1414,8 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scrollbar-thin [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-transparent">
               {distributionView === 'contract' ? (
-                <table className="min-w-[1120px] w-full text-left text-xs border-collapse">
+                <>
+                  <table className="min-w-[1120px] w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
                     <tr>
                       <th className="px-4 py-3 bg-slate-50">Ngày / HĐ / Khách hàng</th>
@@ -1363,7 +1427,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {displayedContracts.length ? displayedContracts.map((contract) => (
+                    {displayedContracts.length ? paginatedContracts.map((contract) => (
                       <tr
                         key={contract.id}
                         role="button"
@@ -1411,7 +1475,48 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                     </tr>
                   </tfoot>
                 </table>
-              ) : (
+                {totalContractPages > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                    <div>
+                      Hiển thị {((cashflowContractPage - 1) * cashflowContractPageSize) + 1} - {Math.min(cashflowContractPage * cashflowContractPageSize, displayedContracts.length)} trong {displayedContracts.length} hợp đồng
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label="Số dòng hợp đồng mỗi trang"
+                        value={cashflowContractPageSize}
+                        onChange={(e) => {
+                          setCashflowContractPageSize(Number(e.target.value));
+                          setCashflowContractPage(1);
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                      >
+                        <option value={25}>25 / trang</option>
+                        <option value={50}>50 / trang</option>
+                        <option value={100}>100 / trang</option>
+                        <option value={0}>Tất cả</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={cashflowContractPage <= 1}
+                        onClick={() => setCashflowContractPage((p) => Math.max(1, p - 1))}
+                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Trước
+                      </button>
+                      <span className="text-xs font-medium">Trang {cashflowContractPage} / {totalContractPages}</span>
+                      <button
+                        type="button"
+                        disabled={cashflowContractPage >= totalContractPages}
+                        onClick={() => setCashflowContractPage((p) => Math.min(totalContractPages, p + 1))}
+                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Sau
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
                 <div className="flex flex-col min-w-[980px]">
                   {/* Báo cáo thống kê số lượng thành viên theo từng chức danh/chức vụ nhận hoa hồng */}
                   <div className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur-xs">
@@ -1600,7 +1705,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredPeopleRows.length ? (
-                        filteredPeopleRows.map((person) => {
+                        paginatedPeopleRows.map((person) => {
                           const maxWeekly = Math.max(...person.weeklyBreakdown.map((w) => w.amount), 1);
                           const initials = person.name.trim().split(/\s+/).slice(-2).map((p) => p[0]).join('').toUpperCase() || 'NV';
                           return (
@@ -1786,6 +1891,46 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                       </tr>
                     </tfoot>
                   </table>
+                  {totalPeoplePages > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                      <div>
+                        Hiển thị {((cashflowPeoplePage - 1) * cashflowPeoplePageSize) + 1} - {Math.min(cashflowPeoplePage * cashflowPeoplePageSize, filteredPeopleRows.length)} trong {filteredPeopleRows.length} thành viên
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          aria-label="Số dòng nhân sự mỗi trang"
+                          value={cashflowPeoplePageSize}
+                          onChange={(e) => {
+                            setCashflowPeoplePageSize(Number(e.target.value));
+                            setCashflowPeoplePage(1);
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                        >
+                          <option value={20}>20 / trang</option>
+                          <option value={50}>50 / trang</option>
+                          <option value={100}>100 / trang</option>
+                          <option value={0}>Tất cả</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={cashflowPeoplePage <= 1}
+                          onClick={() => setCashflowPeoplePage((p) => Math.max(1, p - 1))}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Trước
+                        </button>
+                        <span className="text-xs font-medium">Trang {cashflowPeoplePage} / {totalPeoplePages}</span>
+                        <button
+                          type="button"
+                          disabled={cashflowPeoplePage >= totalPeoplePages}
+                          onClick={() => setCashflowPeoplePage((p) => Math.min(totalPeoplePages, p + 1))}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Sau
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1947,7 +2092,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         <div className="overflow-x-auto">
           <table className="min-w-[1120px] w-full text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-4 py-3">Mã / Ngày</th><th className="px-3 py-3">Phân loại</th><th className="px-3 py-3">Quỹ / Nội dung</th><th className="px-3 py-3">Người đề xuất</th><th className="px-3 py-3">Người duyệt</th><th className="px-3 py-3">Người thụ hưởng</th><th className="px-3 py-3 text-right">Đề xuất / Thực chi</th><th className="px-3 py-3 text-center">Trạng thái</th><th className="px-3 py-3 text-center">Thao tác</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{filteredLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50/70">
+            <tbody className="divide-y divide-slate-100">{paginatedLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50/70">
               <td className="px-4 py-3"><div className="font-mono font-bold text-slate-800">{log.request_code}</div><div className="mt-1 text-[10px] text-slate-500">{formatDate(log.request_date)}</div></td>
               <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${(log.expense_type || 'Thủ công') === 'Tự động' ? 'bg-violet-50 text-violet-700' : 'bg-slate-100 text-slate-700'}`}>{log.expense_type || 'Thủ công'}</span></td>
               <td className="max-w-[260px] px-3 py-3"><div className="font-semibold text-slate-800">{log.fund_source}</div><div className="mt-1 truncate text-[10px] text-slate-500" title={log.detail_content}>{safeText(log.detail_content)}</div></td>
@@ -1972,6 +2117,46 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             </tr>)}{!filteredLogs.length && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">Không có phiếu phù hợp.</td></tr>}</tbody>
           </table>
         </div>
+        {totalVoucherPages > 1 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+            <div>
+              Hiển thị {((voucherPage - 1) * voucherPageSize) + 1} - {Math.min(voucherPage * voucherPageSize, filteredLogs.length)} trong {filteredLogs.length} phiếu
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="Số phiếu mỗi trang"
+                value={voucherPageSize}
+                onChange={(e) => {
+                  setVoucherPageSize(Number(e.target.value));
+                  setVoucherPage(1);
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+              >
+                <option value={25}>25 / trang</option>
+                <option value={50}>50 / trang</option>
+                <option value={100}>100 / trang</option>
+                <option value={0}>Tất cả</option>
+              </select>
+              <button
+                type="button"
+                disabled={voucherPage <= 1}
+                onClick={() => setVoucherPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+              >
+                Trước
+              </button>
+              <span className="text-xs font-medium">Trang {voucherPage} / {totalVoucherPages}</span>
+              <button
+                type="button"
+                disabled={voucherPage >= totalVoucherPages}
+                onClick={() => setVoucherPage((p) => Math.min(totalVoucherPages, p + 1))}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
       </Panel>}
 
       {activeTab === 'leaderboard' && (

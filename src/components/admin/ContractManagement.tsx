@@ -633,6 +633,7 @@ export default function ContractManagement({
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const activeMonthRef = useRef<HTMLButtonElement | null>(null);
+  const hasUsedInitialData = useRef(false);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -683,6 +684,12 @@ export default function ContractManagement({
   }, [initialStats, searchQuery, selectedMonth, selectedYear, selectedWeek]);
 
   useEffect(() => {
+    // The page already supplies data for the initial year. Avoid immediately
+    // fetching that exact dataset again after hydration.
+    if (!hasUsedInitialData.current) {
+      hasUsedInitialData.current = true;
+      return;
+    }
     void refreshData();
   }, [refreshData]);
 

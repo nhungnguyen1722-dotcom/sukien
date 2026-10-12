@@ -739,6 +739,22 @@ export default function EventDetail({
     }).length;
   }, [filteredGuests]);
 
+  // Phân trang danh sách khách đăng ký & check-in
+  const [guestPage, setGuestPage] = useState(1);
+  const [guestPageSize, setGuestPageSize] = useState(25);
+
+  const paginatedGuests = useMemo(() => {
+    if (guestPageSize === 0) return filteredGuests;
+    const start = (guestPage - 1) * guestPageSize;
+    return filteredGuests.slice(start, start + guestPageSize);
+  }, [filteredGuests, guestPage, guestPageSize]);
+
+  const totalGuestPages = guestPageSize === 0 ? 1 : Math.ceil(filteredGuests.length / guestPageSize) || 1;
+
+  useEffect(() => {
+    setGuestPage(1);
+  }, [guestSearch, guestBusinessUnitFilter, guestStatusFilter, guestFoodFilter]);
+
   // Handler: Save Edit Event
   const handleSaveEditEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2463,12 +2479,12 @@ export default function EventDetail({
                       </td>
                     </tr>
                   ) : (
-                    filteredGuests.map((guest, idx) => {
+                    paginatedGuests.map((guest, idx) => {
                       const isFood = isGuestFoodApproved(guest.is_food_approved);
                       const status = guest.attendance_status || 'Đã đăng ký';
                       return (
                         <tr key={guest.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3.5 px-4 text-center font-medium text-slate-500">{idx + 1}</td>
+                          <td className="py-3.5 px-4 text-center font-medium text-slate-500">{(guestPageSize === 0 ? 0 : (guestPage - 1) * guestPageSize) + idx + 1}</td>
                           <td className="py-3.5 px-4">
                             <span className="font-bold text-slate-800 block">{safeDecodeURI(guest.guest_name)}</span>
                             {guest.guest_phone && (
@@ -2614,7 +2630,7 @@ export default function EventDetail({
                     : 'Không tìm thấy khách nào phù hợp với bộ lọc hiện tại'}
                 </div>
               ) : (
-                filteredGuests.map((guest, idx) => {
+                paginatedGuests.map((guest, idx) => {
                   const isFood = isGuestFoodApproved(guest.is_food_approved);
                   const status = guest.attendance_status || 'Đã đăng ký';
                   return (
@@ -2622,7 +2638,7 @@ export default function EventDetail({
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2.5">
                           <span className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                            {idx + 1}
+                            {(guestPageSize === 0 ? 0 : (guestPage - 1) * guestPageSize) + idx + 1}
                           </span>
                           <div>
                             <span className="font-bold text-slate-800 block text-sm">{safeDecodeURI(guest.guest_name)}</span>
@@ -2726,6 +2742,55 @@ export default function EventDetail({
                 })
               )}
             </div>
+
+            {/* Phân trang danh sách khách đăng ký */}
+            {filteredGuests.length > 0 && (
+              <div className="px-4 py-3 bg-white border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 mt-3 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span>Hiển thị</span>
+                  <select
+                    value={guestPageSize}
+                    onChange={(e) => {
+                      setGuestPageSize(Number(e.target.value));
+                      setGuestPage(1);
+                    }}
+                    className="border border-slate-200 rounded px-2 py-1 bg-white text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value={25}>25 khách/trang</option>
+                    <option value={50}>50 khách/trang</option>
+                    <option value={100}>100 khách/trang</option>
+                    <option value={0}>Tất cả ({filteredGuests.length})</option>
+                  </select>
+                  <span>
+                    (Tổng <strong className="text-slate-800">{filteredGuests.length}</strong> khách)
+                  </span>
+                </div>
+
+                {guestPageSize > 0 && totalGuestPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={guestPage <= 1}
+                      onClick={() => setGuestPage((p) => Math.max(1, p - 1))}
+                      className="px-2.5 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                    >
+                      Trang trước
+                    </button>
+                    <span className="px-2 font-medium text-slate-700">
+                      Trang {guestPage} / {totalGuestPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={guestPage >= totalGuestPages}
+                      onClick={() => setGuestPage((p) => Math.min(totalGuestPages, p + 1))}
+                      className="px-2.5 py-1 border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                    >
+                      Trang sau
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3622,22 +3687,29 @@ export default function EventDetail({
                     {filteredReferrerMembers.length === 0 ? (
                       <div className="p-3 text-xs text-slate-400 text-center">Không tìm thấy thành viên phù hợp</div>
                     ) : (
-                      filteredReferrerMembers.map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => handleSelectReferrerMember(m)}
-                          className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
-                        >
-                          <div>
-                            <span className="font-semibold text-slate-800 block">{safeDecodeURI(m.full_name)}</span>
-                            <span className="text-[11px] text-slate-400">{m.phone || '—'}</span>
+                      <>
+                        {filteredReferrerMembers.slice(0, 50).map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleSelectReferrerMember(m)}
+                            className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                          >
+                            <div>
+                              <span className="font-semibold text-slate-800 block">{safeDecodeURI(m.full_name)}</span>
+                              <span className="text-[11px] text-slate-400">{m.phone || '—'}</span>
+                            </div>
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                              {m.role || 'Thành viên'}
+                            </span>
+                          </button>
+                        ))}
+                        {filteredReferrerMembers.length > 50 && (
+                          <div className="p-2 text-[11px] text-slate-400 text-center bg-slate-50 font-medium">
+                            Hiển thị 50/{filteredReferrerMembers.length} kết quả. Gõ thêm từ khóa để tìm chính xác hơn.
                           </div>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-                            {m.role || 'Thành viên'}
-                          </span>
-                        </button>
-                      ))
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -4377,35 +4449,42 @@ export default function EventDetail({
                       {filteredMembers.length === 0 ? (
                         <div className="p-3 text-xs text-slate-400 text-center">Không tìm thấy thành viên</div>
                       ) : (
-                        filteredMembers.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => {
-                              const matchedRoles = m.role
-                                ? availableInChargeRoles.filter((r) => m.role?.toLowerCase().includes(r.toLowerCase()))
-                                : [];
-                              setInChargeForm({
-                                ...inChargeForm,
-                                user_id: String(m.id),
-                                full_name: safeDecodeURI(m.full_name),
-                                position: m.role || 'Thành viên',
-                                phone: m.phone || '',
-                                email: m.email || '',
-                                roles: matchedRoles.length > 0 ? matchedRoles : ['Diễn giả'],
-                              });
-                              setMemberSearchQuery(safeDecodeURI(m.full_name));
-                              setIsMemberDropdownOpen(false);
-                            }}
-                            className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
-                          >
-                            <div>
-                              <span className="font-semibold text-slate-800 block">{safeDecodeURI(m.full_name)}</span>
-                              <span className="text-[11px] text-slate-400">{m.phone || '—'}</span>
+                        <>
+                          {filteredMembers.slice(0, 50).map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                const matchedRoles = m.role
+                                  ? availableInChargeRoles.filter((r) => m.role?.toLowerCase().includes(r.toLowerCase()))
+                                  : [];
+                                setInChargeForm({
+                                  ...inChargeForm,
+                                  user_id: String(m.id),
+                                  full_name: safeDecodeURI(m.full_name),
+                                  position: m.role || 'Thành viên',
+                                  phone: m.phone || '',
+                                  email: m.email || '',
+                                  roles: matchedRoles.length > 0 ? matchedRoles : ['Diễn giả'],
+                                });
+                                setMemberSearchQuery(safeDecodeURI(m.full_name));
+                                setIsMemberDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                            >
+                              <div>
+                                <span className="font-semibold text-slate-800 block">{safeDecodeURI(m.full_name)}</span>
+                                <span className="text-[11px] text-slate-400">{m.phone || '—'}</span>
+                              </div>
+                              <span className="text-xs text-blue-600 font-medium">{m.role || 'Thành viên'}</span>
+                            </button>
+                          ))}
+                          {filteredMembers.length > 50 && (
+                            <div className="p-2 text-[11px] text-slate-400 text-center bg-slate-50 font-medium">
+                              Hiển thị 50/{filteredMembers.length} kết quả. Gõ thêm từ khóa để tìm chính xác hơn.
                             </div>
-                            <span className="text-xs text-blue-600 font-medium">{m.role || 'Thành viên'}</span>
-                          </button>
-                        ))
+                          )}
+                        </>
                       )}
                     </div>
                   )}

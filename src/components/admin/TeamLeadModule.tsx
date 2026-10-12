@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatWeekOptionLabel } from '@/lib/weekRanges';
 import {
@@ -17,6 +18,7 @@ import {
   Plus,
   Printer,
   Receipt,
+  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -25,7 +27,11 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import LeaderboardManagement from '@/components/admin/LeaderboardManagement';
+const LeaderboardManagement = dynamic(() => import('@/components/admin/LeaderboardManagement'), {
+  loading: () => (
+    <div aria-busy="true" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" />
+  ),
+});
 
 type Tab = 'roster' | 'allocation' | 'reports';
 type TeamOption = { id: number; name: string };
@@ -181,6 +187,30 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string | number, boolean>>({});
   const autoCloneAttempted = useRef(new Set<string>());
 
+  // Cache dữ liệu giữa các tab và bộ lọc tuần/tháng để chuyển đổi ngay lập tức (0ms)
+  const cacheRef = useRef<{
+    roster: Map<string, any>;
+    allocation: Map<string, any>;
+    reports: Map<string, any>;
+  }>({
+    roster: new Map(),
+    allocation: new Map(),
+    reports: new Map(),
+  });
+
+  // Hủy các request cũ khi người dùng bấm đổi tab hoặc bộ lọc liên tục
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Phân trang cho các bảng dữ liệu lớn
+  const [rosterPage, setRosterPage] = useState(1);
+  const [rosterPageSize, setRosterPageSize] = useState(30);
+
+  const [allocationPage, setAllocationPage] = useState(1);
+  const [allocationPageSize, setAllocationPageSize] = useState(30);
+
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(30);
+
   useEffect(() => {
     if (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth)) setMonth(initialMonth);
     if (initialWeekNo !== undefined && initialWeekNo >= 0 && initialWeekNo <= 5) {
@@ -204,13 +234,35 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
     setReportWeekNo(0);
     setSelectedContract(null);
     setBreakdown(null);
+    setRosterPage(1);
+    setAllocationPage(1);
+    setReportPage(1);
   };
 
-  const loadRoster = useCallback(async () => {
+  const loadRoster = useCallback(async (forceRefresh = false) => {
+    const cacheKey = `${month}_${weekNo}`;
+    if (!forceRefresh && cacheRef.current.roster.has(cacheKey)) {
+      const cached = cacheRef.current.roster.get(cacheKey);
+      setRoster(cached.roster || []);
+      setUsers(cached.users || []);
+      setTeams(cached.teams || []);
+      setPeriods(cached.periods || []);
+      setLoading(false);
+      return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/admin/teamlead?month=${month}&week=${weekNo}`, { cache: 'no-store' });
+      const response = await fetch(`/api/admin/teamlead?month=${month}&week=${weekNo}`, {
+        signal: controller.signal,
+      });
       let data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Không thể tải dữ liệu TeamLead.');
       if (!data.roster?.length && !autoCloneAttempted.current.has(month)) {
@@ -219,59 +271,107 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'clone-month', month }),
+          signal: controller.signal,
         });
         const cloneData = await cloneResponse.json();
         if (cloneResponse.ok && cloneData.success) {
-          const refreshed = await fetch(`/api/admin/teamlead?month=${month}&week=${weekNo}`, { cache: 'no-store' });
+          const refreshed = await fetch(`/api/admin/teamlead?month=${month}&week=${weekNo}`, {
+            signal: controller.signal,
+          });
           const refreshedData = await refreshed.json();
           if (refreshed.ok && refreshedData.success) data = refreshedData;
         }
       }
+      cacheRef.current.roster.set(cacheKey, data);
       setRoster(data.roster || []);
       setUsers(data.users || []);
       setTeams(data.teams || []);
       setPeriods(data.periods || []);
-    } catch (caught) {
+    } catch (caught: unknown) {
+      if ((caught as any)?.name === 'AbortError') return;
       setError(caught instanceof Error ? caught.message : 'Không thể tải dữ liệu TeamLead.');
     } finally {
       setLoading(false);
     }
   }, [month, weekNo]);
 
-  const loadAllocation = useCallback(async () => {
+  const loadAllocation = useCallback(async (forceRefresh = false) => {
+    const rate = Number(ratePercent) / 100;
+    const cacheKey = `${month}_${weekNo}_${rate}`;
+    if (!forceRefresh && cacheRef.current.allocation.has(cacheKey)) {
+      const cached = cacheRef.current.allocation.get(cacheKey);
+      setAllocation(cached.data);
+      if (cached.teams) setTeams(cached.teams);
+      setLoading(false);
+      return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError('');
     try {
-      const rate = Number(ratePercent) / 100;
       const [response, teamsResponse] = await Promise.all([
-        fetch(`/api/admin/teamlead/allocation?month=${month}&week=${weekNo}&rate=${rate}`, { cache: 'no-store' }),
-        fetch('/api/admin/teamlead/teams', { cache: 'no-store' }),
+        fetch(`/api/admin/teamlead/allocation?month=${month}&week=${weekNo}&rate=${rate}`, {
+          signal: controller.signal,
+        }),
+        fetch('/api/admin/teamlead/teams', {
+          signal: controller.signal,
+        }),
       ]);
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Không thể tính phân bổ quỹ.');
       setAllocation(data);
+      let teamsResult = teams;
       const teamsData = await teamsResponse.json();
-      if (teamsResponse.ok && teamsData.success) setTeams(teamsData.teams || []);
+      if (teamsResponse.ok && teamsData.success) {
+        teamsResult = teamsData.teams || [];
+        setTeams(teamsResult);
+      }
+      cacheRef.current.allocation.set(cacheKey, { data, teams: teamsResult });
       if (data.meta?.fundRate !== undefined && !data.meta.locked) {
         const nextRate = (Number(data.meta.fundRate) * 100).toString();
         setRatePercent((previous) => (Number(previous) === Number(nextRate) ? previous : nextRate));
       }
-    } catch (caught) {
+    } catch (caught: unknown) {
+      if ((caught as any)?.name === 'AbortError') return;
       setError(caught instanceof Error ? caught.message : 'Không thể tính phân bổ quỹ.');
     } finally {
       setLoading(false);
     }
-  }, [month, weekNo, ratePercent]);
+  }, [month, weekNo, ratePercent, teams]);
 
-  const loadReports = useCallback(async () => {
+  const loadReports = useCallback(async (forceRefresh = false) => {
+    const cacheKey = `${month}`;
+    if (!forceRefresh && cacheRef.current.reports.has(cacheKey)) {
+      const cached = cacheRef.current.reports.get(cacheKey);
+      setReportContracts(cached.contracts || []);
+      setLoading(false);
+      return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/admin/teamlead/reports?month=${month}`, { cache: 'no-store' });
+      const response = await fetch(`/api/admin/teamlead/reports?month=${month}`, {
+        signal: controller.signal,
+      });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Không thể tải báo cáo.');
+      cacheRef.current.reports.set(cacheKey, data);
       setReportContracts(data.contracts || []);
-    } catch (caught) {
+    } catch (caught: unknown) {
+      if ((caught as any)?.name === 'AbortError') return;
       setError(caught instanceof Error ? caught.message : 'Không thể tải báo cáo.');
     } finally {
       setLoading(false);
@@ -363,6 +463,30 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   }, [allocation, search, teamFilter]);
 
   const filteredContracts = useMemo(() => reportContracts.filter((contract) => reportWeekNo === 0 || contract.weekNo === reportWeekNo), [reportContracts, reportWeekNo]);
+
+  const paginatedRoster = useMemo(() => {
+    if (rosterPageSize === 0) return filteredRoster;
+    const start = (rosterPage - 1) * rosterPageSize;
+    return filteredRoster.slice(start, start + rosterPageSize);
+  }, [filteredRoster, rosterPage, rosterPageSize]);
+
+  const totalRosterPages = rosterPageSize === 0 ? 1 : Math.ceil(filteredRoster.length / rosterPageSize) || 1;
+
+  const paginatedAllocationRows = useMemo(() => {
+    if (allocationPageSize === 0) return filteredAllocationRows;
+    const start = (allocationPage - 1) * allocationPageSize;
+    return filteredAllocationRows.slice(start, start + allocationPageSize);
+  }, [filteredAllocationRows, allocationPage, allocationPageSize]);
+
+  const totalAllocationPages = allocationPageSize === 0 ? 1 : Math.ceil(filteredAllocationRows.length / allocationPageSize) || 1;
+
+  const paginatedContracts = useMemo(() => {
+    if (reportPageSize === 0) return filteredContracts;
+    const start = (reportPage - 1) * reportPageSize;
+    return filteredContracts.slice(start, start + reportPageSize);
+  }, [filteredContracts, reportPage, reportPageSize]);
+
+  const totalReportPages = reportPageSize === 0 ? 1 : Math.ceil(filteredContracts.length / reportPageSize) || 1;
 
   const addSelectedMember = () => {
     const userId = Number(addMemberId);
@@ -701,6 +825,20 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               <p className="mt-1 max-w-3xl text-sm text-slate-500">{subtitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTab === 'roster') void loadRoster(true);
+                  if (activeTab === 'allocation') void loadAllocation(true);
+                  if (activeTab === 'reports') void loadReports(true);
+                }}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
+                title="Làm mới dữ liệu từ máy chủ"
+              >
+                <RefreshCw className={`h-4 w-4 text-blue-600 ${loading ? 'animate-spin' : ''}`} />
+                <span>Làm mới</span>
+              </button>
               {activeTab === 'roster' && !rosterReadOnly && (
                 <button onClick={() => setShowAddMember(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
                   <Plus className="h-4 w-4" /> Thêm thủ lĩnh
@@ -930,7 +1068,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredRoster.map((member, index) => {
+                      {paginatedRoster.map((member, index) => {
                         const role = member.teams[0]?.role || '';
                         const isNearBottom = index >= Math.max(0, filteredRoster.length - 3);
                         return (
@@ -996,6 +1134,46 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       {!filteredRoster.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">{visibleRoster.length ? 'Không có thành viên phù hợp.' : roster.length ? 'Chưa có thành viên thuộc chức danh TeamLead trong tháng này.' : 'Tháng này chưa có danh sách. Thêm thành viên hoặc kế thừa tháng trước để bắt đầu.'}</td></tr>}
                     </tbody>
                   </table>
+                  {totalRosterPages > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                      <div>
+                        Hiển thị {((rosterPage - 1) * rosterPageSize) + 1} - {Math.min(rosterPage * rosterPageSize, filteredRoster.length)} trong {filteredRoster.length} thành viên
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          aria-label="Số dòng thành viên mỗi trang"
+                          value={rosterPageSize}
+                          onChange={(e) => {
+                            setRosterPageSize(Number(e.target.value));
+                            setRosterPage(1);
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                        >
+                          <option value={30}>30 / trang</option>
+                          <option value={50}>50 / trang</option>
+                          <option value={100}>100 / trang</option>
+                          <option value={0}>Tất cả</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={rosterPage <= 1}
+                          onClick={() => setRosterPage((p) => Math.max(1, p - 1))}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Trước
+                        </button>
+                        <span className="text-xs font-medium">Trang {rosterPage} / {totalRosterPages}</span>
+                        <button
+                          type="button"
+                          disabled={rosterPage >= totalRosterPages}
+                          onClick={() => setRosterPage((p) => Math.min(totalRosterPages, p + 1))}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Sau
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4 p-4 sm:p-5 bg-slate-50/50">
@@ -1218,7 +1396,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                 <label className="text-sm font-semibold text-slate-600">Tỷ lệ nguồn quỹ
                   <span className="mt-1.5 flex items-center rounded-lg border border-slate-200 bg-white px-3 focus-within:border-blue-500"><input type="number" min="0" max="100" step="0.01" value={ratePercent} onChange={(event) => setRatePercent(event.target.value)} disabled={allocation?.meta.locked} className="w-20 py-2.5 text-sm text-slate-800 outline-none disabled:bg-slate-100" /><span className="text-sm text-slate-400">%</span></span>
                 </label>
-                <button onClick={loadAllocation} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Search className="h-4 w-4" /> Cập nhật</button>
+                <button onClick={() => void loadAllocation(true)} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Search className="h-4 w-4" /> Cập nhật</button>
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 {allocation?.meta.locked ? <><LockKeyhole className="h-4 w-4 text-rose-600" /> {statusText(true, allocation.meta.imported)}{allocation.meta.sourceFile ? ` · ${allocation.meta.sourceFile}` : ''}</> : <><Clock className="h-4 w-4 text-amber-500" /> Dữ liệu đang ở trạng thái dự thảo</>}
@@ -1267,7 +1445,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredAllocationRows.map((row, index) => (
+                      {paginatedAllocationRows.map((row, index) => (
                         <tr key={`${row.memberPhone}-${row.teamName}-${index}`} className="hover:bg-slate-50/70">
                           <td className="px-4 py-3.5"><div className="font-semibold text-slate-900">{row.memberName}</div><div className="mt-0.5 text-xs text-slate-500">{row.memberPhone}</div></td>
                           <td className="px-4 py-3.5 text-slate-700">{row.teamName || 'Chưa gán đội'}</td>
@@ -1316,6 +1494,46 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       </tfoot>
                     )}
                   </table>
+                  {totalAllocationPages > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                      <div>
+                        Hiển thị {((allocationPage - 1) * allocationPageSize) + 1} - {Math.min(allocationPage * allocationPageSize, filteredAllocationRows.length)} trong {filteredAllocationRows.length} dòng
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          aria-label="Số dòng phân bổ mỗi trang"
+                          value={allocationPageSize}
+                          onChange={(e) => {
+                            setAllocationPageSize(Number(e.target.value));
+                            setAllocationPage(1);
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                        >
+                          <option value={30}>30 / trang</option>
+                          <option value={50}>50 / trang</option>
+                          <option value={100}>100 / trang</option>
+                          <option value={0}>Tất cả</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={allocationPage <= 1}
+                          onClick={() => setAllocationPage((p) => Math.max(1, p - 1))}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Trước
+                        </button>
+                        <span className="text-xs font-medium">Trang {allocationPage} / {totalAllocationPages}</span>
+                        <button
+                          type="button"
+                          disabled={allocationPage >= totalAllocationPages}
+                          onClick={() => setAllocationPage((p) => Math.min(totalAllocationPages, p + 1))}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Sau
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {allocation?.meta.locked && <div className="flex items-center justify-between gap-3 border-t border-rose-100 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-800"><span className="inline-flex items-center gap-2"><LockKeyhole className="h-4 w-4" /> Dữ liệu kỳ này đã chốt; bảng và bản Excel ở chế độ chỉ đọc.</span><span>{allocation.meta.lockedAt ? `Chốt lúc ${new Date(allocation.meta.lockedAt).toLocaleString('vi-VN')}` : ''}</span></div>}
@@ -1363,7 +1581,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       <table className="w-full min-w-[640px] text-left text-sm">
                         <thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-300"><tr><th className="px-4 py-3">Mã hợp đồng</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3">Ngày ký</th><th className="px-4 py-3">Đội nhóm</th><th className="px-4 py-3 text-right">Giá trị</th><th className="px-4 py-3">Tuần</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
-                          {filteredContracts.map((contract) => (
+                          {paginatedContracts.map((contract) => (
                             <tr key={contract.id} onClick={() => void loadContractBreakdown(contract.id)} className={`cursor-pointer transition hover:bg-blue-50/70 ${selectedContract === contract.id ? 'bg-blue-50' : ''}`}>
                               <td className="px-4 py-3 font-semibold text-blue-700">{contract.contract_code || `HĐ #${contract.id}`}</td><td className="px-4 py-3 text-slate-800">{contract.customer_name}</td><td className="px-4 py-3 whitespace-nowrap text-slate-500">{shortDate(contract.contract_date)}</td><td className="px-4 py-3 text-slate-600">{contract.team_name || 'Chưa gán đội'}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{money(contract.value)}</td><td className="px-4 py-3 text-slate-500">{contract.weekNo}</td>
                             </tr>
@@ -1371,6 +1589,46 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                           {!filteredContracts.length && <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">Không có hợp đồng trong kỳ lọc.</td></tr>}
                         </tbody>
                       </table>
+                      {totalReportPages > 1 && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                          <div>
+                            Hiển thị {((reportPage - 1) * reportPageSize) + 1} - {Math.min(reportPage * reportPageSize, filteredContracts.length)} trong {filteredContracts.length} hợp đồng
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <select
+                              aria-label="Số dòng hợp đồng mỗi trang"
+                              value={reportPageSize}
+                              onChange={(e) => {
+                                setReportPageSize(Number(e.target.value));
+                                setReportPage(1);
+                              }}
+                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                            >
+                              <option value={30}>30 / trang</option>
+                              <option value={50}>50 / trang</option>
+                              <option value={100}>100 / trang</option>
+                              <option value={0}>Tất cả</option>
+                            </select>
+                            <button
+                              type="button"
+                              disabled={reportPage <= 1}
+                              onClick={() => setReportPage((p) => Math.max(1, p - 1))}
+                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                            >
+                              Trước
+                            </button>
+                            <span className="text-xs font-medium">Trang {reportPage} / {totalReportPages}</span>
+                            <button
+                              type="button"
+                              disabled={reportPage >= totalReportPages}
+                              onClick={() => setReportPage((p) => Math.min(totalReportPages, p + 1))}
+                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                            >
+                              Sau
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
