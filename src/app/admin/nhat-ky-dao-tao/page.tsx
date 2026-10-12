@@ -1,18 +1,18 @@
 import pool from '@/lib/db';
-import TrainingManagement, { TrainingLog } from '@/components/admin/TrainingManagement';
+import TrainingManagement, { TrainingLog, TrainingCourse } from '@/components/admin/TrainingManagement';
 
 export const revalidate = 0;
 
 async function getTrainingData() {
   try {
-    const [logsRes, statsRes] = await Promise.all([
+    const [logsRes, statsRes, coursesRes] = await Promise.all([
       pool.query(`
         SELECT 
           id, session_code, session_name, member_phone, member_name, 
           role, token_tier, token_count, session_budget, total_tokens, 
-          reward_amount, approver, status, training_date
+          reward_amount, approver, status, TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
         FROM training_logs
-        ORDER BY training_date DESC, id DESC
+        ORDER BY training_date ASC, id ASC
       `),
       pool.query(`
         SELECT 
@@ -22,6 +22,11 @@ async function getTrainingData() {
           COALESCE(SUM(reward_amount), 0)::numeric AS total_rewards
         FROM training_logs
       `),
+      pool.query(`
+        SELECT course_code, course_name, training_type, token_value, budget
+        FROM training_courses
+        ORDER BY course_code ASC
+      `).catch(() => ({ rows: [] })),
     ]);
 
     const statsRow = statsRes.rows[0] || {
@@ -41,12 +46,21 @@ async function getTrainingData() {
         session_budget: Number(row.session_budget || 0),
         total_tokens: Number(row.total_tokens || 0),
         reward_amount: Number(row.reward_amount || 0),
-        training_date: row.training_date ? new Date(row.training_date).toISOString().split('T')[0] : '',
+        training_date: row.training_date || '',
       };
     });
 
+    const courses: TrainingCourse[] = (coursesRes.rows || []).map((c: any) => ({
+      course_code: c.course_code,
+      course_name: c.course_name,
+      training_type: c.training_type,
+      token_value: Number(c.token_value || 0),
+      budget: Number(c.budget || 0),
+    }));
+
     return {
       logs,
+      courses,
       stats: {
         totalSessions: statsRow.total_sessions || 0,
         totalMembers: statsRow.total_members || 0,
@@ -59,6 +73,7 @@ async function getTrainingData() {
     console.error('Error loading training logs:', error);
     return {
       logs: [],
+      courses: [],
       stats: {
         totalSessions: 0,
         totalMembers: 0,
@@ -76,7 +91,9 @@ export default async function NhatKyDaoTaoPage() {
   return (
     <TrainingManagement
       initialLogs={data.logs}
+      initialCourses={data.courses}
       initialStats={data.stats}
     />
   );
 }
+

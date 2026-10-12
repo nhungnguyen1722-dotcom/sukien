@@ -42,8 +42,18 @@ export interface TrainingLog {
   training_date?: string;
 }
 
+export interface TrainingCourse {
+  id?: number;
+  course_code: string;
+  course_name: string;
+  training_type: string;
+  token_value: number;
+  budget: number;
+}
+
 interface TrainingManagementProps {
   initialLogs: TrainingLog[];
+  initialCourses?: TrainingCourse[];
   initialStats: {
     totalSessions: number;
     totalMembers: number;
@@ -53,14 +63,31 @@ interface TrainingManagementProps {
   };
 }
 
-export default function TrainingManagement({ initialLogs, initialStats }: TrainingManagementProps) {
+export default function TrainingManagement({
+  initialLogs,
+  initialCourses,
+  initialStats,
+}: TrainingManagementProps) {
   const [logs, setLogs] = useState<TrainingLog[]>(initialLogs);
+  const [courses] = useState<TrainingCourse[]>(
+    initialCourses && initialCourses.length > 0
+      ? initialCourses
+      : [
+          { course_code: 'TR001', course_name: 'Đào tạo Prosale mới', training_type: 'Offline', token_value: 120, budget: 600000 },
+          { course_code: 'TR002', course_name: 'Đào tạo prosale mới', training_type: 'Online', token_value: 100, budget: 500000 },
+          { course_code: 'TR003', course_name: 'ĐT Chuyên sâu – Buổi 1 (Nguồn vốn)', training_type: 'Online', token_value: 50, budget: 250000 },
+          { course_code: 'TR004', course_name: 'ĐT chuyên sâu – Buổi 2 (Lữ hành)', training_type: 'Online', token_value: 50, budget: 250000 },
+          { course_code: 'TR005', course_name: 'ĐT chuyển sâu – Buổi 3 (Welink)', training_type: 'Online', token_value: 50, budget: 250000 },
+          { course_code: 'TR006', course_name: 'ĐT Mô hình Welink', training_type: 'Offline', token_value: 100, budget: 500000 },
+        ]
+  );
   const [stats, setStats] = useState(initialStats);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 10;
 
   // Modal State
@@ -172,46 +199,41 @@ export default function TrainingManagement({ initialLogs, initialStats }: Traini
     }
   };
 
-  // Export to CSV
-  const handleExportExcel = () => {
-    const headers = [
-      'STT',
-      'Mã buổi học',
-      'Ngày đào tạo',
-      'Họ tên',
-      'SĐT',
-      'Vai trò',
-      'Hạng Token',
-      'Số Token',
-      'Ngân sách buổi học (VNĐ)',
-      'Thù lao thực nhận (VNĐ)',
-      'Người duyệt',
-      'Trạng thái',
-    ];
-    const rows = filteredLogs.map((l, idx) => [
-      idx + 1,
-      l.session_code,
-      l.training_date || '',
-      `"${l.member_name}"`,
-      l.member_phone || '',
-      l.role,
-      l.token_tier,
-      l.token_count,
-      l.session_budget,
-      Math.round(l.reward_amount),
-      l.approver || 'Chị Cúc',
-      l.status,
-    ]);
+  // Export to Excel compatible with 7. Lịch Đào tạo
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) params.append('search', searchQuery.trim());
+      if (selectedRole !== 'all') params.append('role', selectedRole);
+      if (selectedStatus !== 'all') params.append('status', selectedStatus);
+      if (selectedDate) params.append('date', selectedDate);
 
-    const csvContent =
-      '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Nhat_ky_dao_tao_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+      const res = await fetch(`/api/admin/training-logs/export?${params.toString()}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || 'Không thể tạo file báo cáo Excel');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bao_cao_lich_dao_tao_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      showToast('success', 'Đã xuất file Excel tab "7. Lịch Đào tạo" thành công!');
+    } catch (err: any) {
+      console.error(err);
+      showToast('error', err.message || 'Lỗi khi tải file báo cáo');
+    } finally {
+      setIsExporting(false);
+    }
   };
+
 
   // Filtered List
   const filteredLogs = useMemo(() => {
@@ -516,15 +538,17 @@ export default function TrainingManagement({ initialLogs, initialStats }: Traini
                 <option value="Chờ duyệt">Chờ duyệt</option>
               </select>
 
-              {/* Nút Xuất Excel */}
+              {/* Nút Xuất Báo Cáo Excel */}
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                disabled={isExporting}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
-                <span>Xuất Excel</span>
+                <Download className="w-3.5 h-3.5" />
+                <span>{isExporting ? 'Đang xuất...' : 'Xuất Báo Cáo Excel'}</span>
               </button>
+
 
               {/* Nút Thêm buổi học */}
               <button
@@ -726,67 +750,67 @@ export default function TrainingManagement({ initialLogs, initialStats }: Traini
             </div>
           </div>
 
-          {/* Widget 2: Các buổi học sắp tới */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+          {/* Widget 2: DANH MỤC BUỔI ĐÀO TẠO & NGÂN SÁCH CỐ ĐỊNH */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <BookOpen className="w-3.5 h-3.5 text-blue-600" />
-                <span>Các buổi học sắp tới</span>
+                <span className="tracking-tight uppercase">Danh mục buổi đào tạo</span>
               </span>
-              <span className="text-[10px] text-blue-600 font-medium cursor-pointer">Xem tất cả</span>
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                {courses.length} Buổi • 470 Token
+              </span>
             </div>
 
-            <div className="space-y-3">
-              {/* Session 1 */}
-              <div className="flex gap-3 items-start">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex flex-col items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-black">25</span>
-                  <span className="text-[9px] font-bold uppercase">Th09</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-bold text-xs text-slate-900 leading-tight">
-                    Kỹ năng giao tiếp và thuyết trình
+            <div className="space-y-2">
+              {courses.map((crs) => (
+                <div
+                  key={crs.course_code}
+                  onClick={() => setSearchQuery(searchQuery === crs.course_code ? '' : crs.course_code)}
+                  className={`p-2.5 rounded-xl border transition cursor-pointer ${
+                    searchQuery === crs.course_code
+                      ? 'border-blue-500 bg-blue-50/70 shadow-xs'
+                      : 'border-slate-100 bg-slate-50/70 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                      {crs.course_code}
+                    </span>
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
+                        crs.training_type === 'Online'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                      }`}
+                    >
+                      {crs.training_type}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-[11px] text-slate-800 leading-tight truncate" title={crs.course_name}>
+                    {crs.course_name}
                   </h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">08:30 - 11:30 • Hà Nội</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600">
-                    Đã lên kế hoạch
-                  </span>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1.5">
+                    <span className="font-medium text-slate-600">{crs.token_value} Token</span>
+                    <span className="font-bold text-slate-800 font-mono">
+                      {formatCurrency(crs.budget)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Session 2 */}
-              <div className="flex gap-3 items-start">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex flex-col items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-black">02</span>
-                  <span className="text-[9px] font-bold uppercase">Th10</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-bold text-xs text-slate-900 leading-tight">Marketing Ứng dụng</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">13:30 - 16:30 • Online</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600">
-                    Đã lên kế hoạch
-                  </span>
-                </div>
-              </div>
-
-              {/* Session 3 */}
-              <div className="flex gap-3 items-start">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex flex-col items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-black">09</span>
-                  <span className="text-[9px] font-bold uppercase">Th10</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-bold text-xs text-slate-900 leading-tight">
-                    Quản lý tài chính cá nhân
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">08:30 - 11:30 • Nghiêng Complex</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-600">
-                    Đã lên kế hoạch
-                  </span>
-                </div>
-              </div>
+              ))}
             </div>
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="w-full text-center text-[11px] text-blue-600 font-semibold hover:underline cursor-pointer pt-1"
+              >
+                Xóa lọc ({searchQuery})
+              </button>
+            )}
           </div>
+
 
           {/* Widget 3: Quote Card */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50/80 p-5 rounded-2xl border border-blue-100 shadow-2xs">
@@ -825,14 +849,26 @@ export default function TrainingManagement({ initialLogs, initialStats }: Traini
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Mã Buổi học *</label>
-                  <input
-                    type="text"
-                    required
+                  <select
                     value={formData.session_code}
-                    onChange={(e) => setFormData({ ...formData, session_code: e.target.value })}
-                    placeholder="TR001"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase"
-                  />
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      const crs = courses.find((c) => c.course_code === code);
+                      setFormData((prev) => ({
+                        ...prev,
+                        session_code: code,
+                        session_name: crs ? crs.course_name : prev.session_name,
+                        session_budget: crs ? crs.budget : prev.session_budget,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase cursor-pointer"
+                  >
+                    {courses.map((c) => (
+                      <option key={c.course_code} value={c.course_code}>
+                        {c.course_code} - {c.course_name.trim()}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Ngày đào tạo</label>
