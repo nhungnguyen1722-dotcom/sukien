@@ -163,7 +163,7 @@ function AdminTimeFilterComponent({
               <button
                 type="button"
                 onClick={() => onMonthChange('all')}
-                className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                   selectedMonth === 'all'
                     ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
@@ -174,25 +174,26 @@ function AdminTimeFilterComponent({
               </button>
             )}
 
-            {MONTH_LIST.map((m) => {
-              const isMonthActive = selectedMonth === m;
-              return (
-                <button
-                  type="button"
-                  key={m}
-                  onClick={() => onMonthChange(m)}
-                  className={`shrink-0 rounded-lg border px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                    isMonthActive
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                  aria-pressed={isMonthActive}
-                >
-                  <span className="hidden sm:inline">Tháng </span>
-                  {m}
-                </button>
-              );
-            })}
+            <div className="flex items-center gap-1">
+              {MONTH_LIST.map((m) => {
+                const isMonthActive = selectedMonth === m;
+                return (
+                  <button
+                    type="button"
+                    key={m}
+                    onClick={() => onMonthChange(m)}
+                    className={`h-8 w-8 shrink-0 rounded-lg border flex items-center justify-center text-xs font-semibold transition-all cursor-pointer ${
+                      isMonthActive
+                        ? 'border-slate-900 bg-slate-900 text-white font-bold shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                    aria-pressed={isMonthActive}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -201,14 +202,14 @@ function AdminTimeFilterComponent({
 
       {/* ===== DÒNG 2: DANH SÁCH CÁC TUẦN XUỐNG HÀNG DƯỚI ===== */}
       {!hideWeekRow && selectedMonth !== 'all' && (
-        <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-t border-slate-100 pt-2.5">
+        <div className="mt-2.5 flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-slate-100 pt-2.5">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0 pr-1">Tuần</span>
 
           {/* Nút Cả tháng */}
           <button
             type="button"
             onClick={() => onWeekChange(0, '__MONTH_OVERVIEW__')}
-            className={`group shrink-0 flex flex-col items-center justify-center rounded-lg border px-3 py-1 text-center transition-all cursor-pointer min-w-[76px] sm:min-w-[84px] ${
+            className={`group shrink-0 flex flex-col items-center justify-center rounded-lg border px-2.5 py-1 text-center transition-all cursor-pointer min-w-[70px] ${
               isMonthOverviewActive
                 ? 'border-blue-600 bg-blue-600 text-white shadow-xs ring-1 ring-blue-600'
                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
@@ -225,7 +226,7 @@ function AdminTimeFilterComponent({
             </span>
           </button>
 
-          {/* Dãy nút Tuần 1 .. Tuần 5/6 */}
+          {/* Dãy nút Tuần: Chỉ hiển thị số tuần 1, 2, 3... không có chữ 'Tuần' */}
           {weeks.map((w) => {
             const isWeekActive = checkWeekActive(w.weekNo, w.weekKey);
             return (
@@ -233,14 +234,14 @@ function AdminTimeFilterComponent({
                 type="button"
                 key={w.weekKey || w.weekNo}
                 onClick={() => onWeekChange(w.weekNo, w.weekKey)}
-                className={`group shrink-0 flex flex-col items-center justify-center rounded-lg border px-2.5 sm:px-3 py-1 text-center transition-all cursor-pointer min-w-[76px] sm:min-w-[84px] ${
+                className={`group shrink-0 flex flex-col items-center justify-center rounded-lg border px-2.5 py-1 text-center transition-all cursor-pointer min-w-[70px] ${
                   isWeekActive
                     ? 'border-blue-600 bg-blue-600 text-white shadow-xs ring-1 ring-blue-600'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                 }`}
                 aria-pressed={isWeekActive}
               >
-                <span className="text-xs font-bold leading-tight">{w.label}</span>
+                <span className="text-xs font-bold leading-tight">{w.weekNo}</span>
                 <span
                   className={`text-[10px] leading-tight font-normal mt-0.5 ${
                     isWeekActive ? 'text-blue-100 font-medium' : 'text-slate-400'

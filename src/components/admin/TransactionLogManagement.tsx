@@ -769,7 +769,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       return {
         weekNo: wNo,
         weekKey: period.period_code,
-        label: `Tuần ${wNo}`,
+        label: String(wNo),
         dateRange,
       };
     });
