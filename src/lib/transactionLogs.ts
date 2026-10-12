@@ -11,6 +11,7 @@ export const SELECT_TRANSACTION_LOGS = `
     tl.source_contract_id, tl.beneficiary_role,
     tl.actual_expense::float8 AS actual_expense, tl.receipt_url,
     tl.approval_date::text AS approval_date, tl.payment_date::text AS payment_date, tl.source_complete,
+    COALESCE(tl.items, '[]'::jsonb) AS items, tl.note,
     COALESCE(
       NULLIF(BTRIM(c.team_name), ''),
       NULLIF(BTRIM(u.team_name), ''),
