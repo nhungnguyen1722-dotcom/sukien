@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
@@ -318,12 +318,33 @@ function withinMonth(date: string, month: string) {
   return dateOnly >= range.start && dateOnly < range.endExclusive;
 }
 
+const contractBeneficiariesCache = new WeakMap<FundContract, FundContractBeneficiary[]>();
+const normalizedNameCache = new Map<string, string>();
+
+function normalizePersonName(value: string) {
+  if (!value) return '';
+  const cached = normalizedNameCache.get(value);
+  if (cached !== undefined) return cached;
+  const normalized = value.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLocaleLowerCase('vi')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  normalizedNameCache.set(value, normalized);
+  return normalized;
+}
+
 function contractBeneficiaries(contract: FundContract, members?: TransactionMember[]): FundContractBeneficiary[] {
   if (contract.source_beneficiaries && contract.source_beneficiaries.length > 0) {
     return contract.source_beneficiaries;
   }
+  const cached = contractBeneficiariesCache.get(contract);
+  if (cached) return cached;
+
   const detailed = calculateContractAllBeneficiaries(contract);
-  return detailed.map((b) => {
+  const result = detailed.map((b) => {
     const matching = members?.find(
       (m) => normalizePersonName(m.full_name) === normalizePersonName(b.name)
     );
@@ -336,16 +357,8 @@ function contractBeneficiaries(contract: FundContract, members?: TransactionMemb
       lines: b.lines,
     };
   });
-}
-
-function normalizePersonName(value: string) {
-  return value.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/gi, 'd')
-    .toLocaleLowerCase('vi')
-    .replace(/[^a-z0-9 ]/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
+  contractBeneficiariesCache.set(contract, result);
+  return result;
 }
 
 function contractPool(contract: FundContract) {
@@ -745,132 +758,223 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     return Array.from(unique.values()).sort((a, b) => a.period_start.localeCompare(b.period_start));
   }, [normalizedWeeklyAllocations, selectedMonth]);
   const [selectedPeriodCode, setSelectedPeriodCode] = useState(MONTH_OVERVIEW);
-  const selectedPeriod = selectedPeriodCode === MONTH_OVERVIEW
-    ? undefined
-    : periodsForMonth.find((period) => period.period_code === selectedPeriodCode) || periodsForMonth.at(-1);
-  const selectedPeriodIndex = selectedPeriod
-    ? periodsForMonth.findIndex((period) => period.period_code === selectedPeriod.period_code)
-    : -1;
+  const selectedPeriod = useMemo(() => {
+    return selectedPeriodCode === MONTH_OVERVIEW
+      ? undefined
+      : periodsForMonth.find((period) => period.period_code === selectedPeriodCode) || periodsForMonth.at(-1);
+  }, [selectedPeriodCode, periodsForMonth]);
+  const selectedPeriodIndex = useMemo(() => {
+    return selectedPeriod
+      ? periodsForMonth.findIndex((period) => period.period_code === selectedPeriod.period_code)
+      : -1;
+  }, [selectedPeriod, periodsForMonth]);
   const selectedPeriodHeading = selectedPeriod
     ? `Tuần ${getPeriodWeekNumber(selectedPeriod, Math.max(0, selectedPeriodIndex))} · ${formatPeriodRange(selectedPeriod) || selectedPeriod.period_label}`
     : 'Chưa có kỳ';
   const isMonthOverview = selectedPeriodCode === MONTH_OVERVIEW;
-  const periodCodesForMonth = new Set(periodsForMonth.map((period) => period.period_code));
-  const weeklyRowsForMonth = normalizedWeeklyAllocations.filter((row) => (
-    row.period_month === selectedMonth && periodCodesForMonth.has(row.period_code)
-  ));
+  const periodCodesForMonth = useMemo(() => new Set(periodsForMonth.map((period) => period.period_code)), [periodsForMonth]);
+  const weeklyRowsForMonth = useMemo(() => {
+    return normalizedWeeklyAllocations.filter((row) => (
+      row.period_month === selectedMonth && periodCodesForMonth.has(row.period_code)
+    ));
+  }, [normalizedWeeklyAllocations, selectedMonth, periodCodesForMonth]);
 
-  const periodBase = (period: WeeklyAllocation) => {
+  const monthContracts = useMemo(() => {
     return normalizedContracts
-      .filter((contract) => withinPeriod(contract.contract_date, period))
-      .reduce((total, contract) => total + contract.allocated_value, 0);
-  };
+      .filter((contract) => withinMonth(contract.contract_date, selectedMonth))
+      .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
+  }, [normalizedContracts, selectedMonth]);
+  const monthBase = useMemo(() => {
+    return monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
+  }, [monthContracts]);
 
-  const monthContracts = normalizedContracts
-    .filter((contract) => withinMonth(contract.contract_date, selectedMonth))
-    .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
-  const monthBase = monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
-  const selectedBase = selectedPeriod ? periodBase(selectedPeriod) : 0;
-  const monthPool = Math.round(monthBase * 0.15);
-  const monthEventPool = Math.round(monthBase * 0.005);
-  const monthlyEventExpenses = eventExpenses.filter((item) => withinMonth(item.event_date, selectedMonth));
-  const staffProposed = monthlyEventExpenses.reduce((sum, item) => sum + item.proposed_amount, 0);
-  const staffPaid = monthlyEventExpenses
-    .filter((item) => isPaidStatus(item.status))
-    .reduce((sum, item) => sum + item.proposed_amount, 0);
-  const otherEventRequests = logs.filter(
-    (log) => log.fund_source.toLowerCase().includes('sự kiện')
-      && log.request_date
-      && withinMonth(log.request_date, selectedMonth)
-      && Number(log.proposed_amount || 0) > 0
-      && log.status !== 'Từ chối'
-  );
-  const otherEventProposed = otherEventRequests.reduce((sum, item) => sum + Number(item.proposed_amount || 0), 0);
-  const otherEventPaid = otherEventRequests
-    .filter((item) => isPaidStatus(item.status))
-    .reduce((sum, item) => sum + Number(item.actual_expense || 0), 0);
-  const monthlyEventPaid = staffPaid + otherEventPaid;
+  const periodBasesMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const period of periodsForMonth) {
+      let total = 0;
+      for (const contract of monthContracts) {
+        if (withinPeriod(contract.contract_date, period)) {
+          total += contract.allocated_value;
+        }
+      }
+      map.set(period.period_code, total);
+    }
+    return map;
+  }, [periodsForMonth, monthContracts]);
 
-  const monthlyLeaderPool = Math.round(monthBase * 0.029);
-  const monthlyLeaderRequests = Math.round(monthlyLeaderPool * 0.7);
+  const periodBase = useCallback((period: WeeklyAllocation) => {
+    return periodBasesMap.get(period.period_code) ?? 0;
+  }, [periodBasesMap]);
 
-  const selectedLeaderPool = selectedPeriod ? Math.round(selectedBase * 0.029) : 0;
-  const selectedLeaderRequests = Math.round(selectedLeaderPool * 0.7);
+  const selectedBase = useMemo(() => {
+    return selectedPeriod ? periodBase(selectedPeriod) : 0;
+  }, [selectedPeriod, periodBase]);
+  const monthPool = useMemo(() => Math.round(monthBase * 0.15), [monthBase]);
+  const monthEventPool = useMemo(() => Math.round(monthBase * 0.005), [monthBase]);
 
-  const selectedRows = selectedPeriod
-    ? DEFAULT_FUNDS.map((fund) => {
+  const monthlyEventExpenses = useMemo(() => {
+    return eventExpenses.filter((item) => withinMonth(item.event_date, selectedMonth));
+  }, [eventExpenses, selectedMonth]);
+  const staffProposed = useMemo(() => {
+    return monthlyEventExpenses.reduce((sum, item) => sum + item.proposed_amount, 0);
+  }, [monthlyEventExpenses]);
+  const staffPaid = useMemo(() => {
+    return monthlyEventExpenses
+      .filter((item) => isPaidStatus(item.status))
+      .reduce((sum, item) => sum + item.proposed_amount, 0);
+  }, [monthlyEventExpenses]);
+
+  const otherEventRequests = useMemo(() => {
+    return logs.filter(
+      (log) => log.fund_source.toLowerCase().includes('sự kiện')
+        && log.request_date
+        && withinMonth(log.request_date, selectedMonth)
+        && Number(log.proposed_amount || 0) > 0
+        && log.status !== 'Từ chối'
+    );
+  }, [logs, selectedMonth]);
+  const otherEventProposed = useMemo(() => {
+    return otherEventRequests.reduce((sum, item) => sum + Number(item.proposed_amount || 0), 0);
+  }, [otherEventRequests]);
+  const otherEventPaid = useMemo(() => {
+    return otherEventRequests
+      .filter((item) => isPaidStatus(item.status))
+      .reduce((sum, item) => sum + Number(item.actual_expense || 0), 0);
+  }, [otherEventRequests]);
+  const monthlyEventPaid = useMemo(() => staffPaid + otherEventPaid, [staffPaid, otherEventPaid]);
+
+  const monthlyLeaderPool = useMemo(() => Math.round(monthBase * 0.029), [monthBase]);
+  const monthlyLeaderRequests = useMemo(() => Math.round(monthlyLeaderPool * 0.7), [monthlyLeaderPool]);
+
+  const selectedLeaderPool = useMemo(() => selectedPeriod ? Math.round(selectedBase * 0.029) : 0, [selectedPeriod, selectedBase]);
+  const selectedLeaderRequests = useMemo(() => Math.round(selectedLeaderPool * 0.7), [selectedLeaderPool]);
+
+  const selectedRows = useMemo(() => {
+    return selectedPeriod
+      ? DEFAULT_FUNDS.map((fund) => {
+          const existing = normalizedWeeklyAllocations.find(
+            (row) => row.period_code === selectedPeriod.period_code && row.fund_key === fund.key
+          );
+          const rate = existing?.allocation_rate ?? fund.rate;
+          const requested_amount = Math.round(selectedBase * rate);
+          return {
+            period_code: selectedPeriod.period_code,
+            period_month: selectedPeriod.period_month,
+            period_label: selectedPeriod.period_label,
+            period_start: selectedPeriod.period_start,
+            period_end: selectedPeriod.period_end,
+            fund_key: fund.key,
+            fund_source: FUND_SOURCE_BY_KEY[fund.key] || existing?.fund_source || fund.key,
+            allocation_rate: rate,
+            requested_amount,
+            source_sheet: existing?.source_sheet || 'Chính sách phân bổ 15%',
+            allocation_amount: requested_amount,
+          };
+        }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
+      : [];
+  }, [selectedPeriod, normalizedWeeklyAllocations, selectedBase]);
+
+  const monthFundRows = useMemo(() => {
+    return DEFAULT_FUNDS.map((fund) => {
+      let totalAllocation = 0;
+      let totalRequested = 0;
+      for (const period of periodsForMonth) {
+        const base = periodBasesMap.get(period.period_code) ?? 0;
         const existing = normalizedWeeklyAllocations.find(
-          (row) => row.period_code === selectedPeriod.period_code && row.fund_key === fund.key
+          (row) => row.period_code === period.period_code && row.fund_key === fund.key
         );
         const rate = existing?.allocation_rate ?? fund.rate;
-        const requested_amount = Math.round(selectedBase * rate);
-        return {
-          period_code: selectedPeriod.period_code,
-          period_month: selectedPeriod.period_month,
-          period_label: selectedPeriod.period_label,
-          period_start: selectedPeriod.period_start,
-          period_end: selectedPeriod.period_end,
-          fund_key: fund.key,
-          fund_source: FUND_SOURCE_BY_KEY[fund.key] || existing?.fund_source || fund.key,
-          allocation_rate: rate,
-          requested_amount,
-          source_sheet: existing?.source_sheet || 'Chính sách phân bổ 15%',
-          allocation_amount: requested_amount,
-        };
-      }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
-    : [];
+        const amt = Math.round(base * rate);
+        totalAllocation += amt;
+        totalRequested += amt;
+      }
+      return {
+        fund_key: fund.key,
+        fund_source: FUND_SOURCE_BY_KEY[fund.key] || fund.key,
+        allocation_rate: fund.rate,
+        requested_amount: totalRequested,
+        source_sheet: 'Chính sách phân bổ 15%',
+        allocation_amount: totalAllocation,
+        periods: periodsForMonth.length,
+      };
+    }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key));
+  }, [periodsForMonth, periodBasesMap, normalizedWeeklyAllocations]);
 
-  const monthFundRows = DEFAULT_FUNDS.map((fund) => {
-    let totalAllocation = 0;
-    let totalRequested = 0;
-    for (const period of periodsForMonth) {
-      const base = periodBase(period);
-      const existing = normalizedWeeklyAllocations.find(
-        (row) => row.period_code === period.period_code && row.fund_key === fund.key
-      );
-      const rate = existing?.allocation_rate ?? fund.rate;
-      const amt = Math.round(base * rate);
-      totalAllocation += amt;
-      totalRequested += amt;
-    }
-    return {
-      fund_key: fund.key,
-      fund_source: FUND_SOURCE_BY_KEY[fund.key] || fund.key,
-      allocation_rate: fund.rate,
-      requested_amount: totalRequested,
-      source_sheet: 'Chính sách phân bổ 15%',
-      allocation_amount: totalAllocation,
-      periods: periodsForMonth.length,
-    };
-  }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key));
+  const selectedRequests = useMemo(() => {
+    return selectedPeriod ? selectedRows.reduce((sum, row) => sum + row.requested_amount, 0) : 0;
+  }, [selectedPeriod, selectedRows]);
+  const monthRequests = useMemo(() => {
+    return monthFundRows.reduce((sum, row) => sum + row.requested_amount, 0);
+  }, [monthFundRows]);
 
-  const selectedRequests = selectedPeriod
-    ? selectedRows.reduce((sum, row) => sum + row.requested_amount, 0)
-    : 0;
-  const monthRequests = monthFundRows.reduce((sum, row) => sum + row.requested_amount, 0);
+  const selectedContracts = useMemo(() => {
+    return selectedPeriod
+      ? monthContracts
+          .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
+          .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
+      : [];
+  }, [selectedPeriod, monthContracts]);
+  const displayedContracts = useMemo(() => {
+    return isMonthOverview ? monthContracts : selectedContracts;
+  }, [isMonthOverview, monthContracts, selectedContracts]);
+  const displayedContractTotals = useMemo(() => {
+    return displayedContracts.reduce((totals, contract) => ({
+      pool: totals.pool + contractPool(contract),
+      commission: totals.commission + contractCommission(contract, initialMembers),
+      remaining: totals.remaining + contractRemainingFund(contract, initialMembers),
+    }), { pool: 0, commission: 0, remaining: 0 });
+  }, [displayedContracts, initialMembers]);
 
-  const selectedContracts = selectedPeriod
-    ? normalizedContracts
-        .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
-        .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
-    : [];
-  const displayedContracts = isMonthOverview ? monthContracts : selectedContracts;
-  const displayedContractTotals = displayedContracts.reduce((totals, contract) => ({
-    pool: totals.pool + contractPool(contract),
-    commission: totals.commission + contractCommission(contract, initialMembers),
-    remaining: totals.remaining + contractRemainingFund(contract, initialMembers),
-  }), { pool: 0, commission: 0, remaining: 0 });
-  const peopleRows = groupContractsByPerson(displayedContracts, initialMembers);
-  const monthPeopleRows = isMonthOverview ? peopleRows : groupContractsByPerson(monthContracts, initialMembers);
+  const monthPeopleRows = useMemo(() => {
+    return groupContractsByPerson(monthContracts, initialMembers);
+  }, [monthContracts, initialMembers]);
+  const selectedPeopleRows = useMemo(() => {
+    if (isMonthOverview) return monthPeopleRows;
+    return groupContractsByPerson(selectedContracts, initialMembers);
+  }, [isMonthOverview, monthPeopleRows, selectedContracts, initialMembers]);
+  const peopleRows = isMonthOverview ? monthPeopleRows : selectedPeopleRows;
 
   const [personTitleFilter, setPersonTitleFilter] = useState('all');
   const [personSortOrder, setPersonSortOrder] = useState<'amount_desc' | 'amount_asc' | 'trend_up' | 'trend_down' | 'contracts_desc' | 'name_asc'>('amount_desc');
   const [personTrendFilter, setPersonTrendFilter] = useState<'all' | 'up' | 'down' | 'stable'>('all');
   const [personSearchQuery, setPersonSearchQuery] = useState('');
 
+  const initialMembersMap = useMemo(() => {
+    const map = new Map<string, TransactionMember>();
+    for (const m of initialMembers) {
+      const key = normalizePersonName(m.full_name).replace(/y/g, 'i');
+      if (!map.has(key)) map.set(key, m);
+    }
+    return map;
+  }, [initialMembers]);
+
+  const monthlyPersonWeeklyAmounts = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const contract of monthContracts) {
+      const beneficiaries = contractBeneficiaries(contract, initialMembers);
+      for (const period of periodsForMonth) {
+        const isContractInPeriod = contract.source_period_code === period.period_code || withinPeriod(contract.contract_date, period);
+        if (!isContractInPeriod) continue;
+
+        for (const b of beneficiaries) {
+          if (!b.amount) continue;
+          const pKey = normalizePersonName(b.name).replace(/y/g, 'i');
+          let personPeriods = map.get(pKey);
+          if (!personPeriods) {
+            personPeriods = new Map<string, number>();
+            map.set(pKey, personPeriods);
+          }
+          personPeriods.set(period.period_code, (personPeriods.get(period.period_code) || 0) + Number(b.amount));
+        }
+      }
+    }
+    return map;
+  }, [monthContracts, periodsForMonth, initialMembers]);
+
   const enrichedPeopleRows = useMemo(() => {
     return peopleRows.map((person) => {
-      const matchingMember = initialMembers.find((m) => areNamesMatching(m.full_name, person.name));
+      const pKey = normalizePersonName(person.name).replace(/y/g, 'i');
+      const matchingMember = initialMembersMap.get(pKey);
 
       const personSources: string[] = [];
       for (const { contract } of person.contracts) {
@@ -889,18 +993,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       const title = resolveMemberTitle(person.name, matchingMember, personSources, person.contracts);
       const team_name = matchingMember?.team_name || person.contracts[0]?.contract.team_name || resolveContractTeam(person.contracts[0]?.contract);
 
+      const personPeriods = monthlyPersonWeeklyAmounts.get(pKey);
       const weeklyBreakdown = periodsForMonth.map((period, pIdx) => {
-        let weekAmount = 0;
-        for (const monthContract of monthContracts) {
-          const isContractInPeriod = monthContract.source_period_code === period.period_code || withinPeriod(monthContract.contract_date, period);
-          if (!isContractInPeriod) continue;
-
-          const beneficiaries = contractBeneficiaries(monthContract, initialMembers);
-          for (const b of beneficiaries) {
-            if (areNamesMatching(b.name, person.name)) {
-              weekAmount += Number(b.amount || 0);
-            }
-          }
+        let weekAmount = personPeriods?.get(period.period_code) ?? 0;
+        if (weekAmount === 0 && pKey.includes(' huong ')) {
+          weekAmount = monthlyPersonWeeklyAmounts.get(pKey.replace(' huong ', ' '))?.get(period.period_code) ?? 0;
         }
         return {
           periodCode: period.period_code,
@@ -961,7 +1058,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         sources: personSources,
       };
     });
-  }, [peopleRows, initialMembers, periodsForMonth, monthContracts, isMonthOverview, selectedPeriodIndex]);
+  }, [peopleRows, initialMembersMap, periodsForMonth, monthlyPersonWeeklyAmounts, isMonthOverview, selectedPeriodIndex]);
 
   const titleStats = useMemo(() => {
     const map = new Map<string, {
@@ -1223,15 +1320,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     setCashflowPeoplePage(1);
   };
 
-  const paidAmountForFund = (fundKey: string, fundSource: string) => logs
-    .filter((log) => {
-      if (!isPaidStatus(log.status) || !log.request_date) return false;
-      if (isMonthOverview ? !withinMonth(log.request_date, selectedMonth) : !selectedPeriod || !withinPeriod(log.request_date, selectedPeriod)) return false;
-      const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
-      return normalizeFund(log.fund_source) === normalizeFund(fundSource)
-        || normalizeFund(log.fund_source) === target;
-    })
-    .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
+  const paidAmountForFund = useCallback((fundKey: string, fundSource: string) => {
+    const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
+    const normSource = normalizeFund(fundSource);
+    return logs
+      .filter((log) => {
+        if (!isPaidStatus(log.status) || !log.request_date) return false;
+        if (isMonthOverview ? !withinMonth(log.request_date, selectedMonth) : !selectedPeriod || !withinPeriod(log.request_date, selectedPeriod)) return false;
+        const logFund = normalizeFund(log.fund_source);
+        return logFund === normSource || logFund === target;
+      })
+      .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
+  }, [logs, isMonthOverview, selectedMonth, selectedPeriod]);
 
   const fundRowsToDisplay = isMonthOverview ? monthFundRows : selectedRows;
   const summaryTotals = useMemo(() => {
@@ -1360,11 +1460,26 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             <div className="hidden h-6 w-px bg-slate-300 sm:block" />
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2 text-xs font-bold uppercase tracking-wide text-slate-500">Tuần</span>
-              <button onClick={() => setSelectedPeriodCode(MONTH_OVERVIEW)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+              <button
+                onClick={() => {
+                  setSelectedPeriodCode(MONTH_OVERVIEW);
+                  setCashflowContractPage(1);
+                  setCashflowPeoplePage(1);
+                }}
+                className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${isMonthOverview ? 'border-blue-500 bg-blue-600 text-white shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+              >
                 Cả tháng
               </button>
               {periodsForMonth.map((period, index) => (
-                <button key={period.period_code} onClick={() => setSelectedPeriodCode(period.period_code)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                <button
+                  key={period.period_code}
+                  onClick={() => {
+                    setSelectedPeriodCode(period.period_code);
+                    setCashflowContractPage(1);
+                    setCashflowPeoplePage(1);
+                  }}
+                  className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold ${selectedPeriodCode === period.period_code ? 'border-blue-500 bg-blue-600 text-white shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                >
                   {getPeriodWeekNumber(period, index)} · {formatPeriodRange(period) || period.period_label}
                 </button>
               ))}
