@@ -52,7 +52,7 @@ async function getTransactionsData() {
             OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
             OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
             OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 năm'
-            THEN ROUND(COALESCE(c.value, 0) * 0.70)
+            THEN COALESCE(c.value, 0)
           ELSE COALESCE(c.allocated_value, c.value, 0)
         END::float8 AS allocated_value,
         CASE 

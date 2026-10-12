@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 năm'
-              THEN ROUND(COALESCE(c.value, 0) * 0.70)
+              THEN COALESCE(c.value, 0)
             ELSE COALESCE(c.value, 0)
           END
         ), 0)::numeric AS total_value,
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
               OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
-              THEN ROUND(COALESCE(c.value, 0) * 0.70)
+              THEN COALESCE(c.value, 0)
             ELSE COALESCE(c.allocated_value, c.value, 0)
           END
         ), 0)::numeric AS allocation_base

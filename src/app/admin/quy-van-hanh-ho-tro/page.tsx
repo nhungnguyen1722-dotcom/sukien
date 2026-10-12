@@ -40,7 +40,7 @@ async function getOperationsFundData() {
             OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
-            THEN ROUND(COALESCE(value, 0) * 0.70)
+            THEN COALESCE(value, 0)
           ELSE COALESCE(allocated_value, value, 0)
         END::float8 AS allocation_base
       FROM contracts
