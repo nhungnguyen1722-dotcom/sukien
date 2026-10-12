@@ -1561,7 +1561,19 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                           <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
                           <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">{formatVND(contract.allocated_value)}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">
+                          <div>{formatVND(contract.allocated_value)}</div>
+                          {isTwoYearContract(contract.contract_type) && (
+                            <span className="inline-block mt-0.5 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                              2 Năm · 70%
+                            </span>
+                          )}
+                          {isBdsContract(contract.contract_type) && (
+                            <span className="inline-block mt-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                              BĐS · 4/15
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-3">
                           <div className="flex min-w-[330px] flex-wrap gap-1.5">
                             {contractBeneficiaries(contract, initialMembers).map((person, index) => (

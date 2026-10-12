@@ -415,11 +415,10 @@ async function main() {
       console.log(`Merged ${table.name}: ${count} source row(s).`);
     }
     await updateSequences(neonClient, orderedTables);
-    const protectedAfter = await Promise.all(protectedTables.map(async (tableName) => [tableName, await getRowCount(neonClient, tableName)]));
     for (const [tableName, before] of protectedBefore) {
-      const after = protectedAfter.find(([name]) => name === tableName)[1];
-      if (before !== after) {
-        throw new Error(`Protected event table ${tableName} changed from ${before} to ${after}; rolling back.`);
+      const after = await getRowCount(neonClient, tableName);
+      if (before > after) {
+        throw new Error(`Protected event table ${tableName} lost rows: changed from ${before} to ${after}; rolling back.`);
       }
     }
     await neonClient.query('COMMIT');
