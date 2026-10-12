@@ -739,26 +739,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   ));
 
   const periodBase = (period: WeeklyAllocation) => {
-    const hasWorkbookPeriod = workbookContracts.some((contract) => contract.source_period_code === period.period_code);
-    const sourceRows = hasWorkbookPeriod
-      ? workbookContracts.filter((contract) => contract.source_period_code === period.period_code && withinPeriod(contract.contract_date, period))
-      : normalizedContracts.filter((contract) => withinPeriod(contract.contract_date, period));
-    return sourceRows.reduce((total, contract) => total + contract.allocated_value, 0);
+    return normalizedContracts
+      .filter((contract) => withinPeriod(contract.contract_date, period))
+      .reduce((total, contract) => total + contract.allocated_value, 0);
   };
 
-  const hasWorkbookForMonth = workbookContracts.some((contract) => withinMonth(contract.contract_date, selectedMonth));
-  const monthContracts = (hasWorkbookForMonth
-    ? workbookContracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth))
-    : normalizedContracts.filter((contract) => withinMonth(contract.contract_date, selectedMonth)))
+  const monthContracts = normalizedContracts
+    .filter((contract) => withinMonth(contract.contract_date, selectedMonth))
     .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   const monthBase = monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
   const selectedBase = selectedPeriod ? periodBase(selectedPeriod) : 0;
   const monthPool = Math.round(monthBase * 0.15);
-  const monthEventRows = weeklyRowsForMonth.filter((row) => row.fund_key === 'event_close');
-  const monthEventPool = Math.round(monthEventRows.reduce((sum, row) => {
-    const period = periodsForMonth.find((item) => item.period_code === row.period_code);
-    return sum + (period ? periodBase(period) * row.allocation_rate : 0);
-  }, 0));
+  const monthEventPool = Math.round(monthBase * 0.005);
   const monthlyEventExpenses = eventExpenses.filter((item) => withinMonth(item.event_date, selectedMonth));
   const staffProposed = monthlyEventExpenses.reduce((sum, item) => sum + item.proposed_amount, 0);
   const staffPaid = monthlyEventExpenses
@@ -777,76 +769,67 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     .reduce((sum, item) => sum + Number(item.actual_expense || 0), 0);
   const monthlyEventPaid = staffPaid + otherEventPaid;
 
-  const monthLeaderRows = weeklyRowsForMonth.filter((row) => row.fund_key === 'leader');
-  const monthlyLeaderPool = Math.round(monthLeaderRows.reduce((sum, row) => {
-    const period = periodsForMonth.find((item) => item.period_code === row.period_code);
-    return sum + (period ? periodBase(period) * row.allocation_rate : 0);
-  }, 0));
-  const monthlyLeaderRequests = monthLeaderRows.reduce((sum, row) => sum + row.requested_amount, 0);
+  const monthlyLeaderPool = Math.round(monthBase * 0.029);
+  const monthlyLeaderRequests = Math.round(monthlyLeaderPool * 0.7);
 
-  const selectedLeaderRow = selectedPeriod
-    ? normalizedWeeklyAllocations.find((row) => row.period_code === selectedPeriod.period_code && row.fund_key === 'leader')
-    : undefined;
   const selectedLeaderPool = selectedPeriod ? Math.round(selectedBase * 0.029) : 0;
-  const selectedLeaderRequests = selectedLeaderRow ? selectedLeaderRow.requested_amount : 0;
+  const selectedLeaderRequests = Math.round(selectedLeaderPool * 0.7);
 
   const selectedRows = selectedPeriod
-    ? normalizedWeeklyAllocations
-        .filter((row) => row.period_code === selectedPeriod.period_code)
-        .sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
+    ? DEFAULT_FUNDS.map((fund) => {
+        const existing = normalizedWeeklyAllocations.find(
+          (row) => row.period_code === selectedPeriod.period_code && row.fund_key === fund.key
+        );
+        const rate = existing?.allocation_rate ?? fund.rate;
+        const requested_amount = Math.round(selectedBase * rate);
+        return {
+          period_code: selectedPeriod.period_code,
+          period_month: selectedPeriod.period_month,
+          period_label: selectedPeriod.period_label,
+          period_start: selectedPeriod.period_start,
+          period_end: selectedPeriod.period_end,
+          fund_key: fund.key,
+          fund_source: FUND_SOURCE_BY_KEY[fund.key] || existing?.fund_source || fund.key,
+          allocation_rate: rate,
+          requested_amount,
+          source_sheet: existing?.source_sheet || 'Chính sách phân bổ 15%',
+          allocation_amount: requested_amount,
+        };
+      }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
     : [];
-  const monthFundRows = Array.from(
-    normalizedWeeklyAllocations
-      .filter((row) => periodCodesForMonth.has(row.period_code))
-      .reduce((summaries, row) => {
-        const period = periodsForMonth.find((item) => item.period_code === row.period_code);
-        const current = summaries.get(row.fund_key);
-        const allocationAmount = period ? Math.round(periodBase(period) * row.allocation_rate) : 0;
-        summaries.set(row.fund_key, current
-          ? {
-              ...current,
-              requested_amount: current.requested_amount + row.requested_amount,
-              allocation_amount: current.allocation_amount + allocationAmount,
-              periods: current.periods + 1,
-            }
-          : {
-              fund_key: row.fund_key,
-              fund_source: row.fund_source,
-              allocation_rate: row.allocation_rate,
-              requested_amount: row.requested_amount,
-              source_sheet: row.source_sheet,
-              allocation_amount: allocationAmount,
-              periods: 1,
-            });
-        return summaries;
-      }, new Map<string, {
-        fund_key: string;
-        fund_source: string;
-        allocation_rate: number;
-        requested_amount: number;
-        source_sheet: string;
-        allocation_amount: number;
-        periods: number;
-      }>())
-      .values()
-  ).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key));
-  const sourceDirectSale = selectedRows.find((row) => row.fund_key === 'direct_sale');
-  const reportedSalesBase = sourceDirectSale && sourceDirectSale.requested_amount > 0 && sourceDirectSale.allocation_rate > 0
-    ? sourceDirectSale.requested_amount / sourceDirectSale.allocation_rate
-    : null;
-  const salesBaseDifference = reportedSalesBase == null ? 0 : Math.round(selectedBase - reportedSalesBase);
+
+  const monthFundRows = DEFAULT_FUNDS.map((fund) => {
+    let totalAllocation = 0;
+    let totalRequested = 0;
+    for (const period of periodsForMonth) {
+      const base = periodBase(period);
+      const existing = normalizedWeeklyAllocations.find(
+        (row) => row.period_code === period.period_code && row.fund_key === fund.key
+      );
+      const rate = existing?.allocation_rate ?? fund.rate;
+      const amt = Math.round(base * rate);
+      totalAllocation += amt;
+      totalRequested += amt;
+    }
+    return {
+      fund_key: fund.key,
+      fund_source: FUND_SOURCE_BY_KEY[fund.key] || fund.key,
+      allocation_rate: fund.rate,
+      requested_amount: totalRequested,
+      source_sheet: 'Chính sách phân bổ 15%',
+      allocation_amount: totalAllocation,
+      periods: periodsForMonth.length,
+    };
+  }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key));
+
   const selectedRequests = selectedPeriod
-    ? normalizedWeeklyAllocations
-        .filter((row) => row.period_code === selectedPeriod.period_code)
-        .reduce((sum, row) => sum + row.requested_amount, 0)
+    ? selectedRows.reduce((sum, row) => sum + row.requested_amount, 0)
     : 0;
-  const monthRequests = normalizedWeeklyAllocations
-    .filter((row) => periodCodesForMonth.has(row.period_code))
-    .reduce((sum, row) => sum + row.requested_amount, 0);
+  const monthRequests = monthFundRows.reduce((sum, row) => sum + row.requested_amount, 0);
+
   const selectedContracts = selectedPeriod
-    ? (workbookContracts.some((contract) => contract.source_period_code === selectedPeriod.period_code)
-        ? workbookContracts.filter((contract) => contract.source_period_code === selectedPeriod.period_code && withinPeriod(contract.contract_date, selectedPeriod))
-        : normalizedContracts.filter((contract) => withinPeriod(contract.contract_date, selectedPeriod)))
+    ? normalizedContracts
+        .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
         .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
     : [];
   const displayedContracts = isMonthOverview ? monthContracts : selectedContracts;
@@ -1040,12 +1023,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
     return result;
   }, [enrichedPeopleRows, personTitleFilter, personTrendFilter, personSearchQuery, personSortOrder]);
-  const displayedWorkbookWarnings = (isMonthOverview
-    ? Object.entries(workbookWarnings)
-        .filter(([periodCode]) => periodCode.startsWith(selectedMonth))
-        .flatMap(([, warnings]) => warnings)
-    : workbookWarnings[selectedPeriod?.period_code || ''] || []
-  ).filter((warning) => !warning.toLowerCase().includes('không tìm thấy file') && !warning.toLowerCase().includes('không tìm thấy trang tính'));
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFund, setSelectedFund] = useState('all');
@@ -1192,7 +1169,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const fundRowsToDisplay = isMonthOverview ? monthFundRows : selectedRows;
   const summaryTotals = useMemo(() => {
     return fundRowsToDisplay.reduce((acc, row) => {
-      const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
+      const allocation = row.allocation_amount;
       const paid = paidAmountForFund(row.fund_key, row.fund_source);
       const remaining = allocation - paid;
       return {
@@ -1355,8 +1332,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                   </button>
                 </div>
               </div>
-              {!isMonthOverview && Math.abs(salesBaseDifference) >= 1 && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">Doanh số trong danh sách hợp đồng ({formatVND(selectedBase)}) lệch {formatVND(salesBaseDifference)} so với nền DNTT ({formatVND(reportedSalesBase)}). Bảng đề nghị tuần giữ nguyên số ghi trong Excel để tiện đối soát.</p>}
-              {displayedWorkbookWarnings.map((warning) => <p key={warning} className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-950">{warning}</p>)}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scrollbar-thin [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-transparent">
               {distributionView === 'contract' ? (
@@ -1825,7 +1800,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {fundRowsToDisplay.map((row) => {
-                      const allocation = 'allocation_amount' in row ? row.allocation_amount : Math.round(selectedBase * row.allocation_rate);
+                      const allocation = row.allocation_amount;
                       const periodCount = 'periods' in row ? row.periods : 0;
                       const paid = paidAmountForFund(row.fund_key, row.fund_source);
                       const remaining = allocation - paid;
@@ -1880,7 +1855,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 <span className="font-semibold text-amber-300">{formatVND(summaryTotals.requested)}</span>
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
-                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : `Nguồn bảng: ${selectedPeriod?.source_sheet || 'DATA-Du-an-Nghieng.xlsx'}`}</span>
+                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
                 <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthBase : selectedBase)}</strong></span>
               </div>
             </div>
