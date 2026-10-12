@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { ensureTeamLeadSchema } from '@/lib/teamlead';
 import { generateAutomaticContractSlips } from '@/lib/transactionLogs';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { calculateContractAllocatedValue, isBdsContract, isTwoYearContract } from '@/lib/allocationFormulas';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,17 +138,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const numValue = Number(value) || 0;
-    const isBds = contract_type && (
-      contract_type.trim().toUpperCase() === 'BĐS' ||
-      contract_type.trim().toUpperCase() === 'BDS' ||
-      contract_type.trim().toLowerCase() === 'bất động sản' ||
-      contract_type.trim().toLowerCase() === 'bat dong san'
-    );
     const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
       ? Number(body.allocated_value)
-      : (isBds ? Math.round((numValue * 4) / 15) : numValue);
+      : calculateContractAllocatedValue(numValue, contract_type);
 
-    const feeBase = isBds ? allocatedValue : numValue;
+    const feeBase = (isBdsContract(contract_type) || isTwoYearContract(contract_type)) ? allocatedValue : numValue;
     const closerFee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(feeBase * 0.06);
     const referrerFee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(feeBase * 0.01);
     const supporterFee = body.supporter_fee !== undefined ? Number(body.supporter_fee) : Math.round(feeBase * 0.005);

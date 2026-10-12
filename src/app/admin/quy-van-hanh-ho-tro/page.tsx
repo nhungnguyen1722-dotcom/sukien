@@ -36,7 +36,12 @@ async function getOperationsFundData() {
         CASE
           WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
             THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
-          ELSE COALESCE(value, 0)
+          WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('2 NĂM', '2 NAM')
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
+            THEN ROUND(COALESCE(value, 0) * 0.70)
+          ELSE COALESCE(allocated_value, value, 0)
         END::float8 AS allocation_base
       FROM contracts
       WHERE contract_date IS NOT NULL

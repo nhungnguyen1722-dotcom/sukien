@@ -5,6 +5,7 @@ import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL } from '@/lib/memberTeams';
 import { generateAutomaticContractSlips } from '@/lib/transactionLogs';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { getMonthWeekRange } from '@/lib/weekRanges';
+import { calculateContractAllocatedValue, isBdsContract, isTwoYearContract } from '@/lib/allocationFormulas';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,6 +187,11 @@ export async function GET(request: NextRequest) {
           CASE 
             WHEN UPPER(TRIM(c.contract_type)) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
               THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
+            WHEN UPPER(TRIM(COALESCE(c.contract_type, ''))) IN ('2 NĂM', '2 NAM')
+              OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
+              OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
+              OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 năm'
+              THEN ROUND(COALESCE(c.value, 0) * 0.70)
             ELSE COALESCE(c.value, 0)
           END
         ), 0)::numeric AS total_value,
@@ -195,6 +201,11 @@ export async function GET(request: NextRequest) {
           CASE 
             WHEN UPPER(TRIM(c.contract_type)) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
               THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
+            WHEN UPPER(TRIM(COALESCE(c.contract_type, ''))) IN ('2 NĂM', '2 NAM')
+              OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
+              OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
+              OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
+              THEN ROUND(COALESCE(c.value, 0) * 0.70)
             ELSE COALESCE(c.allocated_value, c.value, 0)
           END
         ), 0)::numeric AS allocation_base
@@ -328,17 +339,11 @@ export async function POST(request: NextRequest) {
     }
 
     const numValue = Number(value) || 0;
-    const isBds = contract_type && (
-      contract_type.trim().toUpperCase() === 'BĐS' ||
-      contract_type.trim().toUpperCase() === 'BDS' ||
-      contract_type.trim().toLowerCase() === 'bất động sản' ||
-      contract_type.trim().toLowerCase() === 'bat dong san'
-    );
     const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
       ? Number(body.allocated_value)
-      : (isBds ? Math.round((numValue * 4) / 15) : numValue);
-    // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5% (tính trên giá trị phân bổ nếu là BĐS)
-    const feeBase = isBds ? allocatedValue : numValue;
+      : calculateContractAllocatedValue(numValue, contract_type);
+    // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5% (tính trên giá trị phân bổ nếu là BĐS hoặc 2 năm)
+    const feeBase = (isBdsContract(contract_type) || isTwoYearContract(contract_type)) ? allocatedValue : numValue;
     const closer_fee = body.closer_fee !== undefined ? Number(body.closer_fee) : Math.round(feeBase * 0.06);
     const referrer_fee = body.referrer_fee !== undefined ? Number(body.referrer_fee) : Math.round(feeBase * 0.01);
     const supporter_fee = body.supporter_fee !== undefined ? Number(body.supporter_fee) : Math.round(feeBase * 0.005);

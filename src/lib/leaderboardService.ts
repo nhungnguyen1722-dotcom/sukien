@@ -125,7 +125,12 @@ export async function getLeaderboardData(
       CASE
         WHEN UPPER(TRIM(COALESCE(c.contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
           THEN ROUND((COALESCE(c.value, 0) * 4.0) / 15.0)
-        ELSE COALESCE(c.value, 0)
+        WHEN UPPER(TRIM(COALESCE(c.contract_type, ''))) IN ('2 NĂM', '2 NAM')
+          OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
+          OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
+          OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 năm'
+          THEN ROUND(COALESCE(c.value, 0) * 0.70)
+        ELSE COALESCE(c.allocated_value, c.value, 0)
       END::float8 AS allocated_value,
       COALESCE(NULLIF(BTRIM(c.closer_name), ''), '') AS closer_name,
       COALESCE(NULLIF(BTRIM(c.closer_phone), ''), '') AS closer_phone,

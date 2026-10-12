@@ -271,11 +271,27 @@ export function isBdsContract(contractType?: string | null): boolean {
   return normalized === 'bds' || normalized.includes('bat dong san');
 }
 
+export function isTwoYearContract(contractType?: string | null): boolean {
+  if (!contractType) return false;
+  const upper = contractType.trim().toUpperCase();
+  if (upper === '2 NĂM' || upper === '2 NAM' || upper === '2-NAM' || upper === '2N') return true;
+  const normalized = contractType
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .trim()
+    .toLowerCase();
+  return normalized === '2 nam' || normalized.includes('2 nam');
+}
+
 export function getContractAllocatedValue(contract: { value: number; contract_type?: string | null; allocated_value?: number }): number {
   if (isBdsContract(contract.contract_type)) {
     return Math.round((Number(contract.value || 0) * 4) / 15);
   }
-  return Number(contract.value || contract.allocated_value || 0);
+  if (isTwoYearContract(contract.contract_type)) {
+    return Math.round(Number(contract.value || 0) * 0.7);
+  }
+  return Number(contract.allocated_value || contract.value || 0);
 }
 
 function withinPeriod(date: string, period: WeeklyAllocation) {
@@ -2019,7 +2035,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               <Detail label="Kỳ / Tuần phân bổ" value={getContractWeekLabel(viewContract)} />
               <Detail label="Đội nhóm" value={viewContract.team_name ? `Đội ${viewContract.team_name}` : resolveContractTeam(viewContract) ? `Đội ${resolveContractTeam(viewContract)}` : 'Chưa phân đội'} />
               <Detail label="Giá trị hợp đồng" value={formatVND(viewContract.value)} />
-              <Detail label="Giá trị phân bổ" value={isBdsContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (BĐS · 4/15)` : formatVND(viewContract.allocated_value)} />
+              <Detail label="Giá trị phân bổ" value={isBdsContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (BĐS · 4/15)` : isTwoYearContract(viewContract.contract_type) ? `${formatVND(viewContract.allocated_value)} (2 Năm · 70%)` : formatVND(viewContract.allocated_value)} />
               <Detail label="Loại hợp đồng" value={viewContract.contract_type || 'Thường'} />
               <Detail label="Trạng thái hợp đồng" value={viewContract.status || '—'} />
             </div>

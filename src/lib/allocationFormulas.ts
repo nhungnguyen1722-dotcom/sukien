@@ -12,6 +12,9 @@ export const BDS_ALLOCATION_NUMERATOR = 4;
 export const BDS_ALLOCATION_DENOMINATOR = 15;
 export const BDS_ALLOCATION_FACTOR = BDS_ALLOCATION_NUMERATOR / BDS_ALLOCATION_DENOMINATOR; // ~0.26666666666666666
 
+/** Tỷ lệ phân bổ cho hợp đồng 2 Năm: 70% giá trị hợp đồng */
+export const TWO_YEAR_ALLOCATION_RATE = 0.70;
+
 /**
  * Kiểm tra xem loại hợp đồng có thuộc loại BĐS (Bất động sản) hay không
  */
@@ -29,14 +32,34 @@ export function isBdsContract(contractType?: string | null): boolean {
 }
 
 /**
+ * Kiểm tra xem loại hợp đồng có thuộc loại 2 Năm hay không
+ */
+export function isTwoYearContract(contractType?: string | null): boolean {
+  if (!contractType) return false;
+  const upper = contractType.trim().toUpperCase();
+  if (upper === '2 NĂM' || upper === '2 NAM' || upper === '2-NAM' || upper === '2N') return true;
+  const normalized = contractType
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .trim()
+    .toLowerCase();
+  return normalized === '2 nam' || normalized.includes('2 nam');
+}
+
+/**
  * Tính giá trị phân bổ chuẩn cho hợp đồng:
  * - Hợp đồng BĐS: nhân với hệ số 4/15 và làm tròn
+ * - Hợp đồng 2 năm: nhân với 70% và làm tròn
  * - Hợp đồng khác: giữ nguyên 100% giá trị
  */
 export function calculateContractAllocatedValue(value: number, contractType?: string | null): number {
   const numValue = Number(value || 0);
   if (isBdsContract(contractType)) {
     return Math.round((numValue * BDS_ALLOCATION_NUMERATOR) / BDS_ALLOCATION_DENOMINATOR);
+  }
+  if (isTwoYearContract(contractType)) {
+    return Math.round(numValue * TWO_YEAR_ALLOCATION_RATE);
   }
   return Math.round(numValue);
 }
@@ -48,6 +71,11 @@ export const CONTRACT_ALLOCATED_VALUE_SQL = `
   CASE
     WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
       THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+    WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('2 NĂM', '2 NAM')
+      OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
+      OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
+      OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
+      THEN ROUND(COALESCE(value, 0) * 0.70)
     ELSE COALESCE(value, 0)
   END::float8
 `;

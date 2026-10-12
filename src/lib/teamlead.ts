@@ -339,7 +339,12 @@ async function loadContracts(month: string, db: typeof pool = pool) {
         CASE
           WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
             THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
-          ELSE COALESCE(value, 0)
+          WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('2 NĂM', '2 NAM')
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
+            THEN ROUND(COALESCE(value, 0) * 0.70)
+          ELSE COALESCE(allocated_value, value, 0)
         END::float8 AS value,
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
@@ -551,20 +556,30 @@ async function calculateWeekRows(
 
 export async function getTeamLeadAllocation(month: string, weekNo: number, db: typeof pool = pool, rateOverride?: number) {
   await ensureTeamLeadSchema();
+  const contracts = await loadContracts(month, db);
+  const monthKeyStr = monthKey(month);
+  const weekContracts = weekNo
+    ? contracts.filter((contract) => getWeekNo(contract.contract_date, monthKeyStr) === weekNo)
+    : contracts;
+  const dynamicSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
+
   const locked = await readLockedPeriod(month, weekNo, db);
   if (locked) {
     const period = locked.period;
+    const effectiveTotalSales = dynamicSales > 0 ? dynamicSales : amount(period.total_sales);
+    const effectiveRate = Number(period.fund_rate);
+    const effectiveGross = amount(effectiveTotalSales * effectiveRate);
+    const effective30 = amount(effectiveGross * 0.3);
+    const effective70 = amount(effectiveGross * 0.7);
     return allocationMeta(
       locked.rows,
-      amount(period.total_sales),
-      Number(period.fund_rate),
-      amount(period.fund_30),
-      amount(period.fund_70),
+      effectiveTotalSales,
+      effectiveRate,
+      effective30,
+      effective70,
       period
     );
   }
-
-  const contracts = await loadContracts(month, db);
   const roster = await loadRoster(month, weekNo, db);
   const monthPeriodResult = await db.query(`SELECT * FROM teamlead_periods WHERE month = $1 AND week_no = 0 LIMIT 1`, [month]);
   const selectedPeriodResult = weekNo
@@ -659,7 +674,18 @@ export async function getTeamLeadContractBreakdown(month: string, contractId: nu
   await ensureTeamLeadSchema();
   const result = await db.query(
     `SELECT id, contract_code, customer_name, contract_date::text AS contract_date,
-      COALESCE(value, 0)::float8 AS value, BTRIM(COALESCE(team_name, '')) AS team_name
+      CASE
+        WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
+          THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
+        WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('2 NĂM', '2 NAM')
+          OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
+          OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
+          OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
+          THEN ROUND(COALESCE(value, 0) * 0.70)
+        ELSE COALESCE(allocated_value, value, 0)
+      END::float8 AS value,
+      BTRIM(COALESCE(team_name, '')) AS team_name,
+      COALESCE(contract_type, '') AS contract_type
      FROM contracts WHERE id = $1`,
     [contractId]
   );
@@ -732,7 +758,12 @@ export async function getTeamLeadReports(month: string, db: typeof pool = pool) 
         CASE
           WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('BĐS', 'BDS', 'BẤT ĐỘNG SẢN', 'BAT DONG SAN')
             THEN ROUND((COALESCE(value, 0) * 4.0) / 15.0)
-          ELSE COALESCE(value, 0)
+          WHEN UPPER(TRIM(COALESCE(contract_type, ''))) IN ('2 NĂM', '2 NAM')
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
+            OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
+            THEN ROUND(COALESCE(value, 0) * 0.70)
+          ELSE COALESCE(allocated_value, value, 0)
         END::float8 AS value,
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type

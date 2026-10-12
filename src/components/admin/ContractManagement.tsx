@@ -295,14 +295,31 @@ function isBdsContract(contractType: string | null | undefined): boolean {
   return normalized === 'bds' || normalized.includes('bat dong san');
 }
 
-function calculateAllocatedValue(contractValue: number): number {
-  return Math.round((contractValue * 4) / 15);
+function isTwoYearContract(contractType: string | null | undefined): boolean {
+  if (!contractType) return false;
+  const trimmed = contractType.trim().toUpperCase();
+  if (trimmed === '2 NĂM' || trimmed === '2 NAM' || trimmed === '2-NAM' || trimmed === '2N') return true;
+  const normalized = normalizeVietnamese(contractType);
+  return normalized === '2 nam' || normalized.includes('2 nam');
+}
+
+function calculateAllocatedValue(contractValue: number, contractType?: string | null): number {
+  if (isBdsContract(contractType)) {
+    return Math.round((contractValue * 4) / 15);
+  }
+  if (isTwoYearContract(contractType)) {
+    return Math.round(contractValue * 0.7);
+  }
+  return Math.round(contractValue);
 }
 
 function getAllocatedContractValue(value: number | string | null | undefined, contractType?: string | null): number {
   const num = numeric(value);
   if (isBdsContract(contractType)) {
-    return calculateAllocatedValue(num);
+    return Math.round((num * 4) / 15);
+  }
+  if (isTwoYearContract(contractType)) {
+    return Math.round(num * 0.7);
   }
   return num;
 }
@@ -969,7 +986,7 @@ export default function ContractManagement({
       'SĐT khách hàng': viewingContract.customer_phone || '',
       'Địa chỉ': viewingContract.customer_address || '',
       'Giá trị hợp đồng (VNĐ)': numeric(viewingContract.value),
-      ...(isBdsContract(viewingContract.contract_type)
+      ...((isBdsContract(viewingContract.contract_type) || isTwoYearContract(viewingContract.contract_type))
         ? { 'Giá trị hợp đồng phân bổ (VNĐ)': getAllocatedContractValue(viewingContract.value, viewingContract.contract_type) }
         : {}),
       'Đội nhóm': viewingContract.team_name?.trim() || '',
@@ -1351,11 +1368,13 @@ export default function ContractManagement({
                     </span>
                   </label>
 
-                  {isBdsContract(formData.contract_type) && (
+                  {(isBdsContract(formData.contract_type) || isTwoYearContract(formData.contract_type)) && (
                     <label className="block text-xs font-semibold text-slate-700">
                       <span className="flex items-center justify-between">
                         <span>Giá trị hợp đồng phân bổ</span>
-                        <span className="text-[11px] font-normal text-slate-400">(Tự động: × 4 / 15)</span>
+                        <span className="text-[11px] font-normal text-slate-400">
+                          {isBdsContract(formData.contract_type) ? '(Tự động: × 4 / 15)' : '(Tự động: 70%)'}
+                        </span>
                       </span>
                       <span className="relative mt-1.5 block">
                         <input
@@ -1363,7 +1382,7 @@ export default function ContractManagement({
                           readOnly
                           disabled
                           tabIndex={-1}
-                          value={cleanNumber(String(calculateAllocatedValue(numeric(formData.value))))}
+                          value={cleanNumber(String(getAllocatedContractValue(numeric(formData.value), formData.contract_type)))}
                           className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 pr-12 text-sm font-bold text-slate-700 cursor-not-allowed outline-none select-none"
                           placeholder="0"
                         />
@@ -1465,7 +1484,7 @@ export default function ContractManagement({
                   <div><span className="block text-slate-400">Địa chỉ</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_address || '—'}</strong></div>
                   <div><span className="block text-slate-400">Ngày ký</span><strong className="mt-1 block text-slate-800">{formatDate(viewingContract.contract_date)}</strong></div>
                   <div><span className="block text-slate-400">Giá trị hợp đồng</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.value)}</strong></div>
-                  {isBdsContract(viewingContract.contract_type) && (
+                  {(isBdsContract(viewingContract.contract_type) || isTwoYearContract(viewingContract.contract_type)) && (
                     <div><span className="block text-slate-400">Giá trị hợp đồng phân bổ</span><strong className="mt-1 block text-emerald-700">{formatMoney(getAllocatedContractValue(viewingContract.value, viewingContract.contract_type))}</strong></div>
                   )}
                   <div><span className="block text-slate-400">Đội nhóm</span><strong className="mt-1 block text-slate-800">{viewingContract.team_name?.trim() || '—'}</strong></div>
