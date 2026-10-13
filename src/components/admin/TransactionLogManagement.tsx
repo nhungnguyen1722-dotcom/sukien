@@ -5,7 +5,9 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatDateDM, getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
+import ContractTermBadge from '@/components/admin/ContractTermBadge';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { isContractActiveInPeriod, nextDate } from '@/lib/contractTerms';
 import {
   calculateContractAllBeneficiaries,
   decomposeBeneficiarySource,
@@ -344,6 +346,16 @@ function withinPeriod(date: string, period: WeeklyAllocation) {
   return dateOnly >= range.start && dateOnly <= range.endInclusive;
 }
 
+function contractWithinPeriod(contract: FundContract, period: WeeklyAllocation) {
+  const range = getEffectivePeriodRange(period);
+  return isContractActiveInPeriod(
+    contract.contract_date,
+    contract.contract_type,
+    range.start,
+    range.endExclusive || nextDate(range.endInclusive),
+  );
+}
+
 function withinMonth(date: string, month: string) {
   const range = getMonthWeekRange(month);
   const dateOnly = date.slice(0, 10);
@@ -666,12 +678,16 @@ function formatPeriodRange(period: WeeklyAllocation) {
   return `${start[3]}/${start[2]}–${end[3]}/${end[2]}`;
 }
 
-function getEffectivePeriodRange(period: WeeklyAllocation) {
+function getEffectivePeriodRange(period: WeeklyAllocation): { start: string; endInclusive: string; endExclusive: string } {
   if (!period.period_code.endsWith('-MONTH')) {
     const weekNo = getPeriodWeekNo(period.period_label, period.period_code, 0);
     if (weekNo) return getMonthWeekRange(period.period_month, weekNo);
   }
-  return { start: period.period_start, endInclusive: period.period_end };
+  return {
+    start: period.period_start,
+    endInclusive: period.period_end,
+    endExclusive: nextDate(period.period_end),
+  };
 }
 
 function getPeriodWeekNumber(period: WeeklyAllocation, index: number) {
@@ -826,8 +842,14 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   }, [normalizedWeeklyAllocations, selectedMonth, periodCodesForMonth]);
 
   const monthContracts = useMemo(() => {
+    const range = getMonthWeekRange(selectedMonth);
     return normalizedContracts
-      .filter((contract) => withinMonth(contract.contract_date, selectedMonth))
+      .filter((contract) => isContractActiveInPeriod(
+        contract.contract_date,
+        contract.contract_type,
+        range.start,
+        range.endExclusive,
+      ))
       .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   }, [normalizedContracts, selectedMonth]);
   const monthBase = useMemo(() => {
@@ -839,7 +861,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     for (const period of periodsForMonth) {
       let total = 0;
       for (const contract of monthContracts) {
-        if (withinPeriod(contract.contract_date, period)) {
+        if (contractWithinPeriod(contract, period)) {
           total += contract.allocated_value;
         }
       }
@@ -956,7 +978,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const selectedContracts = useMemo(() => {
     return selectedPeriod
       ? monthContracts
-          .filter((contract) => withinPeriod(contract.contract_date, selectedPeriod))
+          .filter((contract) => contractWithinPeriod(contract, selectedPeriod))
           .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
       : [];
   }, [selectedPeriod, monthContracts]);
@@ -999,8 +1021,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     for (const contract of monthContracts) {
       const beneficiaries = contractBeneficiaries(contract, initialMembers);
       for (const period of periodsForMonth) {
-        const isContractInPeriod = contract.source_period_code === period.period_code || withinPeriod(contract.contract_date, period);
-        if (!isContractInPeriod) continue;
+        if (!contractWithinPeriod(contract, period)) continue;
 
         for (const b of beneficiaries) {
           if (!b.amount) continue;
@@ -1576,6 +1597,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                         <td className="px-4 py-3">
                           <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
                           <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
+                          <div className="mt-1"><ContractTermBadge contractDate={contract.contract_date} contractType={contract.contract_type} /></div>
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">
                           <div>{formatVND(contract.allocated_value)}</div>

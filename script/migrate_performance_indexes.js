@@ -21,6 +21,10 @@ async function main() {
       'CREATE INDEX IF NOT EXISTS idx_fund_weekly_allocations_period ON fund_weekly_allocations (period_month, period_start, period_end)',
       'CREATE INDEX IF NOT EXISTS idx_users_full_name ON users (full_name)',
       'CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone)',
+      `CREATE INDEX IF NOT EXISTS idx_users_normalized_phone ON users ((REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g')))`,
+      'CREATE INDEX IF NOT EXISTS idx_users_normalized_full_name ON users ((LOWER(BTRIM(full_name))))',
+      'CREATE INDEX IF NOT EXISTS idx_transaction_logs_beneficiary_user ON transaction_logs (beneficiary_user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_transaction_logs_request_date_id ON transaction_logs (request_date DESC, id DESC)',
       'CREATE INDEX IF NOT EXISTS idx_fund_event_expenses_event_date ON fund_event_expenses (event_date)',
       'CREATE INDEX IF NOT EXISTS idx_teamlead_member_teams_lookup ON teamlead_member_teams (team_id, member_id)'
     ];
@@ -33,6 +37,7 @@ async function main() {
     console.log('All performance indexes successfully created.');
   } catch (err) {
     console.error('Index creation failed:', err);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }

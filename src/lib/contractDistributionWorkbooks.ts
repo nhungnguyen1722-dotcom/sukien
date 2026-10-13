@@ -180,42 +180,61 @@ function parseContractDescription(value: unknown) {
   return { contractDate, customerName, contractValue };
 }
 
-function findDatabaseContract(
-  source: { contract_date: string; customer_name: string; value: number },
-  contracts: DatabaseContract[],
-  usedIds: Set<number>,
-) {
-  const matches = contracts
-    .filter((contract) => !usedIds.has(contract.id))
-    .filter((contract) => Math.abs(Math.round(contract.allocated_value || contract.value) - source.value) <= 1)
-    .map((contract) => {
+function createDatabaseContractMatcher(contracts: DatabaseContract[]) {
+  const contractsByValue = new Map<number, DatabaseContract[]>();
+  for (const contract of contracts) {
+    const value = Math.round(contract.allocated_value || contract.value);
+    const candidates = contractsByValue.get(value) || [];
+    candidates.push(contract);
+    contractsByValue.set(value, candidates);
+  }
+
+  return (
+    source: { contract_date: string; customer_name: string; value: number },
+    usedIds: Set<number>,
+  ) => {
+    const candidates = new Map<number, DatabaseContract>();
+    for (let value = source.value - 1; value <= source.value + 1; value += 1) {
+      for (const contract of contractsByValue.get(value) || []) candidates.set(contract.id, contract);
+    }
+    const matches = Array.from(candidates.values())
+      .filter((contract) => !usedIds.has(contract.id))
+      .map((contract) => {
       const nameMatch = namesMatch(contract.customer_name, source.customer_name);
       const dateMatch = contract.contract_date.slice(0, 10) === source.contract_date;
       return { contract, score: (nameMatch ? 4 : 0) + (dateMatch ? 2 : 0), matched: nameMatch || dateMatch };
-    })
-    .filter((match) => match.matched)
-    .sort((a, b) => b.score - a.score);
+      })
+      .filter((match) => match.matched)
+      .sort((a, b) => b.score - a.score);
 
-  if (!matches.length || (matches[1] && matches[0].score === matches[1].score)) return undefined;
-  usedIds.add(matches[0].contract.id);
-  return matches[0].contract;
+    if (!matches.length || (matches[1] && matches[0].score === matches[1].score)) return undefined;
+    usedIds.add(matches[0].contract.id);
+    return matches[0].contract;
+  };
 }
 
 const fileBufferCache = new Map<string, { mtimeMs: number; buffer: Buffer }>();
+const workbookCache = new Map<string, { mtimeMs: number; workbook: XLSX.WorkBook }>();
 
 function readFileBuffer(filePath: string): Buffer {
-  try {
-    const stat = fs.statSync(filePath);
-    const cached = fileBufferCache.get(filePath);
-    if (cached && cached.mtimeMs === stat.mtimeMs) {
-      return cached.buffer;
-    }
-    const buffer = fs.readFileSync(filePath);
-    fileBufferCache.set(filePath, { mtimeMs: stat.mtimeMs, buffer });
-    return buffer;
-  } catch {
-    return fs.readFileSync(filePath);
+  const stat = fs.statSync(filePath);
+  const cached = fileBufferCache.get(filePath);
+  if (cached && cached.mtimeMs === stat.mtimeMs) {
+    return cached.buffer;
   }
+  const buffer = fs.readFileSync(filePath);
+  fileBufferCache.set(filePath, { mtimeMs: stat.mtimeMs, buffer });
+  return buffer;
+}
+
+function readWorkbook(filePath: string): XLSX.WorkBook {
+  const stat = fs.statSync(filePath);
+  const cached = workbookCache.get(filePath);
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.workbook;
+
+  const workbook = XLSX.read(readFileBuffer(filePath), { type: 'buffer', cellDates: false });
+  workbookCache.set(filePath, { mtimeMs: stat.mtimeMs, workbook });
+  return workbook;
 }
 
 export function resolveWorkbookPath(fileName: string): string | null {
@@ -249,8 +268,7 @@ function readSource(source: WorkbookSource, memberNames: string[]) {
       warnings: [],
     };
   }
-  const fileBuffer = readFileBuffer(resolvedPath);
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: false });
+  const workbook = readWorkbook(resolvedPath);
   const worksheetName = workbook.SheetNames[0];
   const worksheet = worksheetName ? workbook.Sheets[worksheetName] : undefined;
   if (!worksheet) throw new Error(`Không tìm thấy trang tính trong ${source.fileName}.`);
@@ -355,8 +373,7 @@ function readMatrixSource(
       warnings: [],
     };
   }
-  const fileBuffer = readFileBuffer(resolvedPath);
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer', sheets: [source.sheetName], cellDates: false });
+  const workbook = readWorkbook(resolvedPath);
   const worksheet = workbook.Sheets[source.sheetName];
   if (!worksheet) {
     return {
@@ -768,13 +785,14 @@ export function loadSeptemberContractDistributions(
   const usedContractIds = new Set<number>();
   const contracts: WorkbookContractDistribution[] = [];
   const warningsByPeriod: Record<string, string[]> = {};
+  const findDatabaseContract = createDatabaseContractMatcher(databaseContracts);
 
   for (const source of SOURCES) {
     try {
       const result = readSource(source, memberNames);
       warningsByPeriod[source.periodCode] = result.warnings;
       for (const row of result.contracts) {
-        const matched = findDatabaseContract(row, databaseContracts, usedContractIds);
+        const matched = findDatabaseContract(row, usedContractIds);
         const identity = matched?.id ?? 900_000 + source.weekNumber * 10_000 + row.source_excel_row;
         const enrichedBeneficiaries = row.source_beneficiaries.map((b) => ({
           ...b,

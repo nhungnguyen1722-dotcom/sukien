@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import { getMonthWeekNo, getMonthWeekRange } from '@/lib/weekRanges';
+import { isContractActiveInPeriod } from '@/lib/contractTerms';
 
 export const TEAMLEAD_DEFAULT_RATE = 0.029;
 export const TEAMLEAD_ROLE_ORDER = ['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng'] as const;
@@ -349,12 +350,33 @@ async function loadContracts(month: string, db: typeof pool = pool) {
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
       FROM contracts
-      WHERE contract_date >= $1::date AND contract_date < $2::date
+      WHERE contract_date < $2::date
       ORDER BY contract_date, id
     `,
     [start, end]
   );
-  return result.rows.map((row) => ({ ...row, id: Number(row.id), value: amount(row.value), team_name: row.team_name || '' }));
+  return result.rows
+    .filter((row) => isContractActiveInPeriod(
+      row.contract_date,
+      row.contract_type,
+      start,
+      end,
+    ))
+    .map((row) => ({ ...row, id: Number(row.id), value: amount(row.value), team_name: row.team_name || '' }));
+}
+
+function contractsInPeriod(
+  contracts: Awaited<ReturnType<typeof loadContracts>>,
+  month: string,
+  weekNo: number,
+) {
+  const { start, end } = periodBounds(month, weekNo);
+  return contracts.filter((contract) => isContractActiveInPeriod(
+    contract.contract_date,
+    contract.contract_type,
+    start,
+    end,
+  ));
 }
 
 function rowFor(member: RosterMember, team?: RosterMember['teams'][number]): AllocationRow {
@@ -496,8 +518,7 @@ async function calculateWeekRows(
 ) {
   const locked = await readLockedPeriod(month, weekNo, db);
   if (locked) return locked.rows;
-  const monthKeyStr = monthKey(month);
-  const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, monthKeyStr) === weekNo);
+  const weekContracts = contractsInPeriod(contracts, month, weekNo);
 
   const salesByTeam = new Map<string, number>();
   for (const contract of weekContracts) {
@@ -557,10 +578,7 @@ async function calculateWeekRows(
 export async function getTeamLeadAllocation(month: string, weekNo: number, db: typeof pool = pool, rateOverride?: number) {
   await ensureTeamLeadSchema();
   const contracts = await loadContracts(month, db);
-  const monthKeyStr = monthKey(month);
-  const weekContracts = weekNo
-    ? contracts.filter((contract) => getWeekNo(contract.contract_date, monthKeyStr) === weekNo)
-    : contracts;
+  const weekContracts = contractsInPeriod(contracts, month, weekNo);
   const dynamicSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
 
   const locked = await readLockedPeriod(month, weekNo, db);
@@ -594,8 +612,7 @@ export async function getTeamLeadAllocation(month: string, weekNo: number, db: t
   const monthlyFund70 = amount(monthGross * 0.7);
 
   if (weekNo) {
-    const monthKeyStr = monthKey(month);
-    const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, monthKeyStr) === weekNo);
+    const weekContracts = contractsInPeriod(contracts, month, weekNo);
     const weekSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
     const grossFund = amount(weekSales * rate);
     const weekFund30 = amount(grossFund * 0.3);
@@ -640,7 +657,7 @@ export async function getTeamLeadAllocation(month: string, weekNo: number, db: t
   });
 
   for (let week = 1; week <= 5; week += 1) {
-    const weekContracts = contracts.filter((contract) => getWeekNo(contract.contract_date, monthKey(month)) === week);
+    const weekContracts = contractsInPeriod(contracts, month, week);
     const weekSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);
     const weekFund30 = amount(amount(weekSales * rate) * 0.3);
     const weekRows = await calculateWeekRows(month, week, rate, weekFund30, contracts, await loadRoster(month, week, db), db);

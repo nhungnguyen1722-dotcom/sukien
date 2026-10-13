@@ -3,8 +3,28 @@ import { DEFAULT_OPERATIONS_FUND_BENEFICIARIES, type OperationsFundBeneficiary }
 
 export { DEFAULT_OPERATIONS_FUND_BENEFICIARIES, type OperationsFundBeneficiary } from '@/lib/operationsFundBeneficiaryDefaults';
 
+let schemaPromise: Promise<void> | null = null;
+
 export async function ensureOperationsFundBeneficiaries(): Promise<OperationsFundBeneficiary[]> {
-  await pool.query(`
+  if (!schemaPromise) {
+    const placeholders = DEFAULT_OPERATIONS_FUND_BENEFICIARIES.map((_, index) => {
+      const offset = index * 10;
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, '1900-01-01')`;
+    });
+    const values = DEFAULT_OPERATIONS_FUND_BENEFICIARIES.flatMap((row) => [
+      row.department_key,
+      row.fund_key,
+      row.fund_source,
+      row.department,
+      row.full_name,
+      row.phone,
+      row.bank_account,
+      row.bank_name,
+      row.weekly_rate,
+      row.monthly_rate,
+    ]);
+    schemaPromise = (async () => {
+      await pool.query(`
     CREATE TABLE IF NOT EXISTS operations_fund_beneficiaries (
       id BIGSERIAL PRIMARY KEY,
       department_key TEXT NOT NULL,
@@ -26,27 +46,20 @@ export async function ensureOperationsFundBeneficiaries(): Promise<OperationsFun
     )
   `);
 
-  for (const row of DEFAULT_OPERATIONS_FUND_BENEFICIARIES) {
-    await pool.query(
-      `INSERT INTO operations_fund_beneficiaries (
-        department_key, fund_key, fund_source, department, full_name, phone,
-        bank_account, bank_name, weekly_rate, monthly_rate, effective_from
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '1900-01-01')
-      ON CONFLICT (department_key, effective_from) DO NOTHING`,
-      [
-        row.department_key,
-        row.fund_key,
-        row.fund_source,
-        row.department,
-        row.full_name,
-        row.phone,
-        row.bank_account,
-        row.bank_name,
-        row.weekly_rate,
-        row.monthly_rate,
-      ],
-    );
+      await pool.query(
+        `INSERT INTO operations_fund_beneficiaries (
+          department_key, fund_key, fund_source, department, full_name, phone,
+          bank_account, bank_name, weekly_rate, monthly_rate, effective_from
+        ) VALUES ${placeholders.join(', ')}
+        ON CONFLICT (department_key, effective_from) DO NOTHING`,
+        values,
+      );
+    })().catch((error) => {
+      schemaPromise = null;
+      throw error;
+    });
   }
+  await schemaPromise;
 
   const result = await pool.query(`
     SELECT b.id, b.department_key, b.fund_key, b.fund_source, b.department, b.full_name,

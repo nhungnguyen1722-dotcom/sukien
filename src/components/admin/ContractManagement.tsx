@@ -7,6 +7,7 @@ import { CONTRACT_TEAM_OPTIONS } from '@/lib/teamOptions';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { getOperationsSupportFundKey, OPERATIONS_SUPPORT_FUND_RATE } from '@/lib/operationsFunds';
 import { formatWeekOptionLabel } from '@/lib/weekRanges';
+import ContractTermBadge from '@/components/admin/ContractTermBadge';
 import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import {
   AlertCircle,
@@ -1214,6 +1215,7 @@ export default function ContractManagement({
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
                       <strong className="text-sm text-blue-700">{contract.contract_code || '—'}</strong>
                       {contract.contract_type && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{contract.contract_type}</span>}
+                      <ContractTermBadge contractDate={contract.contract_date} contractType={contract.contract_type} />
                     </div>
                   </td>
                   <td className="w-28 min-w-[110px] px-3 py-3 font-medium text-slate-600">{contract.team_name?.trim() || '—'}</td>
@@ -1513,6 +1515,7 @@ export default function ContractManagement({
                   <div><span className="block text-slate-400">Ngày sinh</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_birth_date ? formatDate(viewingContract.customer_birth_date) : '—'}</strong></div>
                   <div><span className="block text-slate-400">Địa chỉ</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_address || '—'}</strong></div>
                   <div><span className="block text-slate-400">Ngày ký</span><strong className="mt-1 block text-slate-800">{formatDate(viewingContract.contract_date)}</strong></div>
+                  <div className="sm:col-span-2"><ContractTermBadge contractDate={viewingContract.contract_date} contractType={viewingContract.contract_type} /></div>
                   <div><span className="block text-slate-400">Giá trị hợp đồng</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.value)}</strong></div>
                   {(isBdsContract(viewingContract.contract_type) || isTwoYearContract(viewingContract.contract_type)) && (
                     <div><span className="block text-slate-400">Giá trị hợp đồng phân bổ</span><strong className="mt-1 block text-emerald-700">{formatMoney(getAllocatedContractValue(viewingContract.value, viewingContract.contract_type))}</strong></div>
