@@ -1231,13 +1231,12 @@ export default function MemberManagement({
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Số lần làm khách
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.guest_count}
-                  onChange={(e) => setFormData({ ...formData, guest_count: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 shadow-2xs"
-                />
+                <div
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-2xs"
+                >
+                  {formData.guest_count || 0}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">Được đối soát tự động từ các lượt check-in/tham dự sự kiện.</p>
               </div>
 
               {/* 13, 14, 15: Ẩn khi Thêm mới, chỉ hiển thị khi Sửa (Mục 5 theo Yêu cầu) */}

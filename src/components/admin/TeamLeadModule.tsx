@@ -168,6 +168,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const [reportWeekNo, setReportWeekNo] = useState(0);
   const [reportSubTab, setReportSubTab] = useState<'leaderboard' | 'contracts'>('leaderboard');
   const [teamFilter, setTeamFilter] = useState('all');
+  const [salesFilter, setSalesFilter] = useState<'all' | 'with-sales' | 'without-sales'>('all');
+  const [salesSort, setSalesSort] = useState<'desc' | 'asc'>('desc');
   const [search, setSearch] = useState('');
   const [reportContracts, setReportContracts] = useState<Contract[]>([]);
   const [selectedContract, setSelectedContract] = useState<number | null>(null);
@@ -475,12 +477,34 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const filteredAllocationRows = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('vi-VN');
-    return (allocation?.rows || []).filter((row) => {
-      const teamMatches = teamFilter === 'all' || String(row.teamId || '') === teamFilter;
-      const searchMatches = !term || `${row.memberName} ${row.memberPhone} ${row.teamName}`.toLocaleLowerCase('vi-VN').includes(term);
-      return teamMatches && searchMatches;
+    return [...(allocation?.rows || [])]
+      .filter((row) => {
+        const teamMatches = teamFilter === 'all' || String(row.teamId || '') === teamFilter;
+        const salesMatches =
+          salesFilter === 'all' ||
+          (salesFilter === 'with-sales' ? row.salesBasis > 0 : row.salesBasis <= 0);
+        const searchMatches = !term || `${row.memberName} ${row.memberPhone} ${row.teamName}`.toLocaleLowerCase('vi-VN').includes(term);
+        return teamMatches && salesMatches && searchMatches;
+      })
+      .sort((left, right) => {
+        const salesDifference = Number(right.salesBasis || 0) - Number(left.salesBasis || 0);
+        if (salesDifference !== 0) return salesSort === 'desc' ? salesDifference : -salesDifference;
+        return left.teamName.localeCompare(right.teamName, 'vi');
+      });
+  }, [allocation, search, salesFilter, salesSort, teamFilter]);
+
+  const filteredAllocationTotalSales = useMemo(() => {
+    const salesByTeam = new Map<string, number>();
+    filteredAllocationRows.forEach((row) => {
+      const teamKey = row.teamId === null ? `unassigned-${row.memberId ?? row.membershipId ?? row.memberName}` : String(row.teamId);
+      salesByTeam.set(teamKey, Number(row.salesBasis || 0));
     });
-  }, [allocation, search, teamFilter]);
+    return Array.from(salesByTeam.values()).reduce((sum, sales) => sum + sales, 0);
+  }, [filteredAllocationRows]);
+
+  useEffect(() => {
+    setAllocationPage(1);
+  }, [salesFilter, salesSort, teamFilter]);
 
   const filteredContracts = useMemo(() => reportContracts.filter((contract) => reportWeekNo === 0 || contract.weekNo === reportWeekNo), [reportContracts, reportWeekNo]);
 
@@ -1331,6 +1355,27 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                     {teams.map((team) => <option key={team.id} value={String(team.id)}>{team.name}</option>)}
                   </select>
                 </label>
+                <label className="text-sm font-semibold text-slate-600">Lọc doanh số đội
+                  <select
+                    value={salesFilter}
+                    onChange={(event) => setSalesFilter(event.target.value as 'all' | 'with-sales' | 'without-sales')}
+                    className="mt-1.5 block min-w-44 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500"
+                  >
+                    <option value="all">Tất cả doanh số</option>
+                    <option value="with-sales">Có doanh số</option>
+                    <option value="without-sales">Chưa có doanh số</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold text-slate-600">Sắp xếp doanh số
+                  <select
+                    value={salesSort}
+                    onChange={(event) => setSalesSort(event.target.value as 'desc' | 'asc')}
+                    className="mt-1.5 block min-w-44 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500"
+                  >
+                    <option value="desc">Cao đến thấp</option>
+                    <option value="asc">Thấp đến cao</option>
+                  </select>
+                </label>
                 <label className="text-sm font-semibold text-slate-600">Tỷ lệ nguồn quỹ
                   <span className="mt-1.5 flex items-center rounded-lg border border-slate-200 bg-white px-3 focus-within:border-blue-500"><input type="number" min="0" max="100" step="0.01" value={ratePercent} onChange={(event) => setRatePercent(event.target.value)} disabled={allocation?.meta.locked} className="w-20 py-2.5 text-sm text-slate-800 outline-none disabled:bg-slate-100" /><span className="text-sm text-slate-400">%</span></span>
                 </label>
@@ -1362,25 +1407,50 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                 </div>
               </div>
               {loading && !allocation ? <div className="p-12 text-center text-sm text-slate-500">Đang tính dữ liệu…</div> : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1180px] text-left text-sm">
-                    <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
-                      <tr>
-                        <th className="px-4 py-3.5">Thành viên & SĐT</th><th className="px-4 py-3.5">Đội nhóm</th><th className="px-4 py-3.5">Chức danh</th>
-                        <th className="px-4 py-3.5 text-center">
+                <div>
+                  <div className="max-h-[470px] overflow-auto">
+                  <table className="w-full min-w-[1180px] text-left text-sm border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-30 shadow-sm">
+                      <tr className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
+                        <th className="px-4 py-3.5 border-b border-slate-800 bg-slate-900">Thành viên & SĐT</th>
+                        <th className="px-4 py-3.5 border-b border-slate-800 bg-slate-900">Đội nhóm</th>
+                        <th className="px-4 py-3.5 border-b border-slate-800 bg-slate-900">Chức danh</th>
+                        <th className="px-4 py-3.5 text-center border-b border-slate-800 bg-slate-900">
                           Quỹ 30%
                           <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
                             {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
                           </span>
                         </th>
-                        <th className="px-4 py-3.5 text-center">
+                        <th className="px-4 py-3.5 text-center border-b border-slate-800 bg-slate-900">
                           Quỹ 70%
                           <span className="mt-0.5 block font-normal normal-case tracking-normal text-slate-400">
                             {weekNo === 0 ? 'Cả tháng' : `Tuần ${weekNo}`}
                           </span>
                         </th>
-                        <th className="px-4 py-3.5 text-right">Doanh số đội</th><th className="px-4 py-3.5 text-right">Tiền 30% tháng</th><th className="px-4 py-3.5 text-right">Tiền 70% kỳ</th><th className="px-4 py-3.5 text-right">{weekNo ? 'Chi tuần này' : 'Tổng thực nhận'}</th>
+                        <th className="px-4 py-3.5 text-right border-b border-slate-800 bg-slate-900">
+                          <button
+                            type="button"
+                            onClick={() => setSalesSort((current) => current === 'desc' ? 'asc' : 'desc')}
+                            className="inline-flex items-center gap-1 font-semibold hover:text-white"
+                            aria-label={`Sắp xếp doanh số đội ${salesSort === 'desc' ? 'thấp đến cao' : 'cao đến thấp'}`}
+                            title="Bấm để đổi chiều sắp xếp doanh số đội"
+                          >
+                            Doanh số đội <span aria-hidden>{salesSort === 'desc' ? '↓' : '↑'}</span>
+                          </button>
+                        </th>
+                        <th className="px-4 py-3.5 text-right border-b border-slate-800 bg-slate-900">Tiền 30% tháng</th>
+                        <th className="px-4 py-3.5 text-right border-b border-slate-800 bg-slate-900">Tiền 70% kỳ</th>
+                        <th className="px-4 py-3.5 text-right border-b border-slate-800 bg-slate-900">{weekNo ? 'Chi tuần này' : 'Tổng thực nhận'}</th>
                       </tr>
+                      {!!filteredAllocationRows.length && (
+                        <tr className="bg-slate-100 font-bold text-slate-900 shadow-xs">
+                          <td colSpan={5} className="px-4 py-3.5 border-b-2 border-slate-300 bg-slate-100">TỔNG CỘNG ({filteredAllocationRows.length} dòng)</td>
+                          <td className="px-4 py-3.5 text-right tabular-nums text-slate-800 border-b-2 border-slate-300 bg-slate-100">{money(filteredAllocationTotalSales)}</td>
+                          <td className="px-4 py-3.5 text-right tabular-nums text-violet-700 border-b-2 border-slate-300 bg-slate-100">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout30, 0))}</td>
+                          <td className="px-4 py-3.5 text-right tabular-nums text-amber-700 border-b-2 border-slate-300 bg-slate-100">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout70, 0))}</td>
+                          <td className="px-4 py-3.5 text-right tabular-nums text-emerald-700 border-b-2 border-slate-300 bg-slate-100">{money(filteredAllocationRows.reduce((sum, row) => sum + (weekNo ? row.payout70 : row.total), 0))}</td>
+                        </tr>
+                      )}
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {paginatedAllocationRows.map((row, index) => (
@@ -1420,18 +1490,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                       ))}
                       {!filteredAllocationRows.length && <tr><td colSpan={9} className="px-4 py-14 text-center text-sm text-slate-500">Chưa có dữ liệu để phân bổ. Hãy tạo danh sách tháng và nhập hợp đồng có đội nhóm.</td></tr>}
                     </tbody>
-                    {!!filteredAllocationRows.length && (
-                      <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-900">
-                        <tr>
-                          <td colSpan={5} className="px-4 py-4">TỔNG CỘNG ({filteredAllocationRows.length} dòng)</td>
-                          <td className="px-4 py-4 text-right tabular-nums text-slate-800">{money(allocation?.meta.totalSales || 0)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums text-violet-700">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout30, 0))}</td>
-                          <td className="px-4 py-4 text-right tabular-nums text-amber-700">{money(filteredAllocationRows.reduce((sum, row) => sum + row.payout70, 0))}</td>
-                          <td className="px-4 py-4 text-right tabular-nums text-emerald-700">{money(filteredAllocationRows.reduce((sum, row) => sum + (weekNo ? row.payout70 : row.total), 0))}</td>
-                        </tr>
-                      </tfoot>
-                    )}
                   </table>
+                  </div>
                   {totalAllocationPages > 1 && (
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
                       <div>

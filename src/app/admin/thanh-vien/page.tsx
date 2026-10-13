@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
+import { attendedEventCountSql } from '@/lib/guestAttendance';
 import MemberManagement, {
   Member,
   Stats,
@@ -47,7 +48,7 @@ async function getInitialData(): Promise<{
             FALSE
           ) AS is_team_leader_eligible,
           u.invite_count,
-          u.guest_count,
+          ${attendedEventCountSql('u.full_name', 'u.phone')} AS guest_count,
           u.notes,
           u.created_at,
           u.updated_at,

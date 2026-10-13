@@ -42,6 +42,38 @@ const menuItems = [
   { label: 'Thiết lập', href: '/admin/thiet-lap', icon: Settings },
 ];
 
+const SidebarMenuLink = React.memo(function SidebarMenuLink({
+  item,
+  isActive,
+  isCollapsed,
+}: {
+  item: (typeof menuItems)[number];
+  isActive: boolean;
+  isCollapsed: boolean;
+}) {
+  const Icon = item.icon;
+
+  return (
+    <li>
+      <Link
+        href={item.href}
+        prefetch={true}
+        title={isCollapsed ? item.label : undefined}
+        className={`flex items-center ${
+          isCollapsed ? 'justify-center px-0 py-3' : 'gap-3.5 px-4 py-3'
+        } rounded-xl text-[14px] font-medium transition-all ${
+          isActive
+            ? 'bg-[#2563eb] text-white shadow-md'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+        }`}
+      >
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {!isCollapsed && <span className="truncate">{item.label}</span>}
+      </Link>
+    </li>
+  );
+});
+
 const luckyWheelSubItems = [
   { label: 'Danh sách vòng quay', href: '/admin/vong-quay' },
   { label: 'Quay vòng trúng thưởng', href: '/admin/vong-quay/quay' },
@@ -206,12 +238,14 @@ export default function AdminSidebar({
         <div className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'justify-between px-3 py-3'} border-b border-slate-800/60 min-h-[64px]`}>
           {!isCollapsed ? (
             <>
-              <Link href={isReception ? "/admin/le-tan" : "/admin"} className="flex items-center justify-center flex-1 group mr-2">
+              <Link href={isReception ? "/admin/le-tan" : "/admin"} prefetch={true} className="flex items-center justify-center flex-1 group mr-2">
                 <div
                   className="bg-white px-3 py-1.5 rounded-2xl shadow-sm flex items-center justify-center w-full max-w-[180px] h-11 hover:shadow-md transition-all"
+                  style={{ height: '100%', minHeight: '100%', width: '100%', maxHeight: '100%', borderRadius: '0px' }}
                 >
                   <SystemLogo
                     className="h-8 w-auto max-h-8 max-w-full object-contain transition-transform group-hover:scale-105 duration-200"
+                    style={{ height: '100%', minHeight: '100%', width: '100%', maxHeight: '100%', objectFit: 'contain' }}
                   />
                 </div>
               </Link>
@@ -256,27 +290,10 @@ export default function AdminSidebar({
               item.href === '/admin'
                 ? pathname === '/admin'
                 : pathname.startsWith(item.href);
-            const Icon = item.icon;
-
             return (
               <React.Fragment key={item.href}>
                 {item.href !== '/admin/teamlead/chinh-sach' && (
-                  <li>
-                    <Link
-                      href={item.href}
-                      title={isCollapsed ? item.label : undefined}
-                      className={`flex items-center ${
-                        isCollapsed ? 'justify-center px-0 py-3' : 'gap-3.5 px-4 py-3'
-                      } rounded-xl text-[14px] font-medium transition-all ${
-                        isActive
-                          ? 'bg-[#2563eb] text-white shadow-md'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      {!isCollapsed && <span className="truncate">{item.label}</span>}
-                    </Link>
-                  </li>
+                  <SidebarMenuLink item={item} isActive={isActive} isCollapsed={isCollapsed} />
                 )}
 
                 {/* Vòng quay sự kiện - Chỉ có tài khoản Admin mới nhìn thấy (Mục 16.1) */}
@@ -326,6 +343,7 @@ export default function AdminSidebar({
                             <li key={sub.href}>
                               <Link
                                 href={sub.href}
+                                prefetch={true}
                                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                                   isSubActive
                                     ? 'bg-[#2563eb] text-white shadow-xs'
@@ -387,6 +405,7 @@ export default function AdminSidebar({
                             <li key={sub.href}>
                               <Link
                                 href={sub.href}
+                                prefetch={true}
                                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                                   isSubActive ? 'bg-[#2563eb] text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                                 }`}

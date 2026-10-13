@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import pool from '@/lib/db';
 import CustomerManagement, { CustomerInvite, InviterGroup } from '@/components/admin/CustomerManagement';
+import { attendedEventCountSql } from '@/lib/guestAttendance';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -53,6 +54,7 @@ export default async function NguoiMoiPage() {
             i.invitee_phone,
             COALESCE(i.status, 'Đang chờ') AS status,
             COALESCE(i.reward_points, 0) AS reward_points,
+            ${attendedEventCountSql('i.invitee_name', 'i.invitee_phone')} AS guest_count,
             i.created_at,
             u.full_name AS inviter_name,
             u.role AS inviter_role,
@@ -95,6 +97,7 @@ export default async function NguoiMoiPage() {
           i.invitee_phone,
           COALESCE(i.status, 'Đang chờ') AS status,
           COALESCE(i.reward_points, 0) AS reward_points,
+          ${attendedEventCountSql('i.invitee_name', 'i.invitee_phone')} AS guest_count,
           i.created_at,
           u.full_name AS inviter_name,
           u.role AS inviter_role,

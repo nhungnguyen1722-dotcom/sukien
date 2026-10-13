@@ -30,6 +30,7 @@ export interface CustomerInvite {
   invitee_phone?: string | null;
   status: string;
   reward_points?: number;
+  guest_count?: number;
   created_at: string | null;
   inviter_name?: string | null;
   inviter_role?: string | null;
@@ -328,6 +329,7 @@ export default function CustomerManagement({
                           <th className="py-2.5 px-4 font-semibold">Tên khách hàng</th>
                           <th className="py-2.5 px-4 font-semibold">Email</th>
                           <th className="py-2.5 px-4 font-semibold">Thời gian</th>
+                          <th className="py-2.5 px-4 font-semibold">Số lần làm khách</th>
                           <th className="py-2.5 px-4 font-semibold">Trạng thái</th>
                         </tr>
                       </thead>
@@ -346,6 +348,9 @@ export default function CustomerManagement({
                             <td className="py-3 px-4 text-slate-600 font-mono">{cust.invitee_email}</td>
                             <td className="py-3 px-4 text-slate-500">
                               {cust.created_at ? new Date(cust.created_at).toLocaleDateString('vi-VN') : '—'}
+                            </td>
+                            <td className="py-3 px-4 font-semibold tabular-nums text-slate-700">
+                              {cust.guest_count || '—'}
                             </td>
                             <td className="py-3 px-4">
                               <span
@@ -387,6 +392,7 @@ export default function CustomerManagement({
                   <th className="py-3.5 px-4 font-semibold">Email</th>
                   {isAdmin && <th className="py-3.5 px-4 font-semibold">Người mời</th>}
                   <th className="py-3.5 px-4 font-semibold">Thời gian</th>
+                  <th className="py-3.5 px-4 font-semibold">Số lần làm khách</th>
                   <th className="py-3.5 px-4 font-semibold">Trạng thái</th>
                 </tr>
               </thead>
@@ -412,6 +418,9 @@ export default function CustomerManagement({
                       <td className="py-3.5 px-4 text-slate-500">
                         {cust.created_at ? new Date(cust.created_at).toLocaleDateString('vi-VN') : '—'}
                       </td>
+                      <td className="py-3.5 px-4 font-semibold tabular-nums text-slate-700">
+                        {cust.guest_count || '—'}
+                      </td>
                       <td className="py-3.5 px-4">
                         <span
                           className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -429,7 +438,7 @@ export default function CustomerManagement({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={isAdmin ? 5 : 4} className="py-12 text-center text-slate-400">
+                    <td colSpan={isAdmin ? 6 : 5} className="py-12 text-center text-slate-400">
                       Không có khách hàng nào trong danh sách.
                     </td>
                   </tr>

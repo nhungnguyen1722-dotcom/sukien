@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import { resolveMemberTeamId, ensureMemberSchema, syncUserToTeamLead, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
+import { attendedEventCountSql } from '@/lib/guestAttendance';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
           FALSE
         ) AS is_team_leader_eligible,
         u.invite_count,
-        u.guest_count,
+        ${attendedEventCountSql('u.full_name', 'u.phone')} AS guest_count,
         u.notes,
         u.created_at,
         u.updated_at,
