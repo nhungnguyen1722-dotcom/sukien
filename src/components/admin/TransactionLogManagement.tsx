@@ -43,11 +43,6 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-const LeaderboardManagement = dynamic(() => import('@/components/admin/LeaderboardManagement'), {
-  loading: () => (
-    <div aria-busy="true" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" />
-  ),
-});
 
 import CreatePaymentProposalModal from '@/components/admin/CreatePaymentProposalModal';
 import { numberToVietnameseWords } from '@/lib/numberToWords';
@@ -714,13 +709,13 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
 
 export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, events = [], currentMonth }: Props) {
   const [logs, setLogs] = useState(() => initialLogs.map(sanitizeTransactionLogNames));
-  const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers' | 'leaderboard'>('cashflow');
+  const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers'>('cashflow');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam === 'leaderboard' || tabParam === 'cashflow' || tabParam === 'event' || tabParam === 'vouchers') {
+      if (tabParam === 'cashflow' || tabParam === 'event' || tabParam === 'vouchers') {
         setActiveTab(tabParam as any);
       }
     }
@@ -1667,12 +1662,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       </header>
 
       <Panel className="p-2">
-        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-3">
           {[
             { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
             { id: 'event' as const, title: 'Báo cáo Đào tạo & Sự kiện', subtitle: 'Chi tiết từng buổi & Sinh phiếu chi' },
             { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
-            { id: 'leaderboard' as const, title: 'Bảng xếp hạng thi đua & Vinh danh', subtitle: 'Doanh số & xét thăng hạng' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1689,7 +1683,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         </nav>
       </Panel>
 
-      {activeTab !== 'vouchers' && activeTab !== 'leaderboard' && (
+      {activeTab !== 'vouchers' && (
         <AdminTimeFilter
           selectedYear={Number(selectedYear)}
           yearOptions={yearOptions}
@@ -2744,9 +2738,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         )}
       </Panel>}
 
-      {activeTab === 'leaderboard' && (
-        <LeaderboardManagement initialMonth={selectedMonth} />
-      )}
 
       {isCreateOpen && (
         <CreatePaymentProposalModal

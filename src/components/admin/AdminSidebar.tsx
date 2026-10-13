@@ -35,7 +35,6 @@ const menuItems = [
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
   { label: 'Quản lý quỹ', href: '/admin/teamlead', icon: Wallet },
-  { label: 'Vinh danh & Bảng xếp hạng', href: '/admin/vinh-danh', icon: Users },
   { label: 'Danh sách hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
   { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },
