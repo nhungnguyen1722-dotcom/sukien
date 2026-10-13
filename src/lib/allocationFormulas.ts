@@ -628,6 +628,7 @@ export function calculateContractAllBeneficiaries(contract: {
 export function decomposeBeneficiarySource(
   contract: {
     customer_name?: string | null;
+    contract_date?: string | null;
     value: number;
     allocated_value?: number;
     contract_type?: string | null;
@@ -720,7 +721,13 @@ export function decomposeBeneficiarySource(
     { name: 'Vũ Thị Cúc', source: 'Quỹ vận hành → Phó tổng (1,2%)', rate: 0.012 },
     { name: 'Nguyễn Thị Hương Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng (0,5%)', rate: 0.005 },
     { name: 'Đinh Văn Bắc', source: 'Quỹ vận hành → Tổng điều hành (0,5%)', rate: 0.005 },
-    { name: supportCnBeneficiary?.full_name || 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN (0,2%)', rate: 0.002 },
+    {
+      name:
+        supportCnBeneficiary?.full_name ||
+        ((contract.contract_date || '').slice(0, 10) >= '2026-10-10' ? 'Nguyễn Đức Tuấn' : 'Nguyễn Đăng An'),
+      source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN (0,2%)',
+      rate: 0.002,
+    },
     { name: 'Quỹ hỗ trợ & dự phòng (KT)', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ KT (0,1%)', rate: 0.001 },
   ];
 

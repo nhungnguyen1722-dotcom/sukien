@@ -55,7 +55,7 @@ export const DEFAULT_OPERATIONS_FUND_BENEFICIARIES = [
     fund_key: 'support_cn',
     fund_source: 'BP hỗ trợ CN',
     department: 'Quỹ hỗ trợ & dự phòng (CN)',
-    full_name: 'Nguyễn Đăng An',
+    full_name: 'Nguyễn Đức Tuấn',
     phone: '',
     bank_account: '',
     bank_name: '',

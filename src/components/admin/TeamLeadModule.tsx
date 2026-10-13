@@ -849,24 +849,14 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   const rosterReadOnly = rosterLocked || selectedWeekLocked;
   const existingUserIds = new Set(roster.map((member) => member.userId).filter(Boolean));
   const availableUsers = users.filter((user) => hasTeamLeadTitle(user.title) && !existingUserIds.has(user.id));
-  const title = activeTab === 'roster' ? 'Danh sách TeamLead theo tháng' : activeTab === 'allocation' ? 'Phân bổ quỹ TeamLead' : 'Nhật ký & báo cáo TeamLead';
-  const subtitle = activeTab === 'roster'
-    ? 'Chốt thành viên, đội nhóm, chức danh và quyền hưởng quỹ cho từng tháng.'
-    : activeTab === 'allocation'
-      ? 'Theo dõi doanh số theo đội, quỹ 30% tháng và khoản 70% quyết toán theo tuần.'
-      : 'Tra cứu hợp đồng và xem các khoản phân bổ theo đội nhóm, chức danh và kỳ.';
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-5 text-slate-900 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 px-4 pt-3 pb-8 text-slate-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px] space-y-5">
         <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-                <ShieldCheck className="h-4 w-4" /> Quản lý quỹ & đội nhóm
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
-              <p className="mt-1 max-w-3xl text-sm text-slate-500">{subtitle}</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+              <ShieldCheck className="h-4 w-4" /> Quản lý quỹ & đội nhóm
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -942,8 +932,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
             <section className="grid gap-4 lg:grid-cols-[1fr_auto]">
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <h2 className="text-base font-bold text-slate-900">Danh sách chức danh và quyền hưởng quỹ</h2>
-                <p className="mt-1 text-sm text-slate-500">Chức danh lưu theo tháng. Quyền 70% có thể thay đổi theo tuần; quyền 30% chốt theo tháng.</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   <span className="rounded-lg bg-blue-50 px-3 py-2 font-medium text-blue-800">Giám đốc 50%</span>
                   <span className="rounded-lg bg-violet-50 px-3 py-2 font-medium text-violet-800">Phó Giám đốc 30%</span>
                   <span className="rounded-lg bg-amber-50 px-3 py-2 font-medium text-amber-800">Trưởng phòng 20%</span>

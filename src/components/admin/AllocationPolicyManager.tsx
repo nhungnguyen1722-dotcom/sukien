@@ -249,25 +249,24 @@ export default function AllocationPolicyManager() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-[#142746] text-white shadow-sm">
-        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 px-5 py-3 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 shadow"><SlidersHorizontal className="h-5 w-5" /></div>
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-bold tracking-tight">MÔ HÌNH PHÂN BỔ NGÂN SÁCH HOẠT ĐỘNG</h1>
-              <p className="text-xs text-slate-300">Nguồn: tab 1. Chính sách · <span className="text-emerald-300">● Chính sách đang áp dụng</span></p>
+      <main className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 pt-3 pb-8 sm:px-6 lg:px-8">
+        <header className="rounded-2xl border border-slate-700/50 bg-[#142746] p-4 text-white shadow-md sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 shadow"><SlidersHorizontal className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-bold tracking-tight">MÔ HÌNH PHÂN BỔ NGÂN SÁCH HOẠT ĐỘNG</h1>
+                <p className="text-xs text-slate-300">Nguồn: tab 1. Chính sách · <span className="text-emerald-300">● Chính sách đang áp dụng</span></p>
+              </div>
+              <span className="hidden rounded-full border border-blue-300/40 bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold text-blue-100 sm:inline-flex">{current?.versionLabel || DEFAULT_POLICY_VERSION}</span>
             </div>
-            <span className="hidden rounded-full border border-blue-300/40 bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold text-blue-100 sm:inline-flex">{current?.versionLabel || DEFAULT_POLICY_VERSION}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => { setHistoryDetailId(current?.id ?? null); setHistoryOpen(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-500/60 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"><History className="h-4 w-4" /> Lịch sử cập nhật</button>
+              <button onClick={() => void exportSpreadsheet()} disabled={!current} className="inline-flex items-center gap-2 rounded-lg border border-slate-500/60 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10 disabled:opacity-50"><FileSpreadsheet className="h-4 w-4 text-emerald-300" /> Xuất Excel</button>
+              <button onClick={() => { setCommitNote(''); setSaveError(''); setEffectiveDate(getToday()); setSaveOpen(true); }} disabled={!current || isLoading} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500 disabled:opacity-50"><Save className="h-4 w-4" /> Cập nhật Chính sách</button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => { setHistoryDetailId(current?.id ?? null); setHistoryOpen(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-500/60 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"><History className="h-4 w-4" /> Lịch sử cập nhật</button>
-            <button onClick={() => void exportSpreadsheet()} disabled={!current} className="inline-flex items-center gap-2 rounded-lg border border-slate-500/60 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10 disabled:opacity-50"><FileSpreadsheet className="h-4 w-4 text-emerald-300" /> Xuất Excel</button>
-            <button onClick={() => { setCommitNote(''); setSaveError(''); setEffectiveDate(getToday()); setSaveOpen(true); }} disabled={!current || isLoading} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500 disabled:opacity-50"><Save className="h-4 w-4" /> Cập nhật Chính sách</button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:px-8">
+        </header>
         {loadError && (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
             <span>{loadError}</span><button onClick={() => void loadPolicy()} className="rounded-lg border border-rose-300 px-3 py-1.5 font-semibold hover:bg-rose-100">Tải lại</button>

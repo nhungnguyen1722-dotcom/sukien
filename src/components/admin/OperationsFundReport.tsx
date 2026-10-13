@@ -539,7 +539,8 @@ export default function OperationsFundReport({
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#f8fafc] px-4 pt-3 pb-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px]">
       {/* ===== HEADER TRANG ===== */}
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1155,6 +1156,7 @@ export default function OperationsFundReport({
           </section>
         </div>
       )}
+      </div>
     </div>
   );
 }
