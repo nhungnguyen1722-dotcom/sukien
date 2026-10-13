@@ -34,7 +34,8 @@ const menuItems = [
   { label: 'Danh sách khách hàng', href: '/admin/nguoi-moi', icon: UserPlus },
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
-  { label: 'Chính sách hỗ trợ', href: '/admin/teamlead/chinh-sach', icon: Wallet },
+  { label: 'Quản lý quỹ', href: '/admin/teamlead', icon: Wallet },
+  { label: 'Vinh danh & Bảng xếp hạng', href: '/admin/vinh-danh', icon: Users },
   { label: 'Danh sách hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
   { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },
@@ -81,13 +82,6 @@ const luckyWheelSubItems = [
   { label: 'Hướng dẫn', href: '/admin/vong-quay/huong-dan' },
 ];
 
-const policySupportSubItems = [
-  { label: 'Quỹ TeamLead', href: '/admin/teamlead' },
-  { label: 'Chính sách phân bổ', href: '/admin/teamlead/chinh-sach' },
-  { label: 'Quỹ vận hành và hỗ trợ', href: '/admin/quy-van-hanh-ho-tro' },
-  { label: 'Vinh danh & Bảng xếp hạng', href: '/admin/vinh-danh' },
-];
-
 interface AdminSidebarProps {
   adminName?: string;
   adminRole?: string;
@@ -108,21 +102,13 @@ export default function AdminSidebar({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const isWheelRoute = pathname?.startsWith('/admin/vong-quay');
-  const isPolicySupportRoute = Boolean(
-    pathname?.startsWith('/admin/teamlead') || pathname?.startsWith('/admin/quy-van-hanh-ho-tro')
-  );
   const [isWheelMenuOpen, setIsWheelMenuOpen] = useState(isWheelRoute);
-  const [isPolicySupportMenuOpen, setIsPolicySupportMenuOpen] = useState(isPolicySupportRoute);
 
   useEffect(() => {
     if (isWheelRoute) {
       setIsWheelMenuOpen(true);
     }
   }, [isWheelRoute]);
-
-  useEffect(() => {
-    if (isPolicySupportRoute) setIsPolicySupportMenuOpen(true);
-  }, [isPolicySupportRoute]);
 
   useEffect(() => {
     if (defaultAdminRole) setCurrentRole(safeDecodeURI(defaultAdminRole));
@@ -292,9 +278,7 @@ export default function AdminSidebar({
                 : pathname.startsWith(item.href);
             return (
               <React.Fragment key={item.href}>
-                {item.href !== '/admin/teamlead/chinh-sach' && (
-                  <SidebarMenuLink item={item} isActive={isActive} isCollapsed={isCollapsed} />
-                )}
+                <SidebarMenuLink item={item} isActive={isActive} isCollapsed={isCollapsed} />
 
                 {/* Vòng quay sự kiện - Chỉ có tài khoản Admin mới nhìn thấy (Mục 16.1) */}
                 {isAdmin && item.href === '/admin/nhat-ky-thu-chi' && (
@@ -355,62 +339,6 @@ export default function AdminSidebar({
                                     isSubActive ? 'bg-white' : 'bg-slate-500'
                                   }`}
                                 />
-                                <span>{sub.label}</span>
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </li>
-                )}
-                {isAdmin && item.href === '/admin/teamlead/chinh-sach' && (
-                  <li className="space-y-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isCollapsed && onToggleCollapse) {
-                          onToggleCollapse();
-                          setIsPolicySupportMenuOpen(true);
-                        } else {
-                          setIsPolicySupportMenuOpen(!isPolicySupportMenuOpen);
-                        }
-                      }}
-                      title={isCollapsed ? "Chính sách hỗ trợ" : undefined}
-                      aria-expanded={isPolicySupportMenuOpen}
-                      className={`w-full flex items-center ${
-                        isCollapsed ? 'justify-center px-0 py-3' : 'justify-between px-4 py-3'
-                      } rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
-                        isPolicySupportRoute
-                          ? 'bg-slate-800 text-emerald-300 font-semibold shadow-xs'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3.5'}`}>
-                        <Wallet className={`w-5 h-5 flex-shrink-0 ${isPolicySupportRoute ? 'text-emerald-300' : 'text-slate-400'}`} />
-                        {!isCollapsed && <span>Chính sách hỗ trợ</span>}
-                      </div>
-                      {!isCollapsed && (
-                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPolicySupportMenuOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
-                      )}
-                    </button>
-                    {!isCollapsed && isPolicySupportMenuOpen && (
-                      <ul className="pl-5 space-y-1 pt-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                        {policySupportSubItems.map((sub) => {
-                          const isSubActive =
-                            sub.href === '/admin/teamlead'
-                              ? pathname === '/admin/teamlead' || (Boolean(pathname?.startsWith('/admin/teamlead/')) && !pathname?.startsWith('/admin/teamlead/chinh-sach'))
-                              : pathname === sub.href || Boolean(pathname?.startsWith(`${sub.href}/`));
-                          return (
-                            <li key={sub.href}>
-                              <Link
-                                href={sub.href}
-                                prefetch={true}
-                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                                  isSubActive ? 'bg-[#2563eb] text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                                }`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${isSubActive ? 'bg-white' : 'bg-slate-500'}`} />
                                 <span>{sub.label}</span>
                               </Link>
                             </li>

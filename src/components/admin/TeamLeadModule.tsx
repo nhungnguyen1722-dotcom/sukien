@@ -905,6 +905,16 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               )}
             </div>
           </div>
+          <nav aria-label="Các mục Quỹ TeamLead" className="mt-4 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4">
+            {TAB_LINKS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <Link key={tab.id} href={`${tab.href}?month=${month}&week=${weekNo}`} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
+                  <Icon className="h-4 w-4" /> {tab.label}
+                </Link>
+              );
+            })}
+          </nav>
           <div className="mt-5 border-t border-slate-100 pt-4">
             <AdminTimeFilter
               selectedYear={selectedYear}
@@ -918,16 +928,6 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               hideWeekRow={monthFilterMode === 'all'}
             />
           </div>
-          <nav className="mt-4 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4">
-            {TAB_LINKS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <Link key={tab.id} href={`${tab.href}?month=${month}&week=${weekNo}`} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
-                  <Icon className="h-4 w-4" /> {tab.label}
-                </Link>
-              );
-            })}
-          </nav>
         </header>
 
         {(error || notice) && (

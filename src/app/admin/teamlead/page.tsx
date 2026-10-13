@@ -1,4 +1,5 @@
 import TeamLeadModule from '@/components/admin/TeamLeadModule';
+import FundManagementTabs from '@/components/admin/FundManagementTabs';
 import { getCurrentMonth, getLatestImportedTeamLeadPeriod, parseMonth } from '@/lib/teamlead';
 
 export default async function TeamLeadPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
@@ -10,5 +11,10 @@ export default async function TeamLeadPage({ searchParams }: { searchParams: Pro
   const weekNo = requestedWeek !== undefined && Number.isInteger(requestedWeek) && requestedWeek >= 0 && requestedWeek <= 5
     ? requestedWeek
     : 0;
-  return <TeamLeadModule activeTab="roster" initialMonth={month} initialWeekNo={weekNo} />;
+  return (
+    <>
+      <FundManagementTabs activeTab="teamlead" />
+      <TeamLeadModule activeTab="roster" initialMonth={month} initialWeekNo={weekNo} />
+    </>
+  );
 }

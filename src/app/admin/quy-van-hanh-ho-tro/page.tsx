@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { cookies } from 'next/headers';
 import OperationsFundReport from '@/components/admin/OperationsFundReport';
+import FundManagementTabs from '@/components/admin/FundManagementTabs';
 import type { TransactionLog, WeeklyAllocation } from '@/components/admin/TransactionLogManagement';
 import { safeDecodeURI } from '@/lib/authUtils';
 import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficiaries';
@@ -80,5 +81,10 @@ export default async function OperationsFundPage() {
     .filter(Boolean)
     .sort()
     .at(-1);
-  return <OperationsFundReport {...data} initialMonth={latestFundMonth || getCurrentMonth()} isAdmin={isAdmin} />;
+  return (
+    <>
+      <FundManagementTabs activeTab="operations" />
+      <OperationsFundReport {...data} initialMonth={latestFundMonth || getCurrentMonth()} isAdmin={isAdmin} />
+    </>
+  );
 }

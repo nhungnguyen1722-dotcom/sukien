@@ -350,10 +350,10 @@ async function loadContracts(month: string, db: typeof pool = pool) {
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
       FROM contracts
-      WHERE contract_date < $2::date
+      WHERE contract_date < $1::date
       ORDER BY contract_date, id
     `,
-    [start, end]
+    [end]
   );
   return result.rows
     .filter((row) => isContractActiveInPeriod(
