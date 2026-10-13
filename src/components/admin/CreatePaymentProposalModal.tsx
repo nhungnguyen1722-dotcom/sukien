@@ -135,6 +135,9 @@ interface Props {
   onClose: () => void;
   members: TransactionMember[];
   eventExpenses?: EventFundExpense[];
+  initialItems?: TransactionLogItem[];
+  initialFundSource?: string;
+  initialNote?: string;
   onSuccess: (newLog: TransactionLog) => void;
   onTriggerPrint: (tempLog: TransactionLog) => void;
 }
@@ -144,6 +147,9 @@ export default function CreatePaymentProposalModal({
   onClose,
   members,
   eventExpenses = [],
+  initialItems,
+  initialFundSource,
+  initialNote,
   onSuccess,
   onTriggerPrint,
 }: Props) {
@@ -154,13 +160,44 @@ export default function CreatePaymentProposalModal({
   const [requesterPhone, setRequesterPhone] = useState('0904123456');
   const [approverName, setApproverName] = useState('Ban Giám Đốc (Nguyễn Kim Tươi)');
   const [status, setStatus] = useState('Chờ duyệt');
-  const [fundSource, setFundSource] = useState('Sale trực tiếp - Pro sale (Nguồn khách)');
+  const [fundSource, setFundSource] = useState(() => initialFundSource || 'Sale trực tiếp - Pro sale (Nguồn khách)');
   const [note, setNote] = useState(
-    'Đề nghị Kế toán thanh toán thù lao hoa hồng và đào tạo theo bảng kê phân bổ tuần 1 tháng 10/2026 đã được duyệt.'
+    () => initialNote || 'Đề nghị Kế toán thanh toán thù lao hoa hồng và đào tạo theo bảng kê phân bổ đã được duyệt.'
   );
 
+  const createEmptyItem = (order: number = 1): TransactionLogItem => {
+    const defaultMember = members[0];
+    return {
+      order,
+      title: '',
+      subtitle: '',
+      fundSource: initialFundSource || fundSource || FUND_OPTIONS[0],
+      beneficiaryName: defaultMember ? defaultMember.full_name : '',
+      beneficiaryPhone: defaultMember?.phone || '',
+      beneficiaryBankAccount: defaultMember?.bank_account || '',
+      beneficiaryBankName: defaultMember?.bank_name || 'MB Bank',
+      beneficiaryUserId: defaultMember?.id || null,
+      amount: 0,
+      note: '',
+    };
+  };
+
   // Multi-line table items
-  const [items, setItems] = useState<TransactionLogItem[]>(() => DEMO_PRESET_ITEMS);
+  const [items, setItems] = useState<TransactionLogItem[]>(() => {
+    if (initialItems && initialItems.length > 0) return initialItems;
+    return [createEmptyItem(1)];
+  });
+
+  // Re-sync if initial data changes when opened
+  useEffect(() => {
+    if (isOpen) {
+      if (initialItems && initialItems.length > 0) {
+        setItems(initialItems);
+      }
+      if (initialFundSource) setFundSource(initialFundSource);
+      if (initialNote) setNote(initialNote);
+    }
+  }, [isOpen, initialItems, initialFundSource, initialNote]);
 
   // Status flags
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -303,6 +340,52 @@ export default function CreatePaymentProposalModal({
     } catch (err: any) {
       alert('Không thể xuất file Excel: ' + (err?.message || 'Có lỗi xảy ra'));
     }
+  };
+
+  // Unique event groups from eventExpenses
+  const uniqueEventGroups = useMemo(() => {
+    const groups = new Map<string, EventFundExpense[]>();
+    eventExpenses.forEach((exp) => {
+      const code = exp.event_code || 'Chung';
+      const arr = groups.get(code) || [];
+      arr.push(exp);
+      groups.set(code, arr);
+    });
+    return Array.from(groups.entries()).map(([code, list]) => ({
+      code,
+      list,
+      date: list[0]?.event_date,
+      total: list.reduce((s, x) => s + (Number(x.proposed_amount) || 0), 0),
+    }));
+  }, [eventExpenses]);
+
+  // Apply all event expenses or specific group
+  const handleApplyEventExpenses = (expensesToApply: EventFundExpense[]) => {
+    if (!expensesToApply.length) {
+      alert('Không có dữ liệu thù lao sự kiện nào.');
+      return;
+    }
+    const newItems: TransactionLogItem[] = expensesToApply.map((exp, idx) => {
+      const member = memberMap.get(exp.beneficiary_name.trim().toLowerCase());
+      return {
+        order: idx + 1,
+        title: `Thù lao ${exp.expense_role} · Sự kiện ${exp.event_code}`,
+        subtitle: `Buổi ${exp.event_code} ngày ${exp.event_date ? new Date(exp.event_date).toLocaleDateString('vi-VN') : ''}`,
+        fundSource: 'Quỹ Sự kiện & Chốt hợp đồng',
+        beneficiaryName: exp.beneficiary_name,
+        beneficiaryPhone: exp.beneficiary_phone || member?.phone || '',
+        beneficiaryBankAccount: member?.bank_account || exp.beneficiary_phone || '',
+        beneficiaryBankName: member?.bank_name || 'MB Bank',
+        beneficiaryUserId: member?.id || null,
+        amount: exp.proposed_amount,
+        note: `Định mức thù lao ${exp.expense_role} sự kiện ${exp.event_code}`,
+      };
+    });
+    setItems(newItems);
+    setFundSource('Quỹ Sự kiện & Chốt hợp đồng');
+    const totalVND = newItems.reduce((s, it) => s + (Number(it.amount) || 0), 0).toLocaleString('vi-VN');
+    setNote(`Đề nghị Kế toán thanh toán thù lao định mức các buổi đào tạo & sự kiện (${expensesToApply.length} khoản chi, tổng ${totalVND} đ).`);
+    setIsPresetsOpen(false);
   };
 
   // Apply Demo Presets (6 items from mockup)
@@ -788,46 +871,67 @@ export default function CreatePaymentProposalModal({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={handleApplyDemoPresets}
-                  className="flex flex-col text-left p-3 rounded-xl bg-white border border-emerald-200 hover:border-emerald-500 hover:shadow-xs transition"
-                >
-                  <span className="font-bold text-emerald-800 text-xs">Nạp trọn bộ 6 khoản chuẩn mẫu</span>
-                  <span className="text-[11px] text-slate-500 mt-0.5">Theo bảng kê tuần 1 tháng 10 (28.650.000 đ)</span>
-                </button>
-
-                {eventExpenses.slice(0, 5).map((exp, idx) => (
+              <div className="space-y-3">
+                {eventExpenses.length > 0 && (
                   <button
-                    key={`ev-${idx}`}
                     type="button"
-                    onClick={() => {
-                      setItems((prev) => [
-                        ...prev,
-                        {
-                          order: prev.length + 1,
-                          title: `Chi phí sự kiện · ${exp.expense_role}`,
-                          subtitle: `Sự kiện ${exp.event_code}`,
-                          fundSource: 'Quỹ Sự kiện & Chốt hợp đồng',
-                          beneficiaryName: exp.beneficiary_name,
-                          beneficiaryPhone: exp.beneficiary_phone,
-                          beneficiaryBankAccount: exp.beneficiary_phone,
-                          beneficiaryBankName: 'MB Bank',
-                          amount: exp.proposed_amount,
-                          note: '',
-                        },
-                      ]);
-                      setIsPresetsOpen(false);
-                    }}
-                    className="flex flex-col text-left p-3 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-xs transition"
+                    onClick={() => handleApplyEventExpenses(eventExpenses)}
+                    className="w-full flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-400 hover:border-blue-600 hover:shadow-md transition text-left cursor-pointer"
                   >
-                    <span className="font-semibold text-slate-800 text-xs">{exp.beneficiary_name} · {exp.expense_role}</span>
-                    <span className="text-[11px] text-blue-600 mt-0.5 font-bold">
-                      {Number(exp.proposed_amount).toLocaleString('vi-VN')} đ
-                    </span>
+                    <div>
+                      <div className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-blue-600 animate-pulse" />
+                        <span>⚡ Nạp tự động tất cả thù lao sự kiện & đào tạo ({eventExpenses.length} khoản chi)</span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 mt-0.5">
+                        Tự động điền danh sách nhân sự của tất cả các buổi đào tạo & sự kiện trong tháng
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">Tổng tiền</div>
+                      <div className="text-sm font-extrabold text-blue-900">
+                        {eventExpenses.reduce((s, x) => s + (Number(x.proposed_amount) || 0), 0).toLocaleString('vi-VN')} đ
+                      </div>
+                    </div>
                   </button>
-                ))}
+                )}
+
+                {uniqueEventGroups.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                      Hoặc nạp riêng theo từng buổi sự kiện:
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {uniqueEventGroups.map((grp) => (
+                        <button
+                          key={grp.code}
+                          type="button"
+                          onClick={() => handleApplyEventExpenses(grp.list)}
+                          className="flex flex-col text-left p-3 rounded-xl bg-white border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 hover:shadow-xs transition cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-indigo-900 text-xs">{grp.code}</span>
+                            <span className="text-[10px] text-slate-400">{grp.date ? new Date(grp.date).toLocaleDateString('vi-VN') : ''}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-600 mt-1">{grp.list.length} nhân sự tham gia</span>
+                          <span className="text-xs font-bold text-indigo-600 mt-0.5">
+                            {grp.total.toLocaleString('vi-VN')} đ
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-slate-200/80">
+                  <button
+                    type="button"
+                    onClick={handleApplyDemoPresets}
+                    className="text-left text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                  >
+                    Dùng thử 6 khoản mẫu tham khảo (28.650.000 đ)
+                  </button>
+                </div>
               </div>
             </div>
           )}

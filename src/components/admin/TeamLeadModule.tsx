@@ -213,6 +213,39 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(30);
+  const [isExportingAllFunds, setIsExportingAllFunds] = useState(false);
+
+  const handleExportAllFunds = async () => {
+    try {
+      setIsExportingAllFunds(true);
+      const exportMonth = month || `${selectedYear}-${String(selectedMonthNumber).padStart(2, '0')}`;
+      const url = `/api/admin/all-funds/export?month=${encodeURIComponent(exportMonth)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || 'Không thể xuất báo cáo tổng hợp tất cả các quỹ.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition');
+      let filename = `Bao-cao-tong-hop-tat-ca-cac-quy-Thang-${exportMonth}.xlsx`;
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match?.[1]) filename = decodeURIComponent(match[1]);
+      }
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Không thể xuất báo cáo tổng hợp tất cả các quỹ.');
+    } finally {
+      setIsExportingAllFunds(false);
+    }
+  };
 
   useEffect(() => {
     if (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth)) setMonth(initialMonth);
@@ -880,6 +913,15 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               )}
               {activeTab === 'allocation' && (
                 <>
+                  <button
+                    type="button"
+                    onClick={handleExportAllFunds}
+                    disabled={isExportingAllFunds}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+                    title="Xuất báo cáo tổng hợp phân bổ tất cả các bộ phận & tất cả các quỹ"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" /> {isExportingAllFunds ? 'Đang xuất...' : 'Xuất tất cả các quỹ'}
+                  </button>
                   <a href={`/api/admin/teamlead/export?month=${month}&week=${weekNo}`} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
                     <Download className="h-4 w-4 text-emerald-600" /> Xuất Excel
                   </a>
@@ -916,6 +958,18 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               selectedWeek={weekNo}
               onWeekChange={handleWeekChange}
               hideWeekRow={monthFilterMode === 'all'}
+              rightSlot={
+                <button
+                  type="button"
+                  onClick={handleExportAllFunds}
+                  disabled={isExportingAllFunds}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
+                  title={`Xuất báo cáo tổng hợp phân bổ tất cả các bộ phận & tất cả các quỹ Tháng ${month}`}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>{isExportingAllFunds ? 'Đang xuất...' : 'Xuất tất cả các quỹ'}</span>
+                </button>
+              }
             />
           </div>
         </header>

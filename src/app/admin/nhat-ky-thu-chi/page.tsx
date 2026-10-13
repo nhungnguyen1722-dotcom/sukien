@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import TransactionLogManagement, {
   EventFundExpense,
+  EventItemRecord,
   FundContract,
   TransactionLog,
   TransactionMember,
@@ -27,7 +28,7 @@ function getCurrentMonth() {
 
 async function getTransactionsData() {
   await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
-  const [logsRes, weeklyRes, contractsRes, eventExpensesRes, membersRes] = await Promise.all([
+  const [logsRes, weeklyRes, contractsRes, eventExpensesRes, membersRes, eventsRes] = await Promise.all([
     pool.query(`${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`),
     pool.query(`
       SELECT period_code, period_month, period_label, period_start::text AS period_start,
@@ -122,6 +123,11 @@ async function getTransactionsData() {
       WHERE u.status IS DISTINCT FROM 'Tạm khóa'
       ORDER BY u.full_name ASC
     `),
+    pool.query(`
+      SELECT id, code, name, event_date::text AS event_date, location, status
+      FROM events
+      ORDER BY event_date DESC
+    `),
   ]);
 
   const logs = logsRes.rows.map((row) => ({
@@ -167,6 +173,11 @@ async function getTransactionsData() {
     beneficiary_name: sanitizeVietnameseText(row.beneficiary_name),
     status: sanitizeVietnameseText(row.status),
   })) as EventFundExpense[];
+  const events = eventsRes.rows.map((row) => ({
+    ...row,
+    name: sanitizeVietnameseText(row.name),
+    location: sanitizeVietnameseText(row.location),
+  })) as EventItemRecord[];
 
   return {
     logs,
@@ -175,6 +186,7 @@ async function getTransactionsData() {
     workbookContracts,
     workbookWarnings: workbookDistributions.warningsByPeriod,
     eventExpenses,
+    events,
     members,
   };
 }
@@ -190,6 +202,7 @@ export default async function NhatKyThuChiPage() {
       workbookContracts={data.workbookContracts}
       workbookWarnings={data.workbookWarnings}
       eventExpenses={data.eventExpenses}
+      events={data.events}
       currentMonth={getCurrentMonth()}
     />
   );

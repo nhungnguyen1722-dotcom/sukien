@@ -275,6 +275,8 @@ export default function AdminSidebar({
             const isActive =
               item.href === '/admin'
                 ? pathname === '/admin'
+                : item.href === '/admin/teamlead'
+                ? pathname.startsWith('/admin/teamlead') || pathname.startsWith('/admin/bao-cao-tong-hop-quy') || pathname.startsWith('/admin/quy-van-hanh-ho-tro')
                 : pathname.startsWith(item.href);
             return (
               <React.Fragment key={item.href}>

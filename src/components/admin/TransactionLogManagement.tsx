@@ -18,12 +18,16 @@ import {
   AlertCircle,
   ArrowUpDown,
   Award,
+  CalendarCheck,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
+  Copy,
   Eye,
+  FilePlus,
   FileSpreadsheet,
   Filter,
+  Landmark,
   MoreVertical,
   Plus,
   Printer,
@@ -178,6 +182,15 @@ export interface EventFundExpense {
   status: string;
 }
 
+export interface EventItemRecord {
+  id: number;
+  code: string | null;
+  name: string;
+  event_date: string;
+  location: string | null;
+  status: string | null;
+}
+
 interface Props {
   initialLogs: TransactionLog[];
   initialMembers: TransactionMember[];
@@ -186,6 +199,7 @@ interface Props {
   workbookContracts: FundContract[];
   workbookWarnings: Record<string, string[]>;
   eventExpenses: EventFundExpense[];
+  events?: EventItemRecord[];
   currentMonth: string;
 }
 
@@ -698,7 +712,7 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
 }
 
-export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, currentMonth }: Props) {
+export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, events = [], currentMonth }: Props) {
   const [logs, setLogs] = useState(() => initialLogs.map(sanitizeTransactionLogNames));
   const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers' | 'leaderboard'>('cashflow');
 
@@ -891,6 +905,53 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       .filter((item) => isPaidStatus(item.status))
       .reduce((sum, item) => sum + item.proposed_amount, 0);
   }, [monthlyEventExpenses]);
+
+  // Group event expenses by event_code for Tab Sự kiện & Đào tạo
+  const eventExpenseGroups = useMemo(() => {
+    const groups = new Map<string, {
+      code: string;
+      date: string;
+      title: string;
+      location: string;
+      items: EventFundExpense[];
+      subtotal: number;
+    }>();
+
+    // Map events by date/code
+    const eventInfoMap = new Map<string, { name: string; location: string }>();
+    (events || []).forEach((ev) => {
+      const dateKey = ev.event_date ? ev.event_date.slice(0, 10) : '';
+      if (dateKey) {
+        eventInfoMap.set(dateKey, { name: ev.name, location: ev.location || '' });
+      }
+      if (ev.code) {
+        eventInfoMap.set(ev.code, { name: ev.name, location: ev.location || '' });
+      }
+    });
+
+    monthlyEventExpenses.forEach((exp) => {
+      const code = exp.event_code || 'Chung';
+      const existing = groups.get(code);
+      const dateKey = exp.event_date ? exp.event_date.slice(0, 10) : '';
+      const matchedEv = eventInfoMap.get(code) || (dateKey ? eventInfoMap.get(dateKey) : null);
+
+      if (existing) {
+        existing.items.push(exp);
+        existing.subtotal += Number(exp.proposed_amount) || 0;
+      } else {
+        groups.set(code, {
+          code,
+          date: exp.event_date,
+          title: matchedEv?.name || `TIỆC TRÀ & CHỐT HỢP ĐỒNG · ${code}`,
+          location: matchedEv?.location || 'ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, Đại Mỗ, Hà Nội',
+          items: [exp],
+          subtotal: Number(exp.proposed_amount) || 0,
+        });
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [monthlyEventExpenses, events]);
 
   const otherEventRequests = useMemo(() => {
     return logs.filter(
@@ -1259,6 +1320,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const totalPeoplePages = cashflowPeoplePageSize === 0 ? 1 : Math.ceil(filteredPeopleRows.length / cashflowPeoplePageSize) || 1;
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createProposalInitial, setCreateProposalInitial] = useState<{
+    items?: TransactionLogItem[];
+    fundSource?: string;
+    note?: string;
+  } | null>(null);
   const [viewLog, setViewLog] = useState<TransactionLog | null>(null);
   const [viewContract, setViewContract] = useState<FundContract | null>(null);
   const [distributionView, setDistributionView] = useState<'contract' | 'person'>('contract');
@@ -1289,7 +1355,86 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       requestCode: `YC${String(Date.now()).slice(-5)}`,
       requestDate: new Date().toISOString().slice(0, 10),
     }));
+    setCreateProposalInitial(null);
     setIsCreateOpen(true);
+  };
+
+  const handleAutoGenerateEventPaymentProposal = (
+    targetExpenses: EventFundExpense[] = monthlyEventExpenses,
+    eventTitle?: string
+  ) => {
+    if (!targetExpenses.length) {
+      alert('Không có dữ liệu thù lao sự kiện / đào tạo trong tháng được chọn.');
+      return;
+    }
+
+    const generatedItems: TransactionLogItem[] = targetExpenses.map((exp, idx) => {
+      const cleanName = exp.beneficiary_name.trim().toLowerCase();
+      const cleanPhone = (exp.beneficiary_phone || '').replace(/\D/g, '');
+      const member = initialMembers.find((m) =>
+        m.full_name.trim().toLowerCase() === cleanName ||
+        (cleanPhone && m.phone && m.phone.replace(/\D/g, '') === cleanPhone)
+      );
+
+      return {
+        order: idx + 1,
+        title: `Thù lao ${exp.expense_role} · ${exp.event_code}`,
+        subtitle: `Buổi ${exp.event_code} ngày ${formatDate(exp.event_date)}`,
+        fundSource: 'Quỹ Sự kiện & Chốt hợp đồng',
+        beneficiaryName: exp.beneficiary_name,
+        beneficiaryPhone: exp.beneficiary_phone || member?.phone || '',
+        beneficiaryBankAccount: member?.bank_account || exp.beneficiary_phone || '',
+        beneficiaryBankName: member?.bank_name || 'MB Bank',
+        beneficiaryUserId: member?.id || null,
+        amount: exp.proposed_amount,
+        note: `Định mức thù lao ${exp.expense_role} sự kiện ${exp.event_code}`,
+      };
+    });
+
+    const totalAmount = generatedItems.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+    const monthNum = Number(selectedMonth.slice(5)) || '—';
+    const yearNum = selectedMonth.slice(0, 4) || '—';
+    const noteContent = eventTitle
+      ? `Đề nghị Kế toán thanh toán thù lao ${eventTitle} (${generatedItems.length} khoản chi, tổng ${formatVND(totalAmount)}).`
+      : `Đề nghị Kế toán thanh toán thù lao định mức các buổi đào tạo & sự kiện Tháng ${monthNum}/${yearNum} (${generatedItems.length} khoản chi, tổng ${formatVND(totalAmount)}).`;
+
+    setCreateProposalInitial({
+      items: generatedItems,
+      fundSource: 'Quỹ Sự kiện & Chốt hợp đồng',
+      note: noteContent,
+    });
+    setIsCreateOpen(true);
+  };
+
+  const handleCopyEventMBBank = async (
+    targetExpenses: EventFundExpense[] = monthlyEventExpenses,
+    label = 'các buổi sự kiện'
+  ) => {
+    try {
+      const headers = ['Tên chủ tài khoản', 'Số tài khoản', 'Ngân hàng', 'Số tiền', 'Nội dung chuyển tiền'];
+      const rows = targetExpenses.map((exp) => {
+        const cleanName = exp.beneficiary_name.trim().toLowerCase();
+        const cleanPhone = (exp.beneficiary_phone || '').replace(/\D/g, '');
+        const member = initialMembers.find((m) =>
+          m.full_name.trim().toLowerCase() === cleanName ||
+          (cleanPhone && m.phone && m.phone.replace(/\D/g, '') === cleanPhone)
+        );
+        const acc = member?.bank_account || exp.beneficiary_phone || '';
+        const bank = member?.bank_name || 'MB Bank';
+        return [
+          exp.beneficiary_name,
+          acc,
+          bank,
+          String(exp.proposed_amount),
+          `Thu lao su kien ${exp.event_code} - ${exp.expense_role}`,
+        ];
+      });
+      const tsvContent = [headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n');
+      await navigator.clipboard.writeText(tsvContent);
+      alert(`Đã sao chép danh sách ${rows.length} người thụ hưởng của ${label} theo chuẩn 4 cột chuyển khoản MB Bank!`);
+    } catch {
+      alert('Không thể sao chép tự động vào bộ nhớ tạm.');
+    }
   };
 
   const handleGenerateAutomaticSlips = async () => {
@@ -1428,6 +1573,38 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   }, [fundRowsToDisplay, isMonthOverview, selectedBase, logs, selectedMonth, selectedPeriod]);
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingAllFunds, setIsExportingAllFunds] = useState(false);
+
+  const handleExportAllFunds = async () => {
+    try {
+      setIsExportingAllFunds(true);
+      const url = `/api/admin/all-funds/export?month=${encodeURIComponent(selectedMonth)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || 'Không thể xuất báo cáo tổng hợp tất cả các quỹ.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition');
+      let filename = `Bao-cao-tong-hop-tat-ca-cac-quy-Thang-${selectedMonth}.xlsx`;
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match?.[1]) filename = decodeURIComponent(match[1]);
+      }
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Có lỗi khi xuất báo cáo tổng hợp tất cả các quỹ.');
+    } finally {
+      setIsExportingAllFunds(false);
+    }
+  };
 
   const handleExportExcel = async () => {
     try {
@@ -1493,7 +1670,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
-            { id: 'event' as const, title: 'Quỹ Sự kiện & Chốt hợp đồng', subtitle: 'Tổng hợp tháng' },
+            { id: 'event' as const, title: 'Báo cáo Đào tạo & Sự kiện', subtitle: 'Chi tiết từng buổi & Sinh phiếu chi' },
             { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
             { id: 'leaderboard' as const, title: 'Bảng xếp hạng thi đua & Vinh danh', subtitle: 'Doanh số & xét thăng hạng' },
           ].map((tab) => (
@@ -1523,16 +1700,28 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           onWeekChange={handleWeekChange}
           customWeeks={timeFilterWeeks}
           rightSlot={
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              disabled={isExporting}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
-              title={isMonthOverview ? `Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Excel'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportAllFunds}
+                disabled={isExportingAllFunds}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
+                title={`Xuất báo cáo tổng hợp phân bổ tất cả các bộ phận & tất cả các quỹ Tháng ${selectedMonth}`}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>{isExportingAllFunds ? 'Đang xuất...' : 'Xuất tất cả các quỹ'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
+                title={isMonthOverview ? `Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Excel'}</span>
+              </button>
+            </div>
           }
         />
       )}
@@ -2219,25 +2408,261 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
       </>}
 
-      {activeTab === 'event' && <Panel className="overflow-hidden">
-        <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div><h2 className="font-bold text-slate-900">Quỹ Sự kiện & Chốt hợp đồng — tổng hợp tháng</h2><p className="mt-1 text-xs text-slate-500">Gồm thù lao nhân sự sự kiện, đề xuất chi và các khoản phát sinh cùng quỹ.</p></div>
-          <div className="rounded-lg bg-violet-50 px-3 py-2 text-right"><div className="text-[10px] font-semibold uppercase text-violet-700">Quỹ tích lũy tháng</div><div className="font-bold text-violet-900">{formatVND(monthEventPool)}</div></div>
+      {activeTab === 'event' && (
+        <div className="space-y-6">
+          {/* BANNER TỔNG QUAN QUỸ ĐÀO TẠO & SỰ KIỆN */}
+          <Panel className="overflow-hidden border-indigo-100 bg-white">
+            <div className="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-white px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-lg bg-indigo-100/80 px-2.5 py-1 text-[11px] font-bold text-indigo-800">
+                  <CalendarCheck className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>QUỸ SỰ KIỆN & ĐÀO TẠO · TRÍCH 0,5% DOANH SỐ</span>
+                </div>
+                <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-900">
+                  Báo cáo định mức thù lao Đào tạo & Sự kiện Tháng {Number(selectedMonth.slice(5)) || '—'}/{selectedMonth.slice(0, 4) || '—'}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Bảng biểu tách bạch theo từng buổi đào tạo hoặc sự kiện, có danh sách những người được hưởng và nút tự động sinh Form phiếu chi cho kế toán.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleCopyEventMBBank(monthlyEventExpenses, `tất cả ${eventExpenseGroups.length} buổi sự kiện`)}
+                  disabled={!monthlyEventExpenses.length}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 active:scale-95 transition disabled:opacity-50 cursor-pointer"
+                  title="Sao chép danh sách người nhận theo chuẩn MB Bank"
+                >
+                  <Landmark className="h-4 w-4 text-emerald-600" />
+                  <Copy className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Sao chép MB Bank ({monthlyEventExpenses.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAutoGenerateEventPaymentProposal(monthlyEventExpenses)}
+                  disabled={!monthlyEventExpenses.length}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
+                  title="Tự động gom toàn bộ các buổi đào tạo & sự kiện trong tháng vào Phiếu đề xuất chi"
+                >
+                  <Sparkles className="h-4 w-4 animate-pulse" />
+                  <span>Sinh phiếu đề xuất chi tự động ({monthlyEventExpenses.length} khoản · {formatVND(staffProposed)})</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5">
+              <MiniStat label="Quỹ tích lũy tháng (0.5%)" value={formatVND(monthEventPool)} note="Tính từ doanh số phân bổ" />
+              <MiniStat label="Số buổi tổ chức" value={`${eventExpenseGroups.length} buổi`} note="Đào tạo & Tiệc trà sự kiện" />
+              <MiniStat label="Thù lao sự kiện đề nghị" value={formatVND(staffProposed)} note={`${monthlyEventExpenses.length} lượt nhân sự thụ hưởng`} />
+              <MiniStat label="Đã thanh toán / thực hiện" value={formatVND(monthlyEventPaid)} note="Trạng thái đã duyệt & thanh toán" />
+              <MiniStat label="Còn lại sau khi đã chi" value={formatVND(monthEventPool - monthlyEventPaid)} note="Tồn quỹ sự kiện dự tính" />
+            </div>
+          </Panel>
+
+          {/* DANH SÁCH CHI TIẾT TỪNG BUỔI ĐÀO TẠO & SỰ KIỆN */}
+          {eventExpenseGroups.length === 0 ? (
+            <Panel className="p-12 text-center text-slate-500">
+              <CalendarCheck className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+              <div className="font-semibold text-sm text-slate-700">Chưa có chi tiết thù lao sự kiện hoặc đào tạo trong tháng này</div>
+              <div className="text-xs text-slate-400 mt-1">Dữ liệu thù lao được đồng bộ tự động từ bảng chi tiết sự kiện và phân bổ định mức.</div>
+            </Panel>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <span>Chi tiết các buổi đào tạo & sự kiện</span>
+                  <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                    {eventExpenseGroups.length} buổi
+                  </span>
+                </h3>
+                <span className="text-xs text-slate-400">
+                  Tổng {monthlyEventExpenses.length} nhân sự · Kinh phí: <strong className="text-slate-800">{formatVND(staffProposed)}</strong>
+                </span>
+              </div>
+
+              {eventExpenseGroups.map((group, groupIdx) => (
+                <Panel key={group.code || groupIdx} className="overflow-hidden border border-slate-200/90 shadow-2xs">
+                  {/* HEADER CỦA TỪNG BUỔI */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+                    <div className="flex items-start sm:items-center gap-3">
+                      <span className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-2.5 text-xs font-black text-white shadow-2xs">
+                        {group.code}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-slate-900 text-sm">{group.title}</h4>
+                          <span className="text-xs text-slate-500">· Ngày {formatDate(group.date)}</span>
+                        </div>
+                        {group.location && (
+                          <div className="text-[11px] text-slate-500 mt-0.5">{group.location}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <div className="text-right mr-2 hidden sm:block">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">{group.items.length} nhân sự</div>
+                        <div className="text-xs font-extrabold text-indigo-700">{formatVND(group.subtotal)}</div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopyEventMBBank(group.items, `buổi ${group.code}`)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                        title={`Sao chép lệnh chuyển khoản MB Bank cho buổi ${group.code}`}
+                      >
+                        <Copy className="h-3.5 w-3.5 text-slate-500" />
+                        <span className="hidden md:inline">MB Bank</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAutoGenerateEventPaymentProposal(group.items, `${group.title} (${group.code})`)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-blue-700 active:scale-95 transition cursor-pointer"
+                        title={`Tự động sinh Form phiếu chi cho các nhân sự buổi ${group.code}`}
+                      >
+                        <FilePlus className="h-3.5 w-3.5" />
+                        <span>Sinh phiếu chi buổi này</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* BẢNG CHI TIẾT NHÂN SỰ BUỔI NÀY */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-white text-[10px] uppercase font-bold text-slate-500 border-b border-slate-100">
+                        <tr>
+                          <th className="px-4 py-2.5 text-center w-12">STT</th>
+                          <th className="px-4 py-2.5">Người thụ hưởng</th>
+                          <th className="px-4 py-2.5">Số điện thoại</th>
+                          <th className="px-4 py-2.5">Vai trò đảm nhiệm</th>
+                          <th className="px-4 py-2.5 text-right">Thù lao định mức</th>
+                          <th className="px-4 py-2.5 text-center">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {group.items.map((item, idx) => (
+                          <tr key={`${group.code}-${idx}`} className="hover:bg-slate-50/70 transition">
+                            <td className="px-4 py-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-800">
+                              {item.beneficiary_name}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">
+                              {item.beneficiary_phone || '—'}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                                item.expense_role.toLowerCase().includes('mc')
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : item.expense_role.toLowerCase().includes('chốt')
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : item.expense_role.toLowerCase().includes('media')
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {item.expense_role}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                              {formatVND(item.proposed_amount)}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <StatusBadge status={item.status} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="border-t border-slate-200 bg-slate-50/50">
+                        <tr>
+                          <td colSpan={4} className="px-4 py-2.5 text-right font-bold text-slate-600 text-xs">
+                            Tổng thù lao buổi {group.code} ({group.items.length} người):
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-black text-indigo-700 text-xs">
+                            {formatVND(group.subtotal)}
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </Panel>
+              ))}
+
+              {/* BẢNG TỔNG KẾT TẤT CẢ CÁC BUỔI TRONG THÁNG */}
+              <Panel className="overflow-hidden border border-indigo-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 bg-indigo-50/50 px-5 py-3 flex items-center justify-between">
+                  <span className="font-extrabold text-xs text-indigo-950 uppercase tracking-wider">
+                    Tổng kết phân bổ thù lao tất cả các buổi đào tạo & sự kiện Tháng {Number(selectedMonth.slice(5))}/{selectedMonth.slice(0, 4)}
+                  </span>
+                  <span className="text-xs font-bold text-indigo-700">
+                    {eventExpenseGroups.length} buổi · {monthlyEventExpenses.length} lượt nhân sự
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
+                      <tr>
+                        <th className="px-4 py-2.5 text-center w-12">STT</th>
+                        <th className="px-4 py-2.5">Mã sự kiện</th>
+                        <th className="px-4 py-2.5">Tên sự kiện / Buổi đào tạo</th>
+                        <th className="px-4 py-2.5">Ngày tổ chức</th>
+                        <th className="px-4 py-2.5 text-center">Số người thụ hưởng</th>
+                        <th className="px-4 py-2.5 text-right">Tổng kinh phí buổi</th>
+                        <th className="px-4 py-2.5 text-center">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {eventExpenseGroups.map((group, idx) => (
+                        <tr key={`summary-${group.code}-${idx}`} className="hover:bg-slate-50/60 transition">
+                          <td className="px-4 py-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+                          <td className="px-4 py-2.5 font-bold text-indigo-700">{group.code}</td>
+                          <td className="px-4 py-2.5 font-medium text-slate-800">{group.title}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{formatDate(group.date)}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-slate-700">{group.items.length} người</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-slate-900">{formatVND(group.subtotal)}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleAutoGenerateEventPaymentProposal(group.items, `${group.title} (${group.code})`)}
+                              className="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
+                            >
+                              Sinh phiếu
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t-2 border-slate-900 bg-slate-900 text-white font-bold">
+                      <tr>
+                        <td colSpan={4} className="px-4 py-3 text-right uppercase tracking-wider text-xs">
+                          TỔNG CỘNG TOÀN THÁNG ({eventExpenseGroups.length} BUỔI):
+                        </td>
+                        <td className="px-4 py-3 text-center text-xs text-amber-300">
+                          {monthlyEventExpenses.length} lượt
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-black text-amber-400">
+                          {formatVND(staffProposed)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleAutoGenerateEventPaymentProposal(monthlyEventExpenses)}
+                            className="rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs px-2.5 py-1 font-bold transition cursor-pointer"
+                          >
+                            Sinh phiếu tổng
+                          </button>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Panel>
+            </div>
+          )}
         </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MiniStat label="Thù lao sự kiện đề nghị" value={formatVND(staffProposed)} note={`${monthlyEventExpenses.length} dòng nhân sự`} />
-          <MiniStat label="Đề xuất chi khác" value={formatVND(otherEventProposed)} note="Phiếu thuộc Quỹ Sự kiện" />
-          <MiniStat label="Đã thanh toán / thực hiện" value={formatVND(monthlyEventPaid)} note="Chỉ cộng trạng thái đã thanh toán" />
-          <MiniStat label="Còn lại sau khi đã chi" value={formatVND(monthEventPool - monthlyEventPaid)} note="Không trừ các khoản còn chờ duyệt" />
-        </div>
-        <div className="overflow-x-auto border-t border-slate-100">
-          <table className="min-w-[760px] w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-4 py-3">Ngày / Sự kiện</th><th className="px-3 py-3">Người thụ hưởng</th><th className="px-3 py-3">Vai trò</th><th className="px-3 py-3 text-right">Thù lao đề nghị</th><th className="px-3 py-3 text-center">Trạng thái</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{monthlyEventExpenses.map((item, index) => <tr key={`${item.event_code}-${item.beneficiary_phone}-${index}`}><td className="px-4 py-2.5"><div className="font-semibold text-slate-800">{item.event_code}</div><div className="text-[10px] text-slate-500">{formatDate(item.event_date)}</div></td><td className="px-3 py-2.5"><div className="font-medium">{item.beneficiary_name}</div><div className="text-[10px] text-slate-500">{item.beneficiary_phone || '—'}</div></td><td className="px-3 py-2.5">{item.expense_role}</td><td className="px-3 py-2.5 text-right font-semibold">{formatVND(item.proposed_amount)}</td><td className="px-3 py-2.5 text-center"><StatusBadge status={item.status} /></td></tr>)}{!monthlyEventExpenses.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Chưa có chi tiết thù lao sự kiện trong tháng.</td></tr>}</tbody>
-          </table>
-        </div>
-        <p className="px-4 py-3 text-[11px] text-slate-500">Phiếu YC003 trong bảng thu chi chưa có ngày và số tiền; khoản đó được giữ ở trạng thái thiếu dữ liệu và chưa cộng vào tổng đề nghị.</p>
-      </Panel>}
+      )}
 
       {activeTab === 'vouchers' && <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -2326,11 +2751,18 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       {isCreateOpen && (
         <CreatePaymentProposalModal
           isOpen={isCreateOpen}
-          onClose={() => setIsCreateOpen(false)}
+          onClose={() => {
+            setIsCreateOpen(false);
+            setCreateProposalInitial(null);
+          }}
           members={initialMembers}
           eventExpenses={eventExpenses}
+          initialItems={createProposalInitial?.items}
+          initialFundSource={createProposalInitial?.fundSource}
+          initialNote={createProposalInitial?.note}
           onSuccess={(newLog) => {
             setLogs((current) => [sanitizeTransactionLogNames(newLog), ...current]);
+            setCreateProposalInitial(null);
           }}
           onTriggerPrint={(tempLog) => {
             setPrintLog(tempLog);

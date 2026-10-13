@@ -105,6 +105,9 @@ export async function ensureTeamLeadSchema() {
         `);
         await client.query(`DO $$ BEGIN CREATE INDEX teamlead_members_month_idx ON teamlead_members(month); EXCEPTION WHEN duplicate_table THEN NULL; END $$`);
         await client.query(`DO $$ BEGIN CREATE INDEX teamlead_payout_rows_period_idx ON teamlead_payout_rows(period_id); EXCEPTION WHEN duplicate_table THEN NULL; END $$`);
+        await client.query(`DO $$ BEGIN CREATE INDEX idx_tl_week_eligibility_lookup ON teamlead_week_eligibility(week_no, member_team_id); EXCEPTION WHEN duplicate_table THEN NULL; END $$`);
+        await client.query(`DO $$ BEGIN CREATE INDEX idx_tl_member_teams_member ON teamlead_member_teams(member_id); EXCEPTION WHEN duplicate_table THEN NULL; END $$`);
+        await client.query(`DO $$ BEGIN CREATE INDEX idx_tl_periods_month_week ON teamlead_periods(month, week_no); EXCEPTION WHEN duplicate_table THEN NULL; END $$`);
         // Bring existing contract team labels into the shared TeamLead list once.
         const legacyTeams = await client.query(`
           SELECT DISTINCT BTRIM(team_name) AS name
@@ -575,8 +578,9 @@ async function calculateWeekRows(
   return rows;
 }
 
-export async function getTeamLeadAllocation(month: string, weekNo: number, db: typeof pool = pool, rateOverride?: number) {
+export async function getTeamLeadAllocation(monthInput: string, weekNo: number, db: typeof pool = pool, rateOverride?: number) {
   await ensureTeamLeadSchema();
+  const month = monthInput.length === 7 ? `${monthInput}-01` : monthInput;
   const contracts = await loadContracts(month, db);
   const weekContracts = contractsInPeriod(contracts, month, weekNo);
   const dynamicSales = weekContracts.reduce((sum, contract) => sum + contract.value, 0);

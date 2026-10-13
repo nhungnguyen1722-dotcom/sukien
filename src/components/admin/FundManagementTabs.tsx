@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { HandCoins, SlidersHorizontal, Users } from 'lucide-react';
+import { HandCoins, SlidersHorizontal, Star, Users } from 'lucide-react';
 
-type FundTab = 'teamlead' | 'policy' | 'operations';
+type FundTab = 'summary' | 'teamlead' | 'policy' | 'operations';
 
 const tabs: Array<{
   id: FundTab;
@@ -10,6 +10,13 @@ const tabs: Array<{
   icon: typeof Users;
   activeClass: string;
 }> = [
+  {
+    id: 'summary',
+    label: 'Báo cáo tổng hợp quỹ',
+    href: '/admin/bao-cao-tong-hop-quy',
+    icon: Star,
+    activeClass: 'border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200',
+  },
   {
     id: 'teamlead',
     label: 'Quỹ TeamLead',
@@ -47,7 +54,7 @@ export default function FundManagementTabs({ activeTab }: { activeTab: FundTab }
           <p className="mt-1 text-sm text-slate-500">
             Tổng hợp và quản lý các quỹ của hệ thống trên cùng một trang.
           </p>
-          <nav aria-label="Các mục quản lý quỹ" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <nav aria-label="Các mục quản lý quỹ" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
