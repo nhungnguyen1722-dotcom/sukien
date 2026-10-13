@@ -11,7 +11,9 @@ import {
   Clock3,
   Download,
   Layers,
+  Pencil,
   Plus,
+  Trash2,
   TrendingUp,
   Wallet,
   X,
@@ -24,6 +26,10 @@ import {
   OPERATIONS_SUPPORT_FUND_TYPES,
   type OperationsSupportFundKey,
 } from '@/lib/operationsFunds';
+import {
+  DEFAULT_OPERATIONS_FUND_BENEFICIARIES,
+  type OperationsFundBeneficiary,
+} from '@/lib/operationsFundBeneficiaryDefaults';
 
 type ContractFundBasis = {
   contract_date: string;
@@ -34,7 +40,9 @@ type Props = {
   logs: TransactionLog[];
   contracts: ContractFundBasis[];
   allocations: WeeklyAllocation[];
+  beneficiaries: OperationsFundBeneficiary[];
   initialMonth: string;
+  isAdmin: boolean;
 };
 
 /** Các bộ phận cố định cho dropdown (Hình 7.6) */
@@ -53,64 +61,12 @@ const FUND_TYPE_OPTIONS = [
   { key: 'support_kt', label: 'BP hỗ trợ KT' },
 ] as const;
 
-/** Cấu hình phân bổ theo bộ phận - dữ liệu chuẩn theo Hình 7.1, 7.2, 7.3 */
-const ALLOCATION_ROWS = [
-  {
-    fundType: 'Quỹ vận hành',
-    fundKey: 'operations' as OperationsSupportFundKey,
-    department: 'Tri ân kết nối phó tổng',
-    phone: '000006',
-    fullName: 'Nguyễn Thị Hương Thảo',
-    bankAccount: '0965749223',
-    bankName: 'Vpbank',
-    weeklyRate: 0.005,
-    monthlyRate: 0.005,
-  },
-  {
-    fundType: 'Quỹ vận hành',
-    fundKey: 'operations' as OperationsSupportFundKey,
-    department: 'Tổng điều hành',
-    phone: '000007',
-    fullName: 'Đinh Văn Bắc',
-    bankAccount: '19033903936017',
-    bankName: 'Techcombank',
-    weeklyRate: 0.005,
-    monthlyRate: 0.005,
-  },
-  {
-    fundType: 'Quỹ vận hành',
-    fundKey: 'operations' as OperationsSupportFundKey,
-    department: 'Phó tổng',
-    phone: '0889225989',
-    fullName: 'Vũ Thị Cúc',
-    bankAccount: '2589225989',
-    bankName: 'Techcombank',
-    weeklyRate: 0.012,
-    monthlyRate: 0.012,
-  },
-  {
-    fundType: 'BP hỗ trợ CN',
-    fundKey: 'support_cn' as OperationsSupportFundKey,
-    department: 'Quỹ hỗ trợ & dự phòng (CN)',
-    phone: '0343781580',
-    fullName: 'Nguyễn Đăng An',
-    bankAccount: '183093983',
-    bankName: 'VP Bank',
-    weeklyRate: 0.002,
-    monthlyRate: 0.002,
-  },
-  {
-    fundType: 'BP hỗ trợ KT',
-    fundKey: 'support_kt' as OperationsSupportFundKey,
-    department: 'Quỹ hỗ trợ & dự phòng (KT)',
-    phone: '00000',
-    fullName: '',
-    bankAccount: '',
-    bankName: '',
-    weeklyRate: 0.001,
-    monthlyRate: 0.001,
-  },
-];
+const ALLOCATION_ROWS = DEFAULT_OPERATIONS_FUND_BENEFICIARIES.map((row) => ({
+  departmentKey: row.department_key,
+  fundType: row.fund_source,
+  fundKey: row.fund_key as OperationsSupportFundKey,
+  department: row.department,
+}));
 
 const PAID_STATUSES = new Set(['Đã chi', 'Đã thanh toán', 'Đã thực hiện']);
 const REJECTED_STATUS = 'Từ chối';
@@ -134,14 +90,33 @@ function inRange(date: string | null | undefined, start: string, endInclusive: s
 
 type ViewMode = 'month' | 'week';
 
-export default function OperationsFundReport({ logs, contracts, allocations, initialMonth }: Props) {
+export default function OperationsFundReport({
+  logs,
+  contracts,
+  allocations,
+  beneficiaries,
+  initialMonth,
+  isAdmin,
+}: Props) {
   const [currentLogs, setCurrentLogs] = useState(logs);
+  const [recipientRows, setRecipientRows] = useState(beneficiaries);
   const [selectedMonth, setSelectedMonth] = useState(initialMonth.slice(0, 7));
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [editingRecipient, setEditingRecipient] = useState<OperationsFundBeneficiary | null>(null);
+  const [recipientError, setRecipientError] = useState('');
+  const [recipientForm, setRecipientForm] = useState({
+    department: '',
+    full_name: '',
+    phone: '',
+    bank_account: '',
+    bank_name: '',
+    weekly_rate: '',
+    monthly_rate: '',
+  });
   const [createForm, setCreateForm] = useState({
     fundType: 'operations' as OperationsSupportFundKey,
     department: '',
@@ -273,10 +248,34 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
 
   const reportedFund = contractBase > 0 ? fundBudget : (selectedAllocations.length ? recordedAllocation : fundBudget);
   const remaining = reportedFund - paidTotal;
+  const beneficiaryEffectiveDate = viewMode === 'week' ? range.start : range.endInclusive;
+  const effectiveBeneficiaries = useMemo(() => {
+    const effective = new Map<string, OperationsFundBeneficiary>();
+    for (const row of recipientRows) {
+      if (row.effective_from > beneficiaryEffectiveDate) continue;
+      const current = effective.get(row.department_key);
+      if (!current || row.effective_from > current.effective_from) effective.set(row.department_key, row);
+    }
+    return effective;
+  }, [beneficiaryEffectiveDate, recipientRows]);
 
   // Tính phân bổ theo từng bộ phận
   const departmentAllocations = useMemo(() => {
-    return ALLOCATION_ROWS.map((row) => {
+    return ALLOCATION_ROWS.flatMap((definition) => {
+      const recipient = effectiveBeneficiaries.get(definition.departmentKey);
+      if (!recipient) return [];
+      const row = {
+        ...definition,
+        id: recipient.id,
+        effective_from: recipient.effective_from,
+        department: recipient.department,
+        phone: recipient.phone,
+        fullName: recipient.full_name,
+        bankAccount: recipient.bank_account,
+        bankName: recipient.bank_name,
+        weeklyRate: recipient.weekly_rate,
+        monthlyRate: recipient.monthly_rate,
+      };
       const rate = viewMode === 'week' ? row.weeklyRate : row.monthlyRate;
       const totalFund = Math.round(contractBase * rate);
 
@@ -300,16 +299,17 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
         .filter((log) => PAID_STATUSES.has(log.status))
         .reduce((sum, log) => sum + paidAmountFor(log), 0);
 
-      return {
+      return [{
         ...row,
         rate: (rate * 100).toFixed(1).replace('.0', '') + '%',
         rawRate: rate,
         totalFund,
         paid,
         remaining: totalFund - paid,
-      };
+        recipient,
+      }];
     });
-  }, [contractBase, matchingLogs, viewMode]);
+  }, [contractBase, effectiveBeneficiaries, matchingLogs, viewMode]);
 
   const totalFundSum = departmentAllocations.reduce((sum, r) => sum + r.totalFund, 0);
   const totalPaidSum = departmentAllocations.reduce((sum, r) => sum + r.paid, 0);
@@ -322,7 +322,7 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
 
   // Tự động điền dữ liệu khi chọn Bộ phận trong Form Modal
   const handleDepartmentChange = (dept: string) => {
-    const match = ALLOCATION_ROWS.find((r) => r.department === dept);
+    const match = departmentAllocations.find((r) => r.department === dept);
     if (match) {
       setCreateForm((c) => ({
         ...c,
@@ -338,6 +338,67 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
         ...c,
         department: dept,
       }));
+    }
+  };
+
+  const openRecipientEditor = (recipient: OperationsFundBeneficiary) => {
+    setEditingRecipient(recipient);
+    setRecipientError('');
+    setRecipientForm({
+      department: recipient.department,
+      full_name: recipient.full_name,
+      phone: recipient.phone,
+      bank_account: recipient.bank_account,
+      bank_name: recipient.bank_name,
+      weekly_rate: String(recipient.weekly_rate * 100),
+      monthly_rate: String(recipient.monthly_rate * 100),
+    });
+  };
+
+  const saveRecipient = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingRecipient) return;
+    setRecipientError('');
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/admin/operations-fund-beneficiaries?id=${editingRecipient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...recipientForm,
+          weekly_rate: Number(recipientForm.weekly_rate) / 100,
+          monthly_rate: Number(recipientForm.monthly_rate) / 100,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.beneficiary) {
+        throw new Error(result.error || 'Không thể cập nhật người thụ hưởng.');
+      }
+      const updated = result.beneficiary as OperationsFundBeneficiary;
+      setRecipientRows((rows) => rows.map((row) => row.id === updated.id ? updated : row));
+      setEditingRecipient(null);
+    } catch (error) {
+      setRecipientError(error instanceof Error ? error.message : 'Không thể cập nhật người thụ hưởng.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteRecipient = async (recipient: OperationsFundBeneficiary) => {
+    setRecipientError('');
+    const confirmed = window.confirm(
+      `Xóa cấu hình "${recipient.department}" từ ngày ${dateLabel(recipient.effective_from)}? Lịch sử trước/sau ngày hiệu lực sẽ thay đổi.`,
+    );
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/admin/operations-fund-beneficiaries?id=${recipient.id}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Không thể xóa dòng phân bổ.');
+      }
+      setRecipientRows((rows) => rows.filter((row) => row.id !== recipient.id));
+    } catch (error) {
+      setRecipientError(error instanceof Error ? error.message : 'Không thể xóa dòng phân bổ.');
     }
   };
 
@@ -559,6 +620,88 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
           <h2 className="text-base font-bold text-slate-900">
             Phân bổ quỹ theo bộ phận — {periodTitle}
           </h2>
+          {recipientError && (
+            <p role="alert" className="mt-2 text-xs font-medium text-rose-700">{recipientError}</p>
+          )}
+          {editingRecipient && (
+            <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="recipient-editor-title"
+                className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+              >
+                <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
+                  <div>
+                    <h2 id="recipient-editor-title" className="text-lg font-bold text-slate-900">Sửa phân bổ bộ phận</h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Có hiệu lực từ {dateLabel(editingRecipient.effective_from)}. Thay đổi sẽ ảnh hưởng các kỳ từ ngày này.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingRecipient(null)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+                    aria-label="Đóng"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <form onSubmit={saveRecipient} className="space-y-4 px-6 py-5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Bộ phận
+                    <input
+                      required
+                      value={recipientForm.department}
+                      onChange={(event) => setRecipientForm((form) => ({ ...form, department: event.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                    />
+                  </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {([
+                      ['full_name', 'Họ và tên', 'text'],
+                      ['phone', 'Số điện thoại', 'text'],
+                      ['bank_account', 'Số tài khoản', 'text'],
+                      ['bank_name', 'Ngân hàng', 'text'],
+                      ['weekly_rate', 'Tỷ lệ tuần (%)', 'number'],
+                      ['monthly_rate', 'Tỷ lệ tháng (%)', 'number'],
+                    ] as const).map(([field, label, type]) => (
+                      <label key={field} className="block text-xs font-semibold text-slate-700">
+                        {label}
+                        <input
+                          type={type}
+                          required={field === 'full_name' || field === 'weekly_rate' || field === 'monthly_rate'}
+                          min={type === 'number' ? '0' : undefined}
+                          max={type === 'number' ? '100' : undefined}
+                          step={type === 'number' ? '0.1' : undefined}
+                          value={recipientForm[field]}
+                          onChange={(event) => setRecipientForm((form) => ({ ...form, [field]: event.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  {recipientError && <p role="alert" className="text-xs font-medium text-rose-700">{recipientError}</p>}
+                  <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingRecipient(null)}
+                      className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Đang lưu…' : 'Lưu thay đổi'}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] text-left text-sm">
@@ -574,11 +717,12 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
                 <th className="px-5 py-3.5 text-right font-medium">Tổng quỹ</th>
                 <th className="px-5 py-3.5 text-right font-medium">Đã chi</th>
                 <th className="px-5 py-3.5 text-right font-medium">Còn lại</th>
+                {isAdmin && <th className="px-5 py-3.5 text-right font-medium">Thao tác</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {departmentAllocations.map((row, index) => (
-                <tr key={index} className="transition-colors hover:bg-slate-50/60">
+              {departmentAllocations.map((row) => (
+                <tr key={row.id} className="transition-colors hover:bg-slate-50/60">
                   <td className="whitespace-nowrap px-5 py-3.5 font-medium text-slate-700">
                     {row.fundType}
                   </td>
@@ -609,6 +753,28 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
                   <td className={`whitespace-nowrap px-5 py-3.5 text-right font-bold ${row.remaining < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                     {money(row.remaining)}
                   </td>
+                  {isAdmin && (
+                    <td className="whitespace-nowrap px-5 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openRecipientEditor(row.recipient)}
+                        className="mr-1 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                        aria-label={`Sửa cấu hình ${row.department}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Sửa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteRecipient(row.recipient)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                        aria-label={`Xóa cấu hình ${row.department}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Xóa
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -629,6 +795,7 @@ export default function OperationsFundReport({ logs, contracts, allocations, ini
                 <td className={`whitespace-nowrap px-5 py-4 text-right ${totalRemainingSum < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {money(totalRemainingSum)}
                 </td>
+                {isAdmin && <td />}
               </tr>
             </tfoot>
           </table>

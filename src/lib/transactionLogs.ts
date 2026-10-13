@@ -1,17 +1,21 @@
 import pool from '@/lib/db';
+import { ensureMemberSchema } from '@/lib/memberTeams';
 
 export const SELECT_TRANSACTION_LOGS = `
   SELECT 
     tl.id, tl.request_code, tl.request_date::text AS request_date, tl.fund_source, tl.detail_content,
     tl.requester_id, tl.requester_name, tl.requester_phone, tl.approver_id, tl.approver_name, tl.approver_phone,
-    tl.beneficiary_name, tl.beneficiary_phone, tl.beneficiary_user_id, tl.beneficiary_bank_account,
-    tl.beneficiary_bank_name,
+    COALESCE(NULLIF(BTRIM(tl.beneficiary_name), ''), u.full_name) AS beneficiary_name,
+    COALESCE(NULLIF(BTRIM(tl.beneficiary_phone), ''), u.phone) AS beneficiary_phone,
+    tl.beneficiary_user_id,
+    COALESCE(NULLIF(BTRIM(tl.beneficiary_bank_account), ''), u.bank_account) AS beneficiary_bank_account,
+    COALESCE(NULLIF(BTRIM(tl.beneficiary_bank_name), ''), u.bank_name) AS beneficiary_bank_name,
     tl.proposed_amount::float8 AS proposed_amount,
     tl.available_balance::float8 AS available_balance, tl.fund_alert, tl.status, tl.expense_type,
     tl.source_contract_id, tl.beneficiary_role,
     tl.actual_expense::float8 AS actual_expense, tl.receipt_url,
     tl.approval_date::text AS approval_date, tl.payment_date::text AS payment_date, tl.source_complete,
-    COALESCE(tl.items, '[]'::jsonb) AS items, tl.note,
+    COALESCE(tl.items::jsonb, '[]'::jsonb) AS items, tl.note,
     COALESCE(
       NULLIF(BTRIM(c.team_name), ''),
       NULLIF(BTRIM(u.team_name), ''),
@@ -27,22 +31,35 @@ export const SELECT_TRANSACTION_LOGS = `
       t.name
     ) AS beneficiary_team
   FROM transaction_logs tl
-  LEFT JOIN users u ON (
-    tl.beneficiary_user_id = u.id 
-    OR (
-      NULLIF(REGEXP_REPLACE(tl.beneficiary_phone, '[^0-9]', '', 'g'), '') IS NOT NULL 
-      AND REGEXP_REPLACE(tl.beneficiary_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g')
-    )
-    OR (
-      tl.beneficiary_phone IS NULL 
-      AND LOWER(BTRIM(tl.beneficiary_name)) = LOWER(BTRIM(u.full_name))
-    )
-  )
+  LEFT JOIN LATERAL (
+    SELECT candidate.id, candidate.full_name, candidate.phone, candidate.bank_account,
+      candidate.bank_name, candidate.team_name, candidate.team_id
+    FROM users candidate
+    WHERE tl.beneficiary_user_id = candidate.id
+      OR (
+        NULLIF(REGEXP_REPLACE(tl.beneficiary_phone, '[^0-9]', '', 'g'), '') IS NOT NULL
+        AND REGEXP_REPLACE(tl.beneficiary_phone, '[^0-9]', '', 'g') =
+            REGEXP_REPLACE(candidate.phone, '[^0-9]', '', 'g')
+      )
+      OR (
+        tl.beneficiary_phone IS NULL
+        AND LOWER(BTRIM(tl.beneficiary_name)) = LOWER(BTRIM(candidate.full_name))
+      )
+    ORDER BY CASE
+      WHEN tl.beneficiary_user_id = candidate.id THEN 0
+      WHEN NULLIF(REGEXP_REPLACE(tl.beneficiary_phone, '[^0-9]', '', 'g'), '') IS NOT NULL
+        AND REGEXP_REPLACE(tl.beneficiary_phone, '[^0-9]', '', 'g') =
+            REGEXP_REPLACE(candidate.phone, '[^0-9]', '', 'g') THEN 1
+      ELSE 2
+    END, candidate.id
+    LIMIT 1
+  ) u ON TRUE
   LEFT JOIN teams t ON u.team_id = t.id
   LEFT JOIN contracts c ON tl.source_contract_id = c.id
 `;
 
 export async function generateAutomaticContractSlips() {
+  await ensureMemberSchema();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -73,7 +90,7 @@ export async function generateAutomaticContractSlips() {
         if (!beneficiaryName || !Number.isFinite(amount) || amount <= 0) continue;
 
         const member = await client.query(
-          `SELECT id, bank_account
+          `SELECT id, bank_account, bank_name
            FROM users
            WHERE (
              NULLIF(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
@@ -104,6 +121,7 @@ export async function generateAutomaticContractSlips() {
           beneficiaryPhone,
           memberRow?.id ?? null,
           memberRow?.bank_account ?? null,
+          memberRow?.bank_name ?? null,
           amount,
           contract.id,
           role.key,
@@ -115,23 +133,23 @@ export async function generateAutomaticContractSlips() {
              SET request_date = $1, fund_source = $2, detail_content = $3,
                  beneficiary_name = $4, beneficiary_phone = $5,
                  beneficiary_user_id = $6, beneficiary_bank_account = $7,
-                 proposed_amount = $8, source_complete = TRUE
-             WHERE id = $9`,
-            [...values.slice(0, 8), existing.rows[0].id]
+                 beneficiary_bank_name = $8, proposed_amount = $9, source_complete = TRUE
+             WHERE id = $10`,
+            [...values.slice(0, 9), existing.rows[0].id]
           );
         } else {
           await client.query(
             `INSERT INTO transaction_logs (
                request_code, request_date, fund_source, detail_content,
                requester_name, beneficiary_name, beneficiary_phone, beneficiary_user_id,
-               beneficiary_bank_account, proposed_amount, available_balance, fund_alert,
+               beneficiary_bank_account, beneficiary_bank_name, proposed_amount, available_balance, fund_alert,
                status, actual_expense, source_complete, expense_type,
                source_contract_id, beneficiary_role
-             ) VALUES ($1, $2, $3, $4, 'Hệ thống', $5, $6, $7, $8, $9, NULL,
-                       'Chưa đối soát', 'Chờ duyệt', 0, TRUE, 'Tự động', $10, $11)`,
+             ) VALUES ($1, $2, $3, $4, 'Hệ thống', $5, $6, $7, $8, $9, $10, NULL,
+                       'Chưa đối soát', 'Chờ duyệt', 0, TRUE, 'Tự động', $11, $12)`,
             [
               `HD${contract.id}-${role.key.toUpperCase()}`,
-              ...values.slice(0, 8),
+              ...values.slice(0, 9),
               contract.id,
               role.key,
             ]
@@ -162,6 +180,7 @@ export async function generateAutomaticContractSlips() {
 }
 
 export async function getTransactionLogRows() {
+  await ensureMemberSchema();
   const result = await pool.query(
     `${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`
   );

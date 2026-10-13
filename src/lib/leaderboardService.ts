@@ -129,7 +129,7 @@ export async function getLeaderboardData(
           OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
           OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
           OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 năm'
-          THEN COALESCE(c.value, 0)
+          THEN ROUND(COALESCE(c.value, 0) * 0.70)
         ELSE COALESCE(c.allocated_value, c.value, 0)
       END::float8 AS allocated_value,
       COALESCE(NULLIF(BTRIM(c.closer_name), ''), '') AS closer_name,

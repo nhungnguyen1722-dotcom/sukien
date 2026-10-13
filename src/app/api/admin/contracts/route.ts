@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) LIKE '%2 n_m%'
               OR LOWER(TRIM(COALESCE(c.contract_type, ''))) = '2 nam'
               OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
-              THEN COALESCE(c.value, 0)
+              THEN ROUND(COALESCE(c.value, 0) * 0.70)
             ELSE COALESCE(c.allocated_value, c.value, 0)
           END
         ), 0)::numeric AS allocation_base
@@ -341,7 +341,9 @@ export async function POST(request: NextRequest) {
     }
 
     const numValue = Number(value) || 0;
-    const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
+    const allocatedValue = isTwoYearContract(contract_type)
+      ? calculateContractAllocatedValue(numValue, contract_type)
+      : body.allocated_value !== undefined && body.allocated_value !== null
       ? Number(body.allocated_value)
       : calculateContractAllocatedValue(numValue, contract_type);
     // Rule: Chốt sale 6%, Giới thiệu 1%, Hỗ trợ chốt 0.5% (tính trên giá trị phân bổ nếu là BĐS hoặc 2 năm)
@@ -430,5 +432,3 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 }
-
-

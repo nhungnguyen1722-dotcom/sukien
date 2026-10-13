@@ -59,7 +59,7 @@ export function calculateContractAllocatedValue(value: number, contractType?: st
     return Math.round((numValue * BDS_ALLOCATION_NUMERATOR) / BDS_ALLOCATION_DENOMINATOR);
   }
   if (isTwoYearContract(contractType)) {
-    return Math.round(numValue);
+    return Math.round(numValue * TWO_YEAR_ALLOCATION_RATE);
   }
   return Math.round(numValue);
 }
@@ -75,7 +75,7 @@ export const CONTRACT_ALLOCATED_VALUE_SQL = `
       OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
       OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
       OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
-      THEN COALESCE(value, 0)
+      THEN ROUND(COALESCE(value, 0) * ${TWO_YEAR_ALLOCATION_RATE})
     ELSE COALESCE(value, 0)
   END::float8
 `;
@@ -785,5 +785,4 @@ export function decomposeBeneficiarySource(
 
   return lines;
 }
-
 

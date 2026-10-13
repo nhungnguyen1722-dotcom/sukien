@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import { resolveMemberTeamId, ensureMemberSchema, syncUserToTeamLead, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       guest_count,
       email,
       bank_account,
+      bank_name,
       identity_card,
       status,
       notes,
@@ -142,24 +144,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         email = $3,
         identity_card = $4,
         bank_account = $5,
-        role = $6,
-        classification = $7,
-        title = $8,
-        team_id = $9,
-        team_name = $10,
-        ref_code = $11,
-        referrer_id = $12,
-        referral_group = $13,
-        source = $14,
-        join_date = $15,
-        status = $16,
-        is_team_leader_eligible = $17,
-        guest_count = $18,
-        notes = $19,
-        avatar_url = $20,
-        business_unit = COALESCE($21, business_unit, 'Khối kinh doanh'),
+        bank_name = $6,
+        role = $7,
+        classification = $8,
+        title = $9,
+        team_id = $10,
+        team_name = $11,
+        ref_code = $12,
+        referrer_id = $13,
+        referral_group = $14,
+        source = $15,
+        join_date = $16,
+        status = $17,
+        is_team_leader_eligible = $18,
+        guest_count = $19,
+        notes = $20,
+        avatar_url = $21,
+        business_unit = COALESCE($22, business_unit, 'Khối kinh doanh'),
+        updated_by_name = COALESCE($23, updated_by_name),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $22
+       WHERE id = $24
        RETURNING *`,
       [
         full_name.trim(),
@@ -167,6 +171,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         email ? email.trim() : null,
         identity_card ? identity_card.trim() : null,
         bank_account ? bank_account.trim() : null,
+        bank_name ? bank_name.trim() : null,
         role || 'Khác',
         classification || 'Nhân sự',
         title || 'Thành viên',
@@ -183,6 +188,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         notes ? notes.trim() : null,
         avatar_url !== undefined ? (avatar_url ? avatar_url.trim() : null) : null,
         normBusinessUnit,
+        safeDecodeURI(request.cookies.get('user_name')?.value) || null,
         memberId,
       ]
     );

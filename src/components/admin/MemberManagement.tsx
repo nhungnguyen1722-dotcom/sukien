@@ -43,6 +43,9 @@ export interface Member {
   avatar_url?: string | null;
   identity_card?: string | null;
   bank_account?: string | null;
+  bank_name?: string | null;
+  created_by_name?: string | null;
+  updated_by_name?: string | null;
   role?: string | null;
   classification?: string | null;
   title?: string | null;
@@ -198,6 +201,7 @@ export default function MemberManagement({
     guest_count: 0,
     email: '',
     bank_account: '',
+    bank_name: '',
     identity_card: '',
     status: 'Hoạt động',
     notes: '',
@@ -321,6 +325,7 @@ export default function MemberManagement({
       guest_count: 0,
       email: '',
       bank_account: '',
+      bank_name: '',
       identity_card: '',
       status: 'Hoạt động',
       notes: '',
@@ -354,6 +359,7 @@ export default function MemberManagement({
       guest_count: member.guest_count ?? 0,
       email: member.email || '',
       bank_account: member.bank_account || '',
+      bank_name: member.bank_name || '',
       identity_card: member.identity_card || '',
       status: member.status || 'Hoạt động',
       notes: member.notes || '',
@@ -1256,7 +1262,7 @@ export default function MemberManagement({
                     />
                   </div>
 
-                  {/* 14. Số tài khoản */}
+                  {/* Thông tin ngân hàng */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Số tài khoản
@@ -1267,6 +1273,18 @@ export default function MemberManagement({
                       onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
                       className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 shadow-2xs"
                       placeholder=""
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Ngân hàng
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.bank_name}
+                      onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 shadow-2xs"
+                      placeholder="Tên ngân hàng"
                     />
                   </div>
 
@@ -1517,8 +1535,17 @@ export default function MemberManagement({
                     <span className="font-medium text-slate-800">{viewingMember.bank_account || '—'}</span>
                   </div>
                   <div>
+                    <span className="text-slate-500 block">Ngân hàng:</span>
+                    <span className="font-medium text-slate-800">{viewingMember.bank_name || '—'}</span>
+                  </div>
+                  <div>
                     <span className="text-slate-500 block">Nhóm người mời:</span>
                     <span className="font-medium text-slate-800">{viewingMember.referral_group || '—'}</span>
+                  </div>
+                  <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500 sm:col-span-2 lg:col-span-3">
+                    Người tạo: {viewingMember.created_by_name || '—'}
+                    <span className="mx-2">·</span>
+                    Người cập nhật: {viewingMember.updated_by_name || '—'}
                   </div>
                   <div>
                     <span className="text-slate-500 block">Người giới thiệu:</span>

@@ -1,6 +1,9 @@
 import pool from '@/lib/db';
+import { cookies } from 'next/headers';
 import OperationsFundReport from '@/components/admin/OperationsFundReport';
 import type { TransactionLog, WeeklyAllocation } from '@/components/admin/TransactionLogManagement';
+import { safeDecodeURI } from '@/lib/authUtils';
+import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficiaries';
 
 export const revalidate = 0;
 
@@ -21,6 +24,7 @@ type ContractFundBasis = {
 };
 
 async function getOperationsFundData() {
+  const beneficiaries = await ensureOperationsFundBeneficiaries();
   const [logsResult, contractsResult, allocationsResult] = await Promise.all([
     pool.query(`
       SELECT id, request_code, request_date::text AS request_date, fund_source, detail_content,
@@ -40,7 +44,7 @@ async function getOperationsFundData() {
             OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
-            THEN COALESCE(value, 0)
+            THEN ROUND(COALESCE(value, 0) * 0.70)
           ELSE COALESCE(allocated_value, value, 0)
         END::float8 AS allocation_base
       FROM contracts
@@ -61,10 +65,14 @@ async function getOperationsFundData() {
     logs: logsResult.rows as TransactionLog[],
     contracts: contractsResult.rows as ContractFundBasis[],
     allocations: allocationsResult.rows as WeeklyAllocation[],
+    beneficiaries,
   };
 }
 
 export default async function OperationsFundPage() {
+  const cookieStore = await cookies();
+  const role = safeDecodeURI(cookieStore.get('user_role')?.value).toLocaleLowerCase('vi-VN');
+  const isAdmin = role === 'admin' || role.includes('admin') || role.includes('quản trị') || role.includes('quan tri');
   const data = await getOperationsFundData();
   const latestFundMonth = data.allocations
     .filter((row) => row.fund_key === 'operations' || row.fund_key === 'support_kt' || row.fund_key === 'support_cn')
@@ -72,5 +80,5 @@ export default async function OperationsFundPage() {
     .filter(Boolean)
     .sort()
     .at(-1);
-  return <OperationsFundReport {...data} initialMonth={latestFundMonth || getCurrentMonth()} />;
+  return <OperationsFundReport {...data} initialMonth={latestFundMonth || getCurrentMonth()} isAdmin={isAdmin} />;
 }

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import { resolveMemberTeamId, ensureMemberSchema, syncUserToTeamLead, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
 import { attendedEventCountSql } from '@/lib/guestAttendance';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
         u.avatar_url,
         u.identity_card,
         u.bank_account,
+        u.bank_name,
+        u.created_by_name,
+        u.updated_by_name,
         u.role,
         u.classification,
         ${UNIFIED_TITLE_SQL} AS title,
@@ -168,6 +172,7 @@ export async function POST(request: NextRequest) {
       guest_count,
       email,
       bank_account,
+      bank_name,
       identity_card,
       status,
       notes,
@@ -209,6 +214,7 @@ export async function POST(request: NextRequest) {
         email,
         identity_card,
         bank_account,
+        bank_name,
         role,
         classification,
         title,
@@ -224,8 +230,10 @@ export async function POST(request: NextRequest) {
         guest_count,
         notes,
         avatar_url,
-        business_unit
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        business_unit,
+        created_by_name,
+        updated_by_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *`,
       [
         full_name.trim(),
@@ -233,6 +241,7 @@ export async function POST(request: NextRequest) {
         email ? email.trim() : null,
         identity_card ? identity_card.trim() : null,
         bank_account ? bank_account.trim() : null,
+        bank_name ? bank_name.trim() : null,
         role || 'Khác',
         classification || 'Nhân sự',
         title || 'Thành viên',
@@ -249,6 +258,8 @@ export async function POST(request: NextRequest) {
         notes ? notes.trim() : null,
         avatar_url ? avatar_url.trim() : null,
         normBusinessUnit,
+        safeDecodeURI(request.cookies.get('user_name')?.value) || null,
+        safeDecodeURI(request.cookies.get('user_name')?.value) || null,
       ]
     );
 

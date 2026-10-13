@@ -77,7 +77,7 @@ async function getContractsData(year: number): Promise<{
                 OR LOWER(TRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
                 OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
                 OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
-                THEN COALESCE(value, 0)
+                THEN ROUND(COALESCE(value, 0) * 0.70)
               ELSE COALESCE(value, 0)
             END
           ), 0)::numeric AS total_value,

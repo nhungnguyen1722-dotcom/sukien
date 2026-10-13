@@ -312,7 +312,7 @@ function calculateAllocatedValue(contractValue: number, contractType?: string | 
     return Math.round((contractValue * 4) / 15);
   }
   if (isTwoYearContract(contractType)) {
-    return Math.round(contractValue);
+    return Math.round(contractValue * 0.70);
   }
   return Math.round(contractValue);
 }
@@ -323,7 +323,7 @@ function getAllocatedContractValue(value: number | string | null | undefined, co
     return Math.round((num * 4) / 15);
   }
   if (isTwoYearContract(contractType)) {
-    return Math.round(num);
+    return Math.round(num * 0.70);
   }
   return num;
 }

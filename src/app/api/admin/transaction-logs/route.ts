@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
+import { ensureMemberSchema } from '@/lib/memberTeams';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,7 @@ const ALLOWED_STATUSES = ['Chờ duyệt', 'Đã duyệt', 'Đã thanh toán', '
 
 export async function GET(request: Request) {
   try {
+    await ensureMemberSchema();
     const { searchParams } = new URL(request.url);
     const fund = searchParams.get('fund');
     const status = searchParams.get('status');
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureMemberSchema();
     const body = await request.json();
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const items = rawItems.map((item: any, idx: number) => ({
@@ -183,6 +186,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    await ensureMemberSchema();
     const body = await request.json();
     if (!body.id) return NextResponse.json({ success: false, message: 'Thiếu mã phiếu.' }, { status: 400 });
     if (body.status && !ALLOWED_STATUSES.includes(body.status)) {
@@ -285,6 +289,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    await ensureMemberSchema();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, message: 'Thiếu mã phiếu.' }, { status: 400 });

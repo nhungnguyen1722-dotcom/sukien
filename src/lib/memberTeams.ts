@@ -39,6 +39,10 @@ export async function ensureMemberSchema(): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = (async () => {
       try {
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_name TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS created_by_name TEXT');
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_by_name TEXT');
+
         const colRes = await pool.query(
           "SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'team_name'"
         );
@@ -99,6 +103,7 @@ export async function ensureMemberSchema(): Promise<void> {
         await syncTeamLeadToUsers();
       } catch (err) {
         console.error('ensureMemberSchema error:', err);
+        throw err;
       }
     })();
   }

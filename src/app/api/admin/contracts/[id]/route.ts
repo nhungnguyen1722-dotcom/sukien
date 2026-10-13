@@ -139,7 +139,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const numValue = Number(value) || 0;
-    const allocatedValue = body.allocated_value !== undefined && body.allocated_value !== null
+    const allocatedValue = isTwoYearContract(contract_type)
+      ? calculateContractAllocatedValue(numValue, contract_type)
+      : body.allocated_value !== undefined && body.allocated_value !== null
       ? Number(body.allocated_value)
       : calculateContractAllocatedValue(numValue, contract_type);
 

@@ -101,6 +101,7 @@ export interface TransactionMember {
   full_name: string;
   phone?: string | null;
   bank_account?: string | null;
+  bank_name?: string | null;
   team_name?: string | null;
   title?: string | null;
 }
@@ -364,28 +365,23 @@ function normalizePersonName(value: string) {
 }
 
 function contractBeneficiaries(contract: FundContract, members?: TransactionMember[]): FundContractBeneficiary[] {
-  if (contract.source_beneficiaries && contract.source_beneficiaries.length > 0) {
-    return contract.source_beneficiaries;
+  const detailed = contract.source_beneficiaries?.length
+    ? contract.source_beneficiaries
+    : contractBeneficiariesCache.get(contract) || calculateContractAllBeneficiaries(contract);
+  if (!contract.source_beneficiaries?.length && !contractBeneficiariesCache.has(contract)) {
+    contractBeneficiariesCache.set(contract, detailed);
   }
-  const cached = contractBeneficiariesCache.get(contract);
-  if (cached) return cached;
-
-  const detailed = calculateContractAllBeneficiaries(contract);
-  const result = detailed.map((b) => {
-    const matching = members?.find(
-      (m) => normalizePersonName(m.full_name) === normalizePersonName(b.name)
-    );
+  return detailed.map((b) => {
+    const matching = members?.find((m) => areNamesMatching(m.full_name, b.name));
     return {
+      ...b,
       name: b.name,
       amount: b.amount,
       phone: b.phone || matching?.phone || null,
       bank_account: b.bank_account || matching?.bank_account || null,
-      bank_name: b.bank_name || null,
-      lines: b.lines,
+      bank_name: b.bank_name || matching?.bank_name || null,
     };
   });
-  contractBeneficiariesCache.set(contract, result);
-  return result;
 }
 
 function contractPool(contract: FundContract) {
@@ -2437,10 +2433,19 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                     const attributedAmount = sourceDisclosure.lines.reduce((sum, line) => sum + line.amount, 0);
                     return (
                       <tr key={index}>
-                        <td className="px-3 py-2 font-semibold text-slate-800">{person.name}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-800">
+                          <div>{person.name}</div>
+                          {(person.phone || matchingMember?.phone) && (
+                            <div className="mt-0.5 text-[10px] font-normal text-slate-500">
+                              {person.phone || matchingMember?.phone}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-slate-600">
                           <div>{person.bank_account || matchingMember?.bank_account || '—'}</div>
-                          {person.bank_name && <div className="mt-0.5 text-[10px] text-slate-500">{person.bank_name}</div>}
+                          {(person.bank_name || matchingMember?.bank_name) && (
+                            <div className="mt-0.5 text-[10px] text-slate-500">{person.bank_name || matchingMember?.bank_name}</div>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-top text-[11px] text-slate-700">
                           {sourceDisclosure.lines.length ? <div className="space-y-1.5">
