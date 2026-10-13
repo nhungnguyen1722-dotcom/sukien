@@ -49,7 +49,7 @@ export async function ensureOperationsFundBeneficiaries(): Promise<OperationsFun
   }
 
   const result = await pool.query(`
-    SELECT b.id, b.department_key, b.fund_key, b.department, b.full_name,
+    SELECT b.id, b.department_key, b.fund_key, b.fund_source, b.department, b.full_name,
       COALESCE(NULLIF(BTRIM(b.phone), ''), u.phone, '') AS phone,
       COALESCE(NULLIF(BTRIM(b.bank_account), ''), u.bank_account, '') AS bank_account,
       COALESCE(NULLIF(BTRIM(b.bank_name), ''), u.bank_name, '') AS bank_name,

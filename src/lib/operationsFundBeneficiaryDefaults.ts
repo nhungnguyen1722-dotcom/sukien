@@ -2,6 +2,7 @@ export interface OperationsFundBeneficiary {
   id: number;
   department_key: string;
   fund_key: string;
+  fund_source: string;
   department: string;
   full_name: string;
   phone: string;

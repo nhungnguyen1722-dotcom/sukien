@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import type { TransactionLog, WeeklyAllocation } from '@/components/admin/TransactionLogManagement';
-import { getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
+import { getMonthWeekNo, getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import {
   getOperationsSupportFundKey,
   OPERATIONS_SUPPORT_FUND_RATE,
@@ -116,6 +116,7 @@ export default function OperationsFundReport({
     bank_name: '',
     weekly_rate: '',
     monthly_rate: '',
+    effective_from: '',
   });
   const [createForm, setCreateForm] = useState({
     fundType: 'operations' as OperationsSupportFundKey,
@@ -192,6 +193,21 @@ export default function OperationsFundReport({
     }
     return getMonthWeekRange(selectedMonth, 0);
   }, [selectedMonth, viewMode, selectedWeek]);
+  const currentWeekStart = useMemo(() => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    const today = year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().slice(0, 10);
+    const monthKey = today.slice(0, 7);
+    const weekNo = getMonthWeekNo(today, monthKey);
+    return weekNo ? getMonthWeekRange(monthKey, weekNo).start : today;
+  }, []);
 
   // Danh sách 5 tuần trong tháng
   const weekOptions = useMemo(() => {
@@ -342,6 +358,7 @@ export default function OperationsFundReport({
   };
 
   const openRecipientEditor = (recipient: OperationsFundBeneficiary) => {
+    const effectiveFrom = range.start < currentWeekStart ? currentWeekStart : range.start;
     setEditingRecipient(recipient);
     setRecipientError('');
     setRecipientForm({
@@ -352,19 +369,29 @@ export default function OperationsFundReport({
       bank_name: recipient.bank_name,
       weekly_rate: String(recipient.weekly_rate * 100),
       monthly_rate: String(recipient.monthly_rate * 100),
+      effective_from: effectiveFrom,
     });
   };
 
   const saveRecipient = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editingRecipient) return;
+    const effectiveMonth = recipientForm.effective_from.slice(0, 7);
+    const effectiveWeekNo = getMonthWeekNo(recipientForm.effective_from, effectiveMonth);
+    if (!effectiveWeekNo || getMonthWeekRange(effectiveMonth, effectiveWeekNo).start !== recipientForm.effective_from) {
+      setRecipientError('Ngày hiệu lực phải là ngày bắt đầu của một tuần.');
+      return;
+    }
     setRecipientError('');
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/admin/operations-fund-beneficiaries?id=${editingRecipient.id}`, {
-        method: 'PUT',
+      const response = await fetch('/api/admin/operations-fund-beneficiaries', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          department_key: editingRecipient.department_key,
+          fund_key: editingRecipient.fund_key,
+          fund_source: editingRecipient.fund_source,
           ...recipientForm,
           weekly_rate: Number(recipientForm.weekly_rate) / 100,
           monthly_rate: Number(recipientForm.monthly_rate) / 100,
@@ -375,7 +402,14 @@ export default function OperationsFundReport({
         throw new Error(result.error || 'Không thể cập nhật người thụ hưởng.');
       }
       const updated = result.beneficiary as OperationsFundBeneficiary;
-      setRecipientRows((rows) => rows.map((row) => row.id === updated.id ? updated : row));
+      setRecipientRows((rows) => [
+        ...rows.filter((row) => !(
+          row.department_key === updated.department_key
+          && row.effective_from === updated.effective_from
+        )),
+        updated,
+      ].sort((a, b) => a.department_key.localeCompare(b.department_key)
+        || a.effective_from.localeCompare(b.effective_from)));
       setEditingRecipient(null);
     } catch (error) {
       setRecipientError(error instanceof Error ? error.message : 'Không thể cập nhật người thụ hưởng.');
@@ -387,7 +421,7 @@ export default function OperationsFundReport({
   const deleteRecipient = async (recipient: OperationsFundBeneficiary) => {
     setRecipientError('');
     const confirmed = window.confirm(
-      `Xóa cấu hình "${recipient.department}" từ ngày ${dateLabel(recipient.effective_from)}? Lịch sử trước/sau ngày hiệu lực sẽ thay đổi.`,
+      `Xóa cấu hình "${recipient.department}" từ ngày ${dateLabel(recipient.effective_from)}? Chỉ cấu hình tương lai mới được xóa; tuần đã qua và tuần hiện tại được bảo toàn.`,
     );
     if (!confirmed) return;
     try {
@@ -635,7 +669,7 @@ export default function OperationsFundReport({
                   <div>
                     <h2 id="recipient-editor-title" className="text-lg font-bold text-slate-900">Sửa phân bổ bộ phận</h2>
                     <p className="mt-1 text-xs text-slate-500">
-                      Có hiệu lực từ {dateLabel(editingRecipient.effective_from)}. Thay đổi sẽ ảnh hưởng các kỳ từ ngày này.
+                      Lưu thành phiên bản mới có hiệu lực từ {dateLabel(recipientForm.effective_from)}. Dữ liệu của các tuần đã qua không thay đổi.
                     </p>
                   </div>
                   <button
@@ -648,6 +682,20 @@ export default function OperationsFundReport({
                   </button>
                 </div>
                 <form onSubmit={saveRecipient} className="space-y-4 px-6 py-5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Ngày bắt đầu tuần hiệu lực
+                    <input
+                      type="date"
+                      required
+                      min={currentWeekStart}
+                      value={recipientForm.effective_from}
+                      onChange={(event) => setRecipientForm((form) => ({ ...form, effective_from: event.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                    />
+                    <span className="mt-1 block font-normal text-slate-500">
+                      Thay đổi được áp dụng cho toàn bộ tuần này trở đi; các tuần đã qua được giữ nguyên.
+                    </span>
+                  </label>
                   <label className="block text-xs font-semibold text-slate-700">
                     Bộ phận
                     <input
@@ -764,15 +812,17 @@ export default function OperationsFundReport({
                         <Pencil className="h-3.5 w-3.5" />
                         Sửa
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteRecipient(row.recipient)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                        aria-label={`Xóa cấu hình ${row.department}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Xóa
-                      </button>
+                      {row.recipient.effective_from > currentWeekStart && (
+                        <button
+                          type="button"
+                          onClick={() => deleteRecipient(row.recipient)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                          aria-label={`Xóa cấu hình ${row.department}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Xóa
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>

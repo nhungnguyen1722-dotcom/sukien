@@ -68,6 +68,7 @@ export const SELECT_TRANSACTION_LOGS = `
         FROM operations_fund_beneficiaries historical_recipient
         WHERE historical_recipient.department_key = current_recipient.department_key
           AND LOWER(BTRIM(historical_recipient.fund_source)) = LOWER(BTRIM(tl.fund_source))
+          AND historical_recipient.effective_from <= COALESCE(tl.request_date, tl.payment_date, CURRENT_DATE)
           AND (
             current_recipient.fund_key IN ('support_cn', 'support_kt')
             OR (
@@ -80,7 +81,26 @@ export const SELECT_TRANSACTION_LOGS = `
             )
           )
       )
-    ORDER BY current_recipient.effective_from DESC, current_recipient.id DESC
+    ORDER BY current_recipient.effective_from DESC,
+      CASE WHEN EXISTS (
+        SELECT 1
+        FROM operations_fund_beneficiaries historical_recipient
+        WHERE historical_recipient.department_key = current_recipient.department_key
+          AND LOWER(BTRIM(historical_recipient.fund_source)) = LOWER(BTRIM(tl.fund_source))
+          AND historical_recipient.effective_from <= COALESCE(tl.request_date, tl.payment_date, CURRENT_DATE)
+          AND NULLIF(BTRIM(tl.beneficiary_name), '') IS NOT NULL
+          AND LOWER(BTRIM(tl.beneficiary_name)) = LOWER(BTRIM(historical_recipient.full_name))
+      ) THEN 0 ELSE 1 END,
+      COALESCE((
+        SELECT MAX(LENGTH(BTRIM(historical_recipient.department)))
+        FROM operations_fund_beneficiaries historical_recipient
+        WHERE historical_recipient.department_key = current_recipient.department_key
+          AND LOWER(BTRIM(historical_recipient.fund_source)) = LOWER(BTRIM(tl.fund_source))
+          AND historical_recipient.effective_from <= COALESCE(tl.request_date, tl.payment_date, CURRENT_DATE)
+          AND NULLIF(BTRIM(tl.detail_content), '') IS NOT NULL
+          AND POSITION(LOWER(BTRIM(historical_recipient.department)) IN LOWER(tl.detail_content)) > 0
+      ), 0) DESC,
+      current_recipient.id DESC
     LIMIT 1
   ) ops_beneficiary ON TRUE
   LEFT JOIN LATERAL (
