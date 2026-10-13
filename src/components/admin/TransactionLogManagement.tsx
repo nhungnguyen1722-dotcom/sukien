@@ -1510,7 +1510,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               title={isMonthOverview ? `Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
             >
               <FileSpreadsheet className="h-4 w-4" />
-              <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Báo Cáo Excel'}</span>
+              <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Excel'}</span>
             </button>
           }
         />
