@@ -6,7 +6,12 @@ import dynamic from 'next/dynamic';
 import { formatDateDM, getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
-import { calculateContractAllBeneficiaries, decomposeBeneficiarySource, TEAM_LEADER_ROSTER } from '@/lib/allocationFormulas';
+import {
+  calculateContractAllBeneficiaries,
+  decomposeBeneficiarySource,
+  TEAM_LEADER_ROSTER,
+  type ContractOperationsBeneficiary,
+} from '@/lib/allocationFormulas';
 import {
   AlertCircle,
   ArrowUpDown,
@@ -137,6 +142,7 @@ export interface FundContract {
   supporter_name: string;
   supporter_phone: string;
   supporter_fee: number;
+  operations_fund_beneficiaries?: ContractOperationsBeneficiary[];
   team_name?: string | null;
   status: string;
   source_period_code?: string;

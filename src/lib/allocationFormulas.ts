@@ -298,6 +298,14 @@ export interface DetailedBeneficiary {
   lines: DetailedBeneficiaryLine[];
 }
 
+export interface ContractOperationsBeneficiary {
+  department: string;
+  full_name: string;
+  phone?: string | null;
+  bank_account?: string | null;
+  bank_name?: string | null;
+}
+
 /** Danh sách thành viên/bộ phận thụ hưởng cố định Quỹ Vận hành & Hỗ trợ (2,5%) */
 export const OPERATIONS_BENEFICIARIES_ROSTER = [
   {
@@ -440,6 +448,7 @@ export function calculateContractAllBeneficiaries(contract: {
   value: number;
   contract_type?: string | null;
   allocated_value?: number;
+  operations_fund_beneficiaries?: ContractOperationsBeneficiary[];
   closer_name?: string | null;
   closer_fee?: number | null;
   referrer_name?: string | null;
@@ -511,14 +520,17 @@ export function calculateContractAllBeneficiaries(contract: {
 
   // 2. Quỹ vận hành & hỗ trợ (2,5%): 5 thành viên/bộ phận niêm yết
   for (const row of OPERATIONS_BENEFICIARIES_ROSTER) {
+    const configuredBeneficiary = contract.operations_fund_beneficiaries?.find(
+      (beneficiary) => beneficiary.department === row.department
+    );
     const amount = Math.round(contractBase * row.rate);
     const ratePercent = `${(row.rate * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
     rawItems.push({
-      name: row.fullName,
+      name: configuredBeneficiary?.full_name || row.fullName,
       amount,
-      phone: row.phone || null,
-      bankAccount: row.bankAccount || null,
-      bankName: row.bankName || null,
+      phone: configuredBeneficiary?.phone || row.phone || null,
+      bankAccount: configuredBeneficiary?.bank_account || row.bankAccount || null,
+      bankName: configuredBeneficiary?.bank_name || row.bankName || null,
       source: row.fundSource,
       calculation: `${ratePercent} × ${formatVndAmount(contractBase)} = ${formatVndAmount(amount)}`,
       priority: 10,
@@ -626,6 +638,7 @@ export function decomposeBeneficiarySource(
     referrer_fee?: number | null;
     supporter_name?: string | null;
     supporter_fee?: number | null;
+    operations_fund_beneficiaries?: ContractOperationsBeneficiary[];
   },
   personName: string,
   targetAmount: number,
@@ -700,11 +713,14 @@ export function decomposeBeneficiarySource(
   }
 
   // 2. Quỹ vận hành & hỗ trợ (2,5%)
+  const supportCnBeneficiary = contract.operations_fund_beneficiaries?.find(
+    (beneficiary) => beneficiary.department === 'Quỹ hỗ trợ & dự phòng (CN)'
+  );
   const opsRoster = [
     { name: 'Vũ Thị Cúc', source: 'Quỹ vận hành → Phó tổng (1,2%)', rate: 0.012 },
     { name: 'Nguyễn Thị Hương Thảo', source: 'Quỹ vận hành → Tri ân kết nối phó tổng (0,5%)', rate: 0.005 },
     { name: 'Đinh Văn Bắc', source: 'Quỹ vận hành → Tổng điều hành (0,5%)', rate: 0.005 },
-    { name: 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN (0,2%)', rate: 0.002 },
+    { name: supportCnBeneficiary?.full_name || 'Nguyễn Đăng An', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ CN (0,2%)', rate: 0.002 },
     { name: 'Quỹ hỗ trợ & dự phòng (KT)', source: 'Quỹ hỗ trợ & dự phòng → BP hỗ trợ KT (0,1%)', rate: 0.001 },
   ];
 
@@ -785,4 +801,3 @@ export function decomposeBeneficiarySource(
 
   return lines;
 }
-

@@ -78,11 +78,28 @@ async function getTransactionsData() {
         END AS supporter_name,
         COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone, '') AS supporter_phone,
         COALESCE(c.supporter_fee, 0)::float8 AS supporter_fee,
-        CASE WHEN c.status = 'Ch? duy?t' THEN 'Chờ duyệt' ELSE COALESCE(c.status, '') END AS status
+        CASE WHEN c.status = 'Ch? duy?t' THEN 'Chờ duyệt' ELSE COALESCE(c.status, '') END AS status,
+        COALESCE(ops_beneficiaries.recipients, '[]'::jsonb) AS operations_fund_beneficiaries
       FROM contracts c
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
       LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(jsonb_build_object(
+          'department', effective.department,
+          'full_name', effective.full_name,
+          'phone', effective.phone,
+          'bank_account', effective.bank_account,
+          'bank_name', effective.bank_name
+        ) ORDER BY effective.department_key) AS recipients
+        FROM (
+          SELECT DISTINCT ON (department_key)
+            department_key, department, full_name, phone, bank_account, bank_name
+          FROM operations_fund_beneficiaries
+          WHERE effective_from <= c.contract_date
+          ORDER BY department_key, effective_from DESC, id DESC
+        ) effective
+      ) ops_beneficiaries ON TRUE
       ORDER BY c.contract_date, c.id
     `),
     pool.query(`
