@@ -1,21 +1,23 @@
 import pool from '@/lib/db';
 import { ensureMemberSchema } from '@/lib/memberTeams';
+import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficiaries';
 
 export const SELECT_TRANSACTION_LOGS = `
   SELECT 
     tl.id, tl.request_code, tl.request_date::text AS request_date, tl.fund_source, tl.detail_content,
     tl.requester_id, tl.requester_name, tl.requester_phone, tl.approver_id, tl.approver_name, tl.approver_phone,
-    COALESCE(NULLIF(BTRIM(tl.beneficiary_name), ''), u.full_name) AS beneficiary_name,
-    COALESCE(NULLIF(BTRIM(tl.beneficiary_phone), ''), u.phone) AS beneficiary_phone,
-    tl.beneficiary_user_id,
-    COALESCE(NULLIF(BTRIM(tl.beneficiary_bank_account), ''), u.bank_account) AS beneficiary_bank_account,
-    COALESCE(NULLIF(BTRIM(tl.beneficiary_bank_name), ''), u.bank_name) AS beneficiary_bank_name,
+    COALESCE(NULLIF(BTRIM(ops_beneficiary.full_name), ''), NULLIF(BTRIM(tl.beneficiary_name), ''), u.full_name) AS beneficiary_name,
+    COALESCE(NULLIF(BTRIM(ops_beneficiary.phone), ''), NULLIF(BTRIM(tl.beneficiary_phone), ''), u.phone) AS beneficiary_phone,
+    COALESCE(ops_member.id, tl.beneficiary_user_id) AS beneficiary_user_id,
+    COALESCE(NULLIF(BTRIM(ops_beneficiary.bank_account), ''), NULLIF(BTRIM(tl.beneficiary_bank_account), ''), u.bank_account) AS beneficiary_bank_account,
+    COALESCE(NULLIF(BTRIM(ops_beneficiary.bank_name), ''), NULLIF(BTRIM(tl.beneficiary_bank_name), ''), u.bank_name) AS beneficiary_bank_name,
+    ops_beneficiary.department_key AS beneficiary_department_key,
     tl.proposed_amount::float8 AS proposed_amount,
     tl.available_balance::float8 AS available_balance, tl.fund_alert, tl.status, tl.expense_type,
     tl.source_contract_id, tl.beneficiary_role,
     tl.actual_expense::float8 AS actual_expense, tl.receipt_url,
     tl.approval_date::text AS approval_date, tl.payment_date::text AS payment_date, tl.source_complete,
-    COALESCE(tl.items::jsonb, '[]'::jsonb) AS items, tl.note,
+    COALESCE(itemized.resolved_items, '[]'::jsonb) AS items, tl.note,
     COALESCE(
       NULLIF(BTRIM(c.team_name), ''),
       NULLIF(BTRIM(u.team_name), ''),
@@ -54,6 +56,81 @@ export const SELECT_TRANSACTION_LOGS = `
     END, candidate.id
     LIMIT 1
   ) u ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT current_recipient.id, current_recipient.department_key, current_recipient.fund_key,
+      current_recipient.full_name, current_recipient.phone, current_recipient.bank_account,
+      current_recipient.bank_name
+    FROM operations_fund_beneficiaries current_recipient
+    WHERE LOWER(BTRIM(current_recipient.fund_source)) = LOWER(BTRIM(tl.fund_source))
+      AND current_recipient.effective_from <= COALESCE(tl.request_date, tl.payment_date, CURRENT_DATE)
+      AND EXISTS (
+        SELECT 1
+        FROM operations_fund_beneficiaries historical_recipient
+        WHERE historical_recipient.department_key = current_recipient.department_key
+          AND LOWER(BTRIM(historical_recipient.fund_source)) = LOWER(BTRIM(tl.fund_source))
+          AND (
+            current_recipient.fund_key IN ('support_cn', 'support_kt')
+            OR (
+              NULLIF(BTRIM(tl.detail_content), '') IS NOT NULL
+              AND POSITION(LOWER(BTRIM(historical_recipient.department)) IN LOWER(tl.detail_content)) > 0
+            )
+            OR (
+              NULLIF(BTRIM(tl.beneficiary_name), '') IS NOT NULL
+              AND LOWER(BTRIM(tl.beneficiary_name)) = LOWER(BTRIM(historical_recipient.full_name))
+            )
+          )
+      )
+    ORDER BY current_recipient.effective_from DESC, current_recipient.id DESC
+    LIMIT 1
+  ) ops_beneficiary ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT candidate.id
+    FROM users candidate
+    WHERE ops_beneficiary.id IS NOT NULL
+      AND (
+        (
+          NULLIF(REGEXP_REPLACE(COALESCE(ops_beneficiary.phone, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+          AND REGEXP_REPLACE(COALESCE(candidate.phone, ''), '[^0-9]', '', 'g') =
+              REGEXP_REPLACE(COALESCE(ops_beneficiary.phone, ''), '[^0-9]', '', 'g')
+        )
+        OR LOWER(BTRIM(candidate.full_name)) = LOWER(BTRIM(ops_beneficiary.full_name))
+      )
+    ORDER BY CASE
+      WHEN NULLIF(REGEXP_REPLACE(COALESCE(ops_beneficiary.phone, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+        AND REGEXP_REPLACE(COALESCE(candidate.phone, ''), '[^0-9]', '', 'g') =
+            REGEXP_REPLACE(COALESCE(ops_beneficiary.phone, ''), '[^0-9]', '', 'g') THEN 0
+      ELSE 1
+    END, candidate.id
+    LIMIT 1
+  ) ops_member ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT jsonb_agg(
+      CASE
+        WHEN ops_beneficiary.id IS NOT NULL
+          AND LOWER(BTRIM(COALESCE(entry.item->>'fundSource', entry.item->>'fund_source', tl.fund_source))) = LOWER(BTRIM(tl.fund_source))
+          AND (
+            NULLIF(BTRIM(COALESCE(entry.item->>'beneficiaryName', entry.item->>'beneficiary_name', '')), '') IS NULL
+            OR LOWER(BTRIM(COALESCE(entry.item->>'beneficiaryName', entry.item->>'beneficiary_name', ''))) =
+               LOWER(BTRIM(COALESCE(tl.beneficiary_name, '')))
+          )
+        THEN entry.item || jsonb_build_object(
+          'beneficiaryName', COALESCE(NULLIF(BTRIM(ops_beneficiary.full_name), ''), tl.beneficiary_name),
+          'beneficiary_name', COALESCE(NULLIF(BTRIM(ops_beneficiary.full_name), ''), tl.beneficiary_name),
+          'beneficiaryPhone', COALESCE(NULLIF(BTRIM(ops_beneficiary.phone), ''), tl.beneficiary_phone),
+          'beneficiary_phone', COALESCE(NULLIF(BTRIM(ops_beneficiary.phone), ''), tl.beneficiary_phone),
+          'beneficiaryBankAccount', COALESCE(NULLIF(BTRIM(ops_beneficiary.bank_account), ''), tl.beneficiary_bank_account),
+          'beneficiary_bank_account', COALESCE(NULLIF(BTRIM(ops_beneficiary.bank_account), ''), tl.beneficiary_bank_account),
+          'beneficiaryBankName', COALESCE(NULLIF(BTRIM(ops_beneficiary.bank_name), ''), tl.beneficiary_bank_name),
+          'beneficiary_bank_name', COALESCE(NULLIF(BTRIM(ops_beneficiary.bank_name), ''), tl.beneficiary_bank_name),
+          'beneficiaryUserId', ops_member.id,
+          'beneficiary_user_id', ops_member.id
+        )
+        ELSE entry.item
+      END
+      ORDER BY entry.ordinality
+    ) AS resolved_items
+    FROM jsonb_array_elements(COALESCE(tl.items::jsonb, '[]'::jsonb)) WITH ORDINALITY AS entry(item, ordinality)
+  ) itemized ON TRUE
   LEFT JOIN teams t ON u.team_id = t.id
   LEFT JOIN contracts c ON tl.source_contract_id = c.id
 `;
@@ -181,6 +258,7 @@ export async function generateAutomaticContractSlips() {
 
 export async function getTransactionLogRows() {
   await ensureMemberSchema();
+  await ensureOperationsFundBeneficiaries();
   const result = await pool.query(
     `${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`
   );

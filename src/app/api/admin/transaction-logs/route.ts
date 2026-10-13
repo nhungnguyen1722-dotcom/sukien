@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
 import { ensureMemberSchema } from '@/lib/memberTeams';
+import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficiaries';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ const ALLOWED_STATUSES = ['Chờ duyệt', 'Đã duyệt', 'Đã thanh toán', '
 
 export async function GET(request: Request) {
   try {
-    await ensureMemberSchema();
+    await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
     const { searchParams } = new URL(request.url);
     const fund = searchParams.get('fund');
     const status = searchParams.get('status');
@@ -20,17 +21,17 @@ export async function GET(request: Request) {
 
     if (fund && fund !== 'all') {
       params.push(fund);
-      query += ` AND fund_source = $${params.length}`;
+      query += ` AND tl.fund_source = $${params.length}`;
     }
     if (status && status !== 'all') {
       params.push(status);
-      query += ` AND status = $${params.length}`;
+      query += ` AND tl.status = $${params.length}`;
     }
     if (search) {
       params.push(`%${search}%`);
-      query += ` AND (request_code ILIKE $${params.length} OR detail_content ILIKE $${params.length} OR requester_name ILIKE $${params.length} OR beneficiary_name ILIKE $${params.length})`;
+      query += ` AND (tl.request_code ILIKE $${params.length} OR tl.detail_content ILIKE $${params.length} OR tl.requester_name ILIKE $${params.length} OR COALESCE(NULLIF(BTRIM(ops_beneficiary.full_name), ''), NULLIF(BTRIM(tl.beneficiary_name), ''), u.full_name) ILIKE $${params.length})`;
     }
-    query += ' ORDER BY request_date DESC NULLS LAST, id DESC';
+    query += ' ORDER BY tl.request_date DESC NULLS LAST, tl.id DESC';
     const result = await pool.query(query, params);
     return NextResponse.json({ success: true, logs: result.rows });
   } catch (error: any) {
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureMemberSchema();
+    await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
     const body = await request.json();
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const items = rawItems.map((item: any, idx: number) => ({
@@ -186,7 +187,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    await ensureMemberSchema();
+    await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
     const body = await request.json();
     if (!body.id) return NextResponse.json({ success: false, message: 'Thiếu mã phiếu.' }, { status: 400 });
     if (body.status && !ALLOWED_STATUSES.includes(body.status)) {
@@ -289,7 +290,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await ensureMemberSchema();
+    await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, message: 'Thiếu mã phiếu.' }, { status: 400 });

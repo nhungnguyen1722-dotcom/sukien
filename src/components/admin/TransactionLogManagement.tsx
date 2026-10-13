@@ -89,6 +89,7 @@ export interface TransactionLog {
   beneficiary_user_id?: number | null;
   beneficiary_bank_account?: string | null;
   beneficiary_bank_name?: string | null;
+  beneficiary_department_key?: string | null;
   source_contract_id?: number | null;
   beneficiary_role?: string | null;
   beneficiary_team?: string | null;

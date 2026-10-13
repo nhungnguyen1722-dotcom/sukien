@@ -9,6 +9,7 @@ import TransactionLogManagement, {
 import { loadSeptemberContractDistributions } from '@/lib/contractDistributionWorkbooks';
 import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
 import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
+import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficiaries';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 
 export const revalidate = 0;
@@ -25,7 +26,7 @@ function getCurrentMonth() {
 }
 
 async function getTransactionsData() {
-  await ensureMemberSchema();
+  await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
   const [logsRes, weeklyRes, contractsRes, eventExpensesRes, membersRes] = await Promise.all([
     pool.query(`${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`),
     pool.query(`
