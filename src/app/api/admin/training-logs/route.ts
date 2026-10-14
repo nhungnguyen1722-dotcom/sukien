@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         training_logs.token_count,
         training_logs.session_budget,
         training_logs.total_tokens,
-        training_logs.token_count * 5000 AS reward_amount,
+        COALESCE(training_logs.reward_amount, training_logs.token_count * 5000) AS reward_amount,
         training_logs.status,
         training_logs.approver,
         TO_CHAR(training_logs.training_date, 'YYYY-MM-DD') AS training_date,
@@ -93,29 +93,43 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      member_phone,
-      member_name,
       course_code,
-      token_count,
       training_date,
       approver = '',
       status = 'Chờ duyệt',
     } = body;
 
-    if (!member_name || !String(member_name).trim()) {
-      return NextResponse.json(
-        { success: false, message: 'Vui lòng chọn họ tên nhân sự' },
-        { status: 400 }
-      );
+    // Support multi-participant: body.participants is an array
+    const participants: Array<{ member_name: string; member_phone: string; token_count: number; reward_amount: number }> =
+      Array.isArray(body.participants) && body.participants.length > 0
+        ? body.participants
+        : [{
+            member_name: body.member_name || '',
+            member_phone: body.member_phone || '',
+            token_count: Number(body.token_count) || 0,
+            reward_amount: Number(body.reward_amount) || (Number(body.token_count) || 0) * 5000,
+          }];
+
+    for (let i = 0; i < participants.length; i++) {
+      const p = participants[i];
+      if (!p.member_name || !String(p.member_name).trim()) {
+        return NextResponse.json(
+          { success: false, message: `Vui lòng nhập họ tên nhân sự (dòng ${i + 1})` },
+          { status: 400 }
+        );
+      }
+      const tCount = Number(p.token_count);
+      if (!Number.isInteger(tCount) || tCount <= 0) {
+        return NextResponse.json(
+          { success: false, message: `Số token phải là số nguyên lớn hơn 0 (dòng ${i + 1})` },
+          { status: 400 }
+        );
+      }
     }
+
     const courseCode = String(course_code || '').trim().toUpperCase();
     if (!courseCode) {
       return NextResponse.json({ success: false, message: 'Vui lòng chọn khóa học từ danh mục.' }, { status: 400 });
-    }
-
-    const tCount = Number(token_count);
-    if (!Number.isInteger(tCount) || tCount <= 0) {
-      return NextResponse.json({ success: false, message: 'Số token phải là số nguyên lớn hơn 0' }, { status: 400 });
     }
     if (!['Đã duyệt', 'Chờ duyệt'].includes(status)) {
       return NextResponse.json({ success: false, message: 'Trạng thái duyệt không hợp lệ.' }, { status: 400 });
@@ -160,46 +174,40 @@ export async function POST(req: NextRequest) {
        FROM training_logs WHERE course_code = $1 AND training_date = $2::date`,
       [courseCode, trainingDate]
     );
-    const newTotalTokens = Number(current.rows[0]?.total_tokens || 0) + tCount;
+    const addedTokens = participants.reduce((sum, p) => sum + Number(p.token_count), 0);
+    const newTotalTokens = Number(current.rows[0]?.total_tokens || 0) + addedTokens;
     const sessionBudget = Number(course.budget);
-    const reward = tCount * 5000;
 
-    const insertRes = await client.query(
-      `
-      INSERT INTO training_logs (
-        session_code, course_code, session_name, member_phone, member_name, role,
-        token_tier, token_count, session_budget, total_tokens, reward_amount,
-        approver, status, training_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      RETURNING *
-    `,
-      [
-        sessionCode,
-        course.course_code,
-        course.course_name,
-        member_phone || '',
-        String(member_name).trim(),
-        '',
-        '',
-        tCount,
-        sessionBudget,
-        newTotalTokens,
-        reward,
-        approver,
-        status,
-        trainingDate,
-      ]
-    );
+    const insertedRows: any[] = [];
+    for (const p of participants) {
+      const tCount = Number(p.token_count);
+      const reward = Number(p.reward_amount) || tCount * 5000;
+      const insertRes = await client.query(
+        `INSERT INTO training_logs (
+          session_code, course_code, session_name, member_phone, member_name, role,
+          token_tier, token_count, session_budget, total_tokens, reward_amount,
+          approver, status, training_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *`,
+        [
+          sessionCode, course.course_code, course.course_name,
+          String(p.member_phone || '').trim(), String(p.member_name).trim(),
+          '', '', tCount, sessionBudget, newTotalTokens, reward,
+          approver, status, trainingDate,
+        ]
+      );
+      insertedRows.push(insertRes.rows[0]);
+    }
 
     await client.query(
       `UPDATE training_logs
-       SET total_tokens = $1, session_budget = $2, reward_amount = token_count * 5000
+       SET total_tokens = $1, session_budget = $2
        WHERE course_code = $3 AND training_date = $4::date`,
        [newTotalTokens, sessionBudget, courseCode, trainingDate]
     );
     await client.query('COMMIT');
 
-    return NextResponse.json({ success: true, log: insertRes.rows[0], session_code: sessionCode });
+    return NextResponse.json({ success: true, log: insertedRows[0], logs: insertedRows, session_code: sessionCode });
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Error adding training log:', error);
@@ -326,7 +334,7 @@ export async function PUT(req: NextRequest) {
         const sessionBudget = budgetResult.rows[0] ? Number(budgetResult.rows[0].budget) : totalTokens * 5000;
         await client.query(
           `UPDATE training_logs
-           SET total_tokens = $1, session_budget = $2, reward_amount = token_count * 5000
+           SET total_tokens = $1, session_budget = $2
            WHERE course_code IS NOT DISTINCT FROM $3 AND training_date = $4::date`,
           [totalTokens, sessionBudget, affectedCourseCode, affectedDate]
         );
@@ -414,7 +422,7 @@ export async function DELETE(req: NextRequest) {
       const sessionBudget = course.rows[0] ? Number(course.rows[0].budget) : totalTokens * 5000;
       await client.query(
         `UPDATE training_logs
-         SET total_tokens = $1, session_budget = $2, reward_amount = token_count * 5000
+         SET total_tokens = $1, session_budget = $2
          WHERE course_code IS NOT DISTINCT FROM $3 AND training_date = $4::date`,
         [totalTokens, sessionBudget, course_code, training_date]
       );

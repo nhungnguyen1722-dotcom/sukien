@@ -107,9 +107,13 @@ export default function TrainingManagement({
   const [courses, setCourses] = useState(initialCourses);
   const [courseSearch, setCourseSearch] = useState('');
   const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false);
+  const [courseCardSearch, setCourseCardSearch] = useState('');
+  const [courseTypeFilter, setCourseTypeFilter] = useState<'all' | 'Online' | 'Offline'>('all');
+  const [selectedCourseCardCode, setSelectedCourseCardCode] = useState<string | null>(null);
   const [editingLog, setEditingLog] = useState<TrainingLog | null>(null);
   const [viewingLog, setViewingLog] = useState<TrainingLog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [participants, setParticipants] = useState<Array<{ member_name: string; member_phone: string; token_count: number; reward_amount: number }>>([{ member_name: '', member_phone: '', token_count: 0, reward_amount: 0 }]);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const showToast = (type: 'success' | 'error', text: string) => {
@@ -168,29 +172,61 @@ export default function TrainingManagement({
 
   const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.member_name.trim()) {
-      showToast('error', 'Vui lòng nhập họ tên nhân sự');
-      return;
-    }
     if (!formData.course_code) {
       showToast('error', 'Vui lòng tìm và chọn khóa học từ danh mục');
       return;
     }
 
+    if (editingLog) {
+      // Single edit mode
+      if (!formData.member_name.trim()) {
+        showToast('error', 'Vui lòng nhập họ tên nhân sự');
+        return;
+      }
+    } else {
+      // Multi-participant mode
+      for (let i = 0; i < participants.length; i++) {
+        if (!participants[i].member_name.trim()) {
+          showToast('error', `Vui lòng nhập họ tên nhân sự (dòng ${i + 1})`);
+          return;
+        }
+        if (!participants[i].token_count || participants[i].token_count <= 0) {
+          showToast('error', `Vui lòng nhập số token hợp lệ (dòng ${i + 1})`);
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
     try {
+      const payload = editingLog
+        ? {
+            ...formData,
+            id: editingLog.id,
+            session_code: sessionCodePreview,
+          }
+        : {
+            course_code: formData.course_code,
+            training_date: formData.training_date,
+            approver: formData.approver,
+            status: formData.status,
+            session_code: sessionCodePreview,
+            participants: participants.map((p) => ({
+              member_name: p.member_name,
+              member_phone: p.member_phone,
+              token_count: p.token_count,
+              reward_amount: p.reward_amount || p.token_count * 5000,
+            })),
+          };
+
       const res = await fetch('/api/admin/training-logs', {
         method: editingLog ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          session_code: sessionCodePreview,
-          ...(editingLog ? { id: editingLog.id } : {}),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
-        showToast('success', editingLog ? 'Đã cập nhật lượt đào tạo.' : 'Đã lưu lượt tham gia đào tạo.');
+        showToast('success', editingLog ? 'Đã cập nhật lượt đào tạo.' : `Đã lưu ${participants.length} lượt tham gia đào tạo.`);
         setIsAddModalOpen(false);
         setEditingLog(null);
         // Refresh logs
@@ -289,6 +325,7 @@ export default function TrainingManagement({
       approver: '',
       status: 'Chờ duyệt',
     });
+    setParticipants([{ member_name: '', member_phone: '', token_count: 0, reward_amount: 0 }]);
     setIsAddModalOpen(true);
   };
 
@@ -402,16 +439,43 @@ export default function TrainingManagement({
         l.session_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         l.member_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (l.member_phone && l.member_phone.includes(searchQuery)) ||
-        (l.session_name && l.session_name.toLowerCase().includes(searchQuery.toLowerCase()));
+        (l.session_name && l.session_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (l.course_code && l.course_code.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchDate = Boolean(l.training_date)
         && l.training_date! >= dateRange.start
         && l.training_date! <= dateRange.endInclusive
         && (!selectedDate || l.training_date === selectedDate);
 
-      return matchSearch && matchDate;
+      const matchCourseCard = !selectedCourseCardCode || l.course_code === selectedCourseCardCode;
+
+      return matchSearch && matchDate && matchCourseCard;
     });
-  }, [dateRange.endInclusive, dateRange.start, logs, searchQuery, selectedDate]);
+  }, [dateRange.endInclusive, dateRange.start, logs, searchQuery, selectedDate, selectedCourseCardCode]);
+
+  const displayedCourses = useMemo(() => {
+    return courses.filter((c) => {
+      const matchType = courseTypeFilter === 'all' || c.training_type.toLowerCase() === courseTypeFilter.toLowerCase();
+      const query = courseCardSearch.trim().toLowerCase();
+      const matchQuery = !query ||
+        c.course_code.toLowerCase().includes(query) ||
+        c.course_name.toLowerCase().includes(query) ||
+        c.training_type.toLowerCase().includes(query);
+      return matchType && matchQuery;
+    });
+  }, [courses, courseTypeFilter, courseCardSearch]);
+
+  const courseStatsMap = useMemo(() => {
+    const map = new Map<string, { totalSessions: number; totalTokens: number }>();
+    logs.forEach((log) => {
+      if (!log.course_code) return;
+      const current = map.get(log.course_code) || { totalSessions: 0, totalTokens: 0 };
+      current.totalSessions += 1;
+      current.totalTokens += log.token_count || 0;
+      map.set(log.course_code, current);
+    });
+    return map;
+  }, [logs]);
 
   const trainingRows = useMemo(
     () => [...filteredLogs].sort((a, b) => (a.training_date || '').localeCompare(b.training_date || '') || a.id - b.id),
@@ -676,11 +740,34 @@ export default function TrainingManagement({
 
       </div>
 
-      {/* Main Content Area: Table (Left 9 cols) + Right Sidebar (Right 3 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 9 Cols: Filters + Table */}
-        <div className="lg:col-span-12 space-y-4">
-          {/* Filter Bar (Hình 15) */}
+      {/* Main Content Area: Table (Left cols) + Course Category Cards (Right cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left: Table Section */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+          {/* Header Title for Left Table */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>Danh sách nhật ký đào tạo</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-700 font-semibold font-mono">
+                  {trainingRows.length} lượt
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Theo dõi chi tiết các lượt tham gia học, tích lũy token và duyệt thù lao.</p>
+            </div>
+            {selectedCourseCardCode && (
+              <button
+                type="button"
+                onClick={() => setSelectedCourseCardCode(null)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold hover:bg-blue-100 transition cursor-pointer"
+              >
+                <span>Đang lọc: {selectedCourseCardCode}</span>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Bar */}
           <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
@@ -694,7 +781,7 @@ export default function TrainingManagement({
               />
             </div>
 
-            {/* Dropdowns */}
+            {/* Actions */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Nút Xuất Báo Cáo Excel */}
               <button
@@ -706,7 +793,6 @@ export default function TrainingManagement({
                 <Download className="w-3.5 h-3.5" />
                 <span>{isExporting ? 'Đang xuất...' : 'Xuất Báo Cáo Excel'}</span>
               </button>
-
 
               {/* Nút Thêm buổi học */}
               <button
@@ -720,44 +806,48 @@ export default function TrainingManagement({
             </div>
           </div>
 
-          {/* Table (Hình 15) */}
+          {/* Table */}
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
+            <div className="overflow-x-auto max-h-[720px] overflow-y-auto custom-scrollbar">
+              <table className="w-full text-left text-xs min-w-[1080px]">
+                <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs text-slate-500 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200/80 shadow-2xs">
                   <tr>
-                    <th className="py-3.5 px-3 text-center">STT</th>
-                    <th className="py-3.5 px-3">Ngày học</th>
-                    <th className="py-3.5 px-3">Mã khóa học</th>
-                    <th className="py-3.5 px-3">Tên buổi học</th>
-                    <th className="py-3.5 px-3 text-right">Ngân sách buổi</th>
-                    <th className="py-3.5 px-3">Người tham gia</th>
-                    <th className="py-3.5 px-3 text-right">Số token</th>
-                    <th className="py-3.5 px-3 text-right">Tổng token buổi</th>
-                    <th className="py-3.5 px-3 text-right">Thù lao thực nhận</th>
-                    <th className="py-3.5 px-3">Trạng thái</th>
-                    <th className="py-3.5 px-3 text-center">Thao tác</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">STT</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">Ngày học</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">Mã khóa học</th>
+                    <th className="py-3.5 px-3 min-w-[160px]">Tên buổi học</th>
+                    <th className="py-3.5 px-3 text-right whitespace-nowrap">Ngân sách buổi</th>
+                    <th className="py-3.5 px-3 min-w-[140px] whitespace-nowrap">Người tham gia</th>
+                    <th className="py-3.5 px-3 text-right whitespace-nowrap">Số token</th>
+                    <th className="py-3.5 px-3 text-right whitespace-nowrap">Tổng token buổi</th>
+                    <th className="py-3.5 px-3 text-right whitespace-nowrap">Thù lao thực nhận</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">Trạng thái</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedTrainingRows.map((log, idx) => (
-                    <tr key={log.id} className="align-top hover:bg-slate-50/60">
-                      <td className="py-3 px-3 text-center text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                    <tr key={log.id} className="align-middle hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3 px-3 text-center text-slate-400 whitespace-nowrap">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                       <td className="py-3 px-3 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
-                      <td className="py-3 px-3 whitespace-nowrap font-mono">{log.course_code || '—'}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-mono">
+                        <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                          {log.course_code || log.session_code || '—'}
+                        </span>
+                      </td>
                       <td className="py-3 px-3 font-semibold">{log.session_name || '—'}</td>
-                      <td className="py-3 px-3 text-right font-mono">{formatCurrency(log.session_budget)}</td>
-                      <td className="py-3 px-3"><span className="flex flex-col font-medium"><span>{log.member_name}</span><span className="text-slate-500">{log.member_phone || '—'}</span></span></td>
-                      <td className="py-3 px-3 text-right">{log.token_count}</td>
-                      <td className="py-3 px-3 text-right">{log.total_tokens}</td>
-                      <td className="py-3 px-3 text-right font-semibold">{formatCurrency(log.reward_amount)}</td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(log.session_budget)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap"><span className="flex flex-col font-medium"><span>{log.member_name}</span><span className="text-slate-500 text-[11px]">{log.member_phone || '—'}</span></span></td>
+                      <td className="py-3 px-3 text-right font-bold text-amber-600 whitespace-nowrap">{log.token_count}</td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">{log.total_tokens}</td>
+                      <td className="py-3 px-3 text-right font-semibold text-emerald-700 whitespace-nowrap">{formatCurrency(log.reward_amount)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">
                         <select
                           aria-label={`Trạng thái duyệt của ${log.member_name}`}
                           value={log.status}
                           disabled={updatingStatusId !== null}
                           onChange={(event) => void handleStatusChange(log, event.target.value)}
-                          className={`rounded-lg border px-2 py-1 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-60 ${
+                          className={`rounded-lg border px-2 py-1 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-60 cursor-pointer ${
                             log.status === 'Đã duyệt'
                               ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                               : 'border-amber-200 bg-amber-50 text-amber-700'
@@ -767,18 +857,18 @@ export default function TrainingManagement({
                           <option value="Chờ duyệt">Chờ duyệt</option>
                         </select>
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-3 whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => setViewingLog(log)} aria-label={`Xem lượt đào tạo của ${log.member_name}`} title="Xem"
-                            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50">
+                            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 cursor-pointer transition">
                             <Eye className="h-4 w-4" />
                           </button>
                           <button type="button" onClick={() => openEditLog(log)} aria-label={`Sửa lượt đào tạo của ${log.member_name}`} title="Sửa"
-                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50">
+                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 cursor-pointer transition">
                             <Edit2 className="h-4 w-4" />
                           </button>
                           <button type="button" onClick={() => handleDeleteLog(log.id)} aria-label={`Xóa lượt đào tạo của ${log.member_name}`} title="Xóa"
-                            className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50">
+                            className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer transition">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -837,70 +927,211 @@ export default function TrainingManagement({
           </div>
         </div>
 
-      </div>
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Danh mục khóa học đào tạo</h2>
-            <p className="mt-1 text-xs text-slate-500">Danh mục này được dùng trực tiếp khi ghi nhận lượt tham gia.</p>
-          </div>
-          <button type="button" onClick={() => {
-            setEditingCourse(null);
-            setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 250000 });
-            setIsAddCourseOpen(true);
-          }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-700">
-            <Plus className="h-3.5 w-3.5" />
-            Thêm dữ liệu
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="p-3">Mã khóa học</th>
-                <th className="p-3">Tên khóa học</th>
-                <th className="p-3">Hình thức</th>
-                <th className="p-3 text-right">Giá trị token</th>
-                <th className="p-3 text-right">Ngân sách</th>
-                <th className="p-3 text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {courses.map((course) => (
-                <tr key={course.course_code}>
-                  <td className="p-3 font-mono font-semibold">{course.course_code}</td>
-                  <td className="p-3 font-medium">{course.course_name}</td>
-                  <td className="p-3">{course.training_type}</td>
-                  <td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(course.token_value)}</td>
-                  <td className="p-3 text-right">{formatCurrency(course.budget)}</td>
-                  <td className="p-2">
-                    <div className="flex items-center justify-center gap-1">
-                      <button type="button" onClick={() => openCourseEditor(course)}
-                        aria-label={`Sửa khóa học ${course.course_code}`} title="Sửa"
-                        className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50">
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button type="button" onClick={() => void handleDeleteCourse(course)}
-                        disabled={deletingCourseCode !== null} aria-label={`Xóa khóa học ${course.course_code}`} title="Xóa"
-                        className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-50">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+        {/* Right: Danh mục Khóa học đào tạo (Cards) */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 mb-3.5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>DANH MỤC BUỔI ĐÀO TẠO</span>
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                      {courses.length} Buổi • {courses.reduce((sum, c) => sum + c.token_value, 0)} Token
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Định mức token & học phí chuẩn</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCourse(null);
+                  setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 250000 });
+                  setIsAddCourseOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Thêm khóa học</span>
+                <span className="sm:hidden">Thêm</span>
+              </button>
+            </div>
+
+            {/* Search & Type Filters */}
+            <div className="space-y-2.5 mb-3.5">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Tìm mã hoặc tên khóa học..."
+                  value={courseCardSearch}
+                  onChange={(e) => setCourseCardSearch(e.target.value)}
+                  className="w-full pl-8 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 transition"
+                />
+                {courseCardSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setCourseCardSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Type Filter Tabs */}
+              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                {(['all', 'Online', 'Offline'] as const).map((type) => {
+                  const count = type === 'all'
+                    ? courses.length
+                    : courses.filter((c) => c.training_type.toLowerCase() === type.toLowerCase()).length;
+                  const label = type === 'all' ? 'Tất cả' : type;
+                  const isActive = courseTypeFilter === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setCourseTypeFilter(type)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition text-center cursor-pointer ${
+                        isActive
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      {label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Filter Active Alert */}
+            {selectedCourseCardCode && (
+              <div className="mb-3 p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Filter className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="truncate">Lọc nhật ký: <strong>{selectedCourseCardCode}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourseCardCode(null)}
+                  className="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer shrink-0 ml-2"
+                >
+                  Bỏ lọc
+                </button>
+              </div>
+            )}
+
+            {/* Cards List */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 max-h-[720px] overflow-y-auto pr-1">
+              {displayedCourses.map((course) => {
+                const isOnline = course.training_type.toLowerCase() === 'online';
+                const isSelected = selectedCourseCardCode === course.course_code;
+
+                return (
+                  <div
+                    key={course.course_code}
+                    onClick={() => {
+                      setSelectedCourseCardCode(isSelected ? null : course.course_code);
+                    }}
+                    className={`group relative rounded-2xl p-4 transition-all duration-200 cursor-pointer border flex flex-col justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-blue-50/60 border-blue-500 shadow-sm ring-2 ring-blue-500/20'
+                        : 'bg-white border-slate-200/90 hover:border-blue-400 hover:shadow-md'
+                    }`}
+                  >
+                    {/* Top Row: Mã khóa học + Trạng thái Online / Offline + Nút Sửa, Xóa (Cùng 1 dòng) */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/70 tracking-wider">
+                          {course.course_code}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full">
+                            Đang xem
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        {/* Trạng thái Online / Offline */}
+                        {isOnline ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Online
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Offline
+                          </span>
+                        )}
+
+                        {/* Nút Sửa & Xóa cùng dòng */}
+                        <div className="flex items-center gap-0.5 ml-1">
+                          <button
+                            type="button"
+                            onClick={() => openCourseEditor(course)}
+                            aria-label={`Sửa khóa học ${course.course_code}`}
+                            title="Sửa khóa học"
+                            className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteCourse(course)}
+                            disabled={deletingCourseCode !== null}
+                            aria-label={`Xóa khóa học ${course.course_code}`}
+                            title="Xóa khóa học"
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {courses.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Chưa có khóa học trong danh mục.</td></tr>}
-            </tbody>
-          </table>
+
+                    {/* Middle: Tên khóa học */}
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm leading-snug group-hover:text-blue-600 transition-colors">
+                        {course.course_name}
+                      </h3>
+                    </div>
+
+                    {/* Bottom Row: Token (left) + Đồng (right) - clean inline layout */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-sm font-semibold text-slate-500">
+                        {new Intl.NumberFormat('vi-VN').format(course.token_value)} Token
+                      </span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-900">
+                        {formatCurrency(course.budget)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {displayedCourses.length === 0 && (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs col-span-full">
+                  Không tìm thấy khóa học nào phù hợp.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
       </>}
 
       {/* Modal: Thêm hoặc sửa lượt tham gia đào tạo */}
       {activeView === 'sessions' && isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div>
                 <h3 className="font-bold text-base text-slate-900">{editingLog ? 'Sửa lượt đào tạo' : 'Thêm chấm công đào tạo'}</h3>
@@ -976,6 +1207,14 @@ export default function TrainingManagement({
                             });
                             setCourseSearch(`${course.course_code} - ${course.course_name}`);
                             setIsCourseDropdownOpen(false);
+                            // Auto-fill token count for all participants when course is selected (add mode)
+                            if (!editingLog) {
+                              setParticipants((prev) => prev.map((p) => ({
+                                ...p,
+                                token_count: Number(course.token_value),
+                                reward_amount: Number(course.token_value) * 5000,
+                              })));
+                            }
                           }}
                           className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-blue-50"
                         >
@@ -994,51 +1233,164 @@ export default function TrainingManagement({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Họ tên Nhân sự *</label>
-                  <input
-                    type="text"
-                    required
-                    list="training-member-options"
-                    value={formData.member_name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      const member = memberByName.get(name.trim().toLocaleLowerCase('vi-VN'));
-                      setFormData({ ...formData, member_name: name, member_phone: member?.phone || '' });
-                    }}
-                    placeholder="Tìm và chọn nhân sự"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium"
-                  />
-                  <datalist id="training-member-options">
-                    {initialMembers.map((member) => <option key={`${member.full_name}-${member.phone}`} value={member.full_name} />)}
-                  </datalist>
+              {/* === Participant Rows (Multi or Single Edit) === */}
+              {editingLog ? (
+                /* Single-edit mode: same as before */
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Họ tên Nhân sự *</label>
+                      <input
+                        type="text"
+                        required
+                        list="training-member-options"
+                        value={formData.member_name}
+                        onChange={(e) => {
+                          const name = e.target.value;
+                          const member = memberByName.get(name.trim().toLocaleLowerCase('vi-VN'));
+                          setFormData({ ...formData, member_name: name, member_phone: member?.phone || '' });
+                        }}
+                        placeholder="Tìm và chọn nhân sự"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                      />
+                      <datalist id="training-member-options">
+                        {initialMembers.map((member) => <option key={`${member.full_name}-${member.phone}`} value={member.full_name} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Số điện thoại</label>
+                      <input
+                        type="text"
+                        value={formData.member_phone}
+                        readOnly
+                        placeholder="0912 345 671"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Số Token thực nhận *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        value={formData.token_count || ''}
+                        onChange={(e) => setFormData({ ...formData, token_count: Number(e.target.value) || 0 })}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Mức thù lao</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={formatCurrency(formData.token_count * 5000)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Multi-participant mode */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-800">Danh sách nhân sự tham gia ({participants.length} người)</label>
+                    <button
+                      type="button"
+                      onClick={() => setParticipants((prev) => [...prev, {
+                        member_name: '',
+                        member_phone: '',
+                        token_count: selectedCourse ? selectedCourse.token_value : 0,
+                        reward_amount: selectedCourse ? selectedCourse.token_value * 5000 : 0,
+                      }])}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-bold border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Thêm nhân sự
+                    </button>
+                  </div>
+                  {participants.map((p, idx) => (
+                    <div key={idx} className="relative rounded-xl border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                      {participants.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setParticipants((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-2 right-2 p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Xóa nhân sự này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <div className="text-[11px] font-bold text-slate-500 mb-1">Nhân sự {idx + 1}</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-0.5">Họ tên *</label>
+                          <input
+                            type="text"
+                            required
+                            list={`training-member-options-${idx}`}
+                            value={p.member_name}
+                            onChange={(e) => {
+                              const name = e.target.value;
+                              const member = memberByName.get(name.trim().toLocaleLowerCase('vi-VN'));
+                              setParticipants((prev) => prev.map((item, i) =>
+                                i === idx ? { ...item, member_name: name, member_phone: member?.phone || item.member_phone } : item
+                              ));
+                            }}
+                            placeholder="Tìm và chọn nhân sự"
+                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-medium"
+                          />
+                          <datalist id={`training-member-options-${idx}`}>
+                            {initialMembers.map((member) => <option key={`${member.full_name}-${member.phone}-${idx}`} value={member.full_name} />)}
+                          </datalist>
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-0.5">SĐT</label>
+                          <input
+                            type="text"
+                            value={p.member_phone}
+                            readOnly
+                            placeholder="0912 345 671"
+                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-0.5">Số Token *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            required
+                            value={p.token_count || ''}
+                            onChange={(e) => {
+                              const tc = Number(e.target.value) || 0;
+                              setParticipants((prev) => prev.map((item, i) =>
+                                i === idx ? { ...item, token_count: tc, reward_amount: tc * 5000 } : item
+                              ));
+                            }}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-0.5">Thù lao</label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={formatCurrency(p.reward_amount || p.token_count * 5000)}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-center font-bold text-slate-500 cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Số điện thoại</label>
-                  <input
-                    type="text"
-                    value={formData.member_phone}
-                    readOnly
-                    placeholder="0912 345 671"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono"
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Số Token thực nhận *</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    required
-                    value={formData.token_count || ''}
-                    onChange={(e) => setFormData({ ...formData, token_count: Number(e.target.value) || 0 })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center font-bold"
-                  />
-                </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Người duyệt</label>
                   <input
@@ -1053,24 +1405,26 @@ export default function TrainingManagement({
                     {initialMembers.map((member) => <option key={`approver-${member.full_name}-${member.phone}`} value={member.full_name} />)}
                   </datalist>
                 </div>
-              </div>
-
-              <div>
-                <label htmlFor="training-log-status" className="mb-1 block font-semibold text-slate-700">Trạng thái duyệt *</label>
-                <select
-                  id="training-log-status"
-                  required
-                  value={formData.status}
-                  onChange={(event) => setFormData({ ...formData, status: event.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  <option value="Đã duyệt">Đã duyệt</option>
-                  <option value="Chờ duyệt">Chờ duyệt</option>
-                </select>
+                <div>
+                  <label htmlFor="training-log-status" className="mb-1 block font-semibold text-slate-700">Trạng thái duyệt *</label>
+                  <select
+                    id="training-log-status"
+                    required
+                    value={formData.status}
+                    onChange={(event) => setFormData({ ...formData, status: event.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <option value="Đã duyệt">Đã duyệt</option>
+                    <option value="Chờ duyệt">Chờ duyệt</option>
+                  </select>
+                </div>
               </div>
 
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800">
-                Thù lao lượt này: <strong>{formatCurrency(formData.token_count * 5000)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.
+                {editingLog
+                  ? <>Thù lao lượt này: <strong>{formatCurrency(formData.token_count * 5000)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.</>
+                  : <>Tổng thù lao ({participants.length} người): <strong>{formatCurrency(participants.reduce((s, p) => s + (p.reward_amount || p.token_count * 5000), 0))}</strong> — Tổng token: <strong>{participants.reduce((s, p) => s + p.token_count, 0)}</strong></>
+                }
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -1086,7 +1440,7 @@ export default function TrainingManagement({
                   disabled={isSubmitting}
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm transition disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Đang lưu...' : editingLog ? 'Lưu thay đổi' : 'Lưu buổi học'}
+                  {isSubmitting ? 'Đang lưu...' : editingLog ? 'Lưu thay đổi' : `Lưu buổi học (${participants.length} người)`}
                 </button>
               </div>
             </form>
@@ -1129,13 +1483,13 @@ export default function TrainingManagement({
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="training-course-tokens" className="mb-1 block font-semibold text-slate-700">Token *</label>
+                  <label htmlFor="training-course-tokens" className="mb-1 block font-semibold text-slate-700">Số lượng Token *</label>
                   <input id="training-course-tokens" type="number" min="1" step="1" required value={courseForm.token_value}
                     onChange={(event) => setCourseForm({ ...courseForm, token_value: Number(event.target.value) })}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
                 </div>
                 <div>
-                  <label htmlFor="training-course-budget" className="mb-1 block font-semibold text-slate-700">Ngân sách *</label>
+                  <label htmlFor="training-course-budget" className="mb-1 block font-semibold text-slate-700">Học phí (VNĐ) *</label>
                   <input id="training-course-budget" type="number" min="0" step="1" required value={courseForm.budget}
                     onChange={(event) => setCourseForm({ ...courseForm, budget: Number(event.target.value) })}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />

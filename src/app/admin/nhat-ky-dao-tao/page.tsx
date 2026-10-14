@@ -65,7 +65,7 @@ async function getTrainingData() {
         token_count: Number(row.token_count || 0),
         session_budget: Number(row.session_budget || 0),
         total_tokens: Number(row.total_tokens || 0),
-        reward_amount: Number(row.token_count || 0) * 5000,
+        reward_amount: Number(row.reward_amount ?? (Number(row.token_count || 0) * 5000)),
         training_date: row.training_date || '',
       };
     });
