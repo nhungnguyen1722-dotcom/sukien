@@ -3,11 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { formatDateDM, getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
+import { formatDateDM, getMonthWeekNo, getMonthWeekRange, getPeriodWeekNo } from '@/lib/weekRanges';
 import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import ContractTermBadge from '@/components/admin/ContractTermBadge';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
-import { isContractActiveInPeriod, nextDate } from '@/lib/contractTerms';
+import { nextDate } from '@/lib/contractTerms';
 import {
   calculateContractAllBeneficiaries,
   decomposeBeneficiarySource,
@@ -352,12 +352,8 @@ function withinPeriod(date: string, period: WeeklyAllocation) {
 
 function contractWithinPeriod(contract: FundContract, period: WeeklyAllocation) {
   const range = getEffectivePeriodRange(period);
-  return isContractActiveInPeriod(
-    contract.contract_date,
-    contract.contract_type,
-    range.start,
-    range.endExclusive || nextDate(range.endInclusive),
-  );
+  const contractDate = contract.contract_date.slice(0, 10);
+  return contractDate >= range.start && contractDate < (range.endExclusive || nextDate(range.endInclusive));
 }
 
 function withinMonth(date: string, month: string) {
@@ -436,24 +432,17 @@ function areNamesMatching(a?: string | null, b?: string | null): boolean {
 }
 
 function getContractWeekLabel(contract: FundContract): string {
-  const periodCode = contract.source_period_code || '';
-  if (periodCode === '2026-10-W1') return 'Tuần 1 Tháng 10/2026';
-  if (periodCode === '2026-10-W2') return 'Tuần 2 Tháng 10/2026';
-  if (periodCode === '2026-10-W3') return 'Tuần 3 Tháng 10/2026';
-  if (periodCode === '2026-10-W4') return 'Tuần 4 Tháng 10/2026';
-  if (periodCode === '2026-10-W5') return 'Tuần 5 Tháng 10/2026';
-  if (periodCode === '2026-09-W5') return 'Tuần 5 Tháng 9/2026';
-  if (periodCode === '2026-09-W4') return 'Tuần 4 Tháng 9/2026';
-  if (periodCode === '2026-09-W3') return 'Tuần 3 Tháng 9/2026';
-
   const date = (contract.contract_date || '').slice(0, 10);
-  if (date >= '2026-10-03' && date <= '2026-10-09') return 'Tuần 1 Tháng 10/2026';
-  if (date >= '2026-10-10' && date <= '2026-10-16') return 'Tuần 2 Tháng 10/2026';
-  if (date >= '2026-10-17' && date <= '2026-10-23') return 'Tuần 3 Tháng 10/2026';
-  if (date >= '2026-10-24' && date <= '2026-10-30') return 'Tuần 4 Tháng 10/2026';
-  if (date >= '2026-10-31') return 'Tuần 5 Tháng 10/2026';
-  if (date >= '2026-09-26' && date <= '2026-10-02') return 'Tuần 5 Tháng 9/2026';
-  if (date.startsWith('2026-10')) return 'Tháng 10/2026';
+  const month = date >= '2026-09-01' && date <= '2026-10-02'
+    ? '2026-09'
+    : date >= '2026-10-03' && date <= '2026-11-06'
+      ? '2026-10'
+      : date.slice(0, 7);
+  const weekNo = getMonthWeekNo(date, month);
+  if (weekNo) return `Tuần ${weekNo} Tháng ${Number(month.slice(5, 7))}/${month.slice(0, 4)}`;
+
+  const periodCode = contract.source_period_code || '';
+  if (periodCode) return periodCode;
   return 'Kỳ đối chiếu';
 }
 
@@ -718,30 +707,31 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const [selectedYear, setSelectedYear] = useState(currentMonth.slice(0, 4));
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const normalizedWeeklyAllocations = useMemo(() => {
-    const septemberPeriods = new Map<string, { label: string; code: string; start: string }>();
-    weeklyAllocations
-      .filter((row) => row.period_month === '2026-09' && !row.period_code.endsWith('-MONTH'))
-      .forEach((row) => {
-        if (!septemberPeriods.has(row.period_code)) {
-          septemberPeriods.set(row.period_code, { label: row.period_label, code: row.period_code, start: row.period_start });
-        }
+    const periodsByMonth = new Map<string, WeeklyAllocation[]>();
+    for (const row of weeklyAllocations) {
+      if (row.period_code.endsWith('-MONTH')) continue;
+      const monthPeriods = periodsByMonth.get(row.period_month) || [];
+      if (!monthPeriods.some((period) => period.period_code === row.period_code)) monthPeriods.push(row);
+      periodsByMonth.set(row.period_month, monthPeriods);
+    }
+    const weekNumbers = new Map<string, number>();
+    for (const periods of periodsByMonth.values()) {
+      periods.sort((a, b) => a.period_start.localeCompare(b.period_start));
+      periods.forEach((period, index) => {
+        weekNumbers.set(period.period_code, getPeriodWeekNo(period.period_label, period.period_code, index + 1));
       });
-    const orderedSeptemberPeriods = Array.from(septemberPeriods.values()).sort((a, b) => a.start.localeCompare(b.start));
-    const weekNumbers = new Map(orderedSeptemberPeriods.map((period, index) => [
-      period.code,
-      getPeriodWeekNo(period.label, period.code, index + 1),
-    ]));
+    }
 
     const mapped = weeklyAllocations.map((row) => {
       const standardRate = DEFAULT_FUND_RATES[row.fund_key];
       const rawRate = Number(row.allocation_rate || 0);
       const allocation_rate = standardRate !== undefined ? standardRate : (rawRate > 1 ? rawRate / 100 : rawRate);
-      if (row.period_month !== '2026-09' || row.period_code.endsWith('-MONTH')) {
+      if (row.period_code.endsWith('-MONTH')) {
         return { ...row, allocation_rate };
       }
       const weekNo = weekNumbers.get(row.period_code);
       if (!weekNo) return { ...row, allocation_rate };
-      const range = getMonthWeekRange('2026-09', weekNo);
+      const range = getMonthWeekRange(row.period_month, weekNo);
       return { ...row, allocation_rate, period_start: range.start, period_end: range.endInclusive };
     });
 
@@ -848,12 +838,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const monthContracts = useMemo(() => {
     const range = getMonthWeekRange(selectedMonth);
     return normalizedContracts
-      .filter((contract) => isContractActiveInPeriod(
-        contract.contract_date,
-        contract.contract_type,
-        range.start,
-        range.endExclusive,
-      ))
+      .filter((contract) => {
+        const contractDate = contract.contract_date.slice(0, 10);
+        return contractDate >= range.start && contractDate < range.endExclusive;
+      })
       .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   }, [normalizedContracts, selectedMonth]);
   const monthBase = useMemo(() => {

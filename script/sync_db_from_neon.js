@@ -2,16 +2,16 @@ const { Pool } = require('pg');
 const { loadEnvConfig } = require('@next/env');
 loadEnvConfig(process.cwd());
 
-const NEON_CONN_STRING = process.env.NEON_CONN_STRING;
+const NEON_CONN_STRING = process.argv[2] || process.env.NEON_CONN_STRING;
 if (!NEON_CONN_STRING) {
-  throw new Error('NEON_CONN_STRING is required in the environment.');
+  throw new Error('NEON_CONN_STRING is required in the environment or as first argument.');
 }
 
 const LOCAL_CONFIG = {
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
+  password: process.env.DB_PASSWORD || '1111222267',
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5433', 10),
+  port: parseInt(process.env.DB_PORT || '5432', 10),
   database: process.env.DB_NAME || 'postgismap',
 };
 
@@ -296,6 +296,32 @@ async function syncDatabases() {
         } catch (seqErr) {
           console.warn(`  ! Lỗi sequence "${seqName}":`, seqErr.message);
         }
+      }
+    }
+
+    // 5b. Đồng bộ Views
+    console.log('\n=== ĐỒNG BỘ VIEWS TỪ NEON ===\n');
+    const viewsToSync = [
+      {
+        name: 'payment_journal',
+        sql: `CREATE OR REPLACE VIEW payment_journal AS SELECT id, request_code, request_date, fund_source, detail_content, requester_id, requester_name, approver_id, approver_name, beneficiary_name, proposed_amount, available_balance, fund_alert, status, actual_expense, receipt_url, created_at, requester_phone, approver_phone, beneficiary_phone, approval_date, payment_date, source_row, source_complete, request_type, beneficiary_bank_account, beneficiary_bank_name, source_period, contract_id, expense_type, beneficiary_user_id, source_contract_id, beneficiary_role FROM transaction_logs;`
+      },
+      {
+        name: 'operations_fund',
+        sql: `CREATE OR REPLACE VIEW operations_fund AS SELECT id, period_code, period_month, period_label, period_start, period_end, fund_key, fund_source, allocation_rate, requested_amount, source_sheet, allocated_amount, paid_amount, remaining_amount FROM fund_weekly_allocations WHERE ((fund_key)::text = ANY ((ARRAY['operations'::character varying, 'support_cn'::character varying, 'support_kt'::character varying])::text[]));`
+      },
+      {
+        name: 'teamlead_fund',
+        sql: `CREATE OR REPLACE VIEW teamlead_fund AS SELECT tp.id AS period_id, tp.month AS period_month, tp.week_no, pr.id AS payout_row_id, pr.member_name, pr.team_name, pr.role AS role_title, pr.sales_basis, pr.payout_30, pr.payout_70, pr.total_amount FROM (teamlead_periods tp LEFT JOIN teamlead_payout_rows pr ON ((pr.period_id = tp.id)));`
+      }
+    ];
+
+    for (const v of viewsToSync) {
+      try {
+        await localClient.query(v.sql);
+        console.log(`  ✓ Đã cập nhật view "${v.name}"`);
+      } catch (err) {
+        console.warn(`  ! Lỗi cập nhật view "${v.name}":`, err.message);
       }
     }
 

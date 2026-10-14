@@ -53,15 +53,6 @@ interface TrainingContract {
   allocation_base: number;
 }
 
-interface TrainingFundExpense {
-  id: number;
-  expense_date: string;
-  detail_content: string;
-  amount: number;
-  status: string;
-  fund_source: string;
-}
-
 export interface TrainingCourse {
   id?: number;
   course_code: string;
@@ -73,10 +64,9 @@ export interface TrainingCourse {
 
 interface TrainingManagementProps {
   initialLogs: TrainingLog[];
-  initialCourses?: TrainingCourse[];
+  initialCourses: TrainingCourse[];
   initialMembers: TrainingMember[];
   initialContracts: TrainingContract[];
-  initialExpenses: TrainingFundExpense[];
   initialStats: {
     totalSessions: number;
     totalMembers: number;
@@ -90,32 +80,20 @@ export default function TrainingManagement({
   initialCourses,
   initialMembers,
   initialContracts,
-  initialExpenses,
   initialStats,
 }: TrainingManagementProps) {
   const [logs, setLogs] = useState<TrainingLog[]>(initialLogs);
-  const [courses] = useState<TrainingCourse[]>(
-    initialCourses && initialCourses.length > 0
-      ? initialCourses
-      : [
-          { course_code: 'TR001', course_name: 'Đào tạo Prosale mới', training_type: 'Offline', token_value: 120, budget: 600000 },
-          { course_code: 'TR002', course_name: 'Đào tạo prosale mới', training_type: 'Online', token_value: 100, budget: 500000 },
-          { course_code: 'TR003', course_name: 'ĐT Chuyên sâu – Buổi 1 (Nguồn vốn)', training_type: 'Online', token_value: 50, budget: 250000 },
-          { course_code: 'TR004', course_name: 'ĐT chuyên sâu – Buổi 2 (Lữ hành)', training_type: 'Online', token_value: 50, budget: 250000 },
-          { course_code: 'TR005', course_name: 'ĐT chuyển sâu – Buổi 3 (Welink)', training_type: 'Online', token_value: 50, budget: 250000 },
-          { course_code: 'TR006', course_name: 'ĐT Mô hình Welink', training_type: 'Offline', token_value: 100, budget: 500000 },
-        ]
-  );
   const [stats, setStats] = useState(initialStats);
   const [activeView, setActiveView] = useState<'sessions' | 'ledger'>('sessions');
   const [selectedYear, setSelectedYear] = useState(Number(new Date().getFullYear()));
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 10;
+  const periodLabel = selectedMonth === 'all' ? 'toàn bộ dữ liệu' : selectedWeek ? 'theo tuần' : 'theo tháng';
 
   // Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -143,6 +121,10 @@ export default function TrainingManagement({
   const memberByName = useMemo(() => new Map(
     initialMembers.map((member) => [member.full_name.trim().toLocaleLowerCase('vi-VN'), member])
   ), [initialMembers]);
+  const monthKey = `${selectedYear}-${String(selectedMonth === 'all' ? 1 : selectedMonth).padStart(2, '0')}`;
+  const dateRange = useMemo(() => selectedMonth === 'all'
+    ? { start: '0001-01-01', endInclusive: '9999-12-31' }
+    : getMonthWeekRange(monthKey, selectedWeek), [monthKey, selectedMonth, selectedWeek, selectedYear]);
   const sessionCodePreview = useMemo(() => {
     const existing = logs.find((log) => log.training_date === formData.training_date);
     if (existing) return existing.session_code;
@@ -255,50 +237,26 @@ export default function TrainingManagement({
         (l.member_phone && l.member_phone.includes(searchQuery)) ||
         (l.session_name && l.session_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchDate = !selectedDate || l.training_date === selectedDate;
+      const matchDate = Boolean(l.training_date)
+        && l.training_date! >= dateRange.start
+        && l.training_date! <= dateRange.endInclusive
+        && (!selectedDate || l.training_date === selectedDate);
 
       return matchSearch && matchDate;
     });
-  }, [logs, searchQuery, selectedDate]);
+  }, [dateRange.endInclusive, dateRange.start, logs, searchQuery, selectedDate]);
 
-  const sessions = useMemo(() => {
-    const grouped = new Map<string, {
-      key: string;
-      code: string;
-      date: string;
-      name: string;
-      budget: number;
-      tokenTotal: number;
-      members: TrainingLog[];
-    }>();
-    for (const log of filteredLogs) {
-      const key = `${log.training_date || ''}:${log.session_code}`;
-      const session = grouped.get(key) || {
-        key,
-        code: log.session_code,
-        date: log.training_date || '',
-        name: log.session_name || '',
-        budget: 0,
-        tokenTotal: 0,
-        members: [],
-      };
-      session.tokenTotal += log.token_count;
-      session.budget = session.tokenTotal * 5000;
-      session.members.push(log);
-      grouped.set(key, session);
-    }
-    return Array.from(grouped.values()).sort((a, b) => b.date.localeCompare(a.date) || a.code.localeCompare(b.code));
-  }, [filteredLogs]);
-
-  const totalPages = Math.max(1, Math.ceil(sessions.length / itemsPerPage));
-  const paginatedSessions = sessions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const trainingRows = useMemo(
+    () => [...filteredLogs].sort((a, b) => (a.training_date || '').localeCompare(b.training_date || '') || a.id - b.id),
+    [filteredLogs]
+  );
+  const totalPages = Math.max(1, Math.ceil(trainingRows.length / itemsPerPage));
+  const paginatedTrainingRows = trainingRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN').format(Math.round(val || 0)) + ' đ';
   };
 
-  const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-  const dateRange = useMemo(() => getMonthWeekRange(monthKey, selectedWeek), [monthKey, selectedWeek]);
   const periodContracts = useMemo(
     () => initialContracts.filter((contract) => contract.contract_date >= dateRange.start && contract.contract_date <= dateRange.endInclusive),
     [dateRange, initialContracts]
@@ -307,62 +265,15 @@ export default function TrainingManagement({
     () => logs.filter((log) => (log.training_date || '') >= dateRange.start && (log.training_date || '') <= dateRange.endInclusive && log.status === 'Đã duyệt'),
     [dateRange, logs]
   );
-  const periodExpenses = useMemo(
-    () => initialExpenses.filter((expense) => expense.expense_date.slice(0, 10) >= dateRange.start && expense.expense_date.slice(0, 10) <= dateRange.endInclusive),
-    [dateRange, initialExpenses]
-  );
   const incomingTotal = periodContracts.reduce((sum, contract) => sum + Math.round(contract.allocation_base * 0.003), 0);
   const contractSalesTotal = periodContracts.reduce((sum, contract) => sum + contract.allocation_base, 0);
-  const outgoingTotal = periodLogs.reduce((sum, log) => sum + log.reward_amount, 0)
-    + periodExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const ledgerOutgoingRows = useMemo(() => {
-    const beforeRange = initialContracts
-      .filter((contract) => contract.contract_date < dateRange.start)
-      .reduce((sum, contract) => sum + Math.round(contract.allocation_base * 0.003), 0)
-      - logs.filter((log) => (log.training_date || '') < dateRange.start && log.status === 'Đã duyệt')
-        .reduce((sum, log) => sum + log.reward_amount, 0)
-      - initialExpenses.filter((expense) => expense.expense_date.slice(0, 10) < dateRange.start)
-        .reduce((sum, expense) => sum + expense.amount, 0);
-    const movements = [
-      ...periodContracts.map((contract) => ({
-        date: contract.contract_date,
-        amount: Math.round(contract.allocation_base * 0.003),
-        kind: 'income' as const,
-        title: '',
-        key: `income-${contract.contract_code}-${contract.contract_date}`,
-      })),
-      ...periodLogs.map((log) => ({
-        date: log.training_date || '',
-        amount: log.reward_amount,
-        kind: 'expense' as const,
-        title: `${log.session_code} · ${log.member_name}`,
-        key: `training-${log.id}`,
-      })),
-      ...periodExpenses.map((expense) => ({
-        date: expense.expense_date.slice(0, 10),
-        amount: expense.amount,
-        kind: 'expense' as const,
-        title: expense.detail_content,
-        key: `expense-${expense.id}`,
-      })),
-    ].sort((a, b) => a.date.localeCompare(b.date) || (a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind === 'income' ? -1 : 1));
-    let runningBalance = beforeRange;
-    const rows: Array<{ date: string; title: string; amount: number; balanceAfter: number; key: string }> = [];
-    for (const movement of movements) {
-      runningBalance += movement.kind === 'income' ? movement.amount : -movement.amount;
-      if (movement.kind === 'expense') {
-        rows.push({ ...movement, balanceAfter: runningBalance });
-      }
-    }
-    return rows;
-  }, [dateRange.start, initialContracts, initialExpenses, logs, periodContracts, periodExpenses, periodLogs]);
-  const balance = initialContracts
-    .filter((contract) => contract.contract_date <= dateRange.endInclusive)
-    .reduce((sum, contract) => sum + Math.round(contract.allocation_base * 0.003), 0)
-    - logs.filter((log) => (log.training_date || '') <= dateRange.endInclusive && log.status === 'Đã duyệt')
-      .reduce((sum, log) => sum + log.reward_amount, 0)
-    - initialExpenses.filter((expense) => expense.expense_date.slice(0, 10) <= dateRange.endInclusive)
-      .reduce((sum, expense) => sum + expense.amount, 0);
+  const trainingFundTotal = incomingTotal;
+  const outgoingTotal = periodLogs.reduce((sum, log) => sum + log.reward_amount, 0);
+  const fundUsagePercent = trainingFundTotal > 0
+    ? Math.min(100, Math.round((outgoingTotal / trainingFundTotal) * 100))
+    : 0;
+  const remainingFund = trainingFundTotal - outgoingTotal;
+  const balance = remainingFund;
 
   return (
     <div className="p-[15px] sm:p-6 lg:p-8 max-w-[1600px] mx-auto min-h-screen bg-slate-50 text-slate-900 space-y-6">
@@ -410,10 +321,6 @@ export default function TrainingManagement({
         </div>
       </div>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-        Quy chuẩn quy đổi cố định: <strong>1 Token = 5.000 VNĐ</strong> · Thù lao thực nhận = Số Token × 5.000 VNĐ.
-      </div>
-
       <nav aria-label="Chức năng quỹ đào tạo" className="grid gap-2 sm:grid-cols-2">
         <button type="button" role="tab" aria-selected={activeView === 'sessions'} onClick={() => setActiveView('sessions')}
           className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${activeView === 'sessions' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
@@ -431,12 +338,13 @@ export default function TrainingManagement({
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
             selectedMonth={selectedMonth}
-            onMonthChange={(month) => { if (month !== 'all') setSelectedMonth(month); }}
+            onMonthChange={(month) => { setSelectedMonth(month); setSelectedWeek(0); }}
+            allowAllMonths
             selectedWeek={selectedWeek}
             onWeekChange={setSelectedWeek}
           />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-semibold text-slate-500">{selectedWeek ? 'Doanh số HĐ tuần' : 'Doanh số HĐ tháng'}</h2><p className="mt-2 text-xl font-extrabold text-blue-700">{formatCurrency(contractSalesTotal)}</p></article>
+            <article className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-semibold text-slate-500">Doanh số HĐ · {periodLabel}</h2><p className="mt-2 text-xl font-extrabold text-blue-700">{formatCurrency(contractSalesTotal)}</p></article>
             <article className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-semibold text-slate-500">Tổng tiền vào (Thu)</h2><p className="mt-2 text-xl font-extrabold text-emerald-700">{formatCurrency(incomingTotal)}</p></article>
             <article className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-semibold text-slate-500">Đã thực chi thực tế</h2><p className="mt-2 text-xl font-extrabold text-rose-700">{formatCurrency(outgoingTotal)}</p></article>
             <article className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-semibold text-slate-500">Tồn quỹ đào tạo sau cộng</h2><p className="mt-2 text-xl font-extrabold text-indigo-700">{formatCurrency(balance)}</p></article>
@@ -455,29 +363,64 @@ export default function TrainingManagement({
                   ))}
                   {periodContracts.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">Không có hợp đồng đã duyệt trong kỳ.</td></tr>}
                 </tbody>
+                <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
+                  <tr><td className="p-3" colSpan={3}>Tổng thu 0,3%</td><td className="p-3 text-right">{formatCurrency(contractSalesTotal)}</td><td className="p-3 text-right text-emerald-700">{formatCurrency(incomingTotal)}</td></tr>
+                </tfoot>
               </table>
             </section>
             <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-              <h2 className="p-4 text-sm font-bold">Dòng tiền ra · Ngày thực chi</h2>
+              <h2 className="p-4 text-sm font-bold">Chi phí buổi đào tạo · {periodLabel}</h2>
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50"><tr><th className="p-3">Ngày</th><th className="p-3">Khoản chi</th><th className="p-3 text-right">Đã thực chi</th><th className="p-3 text-right">Tồn quỹ sau cộng</th></tr></thead>
+                <thead className="bg-slate-50"><tr><th className="p-3">Tên buổi học</th><th className="p-3">Người tham gia</th><th className="p-3 text-right">Token</th><th className="p-3 text-right">Thù lao thực nhận</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                  {ledgerOutgoingRows.map((expense) => (
-                    <tr key={expense.key}><td className="p-3">{expense.date}</td><td className="p-3">{expense.title}</td><td className="p-3 text-right">{formatCurrency(expense.amount)}</td><td className="p-3 text-right font-semibold">{formatCurrency(expense.balanceAfter)}</td></tr>
+                  {periodLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td className="p-3">{log.session_name || log.session_code}</td>
+                      <td className="p-3">{log.member_name}</td>
+                      <td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(log.token_count)}</td>
+                      <td className="p-3 text-right">{formatCurrency(log.reward_amount)}</td>
+                    </tr>
                   ))}
-                  {ledgerOutgoingRows.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-slate-500">Không có khoản chi trong kỳ.</td></tr>}
+                  {periodLogs.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-slate-500">Không có buổi đào tạo đã duyệt trong kỳ.</td></tr>}
                 </tbody>
+                <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
+                  <tr><td className="p-3" colSpan={2}>Tổng thù lao</td><td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(periodLogs.reduce((sum, log) => sum + log.token_count, 0))}</td><td className="p-3 text-right text-rose-700">{formatCurrency(periodLogs.reduce((sum, log) => sum + log.reward_amount, 0))}</td></tr>
+                </tfoot>
               </table>
             </section>
           </div>
+          <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <h2 className="text-sm font-bold">Dòng tiền ra · {periodLabel}</h2>
+              </div>
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50"><tr><th className="p-3 text-right">Khoản chi</th><th className="p-3 text-right">Đã thực chi thực tế</th><th className="p-3 text-right">Tổng tồn quỹ sau cộng</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  <tr>
+                    <td className="p-3 text-right">{formatCurrency(incomingTotal)}</td>
+                    <td className="p-3 text-right">{formatCurrency(outgoingTotal)}</td>
+                    <td className={`p-3 text-right font-semibold ${balance >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(balance)}</td>
+                  </tr>
+                </tbody>
+              </table>
+          </section>
         </section>
       )}
 
       {activeView === 'sessions' && <>
+      <AdminTimeFilter
+        selectedYear={selectedYear}
+        onYearChange={setSelectedYear}
+        selectedMonth={selectedMonth}
+        onMonthChange={(month) => { setSelectedMonth(month); setSelectedWeek(0); }}
+        allowAllMonths
+        selectedWeek={selectedWeek}
+        onWeekChange={setSelectedWeek}
+      />
       {/* Top 4 Stat Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* 4 Stat Cards (8 Cols on Desktop) */}
-        <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="lg:col-span-12 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {/* Card 1: Tổng số buổi học */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
@@ -540,17 +483,35 @@ export default function TrainingManagement({
               </div>
             </div>
           </div>
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <Calendar className="h-3.5 w-3.5 text-blue-600" />
+              <span>Tổng quan quỹ đào tạo</span>
+            </div>
+            <div>
+              <div className="flex items-baseline justify-between gap-2 text-xs text-slate-500">
+                <span>0,3% doanh số HĐ:</span>
+                <span className="font-extrabold text-slate-900">{formatCurrency(trainingFundTotal)}</span>
+              </div>
+              <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${fundUsagePercent}%` }} />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                <span className="text-slate-600">Đã thực chi: {formatCurrency(outgoingTotal)} ({fundUsagePercent}%)</span>
+                <span className={`font-bold ${remainingFund >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  Còn {formatCurrency(remainingFund)}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="lg:col-span-4 flex items-center rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-900">
-          Thù lao mỗi người được tính độc lập: số token thực nhận × 5.000 VNĐ.
-        </div>
       </div>
 
       {/* Main Content Area: Table (Left 9 cols) + Right Sidebar (Right 3 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left 9 Cols: Filters + Table */}
-        <div className="lg:col-span-9 space-y-4">
+        <div className="lg:col-span-12 space-y-4">
           {/* Filter Bar (Hình 15) */}
           <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Search */}
@@ -558,7 +519,7 @@ export default function TrainingManagement({
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Tìm mã buổi học, tên nhân sự, SĐT..."
+                placeholder="Tìm mã khóa học, tên nhân sự, SĐT..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 transition"
@@ -598,39 +559,34 @@ export default function TrainingManagement({
                 <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
                   <tr>
                     <th className="py-3.5 px-3 text-center">STT</th>
-                    <th className="py-3.5 px-3">Mã buổi học</th>
                     <th className="py-3.5 px-3">Ngày học</th>
                     <th className="py-3.5 px-3">Tên buổi học</th>
                     <th className="py-3.5 px-3 text-right">Ngân sách buổi</th>
-                    <th className="py-3.5 px-3">Người tham gia · Token · Thù lao</th>
+                    <th className="py-3.5 px-3">Người tham gia</th>
+                    <th className="py-3.5 px-3 text-right">Số token</th>
+                    <th className="py-3.5 px-3 text-right">Tổng token buổi</th>
+                    <th className="py-3.5 px-3 text-right">Thù lao thực nhận</th>
+                    <th className="py-3.5 px-3">Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {paginatedSessions.map((session, idx) => (
-                    <tr key={session.key} className="align-top hover:bg-slate-50/60">
+                  {paginatedTrainingRows.map((log, idx) => (
+                    <tr key={log.id} className="align-top hover:bg-slate-50/60">
                       <td className="py-3 px-3 text-center text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                      <td className="py-3 px-3"><span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 font-bold text-blue-700">{session.code}</span></td>
-                      <td className="py-3 px-3 whitespace-nowrap">{session.date ? session.date.split('-').reverse().join('/') : '—'}</td>
-                      <td className="py-3 px-3 font-semibold">{session.name || '—'}</td>
-                      <td className="py-3 px-3 text-right font-mono">{formatCurrency(session.budget)}</td>
-                      <td className="py-3 px-3">
-                        <div className="space-y-1.5">
-                          {session.members.map((log) => (
-                            <div key={log.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
-                              <span className="font-medium">{log.member_name} <span className="text-slate-500">({log.member_phone || '—'})</span></span>
-                              <span>{log.token_count} token · <strong className="text-emerald-700">{formatCurrency(log.token_count * 5000)}</strong></span>
-                              <button type="button" onClick={() => handleDeleteLog(log.id)} aria-label={`Xóa ${log.member_name}`} className="text-rose-600 hover:text-rose-800"><Trash2 className="h-3.5 w-3.5" /></button>
-                            </div>
-                          ))}
-                          <p className="text-right font-bold text-slate-700">Tổng: {session.tokenTotal} token · {formatCurrency(session.tokenTotal * 5000)}</p>
-                        </div>
-                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
+                      <td className="py-3 px-3 font-semibold">{log.session_name || '—'}</td>
+                      <td className="py-3 px-3 text-right font-mono">{formatCurrency(log.session_budget)}</td>
+                      <td className="py-3 px-3"><span className="flex flex-col font-medium"><span>{log.member_name}</span><span className="text-slate-500">{log.member_phone || '—'}</span></span></td>
+                      <td className="py-3 px-3 text-right">{log.token_count}</td>
+                      <td className="py-3 px-3 text-right">{log.total_tokens}</td>
+                      <td className="py-3 px-3 text-right font-semibold">{formatCurrency(log.reward_amount)}</td>
+                      <td className="py-3 px-3">{log.status}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              {sessions.length === 0 && (
+              {trainingRows.length === 0 && (
                 <div className="p-12 text-center text-slate-400">
                   Không tìm thấy buổi học đào tạo nào phù hợp.
                 </div>
@@ -640,8 +596,8 @@ export default function TrainingManagement({
             {/* Pagination footer */}
             <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <div>
-                Hiển thị {sessions.length ? (currentPage - 1) * itemsPerPage + 1 : 0} –{' '}
-                {Math.min(currentPage * itemsPerPage, sessions.length)} trong tổng số {sessions.length} buổi
+                Hiển thị {trainingRows.length ? (currentPage - 1) * itemsPerPage + 1 : 0} –{' '}
+                {Math.min(currentPage * itemsPerPage, trainingRows.length)} trong tổng số {trainingRows.length} lượt tham gia
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -679,106 +635,6 @@ export default function TrainingManagement({
           </div>
         </div>
 
-        {/* Right 3 Cols: Sidebars & Widgets (Hình 15) */}
-        <div className="lg:col-span-3 space-y-5">
-          {/* Widget 1: Tổng quan quỹ đào tạo (15%) */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                <span>Tổng quan quỹ đào tạo</span>
-              </span>
-              <span className="text-[10px] text-blue-600 font-medium cursor-pointer">Xem chi tiết</span>
-            </div>
-            <div>
-              <div className="flex items-baseline justify-between text-xs text-slate-500 mb-1">
-                <span>Ngân sách quỹ (15%):</span>
-                <span className="font-extrabold text-slate-900">120.000.000 đ</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                <div className="bg-emerald-500 h-full rounded-full" style={{ width: '36%' }} />
-              </div>
-              <div className="flex items-center justify-between text-[11px] mt-2">
-                <span className="text-slate-600">Đã sử dụng: 42.800.000 đ (36%)</span>
-                <span className="text-emerald-600 font-bold">Còn 77.200.000 đ (64%)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Widget 2: DANH MỤC BUỔI ĐÀO TẠO & NGÂN SÁCH CỐ ĐỊNH */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-blue-600" />
-                <span className="tracking-tight uppercase">Danh mục buổi đào tạo</span>
-              </span>
-              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                {courses.length} Buổi • 470 Token
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {courses.map((crs) => (
-                <div
-                  key={crs.course_code}
-                  onClick={() => setSearchQuery(searchQuery === crs.course_code ? '' : crs.course_code)}
-                  className={`p-2.5 rounded-xl border transition cursor-pointer ${
-                    searchQuery === crs.course_code
-                      ? 'border-blue-500 bg-blue-50/70 shadow-xs'
-                      : 'border-slate-100 bg-slate-50/70 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                      {crs.course_code}
-                    </span>
-                    <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
-                        crs.training_type === 'Online'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                      }`}
-                    >
-                      {crs.training_type}
-                    </span>
-                  </div>
-                  <h4 className="font-bold text-[11px] text-slate-800 leading-tight truncate" title={crs.course_name}>
-                    {crs.course_name}
-                  </h4>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1.5">
-                    <span className="font-medium text-slate-600">{crs.token_value} Token</span>
-                    <span className="font-bold text-slate-800 font-mono">
-                      {formatCurrency(crs.budget)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="w-full text-center text-[11px] text-blue-600 font-semibold hover:underline cursor-pointer pt-1"
-              >
-                Xóa lọc ({searchQuery})
-              </button>
-            )}
-          </div>
-
-
-          {/* Widget 3: Quote Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50/80 p-5 rounded-2xl border border-blue-100 shadow-2xs">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center mb-2.5">
-              <GraduationCap className="w-4 h-4" />
-            </div>
-            <p className="text-xs font-medium text-slate-700 italic leading-relaxed">
-              &quot;Đào tạo là đầu tư cho con người, và con người là tài sản quý giá nhất của Nghiêng
-              Complex.&quot;
-            </p>
-          </div>
-        </div>
       </div>
       </>}
 

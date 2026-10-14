@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     // Compute stats
     const statsRes = await pool.query(`
-      SELECT COUNT(DISTINCT session_code)::int AS total_sessions,
+      SELECT COUNT(DISTINCT (session_code, training_date))::int AS total_sessions,
         COUNT(DISTINCT COALESCE(NULLIF(member_phone, ''), member_name))::int AS total_members,
         COALESCE(SUM(token_count), 0)::float8 AS total_tokens,
         COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN token_count * 5000 ELSE 0 END), 0)::float8 AS total_rewards
@@ -124,6 +124,11 @@ export async function POST(req: NextRequest) {
       `);
       sessionCode = `TR${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
     }
+
+    await client.query(
+      `UPDATE training_logs SET session_code = $1 WHERE training_date = $2::date AND session_code <> $1`,
+      [sessionCode, trainingDate]
+    );
 
     const current = await client.query(
       `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
