@@ -74,6 +74,7 @@ const COURSES = [
 const LOGS = [
   {
     session_code: 'TR001',
+    course_code: 'TR001',
     session_name: 'Đào tạo Prosale mới',
     training_date: '2026-09-15',
     member_phone: '0889225989',
@@ -89,6 +90,7 @@ const LOGS = [
   },
   {
     session_code: 'TR001',
+    course_code: 'TR001',
     session_name: 'Đào tạo Prosale mới',
     training_date: '2026-09-15',
     member_phone: '0947876133',
@@ -104,6 +106,7 @@ const LOGS = [
   },
   {
     session_code: 'TR002',
+    course_code: 'TR002',
     session_name: 'Đào tạo prosale mới',
     training_date: '2026-09-17',
     member_phone: '0889225989',
@@ -119,6 +122,7 @@ const LOGS = [
   },
   {
     session_code: 'TR002',
+    course_code: 'TR002',
     session_name: 'Đào tạo prosale mới',
     training_date: '2026-09-17',
     member_phone: '0947876133',
@@ -134,6 +138,7 @@ const LOGS = [
   },
   {
     session_code: 'TR003',
+    course_code: 'TR003',
     session_name: 'ĐT Chuyên sâu – Buổi 1 (Nguồn vốn)',
     training_date: '2026-09-26',
     member_phone: '0889225989',
@@ -149,6 +154,7 @@ const LOGS = [
   },
   {
     session_code: 'TR006',
+    course_code: 'TR006',
     session_name: 'ĐT Mô hình Welink',
     training_date: '2026-10-01',
     member_phone: '000007',
@@ -204,6 +210,7 @@ async function migrateAndSeed() {
     CREATE TABLE IF NOT EXISTS training_logs (
       id SERIAL PRIMARY KEY,
       session_code VARCHAR(50) NOT NULL,
+      course_code VARCHAR(50) REFERENCES training_courses (course_code) ON UPDATE CASCADE ON DELETE RESTRICT,
       session_name VARCHAR(255),
       member_phone VARCHAR(50),
       member_name VARCHAR(255) NOT NULL,
@@ -219,6 +226,10 @@ async function migrateAndSeed() {
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
     );
   `);
+  await pool.query(`
+    ALTER TABLE training_logs
+    ADD COLUMN IF NOT EXISTS course_code VARCHAR(50)
+  `);
   console.log('✓ Đã kiểm tra cấu trúc bảng training_logs.');
 
   // 4. Xóa dữ liệu mẫu cũ (nếu có dữ liệu test không thuộc danh sách thực tế)
@@ -229,13 +240,14 @@ async function migrateAndSeed() {
     await pool.query(
       `
       INSERT INTO training_logs (
-        session_code, session_name, member_phone, member_name, role,
+        session_code, course_code, session_name, member_phone, member_name, role,
         token_tier, token_count, session_budget, total_tokens, reward_amount,
         approver, status, training_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     `,
       [
         log.session_code,
+        log.course_code,
         log.session_name,
         log.member_phone,
         log.member_name,

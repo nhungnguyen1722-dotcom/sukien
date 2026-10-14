@@ -28,32 +28,40 @@ import { TransactionMember, TransactionLogItem, TransactionLog, EventFundExpense
 import { numberToVietnameseWords } from '@/lib/numberToWords';
 
 const FUND_OPTIONS = [
-  'Quỹ đào tạo',
-  'Hoa hồng sale trực tiếp',
-  'Quỹ hỗ trợ khách hàng',
-  'Quỹ TeamLead',
-  'Quỹ công tác phí',
+  'Sale trực tiếp · Pro sale',
+  'Tri ân kết nối Sale trực tiếp',
+  'Tri ân hỗ trợ Sale',
   'Quỹ Sự kiện & Chốt hợp đồng',
-  'Quỹ Vận hành',
-  'Sale trực tiếp - Pro sale (Nguồn khách)',
-  'Tri ân kết nối sale trực tiếp',
-  'Tri ân hỗ trợ sale',
-  'Tri ân giới thiệu',
   'Quỹ Chăm sóc khách hàng',
   'Quỹ Đào tạo Chuyên môn & Kỹ năng',
   'Quỹ Thi đua & Chương trình thúc đẩy',
   'Chi phí Công tác phí',
-  'BP hỗ trợ KT',
-  'BP hỗ trợ CN',
-  'Leader team - giám đốc Kd',
+  'Leader Team & Giám đốc KD',
+  'Quỹ Vận hành',
 ];
+
+const LEGACY_FUND_OPTION_LABELS = new Map([
+  ['Quỹ đào tạo', 'Quỹ Đào tạo Chuyên môn & Kỹ năng'],
+  ['Hoa hồng sale trực tiếp', 'Sale trực tiếp · Pro sale'],
+  ['Quỹ hỗ trợ khách hàng', 'Quỹ Chăm sóc khách hàng'],
+  ['Quỹ TeamLead', 'Leader Team & Giám đốc KD'],
+  ['Quỹ công tác phí', 'Chi phí Công tác phí'],
+  ['Sale trực tiếp - Pro sale (Nguồn khách)', 'Sale trực tiếp · Pro sale'],
+  ['Tri ân kết nối sale trực tiếp', 'Tri ân kết nối Sale trực tiếp'],
+  ['Tri ân hỗ trợ sale', 'Tri ân hỗ trợ Sale'],
+  ['Leader team - giám đốc Kd', 'Leader Team & Giám đốc KD'],
+]);
+
+function getFundOptionLabel(value: string): string {
+  return LEGACY_FUND_OPTION_LABELS.get(value) || value;
+}
 
 const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
   {
     order: 1,
     title: 'Thù lao Đào tạo Chuyên môn',
     subtitle: '(Đào tạo nội bộ)',
-    fundSource: 'Quỹ đào tạo',
+    fundSource: 'Quỹ Đào tạo Chuyên môn & Kỹ năng',
     beneficiaryName: 'Vũ Thị Cúc',
     beneficiaryPhone: '0904123456',
     beneficiaryBankAccount: '0904123456',
@@ -65,7 +73,7 @@ const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
     order: 2,
     title: 'Hoa hồng Sale trực tiếp',
     subtitle: '(Pro sale)',
-    fundSource: 'Hoa hồng sale trực tiếp',
+    fundSource: 'Sale trực tiếp · Pro sale',
     beneficiaryName: 'Nguyễn Hùng Vĩ',
     beneficiaryPhone: '0988776655',
     beneficiaryBankAccount: '0988776655',
@@ -77,7 +85,7 @@ const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
     order: 3,
     title: 'Chi phí Hỗ trợ Khách hàng',
     subtitle: '(Chăm sóc khách hàng)',
-    fundSource: 'Quỹ hỗ trợ khách hàng',
+    fundSource: 'Quỹ Chăm sóc khách hàng',
     beneficiaryName: 'Phạm Thị Hương',
     beneficiaryPhone: '1028374792',
     beneficiaryBankAccount: '1028374792',
@@ -89,7 +97,7 @@ const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
     order: 4,
     title: 'Thù lao TeamLead tuần 1',
     subtitle: '(Team One Vàng)',
-    fundSource: 'Quỹ TeamLead',
+    fundSource: 'Leader Team & Giám đốc KD',
     beneficiaryName: 'Phạm Minh Tuấn',
     beneficiaryPhone: '190348271',
     beneficiaryBankAccount: '190348271',
@@ -101,7 +109,7 @@ const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
     order: 5,
     title: 'Công tác phí thị trường',
     subtitle: '(Chuyến công tác)',
-    fundSource: 'Quỹ công tác phí',
+    fundSource: 'Chi phí Công tác phí',
     beneficiaryName: 'Vũ Hùng Vỹ',
     beneficiaryPhone: '0941000123',
     beneficiaryBankAccount: '0941000123',
@@ -113,7 +121,7 @@ const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
     order: 6,
     title: 'Thù lao Giảng viên Đào tạo',
     subtitle: '(Đào tạo chuyên sâu)',
-    fundSource: 'Quỹ đào tạo',
+    fundSource: 'Quỹ Đào tạo Chuyên môn & Kỹ năng',
     beneficiaryName: 'Nguyễn Kim Tươi',
     beneficiaryPhone: '012398471',
     beneficiaryBankAccount: '012398471',
@@ -153,7 +161,7 @@ export default function CreatePaymentProposalModal({
   const [requesterPhone, setRequesterPhone] = useState('0904123456');
   const [approverName, setApproverName] = useState('');
   const [status, setStatus] = useState('Chờ duyệt');
-  const [fundSource, setFundSource] = useState(() => initialFundSource || 'Sale trực tiếp - Pro sale (Nguồn khách)');
+  const [fundSource, setFundSource] = useState(() => getFundOptionLabel(initialFundSource || FUND_OPTIONS[0]));
   const [note, setNote] = useState(
     () => initialNote || 'Đề nghị Kế toán thanh toán thù lao hoa hồng và đào tạo theo bảng kê phân bổ đã được duyệt.'
   );
@@ -163,7 +171,7 @@ export default function CreatePaymentProposalModal({
       order,
       title: '',
       subtitle: '',
-      fundSource: initialFundSource || fundSource || FUND_OPTIONS[0],
+      fundSource: getFundOptionLabel(initialFundSource || fundSource || FUND_OPTIONS[0]),
       beneficiaryName: '',
       beneficiaryPhone: '',
       beneficiaryBankAccount: '',
@@ -186,7 +194,7 @@ export default function CreatePaymentProposalModal({
       if (initialItems && initialItems.length > 0) {
         setItems(initialItems);
       }
-      if (initialFundSource) setFundSource(initialFundSource);
+      if (initialFundSource) setFundSource(getFundOptionLabel(initialFundSource));
       if (initialNote) setNote(initialNote);
     }
   }, [isOpen, initialItems, initialFundSource, initialNote]);
@@ -749,10 +757,13 @@ export default function CreatePaymentProposalModal({
                         {/* NGUỒN QUỸ TRÍCH */}
                         <td className="py-2.5 px-3 align-top">
                           <select
-                            value={item.fundSource}
+                            value={FUND_OPTIONS.includes(getFundOptionLabel(item.fundSource)) ? getFundOptionLabel(item.fundSource) : item.fundSource}
                             onChange={(e) => handleItemChange(index, 'fundSource', e.target.value)}
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 cursor-pointer"
                           >
+                            {!FUND_OPTIONS.includes(getFundOptionLabel(item.fundSource)) && (
+                              <option value={item.fundSource}>{item.fundSource}</option>
+                            )}
                             {FUND_OPTIONS.map((fund) => (
                               <option key={fund} value={fund}>{fund}</option>
                             ))}

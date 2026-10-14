@@ -30,6 +30,7 @@ import {
 export interface TrainingLog {
   id: number;
   session_code: string;
+  course_code: string | null;
   session_name?: string;
   member_phone?: string;
   member_name: string;
@@ -98,6 +99,14 @@ export default function TrainingManagement({
 
   // Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
+  const [isSavingCourse, setIsSavingCourse] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<TrainingCourse | null>(null);
+  const [deletingCourseCode, setDeletingCourseCode] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [courses, setCourses] = useState(initialCourses);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<TrainingLog | null>(null);
   const [viewingLog, setViewingLog] = useState<TrainingLog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -111,37 +120,60 @@ export default function TrainingManagement({
   // Form State
   const [formData, setFormData] = useState({
     session_code: 'TR001',
-    session_name: 'Kỹ năng tư vấn tài chính',
+    course_code: '',
+    session_name: '',
     training_date: new Date().toISOString().split('T')[0],
     session_budget: 3500000,
     member_name: '',
     member_phone: '',
     token_count: 0,
     approver: '',
-    status: 'Đã duyệt',
+    status: 'Chờ duyệt',
+  });
+  const [courseForm, setCourseForm] = useState({
+    course_name: '',
+    training_type: 'Offline',
+    token_value: 50,
+    budget: 250000,
   });
 
   const memberByName = useMemo(() => new Map(
     initialMembers.map((member) => [member.full_name.trim().toLocaleLowerCase('vi-VN'), member])
   ), [initialMembers]);
+  const selectedCourse = courses.find((course) => course.course_code === formData.course_code);
+  const filteredCourses = courses.filter((course) => {
+    const query = courseSearch.trim().toLocaleLowerCase('vi-VN');
+    return !query || `${course.course_code} ${course.course_name} ${course.training_type}`.toLocaleLowerCase('vi-VN').includes(query);
+  });
+  const nextCourseCode = useMemo(() => {
+    const latestNumber = courses.reduce((latest, course) => {
+      const match = course.course_code.match(/^TR(\d+)$/i);
+      return match ? Math.max(latest, Number(match[1])) : latest;
+    }, 0);
+    return `TR${String(latestNumber + 1).padStart(3, '0')}`;
+  }, [courses]);
   const monthKey = `${selectedYear}-${String(selectedMonth === 'all' ? 1 : selectedMonth).padStart(2, '0')}`;
   const dateRange = useMemo(() => selectedMonth === 'all'
     ? { start: '0001-01-01', endInclusive: '9999-12-31' }
     : getMonthWeekRange(monthKey, selectedWeek), [monthKey, selectedMonth, selectedWeek, selectedYear]);
   const sessionCodePreview = useMemo(() => {
-    const existing = logs.find((log) => log.training_date === formData.training_date);
+    const existing = logs.find((log) => log.training_date === formData.training_date && log.course_code === formData.course_code);
     if (existing) return existing.session_code;
     const latestSequence = logs.reduce((max, log) => {
       const match = log.session_code.match(/^TR(\d+)$/i);
       return match ? Math.max(max, Number(match[1])) : max;
     }, 0);
     return `TR${String(latestSequence + 1).padStart(3, '0')}`;
-  }, [formData.training_date, logs]);
+  }, [formData.course_code, formData.training_date, logs]);
 
   const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.member_name.trim()) {
       showToast('error', 'Vui lòng nhập họ tên nhân sự');
+      return;
+    }
+    if (!formData.course_code) {
+      showToast('error', 'Vui lòng tìm và chọn khóa học từ danh mục');
       return;
     }
 
@@ -201,11 +233,36 @@ export default function TrainingManagement({
     }
   };
 
+  const handleStatusChange = async (log: TrainingLog, status: string) => {
+    if (status === log.status) return;
+    setUpdatingStatusId(log.id);
+    try {
+      const response = await fetch('/api/admin/training-logs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: log.id, status }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Không thể cập nhật trạng thái lượt đào tạo.');
+      }
+      setLogs((current) => current.map((item) => item.id === log.id ? { ...item, status } : item));
+      showToast('success', 'Đã cập nhật trạng thái duyệt.');
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const openEditLog = (log: TrainingLog) => {
     setEditingLog(log);
+    const selected = courses.find((course) => course.course_code === log.course_code);
+    setCourseSearch(selected ? `${selected.course_code} - ${selected.course_name}` : '');
     setFormData({
       session_code: log.session_code,
-      session_name: log.session_name || '',
+      course_code: log.course_code || '',
+      session_name: selected?.course_name || log.session_name || '',
       training_date: log.training_date || new Date().toISOString().split('T')[0],
       session_budget: log.session_budget,
       member_name: log.member_name,
@@ -219,18 +276,88 @@ export default function TrainingManagement({
 
   const openAddLog = () => {
     setEditingLog(null);
+    setCourseSearch('');
     setFormData({
       session_code: 'TR001',
-      session_name: 'Kỹ năng tư vấn tài chính',
+      course_code: '',
+      session_name: '',
       training_date: new Date().toISOString().split('T')[0],
       session_budget: 3500000,
       member_name: '',
       member_phone: '',
       token_count: 0,
       approver: '',
-      status: 'Đã duyệt',
+      status: 'Chờ duyệt',
     });
     setIsAddModalOpen(true);
+  };
+
+  const handleSaveCourse = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSavingCourse(true);
+    try {
+      const response = await fetch('/api/admin/training-courses', {
+        method: editingCourse ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...courseForm,
+          ...(editingCourse ? { course_code: editingCourse.course_code } : {}),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Không thể lưu khóa học');
+      }
+      setCourses((current) => (
+        editingCourse
+          ? current.map((course) => course.course_code === result.course.course_code ? result.course : course)
+          : [...current, result.course]
+      ).sort((a, b) => a.course_code.localeCompare(b.course_code)));
+      if (editingCourse) {
+        setLogs((current) => current.map((log) => log.course_code === result.course.course_code
+          ? { ...log, session_name: result.course.course_name, session_budget: result.course.budget }
+          : log));
+      }
+      setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 250000 });
+      setEditingCourse(null);
+      setIsAddCourseOpen(false);
+      showToast('success', editingCourse ? 'Đã cập nhật khóa học.' : 'Đã thêm khóa học vào danh mục.');
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
+    } finally {
+      setIsSavingCourse(false);
+    }
+  };
+
+  const openCourseEditor = (course: TrainingCourse) => {
+    setEditingCourse(course);
+    setCourseForm({
+      course_name: course.course_name,
+      training_type: course.training_type,
+      token_value: course.token_value,
+      budget: course.budget,
+    });
+    setIsAddCourseOpen(true);
+  };
+
+  const handleDeleteCourse = async (course: TrainingCourse) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa khóa học ${course.course_code} - ${course.course_name}?`)) return;
+    setDeletingCourseCode(course.course_code);
+    try {
+      const response = await fetch(`/api/admin/training-courses?course_code=${encodeURIComponent(course.course_code)}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Không thể xóa khóa học.');
+      }
+      setCourses((current) => current.filter((item) => item.course_code !== course.course_code));
+      showToast('success', 'Đã xóa khóa học khỏi danh mục.');
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
+    } finally {
+      setDeletingCourseCode(null);
+    }
   };
 
   // Export to Excel compatible with 7. Lịch Đào tạo
@@ -411,20 +538,21 @@ export default function TrainingManagement({
             <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <h2 className="p-4 text-sm font-bold">Chi phí buổi đào tạo · {periodLabel}</h2>
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50"><tr><th className="p-3">Tên buổi học</th><th className="p-3">Người tham gia</th><th className="p-3 text-right">Token</th><th className="p-3 text-right">Thù lao thực nhận</th></tr></thead>
+                <thead className="bg-slate-50"><tr><th className="p-3">Ngày học</th><th className="p-3">Tên buổi học</th><th className="p-3">Người tham gia</th><th className="p-3 text-right">Token</th><th className="p-3 text-right">Thù lao thực nhận</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {periodLogs.map((log) => (
                     <tr key={log.id}>
+                      <td className="p-3 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
                       <td className="p-3">{log.session_name || log.session_code}</td>
                       <td className="p-3">{log.member_name}</td>
                       <td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(log.token_count)}</td>
                       <td className="p-3 text-right">{formatCurrency(log.reward_amount)}</td>
                     </tr>
                   ))}
-                  {periodLogs.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-slate-500">Không có buổi đào tạo đã duyệt trong kỳ.</td></tr>}
+                  {periodLogs.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">Không có buổi đào tạo đã duyệt trong kỳ.</td></tr>}
                 </tbody>
                 <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
-                  <tr><td className="p-3" colSpan={2}>Tổng thù lao</td><td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(periodLogs.reduce((sum, log) => sum + log.token_count, 0))}</td><td className="p-3 text-right text-rose-700">{formatCurrency(periodLogs.reduce((sum, log) => sum + log.reward_amount, 0))}</td></tr>
+                  <tr><td className="p-3" colSpan={3}>Tổng thù lao</td><td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(periodLogs.reduce((sum, log) => sum + log.token_count, 0))}</td><td className="p-3 text-right text-rose-700">{formatCurrency(periodLogs.reduce((sum, log) => sum + log.reward_amount, 0))}</td></tr>
                 </tfoot>
               </table>
             </section>
@@ -600,6 +728,7 @@ export default function TrainingManagement({
                   <tr>
                     <th className="py-3.5 px-3 text-center">STT</th>
                     <th className="py-3.5 px-3">Ngày học</th>
+                    <th className="py-3.5 px-3">Mã khóa học</th>
                     <th className="py-3.5 px-3">Tên buổi học</th>
                     <th className="py-3.5 px-3 text-right">Ngân sách buổi</th>
                     <th className="py-3.5 px-3">Người tham gia</th>
@@ -615,13 +744,29 @@ export default function TrainingManagement({
                     <tr key={log.id} className="align-top hover:bg-slate-50/60">
                       <td className="py-3 px-3 text-center text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                       <td className="py-3 px-3 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
+                      <td className="py-3 px-3 whitespace-nowrap font-mono">{log.course_code || '—'}</td>
                       <td className="py-3 px-3 font-semibold">{log.session_name || '—'}</td>
                       <td className="py-3 px-3 text-right font-mono">{formatCurrency(log.session_budget)}</td>
                       <td className="py-3 px-3"><span className="flex flex-col font-medium"><span>{log.member_name}</span><span className="text-slate-500">{log.member_phone || '—'}</span></span></td>
                       <td className="py-3 px-3 text-right">{log.token_count}</td>
                       <td className="py-3 px-3 text-right">{log.total_tokens}</td>
                       <td className="py-3 px-3 text-right font-semibold">{formatCurrency(log.reward_amount)}</td>
-                      <td className="py-3 px-3">{log.status}</td>
+                      <td className="py-3 px-3">
+                        <select
+                          aria-label={`Trạng thái duyệt của ${log.member_name}`}
+                          value={log.status}
+                          disabled={updatingStatusId !== null}
+                          onChange={(event) => void handleStatusChange(log, event.target.value)}
+                          className={`rounded-lg border px-2 py-1 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-60 ${
+                            log.status === 'Đã duyệt'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-amber-200 bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          <option value="Đã duyệt">Đã duyệt</option>
+                          <option value="Chờ duyệt">Chờ duyệt</option>
+                        </select>
+                      </td>
                       <td className="py-2 px-3">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => setViewingLog(log)} aria-label={`Xem lượt đào tạo của ${log.member_name}`} title="Xem"
@@ -693,6 +838,63 @@ export default function TrainingManagement({
         </div>
 
       </div>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Danh mục khóa học đào tạo</h2>
+            <p className="mt-1 text-xs text-slate-500">Danh mục này được dùng trực tiếp khi ghi nhận lượt tham gia.</p>
+          </div>
+          <button type="button" onClick={() => {
+            setEditingCourse(null);
+            setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 250000 });
+            setIsAddCourseOpen(true);
+          }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-700">
+            <Plus className="h-3.5 w-3.5" />
+            Thêm dữ liệu
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="p-3">Mã khóa học</th>
+                <th className="p-3">Tên khóa học</th>
+                <th className="p-3">Hình thức</th>
+                <th className="p-3 text-right">Giá trị token</th>
+                <th className="p-3 text-right">Ngân sách</th>
+                <th className="p-3 text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {courses.map((course) => (
+                <tr key={course.course_code}>
+                  <td className="p-3 font-mono font-semibold">{course.course_code}</td>
+                  <td className="p-3 font-medium">{course.course_name}</td>
+                  <td className="p-3">{course.training_type}</td>
+                  <td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(course.token_value)}</td>
+                  <td className="p-3 text-right">{formatCurrency(course.budget)}</td>
+                  <td className="p-2">
+                    <div className="flex items-center justify-center gap-1">
+                      <button type="button" onClick={() => openCourseEditor(course)}
+                        aria-label={`Sửa khóa học ${course.course_code}`} title="Sửa"
+                        className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50">
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => void handleDeleteCourse(course)}
+                        disabled={deletingCourseCode !== null} aria-label={`Xóa khóa học ${course.course_code}`} title="Xóa"
+                        className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-50">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {courses.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Chưa có khóa học trong danh mục.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
       </>}
 
       {/* Modal: Thêm hoặc sửa lượt tham gia đào tạo */}
@@ -738,15 +940,58 @@ export default function TrainingManagement({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Tên Buổi học</label>
+              <div className="relative">
+                <label className="block font-semibold text-slate-700 mb-1">Tên khóa học *</label>
                 <input
-                  type="text"
-                  value={formData.session_name}
-                  onChange={(e) => setFormData({ ...formData, session_name: e.target.value })}
-                  placeholder="Kỹ năng tư vấn tài chính thực chiến"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+                  type="search"
+                  role="combobox"
+                  aria-expanded={isCourseDropdownOpen}
+                  aria-controls="training-course-options"
+                  aria-autocomplete="list"
+                  required
+                  value={courseSearch}
+                  onFocus={() => setIsCourseDropdownOpen(true)}
+                  onChange={(event) => {
+                    setCourseSearch(event.target.value);
+                    setIsCourseDropdownOpen(true);
+                    setFormData({ ...formData, course_code: '', session_name: '', token_count: 0 });
+                  }}
+                  onBlur={() => window.setTimeout(() => setIsCourseDropdownOpen(false), 150)}
+                  placeholder="Tìm theo mã hoặc tên khóa học"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
                 />
+                {isCourseDropdownOpen && (
+                  <ul id="training-course-options" role="listbox" className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                    {filteredCourses.map((course) => (
+                      <li key={course.course_code} role="option" aria-selected={formData.course_code === course.course_code}>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              course_code: course.course_code,
+                              session_name: course.course_name,
+                              token_count: Number(course.token_value),
+                            });
+                            setCourseSearch(`${course.course_code} - ${course.course_name}`);
+                            setIsCourseDropdownOpen(false);
+                          }}
+                          className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-blue-50"
+                        >
+                          <span><strong>{course.course_code}</strong><span className="ml-2">{course.course_name}</span></span>
+                          <span className="shrink-0 text-slate-500">{course.training_type}</span>
+                        </button>
+                      </li>
+                    ))}
+                    {filteredCourses.length === 0 && <li className="px-3 py-2 text-slate-500">Không tìm thấy khóa học phù hợp.</li>}
+                  </ul>
+                )}
+                {selectedCourse && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Đã điền {selectedCourse.token_value} token theo khóa học · Ngân sách {formatCurrency(selectedCourse.budget)}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -810,6 +1055,20 @@ export default function TrainingManagement({
                 </div>
               </div>
 
+              <div>
+                <label htmlFor="training-log-status" className="mb-1 block font-semibold text-slate-700">Trạng thái duyệt *</label>
+                <select
+                  id="training-log-status"
+                  required
+                  value={formData.status}
+                  onChange={(event) => setFormData({ ...formData, status: event.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <option value="Đã duyệt">Đã duyệt</option>
+                  <option value="Chờ duyệt">Chờ duyệt</option>
+                </select>
+              </div>
+
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800">
                 Thù lao lượt này: <strong>{formatCurrency(formData.token_count * 5000)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.
               </div>
@@ -835,6 +1094,64 @@ export default function TrainingManagement({
         </div>
       )}
 
+      {activeView === 'sessions' && isAddCourseOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <section role="dialog" aria-modal="true" aria-labelledby="training-course-title" className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 id="training-course-title" className="text-base font-bold text-slate-900">{editingCourse ? 'Sửa khóa học đào tạo' : 'Thêm khóa học đào tạo'}</h3>
+                <p className="mt-1 text-xs text-slate-500">Khóa học được lưu vào danh mục và dùng ngay trong form chấm công.</p>
+              </div>
+              <button type="button" onClick={() => { setIsAddCourseOpen(false); setEditingCourse(null); }} aria-label="Đóng" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveCourse} className="space-y-3 text-xs">
+              <div>
+                <label htmlFor="training-course-code" className="mb-1 block font-semibold text-slate-700">Mã khóa học *</label>
+                <input id="training-course-code" required maxLength={50} value={editingCourse?.course_code || nextCourseCode} disabled
+                  className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 font-mono text-slate-500" />
+              </div>
+              <div>
+                <label htmlFor="training-course-name" className="mb-1 block font-semibold text-slate-700">Tên khóa học *</label>
+                <input id="training-course-name" required maxLength={255} value={courseForm.course_name}
+                  onChange={(event) => setCourseForm({ ...courseForm, course_name: event.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label htmlFor="training-course-type" className="mb-1 block font-semibold text-slate-700">Hình thức *</label>
+                  <select id="training-course-type" value={courseForm.training_type}
+                    onChange={(event) => setCourseForm({ ...courseForm, training_type: event.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <option value="Offline">Offline</option>
+                    <option value="Online">Online</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="training-course-tokens" className="mb-1 block font-semibold text-slate-700">Token *</label>
+                  <input id="training-course-tokens" type="number" min="1" step="1" required value={courseForm.token_value}
+                    onChange={(event) => setCourseForm({ ...courseForm, token_value: Number(event.target.value) })}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
+                </div>
+                <div>
+                  <label htmlFor="training-course-budget" className="mb-1 block font-semibold text-slate-700">Ngân sách *</label>
+                  <input id="training-course-budget" type="number" min="0" step="1" required value={courseForm.budget}
+                    onChange={(event) => setCourseForm({ ...courseForm, budget: Number(event.target.value) })}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <button type="button" onClick={() => { setIsAddCourseOpen(false); setEditingCourse(null); }} className="rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50">Hủy</button>
+                <button type="submit" disabled={isSavingCourse} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-50">
+                  {isSavingCourse ? 'Đang lưu...' : editingCourse ? 'Lưu thay đổi' : 'Thêm khóa học'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
       {activeView === 'sessions' && viewingLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs" onClick={() => setViewingLog(null)}>
           <section role="dialog" aria-modal="true" aria-labelledby="training-log-view-title" onClick={(event) => event.stopPropagation()}
@@ -849,6 +1166,7 @@ export default function TrainingManagement({
               </button>
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-xs">
+              <div><dt className="text-slate-500">Mã khóa học</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.course_code || '—'}</dd></div>
               <div><dt className="text-slate-500">Tên buổi học</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.session_name || '—'}</dd></div>
               <div><dt className="text-slate-500">Ngày học</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.training_date ? viewingLog.training_date.split('-').reverse().join('/') : '—'}</dd></div>
               <div><dt className="text-slate-500">Người tham gia</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.member_name}</dd></div>

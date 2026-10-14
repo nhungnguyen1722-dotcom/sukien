@@ -280,7 +280,7 @@ export async function getTransactionLogRows() {
   await ensureMemberSchema();
   await ensureOperationsFundBeneficiaries();
   const result = await pool.query(
-    `${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`
+    `${SELECT_TRANSACTION_LOGS} ORDER BY tl.id DESC`
   );
   return result.rows;
 }

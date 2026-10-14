@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       params.push(`%${search}%`);
       query += ` AND (tl.request_code ILIKE $${params.length} OR tl.detail_content ILIKE $${params.length} OR tl.requester_name ILIKE $${params.length} OR COALESCE(NULLIF(BTRIM(ops_beneficiary.full_name), ''), NULLIF(BTRIM(tl.beneficiary_name), ''), u.full_name) ILIKE $${params.length})`;
     }
-    query += ' ORDER BY tl.request_date DESC NULLS LAST, tl.id DESC';
+    query += ' ORDER BY tl.id DESC';
     const result = await pool.query(query, params);
     return NextResponse.json({ success: true, logs: result.rows });
   } catch (error: any) {

@@ -21,6 +21,8 @@
     "db:migrate:logs": "node script/migrate_event_logs.js",
     "db:migrate:schedules": "node script/migrate_event_schedules.js",
     "db:migrate:training": "node script/migrate_and_seed_training.js",
+    "db:migrate:training-course-links": "node script/migrate_training_course_links.js",
+    "db:migrate:training-course-links:local": "node script/migrate_training_course_links.js --local",
     "db:migrate:payment-items": "node script/migrate_payment_request_items.js",
     "db:permissions": "node script/run_permissions_sql.js",
     "db:sync:neon": "node script/sync_db_from_neon.js",

@@ -29,7 +29,7 @@ function getCurrentMonth() {
 async function getTransactionsData() {
   await Promise.all([ensureMemberSchema(), ensureOperationsFundBeneficiaries()]);
   const [logsRes, weeklyRes, contractsRes, eventExpensesRes, membersRes, eventsRes] = await Promise.all([
-    pool.query(`${SELECT_TRANSACTION_LOGS} ORDER BY request_date DESC NULLS LAST, id DESC`),
+    pool.query(`${SELECT_TRANSACTION_LOGS} ORDER BY tl.id DESC`),
     pool.query(`
       SELECT period_code, period_month, period_label, period_start::text AS period_start,
         period_end::text AS period_end, fund_key, fund_source,

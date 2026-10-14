@@ -8,11 +8,15 @@ async function getTrainingData() {
     const [logsRes, statsRes, coursesRes, membersRes, contractsRes] = await Promise.all([
       pool.query(`
         SELECT 
-          id, session_code, session_name, member_phone, member_name, 
-          token_count, session_budget, total_tokens,
-          reward_amount, status, approver, TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
-        FROM training_logs
-        ORDER BY training_date ASC, id ASC
+          log.id, log.session_code, log.course_code,
+          COALESCE(course.course_name, log.session_name) AS session_name,
+          log.member_phone, log.member_name,
+          log.token_count, log.session_budget, log.total_tokens,
+          log.reward_amount, log.status, log.approver,
+          TO_CHAR(log.training_date, 'YYYY-MM-DD') AS training_date
+        FROM training_logs AS log
+        LEFT JOIN training_courses AS course ON course.course_code = log.course_code
+        ORDER BY log.training_date ASC, log.id ASC
       `),
       pool.query(`
         SELECT 
