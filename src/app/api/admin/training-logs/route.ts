@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { PoolClient } from 'pg';
 import pool from '@/lib/db';
 
 export async function GET(req: NextRequest) {
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
         total_tokens,
         token_count * 5000 AS reward_amount,
         status,
+        approver,
         TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date,
         created_at
       FROM training_logs
@@ -184,12 +186,116 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  let client: PoolClient | undefined;
+  let transactionStarted = false;
   try {
     const body = await req.json();
     const { id, status, approver } = body;
 
-    if (!id) {
+    const logId = Number(id);
+    if (!Number.isInteger(logId) || logId <= 0) {
       return NextResponse.json({ success: false, message: 'Thiếu ID' }, { status: 400 });
+    }
+
+    if (body.token_count !== undefined || body.training_date !== undefined) {
+      const memberName = String(body.member_name || '').trim();
+      const tokenCount = Number(body.token_count);
+      const trainingDate = String(body.training_date || '');
+      const parsedTrainingDate = new Date(`${trainingDate}T00:00:00Z`);
+      if (!memberName) {
+        return NextResponse.json({ success: false, message: 'Vui lòng nhập họ tên nhân sự' }, { status: 400 });
+      }
+      if (!Number.isInteger(tokenCount) || tokenCount <= 0) {
+        return NextResponse.json({ success: false, message: 'Số token phải là số nguyên lớn hơn 0' }, { status: 400 });
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trainingDate)
+        || Number.isNaN(parsedTrainingDate.getTime())
+        || parsedTrainingDate.toISOString().slice(0, 10) !== trainingDate) {
+        return NextResponse.json({ success: false, message: 'Ngày đào tạo không hợp lệ' }, { status: 400 });
+      }
+
+      client = await pool.connect();
+      await client.query('BEGIN');
+      transactionStarted = true;
+      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [20261014, 7]);
+      const selected = await client.query(
+        `SELECT session_code, training_date::text AS training_date
+         FROM training_logs WHERE id = $1 FOR UPDATE`,
+        [logId]
+      );
+      if (!selected.rows[0]) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+        return NextResponse.json({ success: false, message: 'Không tìm thấy lượt đào tạo' }, { status: 404 });
+      }
+
+      const oldSessionCode = selected.rows[0].session_code;
+      const oldTrainingDate = selected.rows[0].training_date;
+      let sessionCode = oldSessionCode;
+      if (trainingDate !== oldTrainingDate) {
+        const targetSession = await client.query(
+          `SELECT session_code FROM training_logs
+           WHERE training_date = $1::date AND id <> $2 ORDER BY id LIMIT 1`,
+          [trainingDate, logId]
+        );
+        if (targetSession.rows[0]) {
+          sessionCode = targetSession.rows[0].session_code;
+        } else {
+          const nextCode = await client.query(`
+            SELECT COALESCE(MAX(NULLIF(REGEXP_REPLACE(session_code, '[^0-9]', '', 'g'), '')::integer), 0) + 1 AS next_code
+            FROM training_logs WHERE session_code ~ '^TR[0-9]+$'
+          `);
+          sessionCode = `TR${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
+        }
+      }
+
+      await client.query(
+        `UPDATE training_logs
+         SET session_code = $1, session_name = $2, member_name = $3, member_phone = $4,
+             token_count = $5, reward_amount = $5 * 5000, approver = $6, training_date = $7::date
+         WHERE id = $8`,
+        [
+          sessionCode,
+          String(body.session_name || '').trim() || `Buổi đào tạo ${sessionCode}`,
+          memberName,
+          String(body.member_phone || '').trim(),
+          tokenCount,
+          String(body.approver || '').trim(),
+          trainingDate,
+          logId,
+        ]
+      );
+
+      const affectedSessions = new Set([
+        `${oldSessionCode}\u0000${oldTrainingDate}`,
+        `${sessionCode}\u0000${trainingDate}`,
+      ]);
+      for (const sessionKey of affectedSessions) {
+        const [affectedCode, affectedDate] = sessionKey.split('\u0000');
+        const totals = await client.query(
+          `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
+           FROM training_logs WHERE session_code = $1 AND training_date = $2::date`,
+          [affectedCode, affectedDate]
+        );
+        const totalTokens = Number(totals.rows[0]?.total_tokens || 0);
+        await client.query(
+          `UPDATE training_logs
+           SET total_tokens = $1, session_budget = $2, reward_amount = token_count * 5000
+           WHERE session_code = $3 AND training_date = $4::date`,
+          [totalTokens, totalTokens * 5000, affectedCode, affectedDate]
+        );
+      }
+
+      const updated = await client.query(
+        `SELECT id, session_code, session_name, member_phone, member_name, token_count,
+                session_budget, total_tokens, reward_amount, status, approver,
+                TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
+         FROM training_logs WHERE id = $1`,
+        [logId]
+      );
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return NextResponse.json({ success: true, log: updated.rows[0] });
     }
 
     const updates: string[] = [];
@@ -207,14 +313,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    values.push(id);
+    values.push(logId);
     const q = `UPDATE training_logs SET ${updates.join(', ')} WHERE id = $${values.length} RETURNING *`;
     const res = await pool.query(q, values);
 
+    if (!res.rows[0]) {
+      return NextResponse.json({ success: false, message: 'Không tìm thấy lượt đào tạo' }, { status: 404 });
+    }
     return NextResponse.json({ success: true, log: res.rows[0] });
   } catch (error: any) {
+    if (transactionStarted && client) await client.query('ROLLBACK');
     console.error('Error updating training log:', error);
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  } finally {
+    client?.release();
   }
 }
 

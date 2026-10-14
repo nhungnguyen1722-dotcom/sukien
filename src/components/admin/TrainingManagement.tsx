@@ -33,6 +33,7 @@ export interface TrainingLog {
   session_name?: string;
   member_phone?: string;
   member_name: string;
+  approver?: string | null;
   token_count: number;
   session_budget: number;
   total_tokens: number;
@@ -97,6 +98,8 @@ export default function TrainingManagement({
 
   // Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<TrainingLog | null>(null);
+  const [viewingLog, setViewingLog] = useState<TrainingLog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -135,7 +138,7 @@ export default function TrainingManagement({
     return `TR${String(latestSequence + 1).padStart(3, '0')}`;
   }, [formData.training_date, logs]);
 
-  const handleCreateLog = async (e: React.FormEvent) => {
+  const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.member_name.trim()) {
       showToast('error', 'Vui lòng nhập họ tên nhân sự');
@@ -145,14 +148,19 @@ export default function TrainingManagement({
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/admin/training-logs', {
-        method: 'POST',
+        method: editingLog ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, session_code: sessionCodePreview }),
+        body: JSON.stringify({
+          ...formData,
+          session_code: sessionCodePreview,
+          ...(editingLog ? { id: editingLog.id } : {}),
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast('success', 'Đã lưu lượt tham gia đào tạo.');
+        showToast('success', editingLog ? 'Đã cập nhật lượt đào tạo.' : 'Đã lưu lượt tham gia đào tạo.');
         setIsAddModalOpen(false);
+        setEditingLog(null);
         // Refresh logs
         const refRes = await fetch('/api/admin/training-logs');
         const refData = await refRes.json();
@@ -191,6 +199,38 @@ export default function TrainingManagement({
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối');
     }
+  };
+
+  const openEditLog = (log: TrainingLog) => {
+    setEditingLog(log);
+    setFormData({
+      session_code: log.session_code,
+      session_name: log.session_name || '',
+      training_date: log.training_date || new Date().toISOString().split('T')[0],
+      session_budget: log.session_budget,
+      member_name: log.member_name,
+      member_phone: log.member_phone || '',
+      token_count: log.token_count,
+      approver: log.approver || '',
+      status: log.status,
+    });
+    setIsAddModalOpen(true);
+  };
+
+  const openAddLog = () => {
+    setEditingLog(null);
+    setFormData({
+      session_code: 'TR001',
+      session_name: 'Kỹ năng tư vấn tài chính',
+      training_date: new Date().toISOString().split('T')[0],
+      session_budget: 3500000,
+      member_name: '',
+      member_phone: '',
+      token_count: 0,
+      approver: '',
+      status: 'Đã duyệt',
+    });
+    setIsAddModalOpen(true);
   };
 
   // Export to Excel compatible with 7. Lịch Đào tạo
@@ -543,7 +583,7 @@ export default function TrainingManagement({
               {/* Nút Thêm buổi học */}
               <button
                 type="button"
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={openAddLog}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -567,6 +607,7 @@ export default function TrainingManagement({
                     <th className="py-3.5 px-3 text-right">Tổng token buổi</th>
                     <th className="py-3.5 px-3 text-right">Thù lao thực nhận</th>
                     <th className="py-3.5 px-3">Trạng thái</th>
+                    <th className="py-3.5 px-3 text-center">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -581,6 +622,22 @@ export default function TrainingManagement({
                       <td className="py-3 px-3 text-right">{log.total_tokens}</td>
                       <td className="py-3 px-3 text-right font-semibold">{formatCurrency(log.reward_amount)}</td>
                       <td className="py-3 px-3">{log.status}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <button type="button" onClick={() => setViewingLog(log)} aria-label={`Xem lượt đào tạo của ${log.member_name}`} title="Xem"
+                            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50">
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => openEditLog(log)} aria-label={`Sửa lượt đào tạo của ${log.member_name}`} title="Sửa"
+                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50">
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => handleDeleteLog(log.id)} aria-label={`Xóa lượt đào tạo của ${log.member_name}`} title="Xóa"
+                            className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -638,13 +695,13 @@ export default function TrainingManagement({
       </div>
       </>}
 
-      {/* Modal: Thêm buổi học đào tạo (Hình 15) */}
+      {/* Modal: Thêm hoặc sửa lượt tham gia đào tạo */}
       {activeView === 'sessions' && isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div>
-                <h3 className="font-bold text-base text-slate-900">Thêm chấm công đào tạo</h3>
+                <h3 className="font-bold text-base text-slate-900">{editingLog ? 'Sửa lượt đào tạo' : 'Thêm chấm công đào tạo'}</h3>
                 <p className="text-xs text-slate-400">
                   Nhập token thực nhận; thù lao tự tính theo mức 5.000 VNĐ/token.
                 </p>
@@ -658,13 +715,13 @@ export default function TrainingManagement({
               </button>
             </div>
 
-            <form onSubmit={handleCreateLog} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveLog} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Mã Buổi học *</label>
                   <input
                     type="text"
-                    value={sessionCodePreview}
+                    value={editingLog ? editingLog.session_code : sessionCodePreview}
                     readOnly
                     disabled
                     className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 font-bold uppercase text-slate-500"
@@ -770,11 +827,43 @@ export default function TrainingManagement({
                   disabled={isSubmitting}
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm transition disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Đang lưu...' : 'Lưu buổi học'}
+                  {isSubmitting ? 'Đang lưu...' : editingLog ? 'Lưu thay đổi' : 'Lưu buổi học'}
                 </button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {activeView === 'sessions' && viewingLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs" onClick={() => setViewingLog(null)}>
+          <section role="dialog" aria-modal="true" aria-labelledby="training-log-view-title" onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 id="training-log-view-title" className="text-base font-bold text-slate-900">Chi tiết lượt đào tạo</h3>
+                <p className="mt-1 text-xs text-slate-500">{viewingLog.session_code}</p>
+              </div>
+              <button type="button" onClick={() => setViewingLog(null)} aria-label="Đóng" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-xs">
+              <div><dt className="text-slate-500">Tên buổi học</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.session_name || '—'}</dd></div>
+              <div><dt className="text-slate-500">Ngày học</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.training_date ? viewingLog.training_date.split('-').reverse().join('/') : '—'}</dd></div>
+              <div><dt className="text-slate-500">Người tham gia</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.member_name}</dd></div>
+              <div><dt className="text-slate-500">Số điện thoại</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.member_phone || '—'}</dd></div>
+              <div><dt className="text-slate-500">Token thực nhận</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.token_count}</dd></div>
+              <div><dt className="text-slate-500">Tổng token buổi</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.total_tokens}</dd></div>
+              <div><dt className="text-slate-500">Ngân sách buổi</dt><dd className="mt-1 font-semibold text-slate-900">{formatCurrency(viewingLog.session_budget)}</dd></div>
+              <div><dt className="text-slate-500">Thù lao thực nhận</dt><dd className="mt-1 font-semibold text-slate-900">{formatCurrency(viewingLog.reward_amount)}</dd></div>
+              <div><dt className="text-slate-500">Người duyệt</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.approver || '—'}</dd></div>
+              <div><dt className="text-slate-500">Trạng thái</dt><dd className="mt-1 font-semibold text-slate-900">{viewingLog.status}</dd></div>
+            </dl>
+            <div className="mt-5 flex justify-end">
+              <button type="button" onClick={() => setViewingLog(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Đóng</button>
+            </div>
+          </section>
         </div>
       )}
     </div>

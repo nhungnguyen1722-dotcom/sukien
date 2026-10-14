@@ -10,7 +10,7 @@ async function getTrainingData() {
         SELECT 
           id, session_code, session_name, member_phone, member_name, 
           token_count, session_budget, total_tokens,
-          reward_amount, status, TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
+          reward_amount, status, approver, TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
         FROM training_logs
         ORDER BY training_date ASC, id ASC
       `),
