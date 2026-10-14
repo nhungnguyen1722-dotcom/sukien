@@ -43,6 +43,27 @@ export interface TrainingLog {
   training_date?: string;
 }
 
+export interface GroupedTrainingSession {
+  key: string;
+  training_date: string;
+  course_code: string;
+  session_code: string;
+  session_name: string;
+  session_budget: number;
+  total_tokens: number;
+  status: string;
+  approver: string;
+  participants: Array<{
+    id: number;
+    member_name: string;
+    member_phone: string;
+    token_count: number;
+    reward_amount: number;
+    status: string;
+  }>;
+  logs: TrainingLog[];
+}
+
 interface TrainingMember {
   full_name: string;
   phone: string | null;
@@ -111,7 +132,9 @@ export default function TrainingManagement({
   const [courseTypeFilter, setCourseTypeFilter] = useState<'all' | 'Online' | 'Offline'>('all');
   const [selectedCourseCardCode, setSelectedCourseCardCode] = useState<string | null>(null);
   const [editingLog, setEditingLog] = useState<TrainingLog | null>(null);
+  const [editingSession, setEditingSession] = useState<GroupedTrainingSession | null>(null);
   const [viewingLog, setViewingLog] = useState<TrainingLog | null>(null);
+  const [viewingSession, setViewingSession] = useState<GroupedTrainingSession | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [participants, setParticipants] = useState<Array<{ member_name: string; member_phone: string; token_count: number; reward_amount: number }>>([{ member_name: '', member_phone: '', token_count: 0, reward_amount: 0 }]);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -131,6 +154,7 @@ export default function TrainingManagement({
     member_name: '',
     member_phone: '',
     token_count: 0,
+    reward_amount: 0,
     approver: '',
     status: 'Chờ duyệt',
   });
@@ -177,6 +201,64 @@ export default function TrainingManagement({
       return;
     }
 
+    if (editingSession) {
+      for (let i = 0; i < participants.length; i++) {
+        if (!participants[i].member_name.trim()) {
+          showToast('error', `Vui lòng nhập họ tên nhân sự (dòng ${i + 1})`);
+          return;
+        }
+        if (!participants[i].token_count || participants[i].token_count <= 0) {
+          showToast('error', `Vui lòng nhập số token hợp lệ (dòng ${i + 1})`);
+          return;
+        }
+      }
+      setIsSubmitting(true);
+      try {
+        const payload = {
+          action: 'update_session',
+          session_code: editingSession.session_code,
+          course_code: formData.course_code,
+          training_date: formData.training_date,
+          approver: formData.approver,
+          status: formData.status,
+          old_session_code: editingSession.session_code,
+          old_course_code: editingSession.course_code,
+          old_training_date: editingSession.training_date,
+          participants: participants.map((p) => ({
+            member_name: p.member_name,
+            member_phone: p.member_phone,
+            token_count: p.token_count,
+            reward_amount: p.reward_amount || p.token_count * 5000,
+          })),
+        };
+
+        const res = await fetch('/api/admin/training-logs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('success', 'Đã cập nhật buổi đào tạo.');
+          setIsAddModalOpen(false);
+          setEditingSession(null);
+          const refRes = await fetch('/api/admin/training-logs');
+          const refData = await refRes.json();
+          if (refRes.ok && refData.success) {
+            setLogs(refData.logs);
+            setStats(refData.stats);
+          }
+        } else {
+          showToast('error', data.message || 'Lỗi khi cập nhật buổi đào tạo');
+        }
+      } catch (error) {
+        showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (editingLog) {
       // Single edit mode
       if (!formData.member_name.trim()) {
@@ -204,6 +286,7 @@ export default function TrainingManagement({
             ...formData,
             id: editingLog.id,
             session_code: sessionCodePreview,
+            reward_amount: formData.reward_amount !== undefined ? Number(formData.reward_amount) : formData.token_count * 5000,
           }
         : {
             course_code: formData.course_code,
@@ -215,7 +298,7 @@ export default function TrainingManagement({
               member_name: p.member_name,
               member_phone: p.member_phone,
               token_count: p.token_count,
-              reward_amount: p.reward_amount || p.token_count * 5000,
+              reward_amount: p.reward_amount !== undefined ? Number(p.reward_amount) : p.token_count * 5000,
             })),
           };
 
@@ -269,6 +352,28 @@ export default function TrainingManagement({
     }
   };
 
+  const handleDeleteSession = async (session: GroupedTrainingSession) => {
+    if (!confirm(`Bạn có chắc muốn xóa buổi đào tạo ${session.course_code || session.session_code} (${session.session_name}) ngày ${session.training_date ? session.training_date.split('-').reverse().join('/') : ''} với ${session.participants.length} nhân sự tham gia?`)) return;
+    try {
+      const ids = session.participants.map((p) => p.id).join(',');
+      const res = await fetch(`/api/admin/training-logs?ids=${ids}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('success', `Đã xóa buổi đào tạo ${session.course_code || session.session_code}`);
+        const refreshed = await fetch('/api/admin/training-logs');
+        const refreshedData = await refreshed.json();
+        if (refreshed.ok && refreshedData.success) {
+          setLogs(refreshedData.logs);
+          setStats(refreshedData.stats);
+        }
+      } else {
+        showToast('error', data.message || 'Lỗi khi xóa buổi đào tạo');
+      }
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
+    }
+  };
+
   const handleStatusChange = async (log: TrainingLog, status: string) => {
     if (status === log.status) return;
     setUpdatingStatusId(log.id);
@@ -291,7 +396,63 @@ export default function TrainingManagement({
     }
   };
 
+  const handleSessionStatusChange = async (session: GroupedTrainingSession, status: string) => {
+    if (status === session.status) return;
+    setUpdatingStatusId(session.participants[0]?.id ?? -1);
+    try {
+      await Promise.all(
+        session.participants.map((p) =>
+          fetch('/api/admin/training-logs', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: p.id, status }),
+          })
+        )
+      );
+      setLogs((current) =>
+        current.map((item) =>
+          session.participants.some((p) => p.id === item.id) ? { ...item, status } : item
+        )
+      );
+      showToast('success', `Đã cập nhật trạng thái buổi ${session.course_code} thành ${status}.`);
+    } catch (error) {
+      showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const openEditSession = (session: GroupedTrainingSession) => {
+    setEditingSession(session);
+    setEditingLog(null);
+    const selected = courses.find((course) => course.course_code === session.course_code);
+    setCourseSearch(selected ? `${selected.course_code} - ${selected.course_name}` : `${session.course_code} - ${session.session_name}`);
+    setFormData({
+      session_code: session.session_code,
+      course_code: session.course_code,
+      session_name: selected?.course_name || session.session_name || '',
+      training_date: session.training_date || new Date().toISOString().split('T')[0],
+      session_budget: session.session_budget,
+      member_name: '',
+      member_phone: '',
+      token_count: 0,
+      reward_amount: 0,
+      approver: session.approver || '',
+      status: session.status,
+    });
+    setParticipants(
+      session.participants.map((p) => ({
+        member_name: p.member_name,
+        member_phone: p.member_phone,
+        token_count: p.token_count,
+        reward_amount: p.reward_amount,
+      }))
+    );
+    setIsAddModalOpen(true);
+  };
+
   const openEditLog = (log: TrainingLog) => {
+    setEditingSession(null);
     setEditingLog(log);
     const selected = courses.find((course) => course.course_code === log.course_code);
     setCourseSearch(selected ? `${selected.course_code} - ${selected.course_name}` : '');
@@ -304,6 +465,7 @@ export default function TrainingManagement({
       member_name: log.member_name,
       member_phone: log.member_phone || '',
       token_count: log.token_count,
+      reward_amount: log.reward_amount,
       approver: log.approver || '',
       status: log.status,
     });
@@ -311,6 +473,7 @@ export default function TrainingManagement({
   };
 
   const openAddLog = () => {
+    setEditingSession(null);
     setEditingLog(null);
     setCourseSearch('');
     setFormData({
@@ -322,6 +485,7 @@ export default function TrainingManagement({
       member_name: '',
       member_phone: '',
       token_count: 0,
+      reward_amount: 0,
       approver: '',
       status: 'Chờ duyệt',
     });
@@ -477,12 +641,81 @@ export default function TrainingManagement({
     return map;
   }, [logs]);
 
-  const trainingRows = useMemo(
-    () => [...filteredLogs].sort((a, b) => (a.training_date || '').localeCompare(b.training_date || '') || a.id - b.id),
-    [filteredLogs]
-  );
-  const totalPages = Math.max(1, Math.ceil(trainingRows.length / itemsPerPage));
-  const paginatedTrainingRows = trainingRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  interface TableSessionGroup {
+    key: string;
+    session_code: string;
+    course_code: string;
+    session_name: string;
+    training_date: string;
+    session_budget: number;
+    total_tokens: number;
+    status: string;
+    approver: string;
+    participants: TrainingLog[];
+  }
+
+  const groupedSessions = useMemo<TableSessionGroup[]>(() => {
+    const map = new Map<string, TableSessionGroup>();
+
+    const sorted = [...filteredLogs].sort((a, b) =>
+      (b.training_date || '').localeCompare(a.training_date || '') ||
+      (a.course_code || '').localeCompare(b.course_code || '') ||
+      a.id - b.id
+    );
+
+    for (const log of sorted) {
+      const courseKey = log.course_code || log.session_code || 'TR';
+      const dateKey = log.training_date || '';
+      const key = `${dateKey}_${courseKey}`;
+
+      let group = map.get(key);
+      if (!group) {
+        group = {
+          key,
+          session_code: log.session_code || courseKey,
+          course_code: courseKey,
+          session_name: log.session_name || '',
+          training_date: dateKey,
+          session_budget: Number(log.session_budget || 0),
+          total_tokens: 0,
+          status: log.status,
+          approver: log.approver || '',
+          participants: [],
+        };
+        map.set(key, group);
+      }
+
+      group.participants.push(log);
+      group.total_tokens += Number(log.token_count || 0);
+    }
+
+    return Array.from(map.values());
+  }, [filteredLogs]);
+
+  const toGroupedSession = (session: TableSessionGroup): GroupedTrainingSession => ({
+    key: session.key,
+    training_date: session.training_date,
+    course_code: session.course_code,
+    session_code: session.session_code,
+    session_name: session.session_name,
+    session_budget: session.session_budget,
+    total_tokens: session.total_tokens,
+    status: session.status,
+    approver: session.approver,
+    participants: session.participants.map((p) => ({
+      id: p.id,
+      member_name: p.member_name,
+      member_phone: p.member_phone || '',
+      token_count: p.token_count,
+      reward_amount: p.reward_amount,
+      status: p.status,
+    })),
+    logs: session.participants,
+  });
+
+  const totalParticipantsCount = useMemo(() => groupedSessions.reduce((sum, s) => sum + s.participants.length, 0), [groupedSessions]);
+  const totalPages = Math.max(1, Math.ceil(groupedSessions.length / itemsPerPage));
+  const paginatedSessions = groupedSessions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN').format(Math.round(val || 0)) + ' đ';
@@ -748,12 +981,12 @@ export default function TrainingManagement({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>Danh sách nhật ký đào tạo</span>
+                <span>Danh sách đào tạo</span>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-700 font-semibold font-mono">
-                  {trainingRows.length} lượt
+                  {groupedSessions.length} buổi học • {totalParticipantsCount} lượt tham gia
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Theo dõi chi tiết các lượt tham gia học, tích lũy token và duyệt thù lao.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Các buổi học nhiều người cùng chung 1 STT, chung ngày và mã khóa học; riêng biệt số token và thù lao từng người.</p>
             </div>
             {selectedCourseCardCode && (
               <button
@@ -809,76 +1042,127 @@ export default function TrainingManagement({
           {/* Table */}
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
             <div className="overflow-x-auto max-h-[720px] overflow-y-auto custom-scrollbar">
-              <table className="w-full text-left text-xs min-w-[1080px]">
+              <table className="w-full text-left text-xs min-w-[980px]">
                 <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs text-slate-500 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200/80 shadow-2xs">
                   <tr>
                     <th className="py-3.5 px-3 text-center whitespace-nowrap">STT</th>
-                    <th className="py-3.5 px-3 whitespace-nowrap">Ngày học</th>
-                    <th className="py-3.5 px-3 whitespace-nowrap">Mã khóa học</th>
-                    <th className="py-3.5 px-3 min-w-[160px]">Tên buổi học</th>
-                    <th className="py-3.5 px-3 text-right whitespace-nowrap">Ngân sách buổi</th>
-                    <th className="py-3.5 px-3 min-w-[140px] whitespace-nowrap">Người tham gia</th>
+                    <th className="py-3.5 px-3 whitespace-nowrap">Ngày học / Mã khóa học</th>
+                    <th className="py-3.5 px-3 min-w-[180px]">Tên buổi học</th>
+                    <th className="py-3.5 px-3 min-w-[150px] whitespace-nowrap">Người tham gia</th>
                     <th className="py-3.5 px-3 text-right whitespace-nowrap">Số token</th>
-                    <th className="py-3.5 px-3 text-right whitespace-nowrap">Tổng token buổi</th>
                     <th className="py-3.5 px-3 text-right whitespace-nowrap">Thù lao thực nhận</th>
                     <th className="py-3.5 px-3 whitespace-nowrap">Trạng thái</th>
                     <th className="py-3.5 px-3 text-center whitespace-nowrap">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paginatedTrainingRows.map((log, idx) => (
-                    <tr key={log.id} className="align-middle hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3 px-3 text-center text-slate-400 whitespace-nowrap">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                      <td className="py-3 px-3 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
-                      <td className="py-3 px-3 whitespace-nowrap font-mono">
-                        <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
-                          {log.course_code || log.session_code || '—'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-semibold">{log.session_name || '—'}</td>
-                      <td className="py-3 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(log.session_budget)}</td>
-                      <td className="py-3 px-3 whitespace-nowrap"><span className="flex flex-col font-medium"><span>{log.member_name}</span><span className="text-slate-500 text-[11px]">{log.member_phone || '—'}</span></span></td>
-                      <td className="py-3 px-3 text-right font-bold text-amber-600 whitespace-nowrap">{log.token_count}</td>
-                      <td className="py-3 px-3 text-right whitespace-nowrap">{log.total_tokens}</td>
-                      <td className="py-3 px-3 text-right font-semibold text-emerald-700 whitespace-nowrap">{formatCurrency(log.reward_amount)}</td>
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <select
-                          aria-label={`Trạng thái duyệt của ${log.member_name}`}
-                          value={log.status}
-                          disabled={updatingStatusId !== null}
-                          onChange={(event) => void handleStatusChange(log, event.target.value)}
-                          className={`rounded-lg border px-2 py-1 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-60 cursor-pointer ${
-                            log.status === 'Đã duyệt'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-amber-200 bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          <option value="Đã duyệt">Đã duyệt</option>
-                          <option value="Chờ duyệt">Chờ duyệt</option>
-                        </select>
-                      </td>
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button type="button" onClick={() => setViewingLog(log)} aria-label={`Xem lượt đào tạo của ${log.member_name}`} title="Xem"
-                            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 cursor-pointer transition">
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button type="button" onClick={() => openEditLog(log)} aria-label={`Sửa lượt đào tạo của ${log.member_name}`} title="Sửa"
-                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 cursor-pointer transition">
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button type="button" onClick={() => handleDeleteLog(log.id)} aria-label={`Xóa lượt đào tạo của ${log.member_name}`} title="Xóa"
-                            className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer transition">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {paginatedSessions.map((session, sIdx) => {
+                    const sessionSTT = (currentPage - 1) * itemsPerPage + sIdx + 1;
+                    const rowCount = session.participants.length;
+                    const grouped = toGroupedSession(session);
+
+                    return (
+                      <React.Fragment key={session.key}>
+                        {session.participants.map((log, pIdx) => {
+                          const isFirst = pIdx === 0;
+                          const isLast = pIdx === rowCount - 1;
+
+                          return (
+                            <tr
+                              key={log.id}
+                              className={`align-middle ${isLast ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'}`}
+                            >
+                              {isFirst && (
+                                <td
+                                  rowSpan={rowCount}
+                                  className="py-3 px-3 text-center font-bold text-slate-700 whitespace-nowrap align-middle"
+                                >
+                                  {sessionSTT}
+                                </td>
+                              )}
+
+                              {isFirst && (
+                                <td rowSpan={rowCount} className="py-2.5 px-3 align-middle">
+                                  <div className="training-shared-box">
+                                    <span className="font-medium text-slate-700">
+                                      {session.training_date ? session.training_date.split('-').reverse().join('/') : '—'}
+                                    </span>
+                                    <span className="font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/70">
+                                      {session.course_code || session.session_code || '—'}
+                                    </span>
+                                  </div>
+                                </td>
+                              )}
+
+                              {isFirst && (
+                                <td
+                                  rowSpan={rowCount}
+                                  className="py-3 px-3 font-semibold text-slate-900 align-middle min-w-[180px]"
+                                >
+                                  {session.session_name || '—'}
+                                </td>
+                              )}
+
+                              <td className="py-2 px-3 whitespace-nowrap">
+                                <div className="training-person-box">
+                                  <div className="font-semibold text-slate-900 leading-tight">{log.member_name}</div>
+                                  <div className="text-slate-500 text-[11px] font-mono mt-0.5">{log.member_phone || '—'}</div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-3 text-right font-bold text-amber-600 whitespace-nowrap">
+                                {new Intl.NumberFormat('vi-VN').format(log.token_count)}
+                              </td>
+
+                              <td className="py-3 px-3 text-right font-semibold text-emerald-700 whitespace-nowrap">
+                                {formatCurrency(log.reward_amount)}
+                              </td>
+
+                              <td className="py-3 px-3 whitespace-nowrap">
+                                <select
+                                  aria-label={`Trạng thái duyệt của ${log.member_name}`}
+                                  value={log.status}
+                                  disabled={updatingStatusId !== null}
+                                  onChange={(event) => void handleStatusChange(log, event.target.value)}
+                                  className={`rounded-lg border px-2 py-1 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-60 cursor-pointer ${
+                                    log.status === 'Đã duyệt'
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                      : 'border-amber-200 bg-amber-50 text-amber-700'
+                                  }`}
+                                >
+                                  <option value="Đã duyệt">Đã duyệt</option>
+                                  <option value="Chờ duyệt">Chờ duyệt</option>
+                                </select>
+                              </td>
+
+                              <td className="py-2 px-3 whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button type="button" onClick={() => setViewingLog(log)} aria-label={`Xem lượt đào tạo của ${log.member_name}`} title="Xem"
+                                    className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 cursor-pointer transition">
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  {isFirst && (
+                                    <button type="button" onClick={() => openEditSession(grouped)} aria-label={`Sửa buổi ${session.course_code}`} title="Sửa buổi học"
+                                      className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 cursor-pointer transition">
+                                      <Edit2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                  <button type="button" onClick={() => handleDeleteLog(log.id)} aria-label={`Xóa lượt đào tạo của ${log.member_name}`} title="Xóa người này"
+                                    className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer transition">
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
 
-              {trainingRows.length === 0 && (
+              {groupedSessions.length === 0 && (
                 <div className="p-12 text-center text-slate-400">
                   Không tìm thấy buổi học đào tạo nào phù hợp.
                 </div>
@@ -888,8 +1172,8 @@ export default function TrainingManagement({
             {/* Pagination footer */}
             <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <div>
-                Hiển thị {trainingRows.length ? (currentPage - 1) * itemsPerPage + 1 : 0} –{' '}
-                {Math.min(currentPage * itemsPerPage, trainingRows.length)} trong tổng số {trainingRows.length} lượt tham gia
+                Hiển thị {groupedSessions.length ? (currentPage - 1) * itemsPerPage + 1 : 0} –{' '}
+                {Math.min(currentPage * itemsPerPage, groupedSessions.length)} trong tổng số {groupedSessions.length} buổi học ({totalParticipantsCount} lượt tham gia)
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1134,9 +1418,9 @@ export default function TrainingManagement({
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div>
-                <h3 className="font-bold text-base text-slate-900">{editingLog ? 'Sửa lượt đào tạo' : 'Thêm chấm công đào tạo'}</h3>
+                <h3 className="font-bold text-base text-slate-900">{editingLog ? 'Sửa lượt đào tạo' : editingSession ? 'Sửa buổi đào tạo' : 'Thêm buổi học'}</h3>
                 <p className="text-xs text-slate-400">
-                  Nhập token thực nhận; thù lao tự tính theo mức 5.000 VNĐ/token.
+                  Nhiều người cùng buổi dùng chung STT, ngày học và mã khóa; token và thù lao nhập riêng từng người.
                 </p>
               </div>
               <button
@@ -1277,18 +1561,27 @@ export default function TrainingManagement({
                         step="1"
                         required
                         value={formData.token_count || ''}
-                        onChange={(e) => setFormData({ ...formData, token_count: Number(e.target.value) || 0 })}
+                        onChange={(e) => {
+                          const tc = Number(e.target.value) || 0;
+                          setFormData({ ...formData, token_count: tc, reward_amount: tc * 5000 });
+                        }}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center font-bold"
                       />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Mức thù lao</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Mức thù lao riêng (VNĐ) *</label>
                       <input
-                        type="text"
-                        readOnly
-                        value={formatCurrency(formData.token_count * 5000)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 cursor-not-allowed"
+                        type="number"
+                        min="0"
+                        step="1000"
+                        required
+                        value={formData.reward_amount ?? (formData.token_count * 5000)}
+                        onChange={(e) => setFormData({ ...formData, reward_amount: Number(e.target.value) || 0 })}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right font-bold text-emerald-700 focus:border-blue-500"
                       />
+                      <p className="mt-1 text-[11px] text-right font-medium text-slate-500">
+                        {formatCurrency(formData.reward_amount ?? (formData.token_count * 5000))}
+                      </p>
                     </div>
                   </div>
                 </>
@@ -1376,13 +1669,24 @@ export default function TrainingManagement({
                           />
                         </div>
                         <div>
-                          <label className="block font-semibold text-slate-700 mb-0.5">Thù lao</label>
+                          <label className="block font-semibold text-slate-700 mb-0.5">Thù lao riêng (VNĐ) *</label>
                           <input
-                            type="text"
-                            readOnly
-                            value={formatCurrency(p.reward_amount || p.token_count * 5000)}
-                            className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-center font-bold text-slate-500 cursor-not-allowed"
+                            type="number"
+                            min="0"
+                            step="1000"
+                            required
+                            value={p.reward_amount !== undefined ? p.reward_amount : p.token_count * 5000}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
+                              setParticipants((prev) => prev.map((item, i) =>
+                                i === idx ? { ...item, reward_amount: val } : item
+                              ));
+                            }}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-right font-bold text-emerald-700 focus:border-blue-500"
                           />
+                          <p className="mt-0.5 text-[10px] text-right text-slate-500 font-medium">
+                            {formatCurrency(p.reward_amount !== undefined ? p.reward_amount : p.token_count * 5000)}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1422,8 +1726,8 @@ export default function TrainingManagement({
 
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800">
                 {editingLog
-                  ? <>Thù lao lượt này: <strong>{formatCurrency(formData.token_count * 5000)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.</>
-                  : <>Tổng thù lao ({participants.length} người): <strong>{formatCurrency(participants.reduce((s, p) => s + (p.reward_amount || p.token_count * 5000), 0))}</strong> — Tổng token: <strong>{participants.reduce((s, p) => s + p.token_count, 0)}</strong></>
+                  ? <>Thù lao riêng lượt này: <strong>{formatCurrency(formData.reward_amount ?? formData.token_count * 5000)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.</>
+                  : <>Tổng thù lao ({participants.length} người): <strong>{formatCurrency(participants.reduce((s, p) => s + (p.reward_amount !== undefined ? p.reward_amount : p.token_count * 5000), 0))}</strong> — Tổng token: <strong>{participants.reduce((s, p) => s + p.token_count, 0)}</strong></>
                 }
               </div>
 

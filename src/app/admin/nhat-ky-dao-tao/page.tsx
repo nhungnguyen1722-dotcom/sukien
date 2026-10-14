@@ -23,7 +23,7 @@ async function getTrainingData() {
           COUNT(DISTINCT (session_code, training_date))::int AS total_sessions,
           COUNT(DISTINCT member_name)::int AS total_members,
           COALESCE(SUM(token_count), 0)::int AS total_tokens,
-          COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN token_count * 5000 ELSE 0 END), 0)::numeric AS total_rewards
+          COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN COALESCE(reward_amount, token_count * 5000) ELSE 0 END), 0)::numeric AS total_rewards
         FROM training_logs
       `),
       pool.query(`

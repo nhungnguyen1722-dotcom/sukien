@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(DISTINCT (session_code, training_date))::int AS total_sessions,
         COUNT(DISTINCT COALESCE(NULLIF(member_phone, ''), member_name))::int AS total_members,
         COALESCE(SUM(token_count), 0)::float8 AS total_tokens,
-        COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN token_count * 5000 ELSE 0 END), 0)::float8 AS total_rewards
+        COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN COALESCE(reward_amount, token_count * 5000) ELSE 0 END), 0)::float8 AS total_rewards
       FROM training_logs
     `);
     const stats = statsRes.rows[0] || {};
@@ -107,7 +107,9 @@ export async function POST(req: NextRequest) {
             member_name: body.member_name || '',
             member_phone: body.member_phone || '',
             token_count: Number(body.token_count) || 0,
-            reward_amount: Number(body.reward_amount) || (Number(body.token_count) || 0) * 5000,
+            reward_amount: (body.reward_amount !== undefined && body.reward_amount !== null && !isNaN(Number(body.reward_amount)))
+              ? Number(body.reward_amount)
+              : (Number(body.token_count) || 0) * 5000,
           }];
 
     for (let i = 0; i < participants.length; i++) {
@@ -181,7 +183,9 @@ export async function POST(req: NextRequest) {
     const insertedRows: any[] = [];
     for (const p of participants) {
       const tCount = Number(p.token_count);
-      const reward = Number(p.reward_amount) || tCount * 5000;
+      const reward = (p.reward_amount !== undefined && p.reward_amount !== null && !isNaN(Number(p.reward_amount)))
+        ? Number(p.reward_amount)
+        : tCount * 5000;
       const insertRes = await client.query(
         `INSERT INTO training_logs (
           session_code, course_code, session_name, member_phone, member_name, role,
@@ -222,6 +226,74 @@ export async function PUT(req: NextRequest) {
   let transactionStarted = false;
   try {
     const body = await req.json();
+
+    if (body.action === 'update_session' || (body.participants && Array.isArray(body.participants))) {
+      const {
+        course_code,
+        training_date,
+        approver = '',
+        status = 'Chờ duyệt',
+        old_course_code,
+        old_training_date,
+        old_session_code,
+        session_code,
+        participants,
+      } = body;
+
+      const courseCode = String(course_code || '').trim().toUpperCase();
+      if (!courseCode) {
+        return NextResponse.json({ success: false, message: 'Vui lòng chọn khóa học.' }, { status: 400 });
+      }
+      const courseRes = await pool.query('SELECT course_code, course_name, budget FROM training_courses WHERE course_code = $1', [courseCode]);
+      const course = courseRes.rows[0];
+      if (!course) {
+        return NextResponse.json({ success: false, message: 'Khóa học không tồn tại.' }, { status: 400 });
+      }
+
+      client = await pool.connect();
+      await client.query('BEGIN');
+      transactionStarted = true;
+
+      const targetOldCode = old_course_code || courseCode;
+      const targetOldDate = old_training_date || training_date;
+      await client.query(
+        `DELETE FROM training_logs 
+         WHERE (course_code = $1 OR session_code = $2) AND training_date = $3::date`,
+        [targetOldCode, old_session_code || targetOldCode, targetOldDate]
+      );
+
+      const sessionCodeFinal = session_code || targetOldCode;
+      const totalTokens = participants.reduce((sum: number, p: any) => sum + Number(p.token_count || 0), 0);
+      const sessionBudget = Number(course.budget);
+
+      const insertedRows = [];
+      for (const p of participants) {
+        const tCount = Number(p.token_count);
+        const reward = (p.reward_amount !== undefined && p.reward_amount !== null && !isNaN(Number(p.reward_amount)))
+          ? Number(p.reward_amount)
+          : tCount * 5000;
+        const ins = await client.query(
+          `INSERT INTO training_logs (
+            session_code, course_code, session_name, member_phone, member_name, role,
+            token_tier, token_count, session_budget, total_tokens, reward_amount,
+            approver, status, training_date
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          RETURNING *`,
+          [
+            sessionCodeFinal, course.course_code, course.course_name,
+            String(p.member_phone || '').trim(), String(p.member_name).trim(),
+            '', '', tCount, sessionBudget, totalTokens, reward,
+            approver, status, training_date
+          ]
+        );
+        insertedRows.push(ins.rows[0]);
+      }
+
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return NextResponse.json({ success: true, logs: insertedRows });
+    }
+
     const { id, status, approver } = body;
 
     const logId = Number(id);
@@ -298,11 +370,15 @@ export async function PUT(req: NextRequest) {
         sessionCode = `TR${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
       }
 
+      const rewardAmount = (body.reward_amount !== undefined && body.reward_amount !== null && !isNaN(Number(body.reward_amount)))
+        ? Number(body.reward_amount)
+        : tokenCount * 5000;
+
       await client.query(
         `UPDATE training_logs
          SET session_code = $1, course_code = $2, session_name = $3, member_name = $4, member_phone = $5,
-             token_count = $6, reward_amount = $6 * 5000, approver = $7, status = $8, training_date = $9::date
-         WHERE id = $10`,
+             token_count = $6, reward_amount = $7, approver = $8, status = $9, training_date = $10::date
+         WHERE id = $11`,
         [
           sessionCode,
           course.course_code,
@@ -310,6 +386,7 @@ export async function PUT(req: NextRequest) {
           memberName,
           String(body.member_phone || '').trim(),
           tokenCount,
+          rewardAmount,
           String(body.approver || '').trim(),
           status === undefined ? selected.rows[0].status : status,
           trainingDate,
@@ -393,6 +470,16 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const idsParam = searchParams.get('ids');
+
+    if (idsParam) {
+      const ids = idsParam.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      if (ids.length > 0) {
+        await client.query('DELETE FROM training_logs WHERE id = ANY($1::int[])', [ids]);
+        return NextResponse.json({ success: true, deleted: ids.length });
+      }
+    }
+
     if (!id) {
       return NextResponse.json({ success: false, message: 'Thiếu ID' }, { status: 400 });
     }

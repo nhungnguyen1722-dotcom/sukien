@@ -17,6 +17,7 @@ export const thinBorder: Partial<ExcelJS.Borders> = {
 export interface TrainingLogItem {
   id?: number;
   session_code: string;
+  course_code?: string;
   session_name?: string;
   training_date?: string;
   member_phone?: string;
@@ -26,6 +27,10 @@ export interface TrainingLogItem {
   total_tokens: number;
   reward_amount: number;
   status: string;
+}
+
+function sessionGroupKey(log: TrainingLogItem): string {
+  return `${log.training_date || ''}\u0000${(log.course_code || log.session_code || '').toUpperCase()}`;
 }
 
 export interface TrainingCourseItem {
@@ -269,45 +274,62 @@ export function createStyledTrainingSheet(
   });
 
   // 6. Nạp dữ liệu vào Table 1 (Danh sách tham gia đào tạo: A4..M...)
-  const rowCount = Math.max(logs.length, 10); // Đảm bảo tối thiểu 10 dòng như file mẫu
-  for (let idx = 0; idx < rowCount; idx++) {
-    const rIdx = 4 + idx;
-    const log = logs[idx];
-    const r = ws.getRow(rIdx);
-    if (!r.height) r.height = 24;
+  // Buổi nhiều người: chung STT / mã khóa / ngày / ngân sách / tổng token; riêng token & thù lao.
+  const groupedLogs: TrainingLogItem[][] = [];
+  const groupIndex = new Map<string, TrainingLogItem[]>();
+  const orderedLogs = [...logs].sort(
+    (a, b) =>
+      (a.training_date || '').localeCompare(b.training_date || '') ||
+      (a.course_code || a.session_code || '').localeCompare(b.course_code || b.session_code || '') ||
+      (a.id || 0) - (b.id || 0)
+  );
+  for (const log of orderedLogs) {
+    const key = sessionGroupKey(log);
+    let group = groupIndex.get(key);
+    if (!group) {
+      group = [];
+      groupIndex.set(key, group);
+      groupedLogs.push(group);
+    }
+    group.push(log);
+  }
 
-    if (log) {
+  let excelRow = 4;
+  groupedLogs.forEach((group, groupIdx) => {
+    const startRow = excelRow;
+    const endRow = excelRow + group.length - 1;
+    const sessionTokens = group.reduce((sum, item) => sum + (Number(item.token_count) || 0), 0);
+
+    group.forEach((log) => {
+      const rIdx = excelRow;
+      const r = ws.getRow(rIdx);
+      r.height = 24;
       const dateText = formatDateDisplay(log.training_date);
 
-      // A: STT
       const cellA = ws.getCell(`A${rIdx}`);
-      cellA.value = idx + 1;
+      cellA.value = groupIdx + 1;
       cellA.font = { name: 'Quattrocento Sans', size: 10 };
       cellA.alignment = { horizontal: 'center', vertical: 'middle' };
       cellA.border = thinBorder;
 
-      // B: Mã khoá học
       const cellB = ws.getCell(`B${rIdx}`);
-      cellB.value = log.session_code;
+      cellB.value = log.course_code || log.session_code;
       cellB.font = { name: 'Quattrocento Sans', size: 10, bold: true };
       cellB.alignment = { horizontal: 'center', vertical: 'middle' };
       cellB.border = thinBorder;
 
-      // C: Ngày
       const cellC = ws.getCell(`C${rIdx}`);
       cellC.value = dateText;
       cellC.font = { name: 'Nunito', size: 10 };
       cellC.alignment = { horizontal: 'center', vertical: 'middle' };
       cellC.border = thinBorder;
 
-      // D: Mã Thành viên (SDT)
       const cellD = ws.getCell(`D${rIdx}`);
       cellD.value = log.member_phone || '';
       cellD.font = { name: 'Nunito', size: 10 };
       cellD.alignment = { horizontal: 'center', vertical: 'middle' };
       cellD.border = thinBorder;
 
-      // E: Họ Tên người tham gia (Soft Green #D9EAD3)
       const cellE = ws.getCell(`E${rIdx}`);
       cellE.value = log.member_name;
       cellE.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_MEMBER_GREEN } };
@@ -315,14 +337,12 @@ export function createStyledTrainingSheet(
       cellE.alignment = { horizontal: 'left', vertical: 'middle' };
       cellE.border = thinBorder;
 
-      // F: Số Token
       const cellF = ws.getCell(`F${rIdx}`);
       cellF.value = Number(log.token_count) || 0;
       cellF.font = { name: 'Quattrocento Sans', size: 10, bold: true };
       cellF.alignment = { horizontal: 'center', vertical: 'middle' };
       cellF.border = thinBorder;
 
-      // G: Ngân sách Buổi học (VND)
       const cellG = ws.getCell(`G${rIdx}`);
       cellG.value = Number(log.session_budget) || 0;
       cellG.font = { name: 'Quattrocento Sans', size: 10 };
@@ -330,14 +350,12 @@ export function createStyledTrainingSheet(
       cellG.numFmt = '#,##0" đ"';
       cellG.border = thinBorder;
 
-      // H: Tổng Token Buổi
       const cellH = ws.getCell(`H${rIdx}`);
-      cellH.value = Number(log.total_tokens) || 0;
+      cellH.value = sessionTokens;
       cellH.font = { name: 'Quattrocento Sans', size: 10 };
       cellH.alignment = { horizontal: 'center', vertical: 'middle' };
       cellH.border = thinBorder;
 
-      // I: Thù lao thực nhận (VND)
       const cellI = ws.getCell(`I${rIdx}`);
       cellI.value = Number(log.reward_amount) || 0;
       cellI.font = { name: 'Quattrocento Sans', size: 10, bold: true };
@@ -345,14 +363,12 @@ export function createStyledTrainingSheet(
       cellI.numFmt = '#,##0" đ"';
       cellI.border = thinBorder;
 
-      // J: Trạng thái
       const cellJ = ws.getCell(`J${rIdx}`);
       cellJ.value = log.status || 'Đã duyệt';
       cellJ.font = { name: 'Quattrocento Sans', size: 10 };
       cellJ.alignment = { horizontal: 'center', vertical: 'middle' };
       cellJ.border = thinBorder;
 
-      // K: Thực chi hợp lệ (VND)
       const cellK = ws.getCell(`K${rIdx}`);
       const validPayout = log.status === 'Đã duyệt' ? Number(log.reward_amount) || 0 : 0;
       cellK.value = {
@@ -364,33 +380,42 @@ export function createStyledTrainingSheet(
       cellK.numFmt = '#,##0" đ"';
       cellK.border = thinBorder;
 
-      // L: Ngày đào tạo
       const cellL = ws.getCell(`L${rIdx}`);
       cellL.value = dateText;
       cellL.font = { name: 'Nunito', size: 10 };
       cellL.alignment = { horizontal: 'center', vertical: 'middle' };
       cellL.border = thinBorder;
-    } else {
-      // Dòng trống với công thức như file mẫu
-      ['A', 'B', 'C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'M'].forEach((col) => {
-        const c = ws.getCell(`${col}${rIdx}`);
-        c.border = thinBorder;
+
+      excelRow += 1;
+    });
+
+    if (endRow > startRow) {
+      ['A', 'B', 'C', 'G', 'H', 'L'].forEach((col) => {
+        ws.mergeCells(`${col}${startRow}:${col}${endRow}`);
       });
-
-      const cellE = ws.getCell(`E${rIdx}`);
-      cellE.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_MEMBER_GREEN } };
-      cellE.border = thinBorder;
-
-      const cellL = ws.getCell(`L${rIdx}`);
-      cellL.value = {
-        formula: `IF(K${rIdx}="Đã duyệt", I${rIdx}, 0)`,
-        result: 0,
-      };
-      cellL.font = { name: 'Quattrocento Sans', size: 10 };
-      cellL.alignment = { horizontal: 'right', vertical: 'middle' };
-      cellL.numFmt = '#,##0" đ"';
-      cellL.border = thinBorder;
     }
+  });
+
+  const minRows = 10;
+  const writtenRows = excelRow - 4;
+  for (let extra = writtenRows; extra < minRows; extra++) {
+    const rIdx = 4 + extra;
+    ['A', 'B', 'C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'M'].forEach((col) => {
+      const c = ws.getCell(`${col}${rIdx}`);
+      c.border = thinBorder;
+    });
+    const cellE = ws.getCell(`E${rIdx}`);
+    cellE.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_MEMBER_GREEN } };
+    cellE.border = thinBorder;
+    const cellL = ws.getCell(`L${rIdx}`);
+    cellL.value = {
+      formula: `IF(K${rIdx}="Đã duyệt", I${rIdx}, 0)`,
+      result: 0,
+    };
+    cellL.font = { name: 'Quattrocento Sans', size: 10 };
+    cellL.alignment = { horizontal: 'right', vertical: 'middle' };
+    cellL.numFmt = '#,##0" đ"';
+    cellL.border = thinBorder;
   }
 
   return ws;

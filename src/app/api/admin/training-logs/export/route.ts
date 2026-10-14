@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       SELECT 
         id,
         session_code,
+        course_code,
         session_name,
         member_phone,
         member_name,
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
       query += ` AND training_date = $${params.length}`;
     }
 
-    query += ` ORDER BY training_date ASC, id ASC`;
+    query += ` ORDER BY training_date ASC, course_code ASC, id ASC`;
 
     const logsRes = await pool.query(query, params);
     const logs: TrainingLogItem[] = logsRes.rows.map((r) => ({
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
       token_count: Number(r.token_count || 0),
       session_budget: Number(r.session_budget || 0),
       total_tokens: Number(r.total_tokens || 0),
-      reward_amount: Number(r.token_count || 0) * 5000,
+      reward_amount: Number(r.reward_amount ?? (Number(r.token_count || 0) * 5000)),
     }));
 
     // 2. Lấy danh mục buổi học

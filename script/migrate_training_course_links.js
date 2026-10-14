@@ -16,10 +16,16 @@ async function migrateTrainingCourseLinks() {
 
   try {
     await client.query('BEGIN');
-    await client.query(`
-      ALTER TABLE training_logs
-      ADD COLUMN IF NOT EXISTS course_code VARCHAR(50)
+    // 1. Ensure course_code column exists
+    const colCheck = await client.query(`
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'training_logs' AND column_name = 'course_code'
     `);
+    if (colCheck.rows.length === 0) {
+      await client.query(`ALTER TABLE training_logs ADD COLUMN course_code VARCHAR(50)`);
+    }
+
+    // 2. Backfill course_code from session_code
     const backfill = await client.query(`
       UPDATE training_logs AS log
       SET course_code = course.course_code
@@ -27,10 +33,17 @@ async function migrateTrainingCourseLinks() {
       WHERE log.course_code IS NULL
         AND log.session_code = course.course_code
     `);
-    await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS training_courses_course_code_uidx
-      ON training_courses (course_code)
+
+    // 3. Ensure unique index on training_courses(course_code)
+    const uidxCheck = await client.query(`
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relname = 'training_courses_course_code_uidx'
     `);
+    if (uidxCheck.rows.length === 0) {
+      await client.query(`CREATE UNIQUE INDEX training_courses_course_code_uidx ON training_courses (course_code)`);
+    }
+
+    // 4. Ensure foreign key constraint
     await client.query(`
       DO $$
       BEGIN
@@ -50,10 +63,16 @@ async function migrateTrainingCourseLinks() {
       END
       $$;
     `);
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS training_logs_course_date_idx
-      ON training_logs (course_code, training_date)
+
+    // 5. Ensure index on training_logs(course_code, training_date)
+    const idxCheck = await client.query(`
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relname = 'training_logs_course_date_idx'
     `);
+    if (idxCheck.rows.length === 0) {
+      await client.query(`CREATE INDEX training_logs_course_date_idx ON training_logs (course_code, training_date)`);
+    }
+
     const unmatched = await client.query(`
       SELECT COUNT(*)::int AS count
       FROM training_logs
