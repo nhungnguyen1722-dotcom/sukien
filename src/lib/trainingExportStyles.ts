@@ -21,13 +21,10 @@ export interface TrainingLogItem {
   training_date?: string;
   member_phone?: string;
   member_name: string;
-  role?: string;
-  token_tier?: string;
   token_count: number;
   session_budget: number;
   total_tokens: number;
   reward_amount: number;
-  approver?: string;
   status: string;
 }
 
@@ -118,10 +115,10 @@ export function createStyledTrainingSheet(
     { key: 'colG', width: 25 },    // G: Ngân sách Buổi học (VND)
     { key: 'colH', width: 16 },    // H: Tổng Token Buổi
     { key: 'colI', width: 24 },    // I: Thù lao thực nhận (VND)
-    { key: 'colJ', width: 18 },    // J: Người duyệt chi
-    { key: 'colK', width: 14 },    // K: Trạng thái
-    { key: 'colL', width: 22 },    // L: Thực chi hợp lệ (VND)
-    { key: 'colM', width: 16 },    // M: Ngày đào tạo
+    { key: 'colJ', width: 14 },    // J: Trạng thái
+    { key: 'colK', width: 22 },    // K: Thực chi hợp lệ (VND)
+    { key: 'colL', width: 16 },    // L: Ngày đào tạo
+    { key: 'colM', width: 4 },     // M: Spacer
     { key: 'colN', width: 4 },     // N: Spacer
     { key: 'colO', width: 14 },    // O: Mã Buổi học
     { key: 'colP', width: 36 },    // P: Tên khoá học (Nội dung đào tạo)
@@ -133,9 +130,9 @@ export function createStyledTrainingSheet(
   ];
 
   // 2. Dòng 1: Tiêu đề Băng rôn (Navy Blue: #1F497D)
-  ws.mergeCells('B1:M1');
+  ws.mergeCells('B1:L1');
   const b1 = ws.getCell('B1');
-  b1.value = 'DANH SÁCH THAM GIA ĐÀO TẠO & PHÂN CHIA THÙ LAO THEO TOKEN BỂ CỐ ĐỊNH (DYNAMIC POOL SHARING)';
+  b1.value = 'DANH SÁCH THAM GIA ĐÀO TẠO & THÙ LAO THEO TOKEN THỰC NHẬN';
   b1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_TITLE_NAVY } };
   b1.font = { name: 'Quattrocento Sans', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
   b1.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -172,10 +169,9 @@ export function createStyledTrainingSheet(
     { col: 'G', text: 'Ngân sách Buổi học (VND)' },
     { col: 'H', text: 'Tổng Token Buổi' },
     { col: 'I', text: 'Thù lao thực nhận (VND)' },
-    { col: 'J', text: 'Người duyệt chi' },
-    { col: 'K', text: 'Trạng thái' },
-    { col: 'L', text: 'Thực chi hợp lệ (VND)' },
-    { col: 'M', text: 'Ngày đào tạo' },
+    { col: 'J', text: 'Trạng thái' },
+    { col: 'K', text: 'Thực chi hợp lệ (VND)' },
+    { col: 'L', text: 'Ngày đào tạo' },
   ];
 
   const headersTable2 = [
@@ -349,38 +345,31 @@ export function createStyledTrainingSheet(
       cellI.numFmt = '#,##0" đ"';
       cellI.border = thinBorder;
 
-      // J: Người duyệt chi
+      // J: Trạng thái
       const cellJ = ws.getCell(`J${rIdx}`);
-      cellJ.value = log.approver || 'Tổng điều hành';
-      cellJ.font = { name: 'Quattrocento Sans', size: 9, italic: true };
-      cellJ.alignment = { horizontal: 'left', vertical: 'middle' };
+      cellJ.value = log.status || 'Đã duyệt';
+      cellJ.font = { name: 'Quattrocento Sans', size: 10 };
+      cellJ.alignment = { horizontal: 'center', vertical: 'middle' };
       cellJ.border = thinBorder;
 
-      // K: Trạng thái
+      // K: Thực chi hợp lệ (VND)
       const cellK = ws.getCell(`K${rIdx}`);
-      cellK.value = log.status || 'Đã duyệt';
-      cellK.font = { name: 'Quattrocento Sans', size: 10 };
-      cellK.alignment = { horizontal: 'center', vertical: 'middle' };
-      cellK.border = thinBorder;
-
-      // L: Thực chi hợp lệ (VND)
-      const cellL = ws.getCell(`L${rIdx}`);
       const validPayout = log.status === 'Đã duyệt' ? Number(log.reward_amount) || 0 : 0;
-      cellL.value = {
-        formula: `IF(K${rIdx}="Đã duyệt", I${rIdx}, 0)`,
+      cellK.value = {
+        formula: `IF(J${rIdx}="Đã duyệt", I${rIdx}, 0)`,
         result: validPayout,
       };
-      cellL.font = { name: 'Quattrocento Sans', size: 10, bold: true };
-      cellL.alignment = { horizontal: 'right', vertical: 'middle' };
-      cellL.numFmt = '#,##0" đ"';
-      cellL.border = thinBorder;
+      cellK.font = { name: 'Quattrocento Sans', size: 10, bold: true };
+      cellK.alignment = { horizontal: 'right', vertical: 'middle' };
+      cellK.numFmt = '#,##0" đ"';
+      cellK.border = thinBorder;
 
-      // M: Ngày đào tạo
-      const cellM = ws.getCell(`M${rIdx}`);
-      cellM.value = dateText;
-      cellM.font = { name: 'Nunito', size: 10 };
-      cellM.alignment = { horizontal: 'center', vertical: 'middle' };
-      cellM.border = thinBorder;
+      // L: Ngày đào tạo
+      const cellL = ws.getCell(`L${rIdx}`);
+      cellL.value = dateText;
+      cellL.font = { name: 'Nunito', size: 10 };
+      cellL.alignment = { horizontal: 'center', vertical: 'middle' };
+      cellL.border = thinBorder;
     } else {
       // Dòng trống với công thức như file mẫu
       ['A', 'B', 'C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'M'].forEach((col) => {

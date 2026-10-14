@@ -215,7 +215,6 @@ const FUND_ORDER = [
   'direct_sale',
   'tribute_connection',
   'tribute_support',
-  'tribute_referral',
   'event_close',
   'customer_care',
   'training',
@@ -231,7 +230,6 @@ const FUND_COLORS: Record<string, string> = {
   direct_sale: '#2563eb',
   tribute_connection: '#059669',
   tribute_support: '#d97706',
-  tribute_referral: '#0891b2',
   event_close: '#7c3aed',
   customer_care: '#0d9488',
   training: '#8b5cf6',
@@ -247,7 +245,6 @@ const FUND_LABELS: Record<string, string> = {
   direct_sale: 'Sale trực tiếp · Pro sale',
   tribute_connection: 'Tri ân kết nối Sale trực tiếp',
   tribute_support: 'Tri ân hỗ trợ Sale',
-  tribute_referral: 'Tri ân giới thiệu',
   event_close: 'Quỹ Sự kiện & Chốt hợp đồng',
   customer_care: 'Quỹ Chăm sóc khách hàng',
   training: 'Quỹ Đào tạo Chuyên môn & Kỹ năng',
@@ -263,7 +260,6 @@ const FUND_SOURCE_BY_KEY: Record<string, string> = {
   direct_sale: 'Sale trực tiếp - Pro sale (Nguồn khách)',
   tribute_connection: 'Tri ân kết nối sale trực tiếp',
   tribute_support: 'Tri ân hỗ trợ sale',
-  tribute_referral: 'Tri ân giới thiệu',
   event_close: 'Quỹ Sự kiện & Chốt hợp đồng',
   customer_care: 'Quỹ Chăm sóc khách hàng',
   training: 'Quỹ Đào tạo Chuyên môn & Kỹ năng',
@@ -279,7 +275,6 @@ const DEFAULT_FUNDS: Array<{ key: string; rate: number }> = [
   { key: 'direct_sale', rate: 0.06 },
   { key: 'tribute_connection', rate: 0.01 },
   { key: 'tribute_support', rate: 0.005 },
-  { key: 'tribute_referral', rate: 0 },
   { key: 'event_close', rate: 0.005 },
   { key: 'customer_care', rate: 0.002 },
   { key: 'training', rate: 0.003 },
@@ -1270,6 +1265,21 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const [selectedFund, setSelectedFund] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<number>>(() => new Set());
+  const [isBulkUpdatingPaid, setIsBulkUpdatingPaid] = useState(false);
+  const [selectedPaymentDate, setSelectedPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  useEffect(() => {
+    const fundKey = new URLSearchParams(window.location.search).get('fund');
+    const fundTerm = fundKey === 'customer-care' ? 'chăm sóc khách hàng'
+      : fundKey === 'events' ? 'sự kiện'
+      : fundKey === 'incentives' ? 'thi đua'
+      : fundKey === 'travel' ? 'công tác phí'
+      : '';
+    if (!fundTerm) return;
+    const match = logs.find((log) => (log.fund_source || '').toLocaleLowerCase('vi-VN').includes(fundTerm));
+    if (match?.fund_source) setSelectedFund(match.fund_source);
+    setActiveTab('vouchers');
+  }, [logs]);
   const filteredLogs = logs.filter((log) => {
     const haystack = `${log.request_code} ${log.detail_content} ${log.requester_name} ${log.beneficiary_name} ${log.fund_source}`.toLocaleLowerCase('vi');
     return (!searchQuery || haystack.includes(searchQuery.toLocaleLowerCase('vi')))
@@ -1489,7 +1499,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       const response = await fetch('/api/admin/transaction-logs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: log.id, status }),
+        body: JSON.stringify({ id: log.id, status, paymentDate: isPaidStatus(status) ? selectedPaymentDate : undefined }),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || 'Không cập nhật được phiếu.');
@@ -1497,6 +1507,35 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       setActionMenuId(null);
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : 'Có lỗi xảy ra.');
+    }
+  };
+
+  const handleBulkMarkPaid = async () => {
+    const selectedLogs = logs.filter((log) => selectedLogIds.has(log.id) && !isPaidStatus(log.status));
+    if (!selectedLogs.length) return;
+    if (!confirm(`Đánh dấu ${selectedLogs.length} phiếu là đã chi?`)) return;
+
+    setIsBulkUpdatingPaid(true);
+    let updatedCount = 0;
+    try {
+      for (const log of selectedLogs) {
+        const response = await fetch('/api/admin/transaction-logs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: log.id, status: 'Đã chi', paymentDate: selectedPaymentDate }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || `Không cập nhật được phiếu ${log.request_code}.`);
+        }
+        setLogs((current) => current.map((item) => item.id === log.id ? sanitizeTransactionLogNames(result.log) : item));
+        updatedCount += 1;
+      }
+      setSelectedLogIds(new Set());
+    } catch (error) {
+      alert(`${error instanceof Error ? error.message : 'Có lỗi xảy ra.'}${updatedCount ? ` Đã cập nhật ${updatedCount}/${selectedLogs.length} phiếu trước khi gặp lỗi.` : ''}`);
+    } finally {
+      setIsBulkUpdatingPaid(false);
     }
   };
 
@@ -1544,8 +1583,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     const normSource = normalizeFund(fundSource);
     return logs
       .filter((log) => {
-        if (!isPaidStatus(log.status) || !log.request_date) return false;
-        if (isMonthOverview ? !withinMonth(log.request_date, selectedMonth) : !selectedPeriod || !withinPeriod(log.request_date, selectedPeriod)) return false;
+        const paidDate = log.payment_date || log.request_date;
+        if (!isPaidStatus(log.status) || !paidDate) return false;
+        if (isMonthOverview ? !withinMonth(paidDate, selectedMonth) : !selectedPeriod || !withinPeriod(paidDate, selectedPeriod)) return false;
         const logFund = normalizeFund(log.fund_source);
         return logFund === normSource || logFund === target;
       })
@@ -2666,12 +2706,15 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             <select value={selectedFund} onChange={(event) => setSelectedFund(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><option value="all">Tất cả quỹ</option>{Array.from(new Set(logs.map((item) => item.fund_source))).map((fund) => <option key={fund} value={fund}>{fund}</option>)}</select>
             <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><option value="all">Tất cả trạng thái</option>{Array.from(new Set(logs.map((item) => item.status))).map((status) => <option key={status} value={status}>{status}</option>)}</select>
             <select value={selectedType} onChange={(event) => setSelectedType(event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><option value="all">Tất cả loại phiếu</option><option value="Tự động">Tự động</option><option value="Thủ công">Thủ công</option></select>
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] font-semibold text-slate-600">Ngày chi<input type="date" value={selectedPaymentDate} onChange={(event) => setSelectedPaymentDate(event.target.value)} className="bg-transparent text-xs" /></label>
+            {selectedLogIds.size > 0 && <button type="button" onClick={handleBulkMarkPaid} disabled={isBulkUpdatingPaid} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{isBulkUpdatingPaid ? 'Đang cập nhật...' : `Đánh dấu đã chi (${selectedLogIds.size})`}</button>}
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[1120px] w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-4 py-3">Mã / Ngày</th><th className="px-3 py-3">Phân loại</th><th className="px-3 py-3">Quỹ / Nội dung</th><th className="px-3 py-3">Người đề xuất</th><th className="px-3 py-3">Người duyệt</th><th className="px-3 py-3">Người thụ hưởng</th><th className="px-3 py-3 text-right">Đề xuất / Thực chi</th><th className="px-3 py-3 text-center">Trạng thái</th><th className="px-3 py-3 text-center">Thao tác</th></tr></thead>
+            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-3 text-center"><input type="checkbox" aria-label="Chọn các phiếu trên trang" checked={paginatedLogs.some((log) => !isPaidStatus(log.status)) && paginatedLogs.every((log) => isPaidStatus(log.status) || selectedLogIds.has(log.id))} onChange={(event) => setSelectedLogIds((current) => { const next = new Set(current); paginatedLogs.forEach((log) => { if (event.target.checked && !isPaidStatus(log.status)) next.add(log.id); else next.delete(log.id); }); return next; })} /></th><th className="px-4 py-3">Mã / Ngày</th><th className="px-3 py-3">Phân loại</th><th className="px-3 py-3">Quỹ / Nội dung</th><th className="px-3 py-3">Người đề xuất</th><th className="px-3 py-3">Người duyệt</th><th className="px-3 py-3">Người thụ hưởng</th><th className="px-3 py-3 text-right">Đề xuất / Thực chi</th><th className="px-3 py-3 text-center">Trạng thái</th><th className="px-3 py-3 text-center">Thao tác</th></tr></thead>
             <tbody className="divide-y divide-slate-100">{paginatedLogs.map((log) => <tr key={log.id} className="hover:bg-slate-50/70">
+              <td className="px-3 py-3 text-center"><input type="checkbox" aria-label={`Chọn phiếu ${log.request_code}`} disabled={isPaidStatus(log.status)} checked={selectedLogIds.has(log.id)} onChange={(event) => setSelectedLogIds((current) => { const next = new Set(current); if (event.target.checked) next.add(log.id); else next.delete(log.id); return next; })} /></td>
               <td className="px-4 py-3"><div className="font-mono font-bold text-slate-800">{log.request_code}</div><div className="mt-1 text-[10px] text-slate-500">{formatDate(log.request_date)}</div></td>
               <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${(log.expense_type || 'Thủ công') === 'Tự động' ? 'bg-violet-50 text-violet-700' : 'bg-slate-100 text-slate-700'}`}>{log.expense_type || 'Thủ công'}</span></td>
               <td className="max-w-[260px] px-3 py-3"><div className="font-semibold text-slate-800">{log.fund_source}</div><div className="mt-1 truncate text-[10px] text-slate-500" title={log.detail_content}>{safeText(log.detail_content)}</div></td>
@@ -2693,7 +2736,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               <td className="px-3 py-3 text-center"><StatusBadge status={log.status} /></td>
               <td className="relative px-3 py-3 text-center"><div className="inline-flex items-center gap-1"><button onClick={() => setViewLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="Chi tiết"><Eye className="h-4 w-4" /></button><button onClick={() => setPrintLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="In phiếu / Lưu PDF"><Printer className="h-4 w-4" /></button><button onClick={() => setActionMenuId(actionMenuId === log.id ? null : log.id)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" title="Thao tác"><MoreVertical className="h-4 w-4" /></button></div>
                 {actionMenuId === log.id && <div className="absolute right-5 top-10 z-20 w-48 rounded-xl border border-slate-200 bg-white py-1 text-left shadow-xl">{log.status !== 'Đã duyệt' && <button onClick={() => updateLogStatus(log, 'Đã duyệt')} className="flex w-full items-center gap-2 px-3 py-2 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="h-3.5 w-3.5" /> Duyệt phiếu</button>}{!isPaidStatus(log.status) && <button onClick={() => updateLogStatus(log, 'Đã thanh toán')} className="flex w-full items-center gap-2 px-3 py-2 text-blue-700 hover:bg-blue-50"><Receipt className="h-3.5 w-3.5" /> Đã thanh toán</button>}{!isPaidStatus(log.status) && <button onClick={() => updateLogStatus(log, 'Đã thực hiện')} className="flex w-full items-center gap-2 px-3 py-2 text-indigo-700 hover:bg-indigo-50"><CheckCircle2 className="h-3.5 w-3.5" /> Đã thực hiện</button>}{log.status !== 'Từ chối' && <button onClick={() => updateLogStatus(log, 'Từ chối')} className="flex w-full items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50"><XCircle className="h-3.5 w-3.5" /> Từ chối</button>}<button onClick={() => deleteLog(log)} className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-red-700 hover:bg-red-50"><X className="h-3.5 w-3.5" /> Xóa phiếu</button></div>}</td>
-            </tr>)}{!filteredLogs.length && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">Không có phiếu phù hợp.</td></tr>}</tbody>
+            </tr>)}{!filteredLogs.length && <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-500">Không có phiếu phù hợp.</td></tr>}</tbody>
           </table>
         </div>
         {totalVoucherPages > 1 && (

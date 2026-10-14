@@ -24,10 +24,12 @@ export default async function AllFundsReportPage({
   const params = await searchParams;
   const parsedMonth = typeof params.month === 'string' ? parseMonth(params.month) : null;
   const month = parsedMonth?.slice(0, 7) || getCurrentMonth();
+  const requestedWeek = typeof params.week === 'string' ? Number(params.week) : 0;
+  const week = Number.isInteger(requestedWeek) && requestedWeek >= 0 && requestedWeek <= 5 ? requestedWeek : 0;
 
   let initialData = undefined;
   try {
-    initialData = await getAllFundsReportData(month);
+    initialData = await getAllFundsReportData(month, week);
   } catch (err) {
     console.warn('Could not fetch initial all funds report data:', err);
   }
@@ -35,7 +37,7 @@ export default async function AllFundsReportPage({
   return (
     <>
       <FundManagementTabs activeTab="summary" />
-      <AllFundsReportModule initialMonth={month} initialData={initialData} />
+      <AllFundsReportModule initialMonth={month} initialWeek={week} initialData={initialData} />
     </>
   );
 }

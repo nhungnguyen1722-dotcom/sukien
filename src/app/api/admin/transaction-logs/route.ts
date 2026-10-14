@@ -7,7 +7,7 @@ import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficia
 export const dynamic = 'force-dynamic';
 
 const SELECT_LOG = SELECT_TRANSACTION_LOGS;
-const ALLOWED_STATUSES = ['Chờ duyệt', 'Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi', 'Từ chối'];
+const ALLOWED_STATUSES = ['Lưu nháp', 'Chờ duyệt', 'Đã duyệt', 'Đã thanh toán', 'Đã thực hiện', 'Đã chi', 'Từ chối'];
 
 export async function GET(request: Request) {
   try {
@@ -61,9 +61,10 @@ export async function POST(request: Request) {
       note: String(item.note || '').trim(),
     })).filter((item: any) => item.title || item.amount > 0);
 
+    const status = ALLOWED_STATUSES.includes(body.status) ? body.status : 'Chờ duyệt';
     const calculatedTotal = items.length > 0
       ? items.reduce((sum: number, it: any) => sum + (Number(it.amount) || 0), 0)
-      : Number(body.proposedAmount);
+      : Number(body.proposedAmount || 0);
 
     const code = String(body.requestCode || `YC${String(Date.now()).slice(-5)}`).trim();
     const note = String(body.note || '').trim();
@@ -75,13 +76,14 @@ export async function POST(request: Request) {
     }
 
     const amount = Number(calculatedTotal);
-    if ((!detail && items.length === 0) || !Number.isFinite(amount) || amount <= 0) {
+    const isDraft = status === 'Lưu nháp';
+    if (isDraft && !detail) detail = 'Bản nháp chưa hoàn thiện';
+    if ((!isDraft && !detail && items.length === 0) || !Number.isFinite(amount) || (!isDraft && amount <= 0)) {
       return NextResponse.json({ success: false, message: 'Nhập danh sách khoản chi và tổng số tiền đề xuất hợp lệ.' }, { status: 400 });
     }
 
     const availableBalance = Number(body.availableBalance || 0);
     const fundAlert = amount > availableBalance ? 'Vượt quá tồn quỹ' : 'An toàn';
-    const status = ALLOWED_STATUSES.includes(body.status) ? body.status : 'Chờ duyệt';
     const beneficiaryUserId = Number.isInteger(Number(body.beneficiaryUserId)) && Number(body.beneficiaryUserId) > 0
       ? Number(body.beneficiaryUserId)
       : null;
@@ -193,6 +195,10 @@ export async function PUT(request: Request) {
     if (body.status && !ALLOWED_STATUSES.includes(body.status)) {
       return NextResponse.json({ success: false, message: 'Trạng thái phiếu không hợp lệ.' }, { status: 400 });
     }
+    const paymentDate = body.paymentDate ? String(body.paymentDate) : null;
+    if (paymentDate && !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      return NextResponse.json({ success: false, message: 'Ngày chi không hợp lệ.' }, { status: 400 });
+    }
 
     const client = await pool.connect();
     try {
@@ -205,6 +211,7 @@ export async function PUT(request: Request) {
         body.approverName || '',
         body.actualExpense == null ? null : Number(body.actualExpense),
         body.id,
+        paymentDate,
       ];
 
       if (rawItems) {
@@ -225,7 +232,7 @@ export async function PUT(request: Request) {
         const totalAmount = items.reduce((sum: number, it: any) => sum + (Number(it.amount) || 0), 0);
         params.push(JSON.stringify(items));
         params.push(totalAmount);
-        itemsUpdateSql = `, items = $5::jsonb, proposed_amount = $6`;
+        itemsUpdateSql = `, items = $6::jsonb, proposed_amount = $7`;
 
         // Sync items table
         await client.query(`DELETE FROM transaction_log_items WHERE transaction_log_id = $1`, [body.id]);
@@ -259,7 +266,7 @@ export async function PUT(request: Request) {
          SET status = COALESCE($1, status),
              approver_name = COALESCE(NULLIF($2, ''), approver_name),
              approval_date = CASE WHEN $1 = 'Đã duyệt' AND approval_date IS NULL THEN CURRENT_DATE ELSE approval_date END,
-             payment_date = CASE WHEN $1 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') AND payment_date IS NULL THEN CURRENT_DATE ELSE payment_date END,
+             payment_date = CASE WHEN $1 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN COALESCE($5::date, payment_date, CURRENT_DATE) ELSE payment_date END,
              actual_expense = CASE WHEN $1 IN ('Đã thanh toán', 'Đã thực hiện', 'Đã chi') THEN COALESCE($3, proposed_amount, 0) ELSE actual_expense END
              ${itemsUpdateSql}
          WHERE id = $4

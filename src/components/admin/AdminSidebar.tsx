@@ -34,7 +34,7 @@ const menuItems = [
   { label: 'Danh sách khách hàng', href: '/admin/nguoi-moi', icon: UserPlus },
   { label: 'Lễ tân', href: '/admin/le-tan', icon: ConciergeBell },
   { label: 'Mời bạn bè', href: '/admin/moi-ban-be', icon: Ticket },
-  { label: 'Quản lý quỹ', href: '/admin/teamlead', icon: Wallet },
+  { label: 'Quản lý quỹ', href: '/admin/bao-cao-tong-hop-quy', icon: Wallet },
   { label: 'Danh sách hợp đồng', href: '/admin/nhat-ky-hop-dong', icon: FileSpreadsheet },
   { label: 'Nhật ký đào tạo', href: '/admin/nhat-ky-dao-tao', icon: GraduationCap },
   { label: 'Nhật ký thu chi', href: '/admin/nhat-ky-thu-chi', icon: Receipt },
@@ -274,12 +274,30 @@ export default function AdminSidebar({
             const isActive =
               item.href === '/admin'
                 ? pathname === '/admin'
-                : item.href === '/admin/teamlead'
+                : item.href === '/admin/bao-cao-tong-hop-quy'
                 ? pathname.startsWith('/admin/teamlead') || pathname.startsWith('/admin/bao-cao-tong-hop-quy') || pathname.startsWith('/admin/quy-van-hanh-ho-tro')
                 : pathname.startsWith(item.href);
             return (
               <React.Fragment key={item.href}>
                 <SidebarMenuLink item={item} isActive={isActive} isCollapsed={isCollapsed} />
+
+                {item.href === '/admin/bao-cao-tong-hop-quy' && !isCollapsed && (
+                  <ul className="ml-5 space-y-1 border-l border-slate-700 pl-3">
+                    <li>
+                      <Link
+                        href="/admin/teamlead/chinh-sach"
+                        aria-current={pathname.startsWith('/admin/teamlead/chinh-sach') ? 'page' : undefined}
+                        className={`block rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                          pathname.startsWith('/admin/teamlead/chinh-sach')
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
+                        }`}
+                      >
+                        Chính sách phân bổ
+                      </Link>
+                    </li>
+                  </ul>
+                )}
 
                 {/* Vòng quay sự kiện - Chỉ có tài khoản Admin mới nhìn thấy (Mục 16.1) */}
                 {isAdmin && item.href === '/admin/nhat-ky-thu-chi' && (

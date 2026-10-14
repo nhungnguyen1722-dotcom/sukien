@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import ExcelJS from 'exceljs';
 import pool from '@/lib/db';
 import { getTeamLeadAllocation, isTeamLeadAdmin, parseMonth } from '@/lib/teamlead';
+import { getAllFundsReportData, type MasterPerson } from '@/lib/allFundsReport';
+import { getMonthWeekRange } from '@/lib/weekRanges';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,26 +34,73 @@ function normalizePhone(val?: string | null): string {
   return (val || '').replace(/\D/g, '');
 }
 
-interface MasterPerson {
-  name: string;
-  phone: string;
-  bankAccount: string;
-  bankName: string;
-  teamName: string;
-  saleCommission: number;
-  teamLeadBonus: number;
-  operationsBonus: number;
-  eventTrainingBonus: number;
-  totalAmount: number;
-  note: string;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month') || '2026-10';
+    const week = Number(searchParams.get('week') || 0);
+    if (searchParams.get('view') === 'master') {
+      const columns: Array<{ key: keyof MasterPerson; label: string }> = [
+        { key: 'name', label: 'Họ và tên' },
+        { key: 'phone', label: 'Số điện thoại' },
+        { key: 'bankAccount', label: 'Số tài khoản' },
+        { key: 'bankName', label: 'Ngân hàng' },
+        { key: 'totalAmount', label: 'Tổng thực nhận' },
+        { key: 'saleCommission', label: '1. Hoa hồng Sale' },
+        { key: 'teamLeadBonus', label: '2. Quỹ TeamLead' },
+        { key: 'operationsBonus', label: '3. Quỹ Vận hành' },
+        { key: 'eventTrainingBonus', label: '4. Đào tạo & SK' },
+      ];
+      const requestedColumns = (searchParams.get('columns') || '').split(',').filter(Boolean);
+      const selectedColumns = columns.filter((column) =>
+        column.key === 'name'
+        || column.key === 'phone'
+        || column.key === 'bankAccount'
+        || column.key === 'bankName'
+        || column.key === 'totalAmount'
+        || requestedColumns.includes(column.key)
+      );
+
+      const report = await getAllFundsReportData(month, week);
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Tổng hợp tất cả quỹ');
+      worksheet.columns = selectedColumns.map(({ key, label }) => ({
+        key,
+        header: label,
+        width: key === 'name' ? 28 : key === 'bankName' ? 22 : 20,
+      }));
+      worksheet.addRows(report.masterList.map((person) =>
+        Object.fromEntries(selectedColumns.map(({ key }) => [key, person[key]]))
+      ));
+      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL_ARGB } };
+      worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+      for (let row = 2; row <= worksheet.rowCount; row++) {
+        for (let column = 1; column <= selectedColumns.length; column++) {
+          const key = selectedColumns[column - 1].key;
+          if (key !== 'name' && key !== 'phone' && key !== 'bankAccount' && key !== 'bankName') {
+            worksheet.getCell(row, column).numFmt = '#,##0';
+          }
+        }
+      }
+      const buffer = await workbook.xlsx.writeBuffer();
+      const filename = `Tong-hop-quy-${month}-T${week || 'thang'}.xlsx`;
+      return new Response(buffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store, must-revalidate',
+        },
+      });
+    }
     const parsed = parseMonth(month) || '2026-10-01';
     const targetMonth = parsed.slice(0, 7);
+    const targetWeek = Number.isInteger(week) && week >= 0 && week <= 5 ? week : 0;
+    const dateRange = getMonthWeekRange(targetMonth, targetWeek);
+    const periodTitle = targetWeek
+      ? `TUẦN ${targetWeek} (${dateRange.start} – ${dateRange.endInclusive})`
+      : `THÁNG ${targetMonth}`;
 
     // 1. Lấy thông tin tài khoản ngân hàng từ users
     const usersRes = await pool.query(`
@@ -72,13 +121,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Lấy dữ liệu Quỹ TeamLead (toàn tháng weekNo = 0)
-    let teamLeadRows: any[] = [];
-    try {
-      const allocation = await getTeamLeadAllocation(parsed, 0, pool);
-      teamLeadRows = allocation?.rows || [];
-    } catch (err) {
-      console.warn('Could not fetch teamlead allocation for month:', parsed, err);
-    }
+    const allocation = await getTeamLeadAllocation(parsed, targetWeek, pool);
+    const teamLeadRows: any[] = allocation?.rows || [];
 
     // 3. Lấy dữ liệu Hợp đồng & Hoa hồng sale trực tiếp
     const contractsRes = await pool.query(
@@ -92,10 +136,10 @@ export async function GET(request: NextRequest) {
         c.supporter_name, c.supporter_phone, COALESCE(c.supporter_fee, 0)::float8 AS supporter_fee,
         c.status
       FROM contracts c
-      WHERE c.contract_date IS NOT NULL AND c.contract_date::text LIKE $1 || '%'
+      WHERE c.contract_date >= $1::date AND c.contract_date <= $2::date
       ORDER BY c.contract_date ASC, c.id ASC
       `,
-      [targetMonth]
+      [dateRange.start, dateRange.endInclusive]
     );
     const contracts = contractsRes.rows;
 
@@ -107,13 +151,11 @@ export async function GET(request: NextRequest) {
         COALESCE(tl.actual_expense, tl.proposed_amount, 0)::float8 AS amount,
         tl.status, tl.payment_date::text AS payment_date
       FROM transaction_logs tl
-      WHERE (
-        tl.payment_date::text LIKE $1 || '%' 
-        OR (tl.payment_date IS NULL AND tl.request_date::text LIKE $1 || '%')
-      )
+      WHERE COALESCE(tl.payment_date, tl.request_date)::date >= $1::date
+        AND COALESCE(tl.payment_date, tl.request_date)::date <= $2::date
       ORDER BY tl.id ASC
       `,
-      [targetMonth]
+      [dateRange.start, dateRange.endInclusive]
     );
     const logs = logsRes.rows;
 
@@ -123,10 +165,10 @@ export async function GET(request: NextRequest) {
       SELECT event_code, event_date::text AS event_date, COALESCE(beneficiary_phone, '') AS beneficiary_phone,
         beneficiary_name, expense_role, proposed_amount::float8 AS proposed_amount, status
       FROM fund_event_expenses
-      WHERE event_date::text LIKE $1 || '%'
+      WHERE event_date >= $1::date AND event_date <= $2::date
       ORDER BY event_date ASC, id ASC
       `,
-      [targetMonth]
+      [dateRange.start, dateRange.endInclusive]
     );
     const eventExpenses = eventExpensesRes.rows;
 
@@ -272,7 +314,7 @@ export async function GET(request: NextRequest) {
     // Banner Tiêu đề A1:K1
     s1.mergeCells('A1:K1');
     const titleCell = s1.getCell('A1');
-    titleCell.value = `BÁO CÁO TỔNG HỢP CHI TRẢ TẤT CẢ CÁC QUỸ — THÁNG ${targetMonth}`;
+    titleCell.value = `BÁO CÁO TỔNG HỢP CHI TRẢ TẤT CẢ CÁC QUỸ — ${periodTitle}`;
     titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DARK_BLUE_ARGB } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -448,7 +490,7 @@ export async function GET(request: NextRequest) {
     ];
 
     s2.mergeCells('A1:N1');
-    s2.getCell('A1').value = `DANH SÁCH HỢP ĐỒNG & PHÂN BỔ HOA HỒNG — THÁNG ${targetMonth}`;
+    s2.getCell('A1').value = `DANH SÁCH HỢP ĐỒNG & PHÂN BỔ HOA HỒNG — ${periodTitle}`;
     s2.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
     s2.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DARK_BLUE_ARGB } };
     s2.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
@@ -518,7 +560,7 @@ export async function GET(request: NextRequest) {
     ];
 
     s3.mergeCells('A1:I1');
-    s3.getCell('A1').value = `CHI TIẾT PHÂN BỔ QUỸ TEAMLEAD (70% & 30%) — THÁNG ${targetMonth}`;
+    s3.getCell('A1').value = `CHI TIẾT PHÂN BỔ QUỸ TEAMLEAD (70% & 30%) — ${periodTitle}`;
     s3.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
     s3.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DARK_BLUE_ARGB } };
     s3.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
@@ -585,7 +627,7 @@ export async function GET(request: NextRequest) {
     ];
 
     s4.mergeCells('A1:K1');
-    s4.getCell('A1').value = `NHẬT KÝ CHI GIẢI NGÂN BAN HỖ TRỢ & VẬN HÀNH — THÁNG ${targetMonth}`;
+    s4.getCell('A1').value = `NHẬT KÝ CHI GIẢI NGÂN BAN HỖ TRỢ & VẬN HÀNH — ${periodTitle}`;
     s4.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
     s4.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DARK_BLUE_ARGB } };
     s4.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
@@ -635,7 +677,7 @@ export async function GET(request: NextRequest) {
 
     // Xuất file Buffer trả về Client
     const buffer = await workbook.xlsx.writeBuffer();
-    const fileName = `Bao-cao-tong-hop-tat-ca-cac-quy-Thang-${targetMonth}.xlsx`;
+    const fileName = `Bao-cao-tong-hop-tat-ca-cac-quy-${targetMonth}-${targetWeek ? `Tuan-${targetWeek}` : 'Thang'}.xlsx`;
 
     return new Response(new Uint8Array(buffer) as unknown as BodyInit, {
       headers: {

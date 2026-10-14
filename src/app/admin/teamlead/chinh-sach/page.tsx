@@ -4,7 +4,7 @@ import FundManagementTabs from '@/components/admin/FundManagementTabs';
 export default function AllocationPolicyPage() {
   return (
     <>
-      <FundManagementTabs activeTab="policy" />
+      <FundManagementTabs activeTab="teamlead" />
       <AllocationPolicyManager />
     </>
   );

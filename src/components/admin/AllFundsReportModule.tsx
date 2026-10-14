@@ -16,7 +16,9 @@ import {
   FileText,
   DollarSign,
   Info,
+  X,
 } from 'lucide-react';
+import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import type {
   AllFundsReportData,
   MasterPerson,
@@ -24,8 +26,19 @@ import type {
   TeamLeadBonusItem,
   OperationLogItem,
 } from '@/lib/allFundsReport';
+import { formatDateDM } from '@/lib/weekRanges';
 
-const MONTH_LIST = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const MASTER_EXPORT_COLUMNS: Array<{ key: keyof MasterPerson; label: string; required?: boolean }> = [
+  { key: 'name', label: 'Họ tên', required: true },
+  { key: 'phone', label: 'Số điện thoại', required: true },
+  { key: 'bankAccount', label: 'Số tài khoản', required: true },
+  { key: 'bankName', label: 'Ngân hàng', required: true },
+  { key: 'totalAmount', label: 'Tổng thực nhận' },
+  { key: 'saleCommission', label: '1. Hoa hồng Sale' },
+  { key: 'teamLeadBonus', label: '2. Quỹ TeamLead' },
+  { key: 'operationsBonus', label: '3. Quỹ Vận hành' },
+  { key: 'eventTrainingBonus', label: '4. Đào tạo & SK' },
+];
 
 function formatVND(value: number | string | null | undefined): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -39,13 +52,27 @@ function formatNumber(value: number | string | null | undefined): string {
   return new Intl.NumberFormat('vi-VN').format(Math.round(num));
 }
 
-type TabType = 'master' | 'sale' | 'teamlead' | 'operations';
+type TabType = 'master' | 'sale' | 'teamlead' | 'operations' | 'customerCare' | 'eventClose' | 'training' | 'incentive' | 'travel';
+
+const DETAIL_TABS: Array<{ id: TabType; label: string }> = [
+  { id: 'master', label: 'Tổng hợp tất cả các quỹ' },
+  { id: 'sale', label: 'Hoa hồng Sale & Hợp đồng' },
+  { id: 'teamlead', label: 'Phân bổ Quỹ TeamLead' },
+  { id: 'operations', label: 'Ban hỗ trợ & Vận hành' },
+  { id: 'customerCare', label: 'Chăm sóc khách hàng' },
+  { id: 'eventClose', label: 'Sự kiện & Chốt hợp đồng' },
+  { id: 'training', label: 'Đào tạo Chuyên môn & Kỹ năng' },
+  { id: 'incentive', label: 'Thi đua & Chương trình thúc đẩy' },
+  { id: 'travel', label: 'Chi phí Công tác phí' },
+];
 
 export default function AllFundsReportModule({
   initialMonth,
+  initialWeek,
   initialData,
 }: {
   initialMonth?: string;
+  initialWeek?: number;
   initialData?: AllFundsReportData;
 }) {
   const currentYear = new Date().getFullYear();
@@ -56,10 +83,19 @@ export default function AllFundsReportModule({
 
   const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(defaultMonth);
+  const [selectedWeek, setSelectedWeek] = useState<number>(initialWeek || 0);
   const [activeSheetTab, setActiveSheetTab] = useState<TabType>('master');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [copiedAllMB, setCopiedAllMB] = useState(false);
+  const [isColumnExportOpen, setIsColumnExportOpen] = useState(false);
+  const [exportColumns, setExportColumns] = useState<Array<keyof MasterPerson>>([
+    'totalAmount',
+    'saleCommission',
+    'teamLeadBonus',
+    'operationsBonus',
+    'eventTrainingBonus',
+  ]);
 
   const [data, setData] = useState<AllFundsReportData | null>(initialData || null);
   const [loading, setLoading] = useState(false);
@@ -69,6 +105,10 @@ export default function AllFundsReportModule({
   const formattedMonth = useMemo(() => {
     return `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
   }, [selectedYear, selectedMonth]);
+  const periodTitle = useMemo(() => {
+    if (!data || !selectedWeek) return `Tháng ${selectedMonth}/${selectedYear}`;
+    return `Tuần ${selectedWeek} · ${formatDateDM(data.periodStart)}–${formatDateDM(data.periodEnd)}/${selectedYear}`;
+  }, [data, selectedMonth, selectedWeek, selectedYear]);
 
   const yearOptions = useMemo(() => {
     const list: number[] = [];
@@ -80,35 +120,39 @@ export default function AllFundsReportModule({
   }, [currentYear, selectedYear]);
 
   // Tải dữ liệu khi đổi năm / tháng
-  const loadData = useCallback(async (monthStr: string) => {
+  const loadData = useCallback(async (monthStr: string, weekNo: number, signal?: AbortSignal) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/all-funds?month=${encodeURIComponent(monthStr)}`);
+      const params = new URLSearchParams({ month: monthStr, week: String(weekNo) });
+      const res = await fetch(`/api/admin/all-funds?${params.toString()}`, { signal });
       if (!res.ok) {
         throw new Error('Không thể tải dữ liệu báo cáo tổng hợp tất cả các quỹ.');
       }
       const json: AllFundsReportData = await res.json();
       setData(json);
     } catch (err: unknown) {
+      if (signal?.aborted) return;
       setError(err instanceof Error ? err.message : 'Lỗi khi tải dữ liệu.');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // Nếu chưa có data hoặc tháng hiện tại khác với targetMonth của data
-    if (!data || data.targetMonth !== formattedMonth) {
-      loadData(formattedMonth);
+    const controller = new AbortController();
+    if (!data || data.targetMonth !== formattedMonth || data.targetWeek !== selectedWeek) {
+      loadData(formattedMonth, selectedWeek, controller.signal);
     }
-  }, [formattedMonth, data, loadData]);
+    return () => controller.abort();
+  }, [formattedMonth, selectedWeek, data, loadData]);
 
   // Xuất file Excel 4 sheet
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
-      const url = `/api/admin/all-funds/export?month=${encodeURIComponent(formattedMonth)}`;
+      const params = new URLSearchParams({ month: formattedMonth, week: String(selectedWeek) });
+      const url = `/api/admin/all-funds/export?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -129,6 +173,37 @@ export default function AllFundsReportModule({
       link.click();
       link.remove();
       window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Có lỗi khi xuất file Excel.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportMasterExcel = async () => {
+    try {
+      setIsExporting(true);
+      const params = new URLSearchParams({
+        view: 'master',
+        month: formattedMonth,
+        week: String(selectedWeek),
+        columns: exportColumns.join(','),
+      });
+      const response = await fetch(`/api/admin/all-funds/export?${params.toString()}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || 'Không thể xuất bảng tổng hợp Excel.');
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `Tong-hop-quy-${formattedMonth}-T${selectedWeek || 'thang'}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setIsColumnExportOpen(false);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Có lỗi khi xuất file Excel.');
     } finally {
@@ -216,6 +291,21 @@ export default function AllFundsReportModule({
     );
   }, [data?.logs, searchQuery]);
 
+  const categoryLogs = useMemo(() => {
+    const sourceTerms: Partial<Record<TabType, string[]>> = {
+      customerCare: ['chăm sóc khách hàng', 'hỗ trợ khách hàng'],
+      eventClose: ['sự kiện', 'chốt hợp đồng'],
+      training: ['đào tạo'],
+      incentive: ['thi đua', 'chương trình thúc đẩy'],
+      travel: ['công tác phí'],
+    };
+    const terms = sourceTerms[activeSheetTab] || [];
+    return filteredLogs.filter((log) => {
+      const source = (log.fund_source || '').toLocaleLowerCase('vi-VN');
+      return terms.some((term) => source.includes(term));
+    });
+  }, [activeSheetTab, filteredLogs]);
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 pt-3 pb-12 text-slate-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px] space-y-5">
@@ -231,7 +321,7 @@ export default function AllFundsReportModule({
                 ⭐ Báo cáo tài chính tổng thể tất cả các quỹ
               </div>
               <h1 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">
-                Báo cáo tổng hợp quỹ — Tháng {selectedMonth}/{selectedYear}
+                Báo cáo tổng hợp quỹ — {periodTitle}
               </h1>
               <p className="mt-1 text-xs text-slate-500">
                 Gộp chung tất cả các bộ phận: Hoa hồng Sale, Quỹ TeamLead, Quỹ Vận hành & Ban hỗ trợ trong 1 bảng chi trả duy nhất.
@@ -242,7 +332,7 @@ export default function AllFundsReportModule({
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
-                onClick={() => loadData(formattedMonth)}
+                onClick={() => loadData(formattedMonth, selectedWeek)}
                 disabled={loading}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
                 title="Tải lại dữ liệu"
@@ -278,63 +368,29 @@ export default function AllFundsReportModule({
           {/* ========================================================================= */}
           {/* BỘ LỌC NĂM VÀ 12 THÁNG (CHỦ YẾU THEO NĂM THEO THÁNG)                       */}
           {/* ========================================================================= */}
-          <div className="mt-5 border-t border-slate-100 pt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Chọn Năm */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Năm</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-2xs hover:border-slate-400 focus:border-blue-500 focus:outline-hidden"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      Năm {y}
-                    </option>
-                  ))}
-                </select>
+          <AdminTimeFilter
+            selectedYear={selectedYear}
+            yearOptions={yearOptions}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            onMonthChange={(value) => {
+              if (value !== 'all') setSelectedMonth(value);
+            }}
+            selectedWeek={selectedWeek}
+            onWeekChange={setSelectedWeek}
+            rightSlot={
+              <div className="relative w-full lg:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm nhân sự, SĐT, STK, mã HĐ..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-hidden"
+                />
               </div>
-
-              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-
-              {/* 12 Tháng */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0 pr-1">
-                  Tháng
-                </span>
-                {MONTH_LIST.map((m) => {
-                  const isActive = selectedMonth === m;
-                  return (
-                    <button
-                      type="button"
-                      key={m}
-                      onClick={() => setSelectedMonth(m)}
-                      className={`h-8 w-8 shrink-0 rounded-lg border flex items-center justify-center text-xs font-semibold transition-all cursor-pointer ${
-                        isActive
-                          ? 'border-slate-900 bg-slate-900 text-white font-bold shadow-xs'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Ô tìm kiếm nhanh */}
-            <div className="relative w-full lg:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Tìm nhân sự, SĐT, STK, mã HĐ..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-hidden"
-              />
-            </div>
-          </div>
+            }
+          />
         </header>
 
         {/* Thông báo lỗi nếu có */}
@@ -415,90 +471,38 @@ export default function AllFundsReportModule({
         </div>
 
         {/* ========================================================================= */}
-        {/* 4 TAB SHEET GIAO DIỆN (CHÍNH XÁC NHƯ 4 SHEET EXCEL)                        */}
+        {/* CÁC TAB CHI TIẾT QUỸ */}
         {/* ========================================================================= */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-          {/* Thanh chuyển tab Sheet */}
           <div className="flex items-center gap-1 border-b border-slate-200 bg-slate-100/70 p-2 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setActiveSheetTab('master')}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                activeSheetTab === 'master'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-200/70'
-              }`}
-            >
-              <Layers className="h-4 w-4" />
-              <span>TỔNG HỢP TẤT CẢ CÁC QUỸ</span>
-              <span
-                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] ${
-                  activeSheetTab === 'master' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
+            {DETAIL_TABS.map((tab, index) => (
+              <button
+                type="button"
+                key={tab.id}
+                onClick={() => setActiveSheetTab(tab.id)}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  activeSheetTab === tab.id
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/70'
                 }`}
               >
-                {data?.masterList.length || 0}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSheetTab('sale')}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                activeSheetTab === 'sale'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-200/70'
-              }`}
-            >
-              <DollarSign className="h-4 w-4" />
-              <span>1. Hoa hồng Sale & Hợp đồng</span>
-              <span
-                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] ${
-                  activeSheetTab === 'sale' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {data?.contracts.length || 0}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSheetTab('teamlead')}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                activeSheetTab === 'teamlead'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-200/70'
-              }`}
-            >
-              <Users className="h-4 w-4" />
-              <span>2. Phân bổ Quỹ TeamLead</span>
-              <span
-                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] ${
-                  activeSheetTab === 'teamlead' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {data?.teamLeadRows.length || 0}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSheetTab('operations')}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                activeSheetTab === 'operations'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-200/70'
-              }`}
-            >
-              <Building2 className="h-4 w-4" />
-              <span>3. Ban hỗ trợ & Vận hành</span>
-              <span
-                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] ${
-                  activeSheetTab === 'operations' ? 'bg-amber-700 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {data?.logs.length || 0}
-              </span>
-            </button>
+                {index === 0 && <Layers className="h-4 w-4" />}
+                {index === 1 && <DollarSign className="h-4 w-4" />}
+                {index === 2 && <Users className="h-4 w-4" />}
+                {index === 3 && <Building2 className="h-4 w-4" />}
+                <span>{index === 0 ? tab.label.toUpperCase() : `${index + 1}. ${tab.label}`}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                  activeSheetTab === tab.id ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {tab.id === 'master' ? data?.masterList.length || 0
+                    : tab.id === 'sale' ? data?.contracts.length || 0
+                    : tab.id === 'teamlead' ? data?.teamLeadRows.length || 0
+                    : tab.id === 'operations' ? data?.logs.length || 0
+                    : tab.id === 'training' || tab.id === 'eventClose' ? data?.eventExpenses.length || 0
+                    : categoryLogs.length}
+                </span>
+              </button>
+            ))}
           </div>
 
           {/* ========================================================================= */}
@@ -506,6 +510,16 @@ export default function AllFundsReportModule({
           {/* ========================================================================= */}
           {activeSheetTab === 'master' && (
             <div className="p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsColumnExportOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Xuất Excel
+                </button>
+              </div>
               {/* Lưu ý MB Bank */}
               <div className="mb-4 flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-2.5 text-xs text-indigo-900">
                 <div className="flex items-center gap-2">
@@ -867,6 +881,46 @@ export default function AllFundsReportModule({
                         </tr>
                       ))
                     )}
+
+                    {['customerCare', 'eventClose', 'training', 'incentive', 'travel'].includes(activeSheetTab) && (
+                      <div className="p-4 sm:p-5">
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full border-collapse text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-slate-900 font-bold text-white">
+                                <th className="px-3 py-3 text-center">STT</th>
+                                <th className="px-3 py-3">Ngày</th>
+                                <th className="px-3 py-3">Mã / Nội dung</th>
+                                <th className="px-3 py-3">Người thụ hưởng</th>
+                                <th className="px-3 py-3 text-right">Số tiền (VND)</th>
+                                <th className="px-3 py-3 text-center">Trạng thái</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {categoryLogs.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="py-10 text-center text-slate-500">
+                                    Chưa có khoản thu chi thuộc mục này trong kỳ đã chọn.
+                                  </td>
+                                </tr>
+                              ) : categoryLogs.map((log, index) => (
+                                <tr key={log.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-2.5 text-center text-slate-500">{index + 1}</td>
+                                  <td className="px-3 py-2.5">{log.payment_date || log.request_date || '—'}</td>
+                                  <td className="px-3 py-2.5">
+                                    <span className="font-semibold">{log.request_code || `YC #${log.id}`}</span>
+                                    <span className="mt-0.5 block text-slate-500">{log.detail_content || log.fund_source || '—'}</span>
+                                  </td>
+                                  <td className="px-3 py-2.5">{log.beneficiary_name || '—'}</td>
+                                  <td className="px-3 py-2.5 text-right font-bold">{formatNumber(log.amount)}</td>
+                                  <td className="px-3 py-2.5 text-center">{log.status || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </tbody>
                   {data && data.logs.length > 0 && (
                     <tfoot>
@@ -888,6 +942,73 @@ export default function AllFundsReportModule({
           )}
         </div>
       </div>
+      {isColumnExportOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
+          <section
+            aria-labelledby="export-master-title"
+            aria-modal="true"
+            className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl"
+            role="dialog"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="export-master-title" className="text-lg font-bold text-slate-900">Tùy chọn cột Excel</h2>
+                <p className="mt-1 text-xs text-slate-500">Chọn các quỹ cần đưa vào bảng tổng hợp.</p>
+              </div>
+              <button type="button" onClick={() => setIsColumnExportOpen(false)} aria-label="Đóng">
+                <X className="h-5 w-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setExportColumns(MASTER_EXPORT_COLUMNS.map(({ key }) => key).filter((key) => key !== 'name' && key !== 'phone' && key !== 'bankAccount' && key !== 'bankName'))}
+                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700"
+              >
+                Đầy đủ tất cả các quỹ
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportColumns(['totalAmount'])}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                Chỉ lấy thông tin chuyển khoản + Tổng thực nhận
+              </button>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {MASTER_EXPORT_COLUMNS.map(({ key, label, required }) => {
+                const checked = required || exportColumns.includes(key);
+                return (
+                  <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={required}
+                      onChange={() => setExportColumns((current) =>
+                        checked ? current.filter((item) => item !== key) : [...current, key]
+                      )}
+                    />
+                    {label}{required ? ' *' : ''}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setIsColumnExportOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600">
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleExportMasterExcel}
+                disabled={isExporting || loading}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {isExporting ? 'Đang xuất...' : 'Tải Excel'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,7 +5,6 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
-    const role = searchParams.get('role') || 'all';
     const status = searchParams.get('status') || 'all';
     const date = searchParams.get('date') || '';
 
@@ -16,13 +15,10 @@ export async function GET(req: NextRequest) {
         session_name,
         member_phone,
         member_name,
-        role,
-        token_tier,
         token_count,
         session_budget,
         total_tokens,
-        reward_amount,
-        approver,
+        token_count * 5000 AS reward_amount,
         status,
         TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date,
         created_at
@@ -41,11 +37,6 @@ export async function GET(req: NextRequest) {
       )`;
     }
 
-    if (role !== 'all') {
-      params.push(role);
-      query += ` AND role = $${params.length}`;
-    }
-
     if (status !== 'all') {
       params.push(status);
       query += ` AND status = $${params.length}`;
@@ -61,37 +52,29 @@ export async function GET(req: NextRequest) {
     const res = await pool.query(query, params);
 
     // Compute stats
-    const allRows = (await pool.query(`SELECT role, token_count, reward_amount, status, session_code, member_phone FROM training_logs`)).rows;
-    const uniqueSessions = new Set(allRows.map((r) => r.session_code)).size;
-    const uniqueMembers = new Set(allRows.map((r) => r.member_phone || r.member_name)).size;
-    const totalTokens = allRows.reduce((acc, r) => acc + (parseFloat(r.token_count) || 0), 0);
-    const totalRewards = allRows
-      .filter((r) => r.status === 'Đã duyệt')
-      .reduce((acc, r) => acc + (parseFloat(r.reward_amount) || 0), 0);
-
-    // Role breakdown
-    const roleStats: Record<string, number> = {
-      'Giảng viên': 0,
-      'Trợ giảng': 0,
-      'Học viên xuất sắc': 0,
-      'Học viên': 0,
-    };
-    allRows.forEach((r) => {
-      const rRole = r.role || 'Học viên';
-      if (roleStats[rRole] !== undefined) {
-        roleStats[rRole] += parseFloat(r.reward_amount) || 0;
-      }
-    });
+    const statsRes = await pool.query(`
+      SELECT COUNT(DISTINCT session_code)::int AS total_sessions,
+        COUNT(DISTINCT COALESCE(NULLIF(member_phone, ''), member_name))::int AS total_members,
+        COALESCE(SUM(token_count), 0)::float8 AS total_tokens,
+        COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN token_count * 5000 ELSE 0 END), 0)::float8 AS total_rewards
+      FROM training_logs
+    `);
+    const stats = statsRes.rows[0] || {};
 
     return NextResponse.json({
       success: true,
-      logs: res.rows,
+      logs: res.rows.map((row) => ({
+        ...row,
+        token_count: Number(row.token_count || 0),
+        session_budget: Number(row.session_budget || 0),
+        total_tokens: Number(row.total_tokens || 0),
+        reward_amount: Number(row.reward_amount || 0),
+      })),
       stats: {
-        totalSessions: uniqueSessions,
-        totalMembers: uniqueMembers,
-        totalTokens,
-        totalRewards,
-        roleStats,
+        totalSessions: Number(stats.total_sessions || 0),
+        totalMembers: Number(stats.total_members || 0),
+        totalTokens: Number(stats.total_tokens || 0),
+        totalRewards: Number(stats.total_rewards || 0),
       },
     });
   } catch (error: any) {
@@ -101,44 +84,57 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const client = await pool.connect();
   try {
     const body = await req.json();
     const {
-      session_code,
       session_name,
       member_phone,
       member_name,
-      role,
-      token_tier,
       token_count,
-      session_budget,
       training_date,
-      approver = 'Chị Cúc',
-      status = 'Đã duyệt',
+      approver = '',
     } = body;
 
-    if (!session_code || !member_name) {
+    if (!member_name || !String(member_name).trim()) {
       return NextResponse.json(
-        { success: false, message: 'Vui lòng cung cấp mã buổi học và họ tên nhân sự' },
+        { success: false, message: 'Vui lòng chọn họ tên nhân sự' },
         { status: 400 }
       );
     }
 
-    const tCount = parseFloat(token_count) || (token_tier === 'Hạng A' ? 10 : token_tier === 'Hạng B' ? 5 : token_tier === 'Hạng C' ? 3 : 1);
-    const budget = parseFloat(session_budget) || 3000000;
+    const tCount = Number(token_count);
+    if (!Number.isInteger(tCount) || tCount <= 0) {
+      return NextResponse.json({ success: false, message: 'Số token phải là số nguyên lớn hơn 0' }, { status: 400 });
+    }
+    const trainingDate = training_date || new Date().toISOString().slice(0, 10);
 
-    // Check current tokens of this session
-    const curRes = await pool.query(
-      `SELECT token_count FROM training_logs WHERE session_code = $1`,
-      [session_code]
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1, $2)', [20261014, 7]);
+    const existingSession = await client.query(
+      `SELECT session_code FROM training_logs WHERE training_date = $1::date ORDER BY id LIMIT 1`,
+      [trainingDate]
     );
-    const existingTokens = curRes.rows.reduce((acc, r) => acc + (parseFloat(r.token_count) || 0), 0);
-    const newTotalTokens = existingTokens + tCount;
+    let sessionCode = existingSession.rows[0]?.session_code;
+    if (!sessionCode) {
+      const nextCode = await client.query(`
+        SELECT COALESCE(MAX(NULLIF(REGEXP_REPLACE(session_code, '[^0-9]', '', 'g'), '')::integer), 0) + 1 AS next_code
+        FROM training_logs
+        WHERE session_code ~ '^TR[0-9]+$'
+      `);
+      sessionCode = `TR${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
+    }
 
-    // Recalculate reward for this item
-    const reward = (budget * tCount) / (newTotalTokens || 1);
+    const current = await client.query(
+      `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
+       FROM training_logs WHERE session_code = $1 AND training_date = $2::date`,
+      [sessionCode, trainingDate]
+    );
+    const newTotalTokens = Number(current.rows[0]?.total_tokens || 0) + tCount;
+    const sessionBudget = newTotalTokens * 5000;
+    const reward = tCount * 5000;
 
-    const insertRes = await pool.query(
+    const insertRes = await client.query(
       `
       INSERT INTO training_logs (
         session_code, session_name, member_phone, member_name, role,
@@ -148,47 +144,44 @@ export async function POST(req: NextRequest) {
       RETURNING *
     `,
       [
-        session_code.toUpperCase(),
-        session_name || `Buổi đào tạo ${session_code}`,
+        sessionCode,
+        session_name || `Buổi đào tạo ${sessionCode}`,
         member_phone || '',
-        member_name,
-        role || 'Giảng viên',
-        token_tier || 'Hạng A',
+        String(member_name).trim(),
+        '',
+        '',
         tCount,
-        budget,
+        sessionBudget,
         newTotalTokens,
         reward,
         approver,
-        status,
-        training_date || new Date().toISOString().split('T')[0],
+        'Đã duyệt',
+        trainingDate,
       ]
     );
 
-    // Update existing records in the session with updated total_tokens and recalculated rewards
-    if (curRes.rows.length > 0) {
-      await pool.query(
-        `
-        UPDATE training_logs 
-        SET 
-          total_tokens = $1,
-          reward_amount = (session_budget * token_count) / $1
-        WHERE session_code = $2
-      `,
-        [newTotalTokens, session_code.toUpperCase()]
-      );
-    }
+    await client.query(
+      `UPDATE training_logs
+       SET total_tokens = $1, session_budget = $2, reward_amount = token_count * 5000
+       WHERE session_code = $3 AND training_date = $4::date`,
+      [newTotalTokens, sessionBudget, sessionCode, trainingDate]
+    );
+    await client.query('COMMIT');
 
-    return NextResponse.json({ success: true, log: insertRes.rows[0] });
+    return NextResponse.json({ success: true, log: insertRes.rows[0], session_code: sessionCode });
   } catch (error: any) {
+    await client.query('ROLLBACK');
     console.error('Error adding training log:', error);
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
 
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, status, approver, role, token_tier, token_count } = body;
+    const { id, status, approver } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, message: 'Thiếu ID' }, { status: 400 });
@@ -205,19 +198,6 @@ export async function PUT(req: NextRequest) {
       values.push(approver);
       updates.push(`approver = $${values.length}`);
     }
-    if (role !== undefined) {
-      values.push(role);
-      updates.push(`role = $${values.length}`);
-    }
-    if (token_tier !== undefined) {
-      values.push(token_tier);
-      updates.push(`token_tier = $${values.length}`);
-    }
-    if (token_count !== undefined) {
-      values.push(token_count);
-      updates.push(`token_count = $${values.length}`);
-    }
-
     if (updates.length === 0) {
       return NextResponse.json({ success: true });
     }
@@ -234,6 +214,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const client = await pool.connect();
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -241,10 +222,34 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Thiếu ID' }, { status: 400 });
     }
 
-    await pool.query('DELETE FROM training_logs WHERE id = $1', [id]);
+    await client.query('BEGIN');
+    const selected = await client.query(
+      `SELECT session_code, training_date::text AS training_date FROM training_logs WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+    await client.query('DELETE FROM training_logs WHERE id = $1', [id]);
+    if (selected.rows[0]?.training_date) {
+      const { session_code, training_date } = selected.rows[0];
+      const session = await client.query(
+        `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
+         FROM training_logs WHERE session_code = $1 AND training_date = $2::date`,
+        [session_code, training_date]
+      );
+      const totalTokens = Number(session.rows[0]?.total_tokens || 0);
+      await client.query(
+        `UPDATE training_logs
+         SET total_tokens = $1, session_budget = $2, reward_amount = token_count * 5000
+         WHERE session_code = $3 AND training_date = $4::date`,
+        [totalTokens, totalTokens * 5000, session_code, training_date]
+      );
+    }
+    await client.query('COMMIT');
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    await client.query('ROLLBACK');
     console.error('Error deleting training log:', error);
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  } finally {
+    client.release();
   }
 }

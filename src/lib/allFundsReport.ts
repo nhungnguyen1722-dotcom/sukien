@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { getTeamLeadAllocation, parseMonth } from '@/lib/teamlead';
+import { getMonthWeekRange } from '@/lib/weekRanges';
 
 export interface MasterPerson {
   name: string;
@@ -63,6 +64,9 @@ export interface OperationLogItem {
 
 export interface AllFundsReportData {
   targetMonth: string;
+  targetWeek: number;
+  periodStart: string;
+  periodEnd: string;
   masterList: MasterPerson[];
   contracts: ContractItem[];
   teamLeadRows: TeamLeadBonusItem[];
@@ -95,10 +99,12 @@ function normalizePhone(val?: string | null): string {
   return (val || '').replace(/\D/g, '');
 }
 
-export async function getAllFundsReportData(inputMonth?: string | null): Promise<AllFundsReportData> {
+export async function getAllFundsReportData(inputMonth?: string | null, inputWeek = 0): Promise<AllFundsReportData> {
   const month = inputMonth || '2026-10';
   const parsed = parseMonth(month) || '2026-10-01';
   const targetMonth = parsed.slice(0, 7);
+  const targetWeek = Number.isInteger(inputWeek) && inputWeek >= 0 && inputWeek <= 5 ? inputWeek : 0;
+  const dateRange = getMonthWeekRange(targetMonth, targetWeek);
 
   // 1. Lấy thông tin tài khoản ngân hàng từ users
   const usersRes = await pool.query(`
@@ -119,13 +125,8 @@ export async function getAllFundsReportData(inputMonth?: string | null): Promise
   }
 
   // 2. Lấy dữ liệu Quỹ TeamLead (toàn tháng weekNo = 0)
-  let rawTeamLeadRows: any[] = [];
-  try {
-    const allocation = await getTeamLeadAllocation(parsed, 0, pool);
-    rawTeamLeadRows = allocation?.rows || [];
-  } catch (err) {
-    console.error('Could not fetch teamlead allocation for month:', parsed, err);
-  }
+  const allocation = await getTeamLeadAllocation(parsed, targetWeek, pool);
+  const rawTeamLeadRows: any[] = allocation?.rows || [];
 
   const teamLeadRows: TeamLeadBonusItem[] = rawTeamLeadRows.map((r: any) => ({
     memberName: r.memberName || '',
@@ -149,10 +150,10 @@ export async function getAllFundsReportData(inputMonth?: string | null): Promise
       c.supporter_name, c.supporter_phone, COALESCE(c.supporter_fee, 0)::float8 AS supporter_fee,
       c.status
     FROM contracts c
-    WHERE c.contract_date IS NOT NULL AND c.contract_date::text LIKE $1 || '%'
+    WHERE c.contract_date >= $1::date AND c.contract_date <= $2::date
     ORDER BY c.contract_date ASC, c.id ASC
     `,
-    [targetMonth]
+    [dateRange.start, dateRange.endInclusive]
   );
   const contracts: ContractItem[] = contractsRes.rows;
 
@@ -164,13 +165,11 @@ export async function getAllFundsReportData(inputMonth?: string | null): Promise
       COALESCE(tl.actual_expense, tl.proposed_amount, 0)::float8 AS amount,
       tl.status, tl.payment_date::text AS payment_date
     FROM transaction_logs tl
-    WHERE (
-      tl.payment_date::text LIKE $1 || '%' 
-      OR (tl.payment_date IS NULL AND tl.request_date::text LIKE $1 || '%')
-    )
+    WHERE COALESCE(tl.payment_date, tl.request_date)::date >= $1::date
+      AND COALESCE(tl.payment_date, tl.request_date)::date <= $2::date
     ORDER BY tl.id ASC
     `,
-    [targetMonth]
+    [dateRange.start, dateRange.endInclusive]
   );
   const logs: OperationLogItem[] = logsRes.rows;
 
@@ -180,10 +179,10 @@ export async function getAllFundsReportData(inputMonth?: string | null): Promise
     SELECT event_code, event_date::text AS event_date, COALESCE(beneficiary_phone, '') AS beneficiary_phone,
       beneficiary_name, expense_role, proposed_amount::float8 AS proposed_amount, status
     FROM fund_event_expenses
-    WHERE event_date::text LIKE $1 || '%'
+    WHERE event_date >= $1::date AND event_date <= $2::date
     ORDER BY event_date ASC, id ASC
     `,
-    [targetMonth]
+    [dateRange.start, dateRange.endInclusive]
   );
   const eventExpenses = eventExpensesRes.rows;
 
@@ -296,6 +295,9 @@ export async function getAllFundsReportData(inputMonth?: string | null): Promise
 
   return {
     targetMonth,
+    targetWeek,
+    periodStart: dateRange.start,
+    periodEnd: dateRange.endInclusive,
     masterList,
     contracts,
     teamLeadRows,

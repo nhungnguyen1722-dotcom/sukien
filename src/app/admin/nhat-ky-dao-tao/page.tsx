@@ -5,12 +5,12 @@ export const revalidate = 0;
 
 async function getTrainingData() {
   try {
-    const [logsRes, statsRes, coursesRes] = await Promise.all([
+    const [logsRes, statsRes, coursesRes, membersRes, contractsRes, expensesRes] = await Promise.all([
       pool.query(`
         SELECT 
           id, session_code, session_name, member_phone, member_name, 
-          role, token_tier, token_count, session_budget, total_tokens, 
-          reward_amount, approver, status, TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
+          token_count, session_budget, total_tokens,
+          reward_amount, status, TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
         FROM training_logs
         ORDER BY training_date ASC, id ASC
       `),
@@ -19,7 +19,7 @@ async function getTrainingData() {
           COUNT(DISTINCT session_code)::int AS total_sessions,
           COUNT(DISTINCT member_name)::int AS total_members,
           COALESCE(SUM(token_count), 0)::int AS total_tokens,
-          COALESCE(SUM(reward_amount), 0)::numeric AS total_rewards
+          COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN token_count * 5000 ELSE 0 END), 0)::numeric AS total_rewards
         FROM training_logs
       `),
       pool.query(`
@@ -27,6 +27,35 @@ async function getTrainingData() {
         FROM training_courses
         ORDER BY course_code ASC
       `).catch(() => ({ rows: [] })),
+      pool.query(`
+        SELECT full_name, phone
+        FROM users
+        WHERE status IS DISTINCT FROM 'Tạm khóa'
+        ORDER BY full_name ASC
+      `),
+      pool.query(`
+        SELECT contract_code, contract_date::text AS contract_date, customer_name,
+          CASE
+            WHEN LOWER(BTRIM(COALESCE(contract_type, ''))) LIKE '%2 n_m%'
+              OR LOWER(BTRIM(COALESCE(contract_type, ''))) LIKE '%2 nam%'
+              THEN COALESCE(value, 0) * 0.70
+            ELSE COALESCE(value, 0)
+          END::float8 AS allocation_base
+        FROM contracts
+        WHERE status IN ('Đã duyệt', 'Da duyệt', 'Da duy?t')
+          AND contract_date IS NOT NULL
+        ORDER BY contract_date ASC, id ASC
+      `),
+      pool.query(`
+        SELECT id, COALESCE(payment_date::text, request_date::text) AS expense_date,
+          COALESCE(detail_content, '') AS detail_content,
+          COALESCE(actual_expense, proposed_amount, 0)::float8 AS amount,
+          status, fund_source
+        FROM transaction_logs
+        WHERE LOWER(COALESCE(fund_source, '')) LIKE '%đào tạo%'
+          AND status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện')
+        ORDER BY COALESCE(payment_date, request_date) ASC, id ASC
+      `),
     ]);
 
     const statsRow = statsRes.rows[0] || {
@@ -36,16 +65,13 @@ async function getTrainingData() {
       total_rewards: 0,
     };
 
-    const roleStats: Record<string, number> = {};
     const logs: TrainingLog[] = logsRes.rows.map((row) => {
-      const r = row.role || 'Khác';
-      roleStats[r] = (roleStats[r] || 0) + 1;
       return {
         ...row,
         token_count: Number(row.token_count || 0),
         session_budget: Number(row.session_budget || 0),
         total_tokens: Number(row.total_tokens || 0),
-        reward_amount: Number(row.reward_amount || 0),
+        reward_amount: Number(row.token_count || 0) * 5000,
         training_date: row.training_date || '',
       };
     });
@@ -61,27 +87,19 @@ async function getTrainingData() {
     return {
       logs,
       courses,
+      members: membersRes.rows,
+      contracts: contractsRes.rows.map((row) => ({ ...row, allocation_base: Number(row.allocation_base || 0) })),
+      expenses: expensesRes.rows.map((row) => ({ ...row, amount: Number(row.amount || 0) })),
       stats: {
         totalSessions: statsRow.total_sessions || 0,
         totalMembers: statsRow.total_members || 0,
         totalTokens: statsRow.total_tokens || 0,
         totalRewards: Number(statsRow.total_rewards || 0),
-        roleStats,
       },
     };
   } catch (error) {
     console.error('Error loading training logs:', error);
-    return {
-      logs: [],
-      courses: [],
-      stats: {
-        totalSessions: 0,
-        totalMembers: 0,
-        totalTokens: 0,
-        totalRewards: 0,
-        roleStats: {},
-      },
-    };
+    throw error;
   }
 }
 
@@ -92,8 +110,10 @@ export default async function NhatKyDaoTaoPage() {
     <TrainingManagement
       initialLogs={data.logs}
       initialCourses={data.courses}
+      initialMembers={data.members}
+      initialContracts={data.contracts}
+      initialExpenses={data.expenses}
       initialStats={data.stats}
     />
   );
 }
-

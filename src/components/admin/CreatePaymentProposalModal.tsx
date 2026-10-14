@@ -48,13 +48,6 @@ const FUND_OPTIONS = [
   'Leader team - giám đốc Kd',
 ];
 
-const APPROVER_OPTIONS = [
-  'Ban Giám Đốc (Nguyễn Kim Tươi)',
-  'Ban Giám Đốc (Đinh Văn Bắc)',
-  'Vũ Thị Cúc (Phó Tổng)',
-  'Nguyễn Hùng Vĩ (Giám Đốc)',
-];
-
 const DEMO_PRESET_ITEMS: TransactionLogItem[] = [
   {
     order: 1,
@@ -158,7 +151,7 @@ export default function CreatePaymentProposalModal({
   const [requestDate, setRequestDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [requesterName, setRequesterName] = useState('Vũ Thị Cúc');
   const [requesterPhone, setRequesterPhone] = useState('0904123456');
-  const [approverName, setApproverName] = useState('Ban Giám Đốc (Nguyễn Kim Tươi)');
+  const [approverName, setApproverName] = useState('');
   const [status, setStatus] = useState('Chờ duyệt');
   const [fundSource, setFundSource] = useState(() => initialFundSource || 'Sale trực tiếp - Pro sale (Nguồn khách)');
   const [note, setNote] = useState(
@@ -166,17 +159,16 @@ export default function CreatePaymentProposalModal({
   );
 
   const createEmptyItem = (order: number = 1): TransactionLogItem => {
-    const defaultMember = members[0];
     return {
       order,
       title: '',
       subtitle: '',
       fundSource: initialFundSource || fundSource || FUND_OPTIONS[0],
-      beneficiaryName: defaultMember ? defaultMember.full_name : '',
-      beneficiaryPhone: defaultMember?.phone || '',
-      beneficiaryBankAccount: defaultMember?.bank_account || '',
-      beneficiaryBankName: defaultMember?.bank_name || 'MB Bank',
-      beneficiaryUserId: defaultMember?.id || null,
+      beneficiaryName: '',
+      beneficiaryPhone: '',
+      beneficiaryBankAccount: '',
+      beneficiaryBankName: '',
+      beneficiaryUserId: null,
       amount: 0,
       note: '',
     };
@@ -235,17 +227,16 @@ export default function CreatePaymentProposalModal({
   // Add line item
   const handleAddItem = () => {
     const nextOrder = items.length + 1;
-    const defaultMember = members[0];
     const newItem: TransactionLogItem = {
       order: nextOrder,
       title: '',
       subtitle: '',
       fundSource: fundSource || FUND_OPTIONS[0],
-      beneficiaryName: defaultMember ? defaultMember.full_name : '',
-      beneficiaryPhone: defaultMember?.phone || '',
-      beneficiaryBankAccount: defaultMember?.bank_account || '',
-      beneficiaryBankName: 'MB Bank',
-      beneficiaryUserId: defaultMember?.id || null,
+      beneficiaryName: '',
+      beneficiaryPhone: '',
+      beneficiaryBankAccount: '',
+      beneficiaryBankName: '',
+      beneficiaryUserId: null,
       amount: 0,
       note: '',
     };
@@ -272,10 +263,15 @@ export default function CreatePaymentProposalModal({
 
       // Auto populate bank and phone if beneficiary changes
       if (field === 'beneficiaryName') {
-        const found = memberMap.get(String(value).trim().toLowerCase());
+        target.beneficiaryPhone = '';
+        target.beneficiaryBankAccount = '';
+        target.beneficiaryBankName = '';
+        target.beneficiaryUserId = null;
+        const found = memberMap.get(String(value).trim().toLocaleLowerCase('vi-VN'));
         if (found) {
-          if (found.phone) target.beneficiaryPhone = found.phone;
-          if (found.bank_account) target.beneficiaryBankAccount = found.bank_account;
+          target.beneficiaryPhone = found.phone || '';
+          target.beneficiaryBankAccount = found.bank_account || '';
+          target.beneficiaryBankName = found.bank_name || '';
           target.beneficiaryUserId = found.id;
         }
       }
@@ -396,20 +392,25 @@ export default function CreatePaymentProposalModal({
 
   // Save Proposal
   const handleSaveProposal = async (customStatus?: string) => {
+    const finalStatus = customStatus || status || 'Chờ duyệt';
+    const isDraft = finalStatus === 'Lưu nháp';
+    if (!isDraft && !approverName.trim()) {
+      alert('Vui lòng chọn người phê duyệt.');
+      return;
+    }
     if (items.length === 0) {
       alert('Vui lòng thêm ít nhất 1 dòng chi.');
       return;
     }
 
     const invalidItem = items.find((it) => !it.title.trim() || Number(it.amount) <= 0);
-    if (invalidItem) {
+    if (!isDraft && invalidItem) {
       alert('Mỗi dòng khoản chi phải có Nội dung chi và Số tiền lớn hơn 0.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const finalStatus = customStatus || status || 'Chờ duyệt';
       const firstItem = items[0];
 
       const payload = {
@@ -589,18 +590,18 @@ export default function CreatePaymentProposalModal({
                     <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
                       <ShieldCheck className="h-4 w-4" />
                     </div>
-                    <select
+                    <input
+                      list="create-approver-list"
                       value={approverName}
                       onChange={(e) => setApproverName(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs cursor-pointer truncate"
-                    >
-                      {APPROVER_OPTIONS.map((appr) => (
-                        <option key={appr} value={appr}>{appr}</option>
-                      ))}
+                      placeholder="Tìm và chọn người phê duyệt"
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs"
+                    />
+                    <datalist id="create-approver-list">
                       {members.map((m) => (
-                        <option key={`m-${m.id}`} value={m.full_name}>{m.full_name}</option>
+                        <option key={`m-${m.id}`} value={m.full_name} />
                       ))}
-                    </select>
+                    </datalist>
                   </div>
                 </div>
 
@@ -781,6 +782,7 @@ export default function CreatePaymentProposalModal({
                           <div className="text-[11px] font-medium text-slate-800">
                             {item.beneficiaryName || 'Chưa chọn'} / {item.beneficiaryPhone || item.beneficiaryBankAccount || '—'}
                           </div>
+                          <div className="text-[10px] text-slate-500">{item.beneficiaryBankAccount || 'Chưa có số tài khoản'}</div>
                           <input
                             type="text"
                             value={item.beneficiaryBankName || ''}

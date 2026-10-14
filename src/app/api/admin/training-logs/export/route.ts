@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
-    const role = searchParams.get('role') || 'all';
     const status = searchParams.get('status') || 'all';
     const date = searchParams.get('date') || '';
 
@@ -26,13 +25,10 @@ export async function GET(req: NextRequest) {
         session_name,
         member_phone,
         member_name,
-        role,
-        token_tier,
         token_count,
         session_budget,
         total_tokens,
         reward_amount,
-        approver,
         status,
         TO_CHAR(training_date, 'YYYY-MM-DD') AS training_date
       FROM training_logs
@@ -48,11 +44,6 @@ export async function GET(req: NextRequest) {
         member_phone LIKE $${params.length} OR
         LOWER(COALESCE(session_name, '')) LIKE $${params.length}
       )`;
-    }
-
-    if (role !== 'all') {
-      params.push(role);
-      query += ` AND role = $${params.length}`;
     }
 
     if (status !== 'all') {
@@ -73,7 +64,7 @@ export async function GET(req: NextRequest) {
       token_count: Number(r.token_count || 0),
       session_budget: Number(r.session_budget || 0),
       total_tokens: Number(r.total_tokens || 0),
-      reward_amount: Number(r.reward_amount || 0),
+      reward_amount: Number(r.token_count || 0) * 5000,
     }));
 
     // 2. Lấy danh mục buổi học

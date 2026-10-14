@@ -1,15 +1,19 @@
 import Link from 'next/link';
-import { HandCoins, SlidersHorizontal, Star, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  DollarSign,
+  GraduationCap,
+  HandCoins,
+  HeartHandshake,
+  Receipt,
+  Star,
+  Trophy,
+  Users,
+} from 'lucide-react';
 
 type FundTab = 'summary' | 'teamlead' | 'policy' | 'operations';
 
-const tabs: Array<{
-  id: FundTab;
-  label: string;
-  href: string;
-  icon: typeof Users;
-  activeClass: string;
-}> = [
+const tabs = [
   {
     id: 'summary',
     label: 'Báo cáo tổng hợp quỹ',
@@ -19,26 +23,61 @@ const tabs: Array<{
   },
   {
     id: 'teamlead',
-    label: 'Quỹ TeamLead',
+    label: 'TeamLead',
     href: '/admin/teamlead',
     icon: Users,
     activeClass: 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200',
   },
   {
-    id: 'policy',
-    label: 'Chính sách phân bổ',
-    href: '/admin/teamlead/chinh-sach',
-    icon: SlidersHorizontal,
-    activeClass: 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200',
-  },
-  {
     id: 'operations',
-    label: 'Quỹ vận hành và hỗ trợ',
+    label: 'Vận hành và hỗ trợ',
     href: '/admin/quy-van-hanh-ho-tro',
     icon: HandCoins,
     activeClass: 'border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-200',
   },
-];
+  {
+    id: 'sales',
+    label: 'Hoa hồng Sale & Hợp đồng',
+    href: '/admin/nhat-ky-hop-dong',
+    icon: DollarSign,
+    activeClass: 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-200',
+  },
+  {
+    id: 'training',
+    label: 'Quỹ đào tạo',
+    href: '/admin/nhat-ky-dao-tao',
+    icon: GraduationCap,
+    activeClass: 'border-purple-600 bg-purple-600 text-white shadow-md shadow-purple-200',
+  },
+  {
+    id: 'customer-care',
+    label: 'Chăm sóc khách hàng',
+    href: '/admin/nhat-ky-thu-chi?tab=vouchers&fund=customer-care',
+    icon: HeartHandshake,
+    activeClass: 'border-rose-600 bg-rose-600 text-white shadow-md shadow-rose-200',
+  },
+  {
+    id: 'events',
+    label: 'Sự kiện & Chốt hợp đồng',
+    href: '/admin/nhat-ky-thu-chi?tab=vouchers&fund=events',
+    icon: CalendarDays,
+    activeClass: 'border-cyan-600 bg-cyan-600 text-white shadow-md shadow-cyan-200',
+  },
+  {
+    id: 'incentives',
+    label: 'Thi đua & Chương trình thúc đẩy',
+    href: '/admin/nhat-ky-thu-chi?tab=vouchers&fund=incentives',
+    icon: Trophy,
+    activeClass: 'border-orange-600 bg-orange-600 text-white shadow-md shadow-orange-200',
+  },
+  {
+    id: 'travel',
+    label: 'Chi phí Công tác phí',
+    href: '/admin/nhat-ky-thu-chi?tab=vouchers&fund=travel',
+    icon: Receipt,
+    activeClass: 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-200',
+  },
+] as const;
 
 export default function FundManagementTabs({ activeTab }: { activeTab: FundTab }) {
   return (
@@ -54,7 +93,7 @@ export default function FundManagementTabs({ activeTab }: { activeTab: FundTab }
           <p className="mt-1 text-sm text-slate-500">
             Tổng hợp và quản lý các quỹ của hệ thống trên cùng một trang.
           </p>
-          <nav aria-label="Các mục quản lý quỹ" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <nav aria-label="Các mục quản lý quỹ" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;

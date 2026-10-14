@@ -7,7 +7,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month') || '2026-10';
-    const data = await getAllFundsReportData(month);
+    const week = Number(searchParams.get('week') || 0);
+    const data = await getAllFundsReportData(month, week);
     return NextResponse.json(data);
   } catch (error) {
     console.error('Failed to get all funds report data:', error);
