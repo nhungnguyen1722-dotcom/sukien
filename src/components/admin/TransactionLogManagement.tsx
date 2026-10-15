@@ -1607,25 +1607,82 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     setCashflowPeoplePage(1);
   }, []);
 
+  // Các quỹ chỉ cập nhật thủ công "Đã chi" (không tự động tính từ phiếu chi)
+  const MANUAL_PAID_FUND_KEYS = useMemo(() => new Set([
+    'event_close',    // Quỹ Sự kiện & Chốt hợp đồng
+    'customer_care',  // Quỹ Chăm sóc khách hàng
+    'training',       // Quỹ Đào tạo Chuyên môn & Kỹ năng
+    'incentive',      // Quỹ Thi đua & Chương trình thúc đẩy
+    'travel',         // Chi phí Công tác phí
+  ]), []);
+
   const paidAmountForFund = useCallback((fundKey: string, fundSource: string) => {
     const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
     const normSource = normalizeFund(fundSource);
 
-    // 1. Nếu đang xem một kỳ tuần cụ thể: kiểm tra số đã chi từ danh mục phân bổ kỳ tuần
-    if (!isMonthOverview && selectedPeriod) {
-      const rec = allocationsList.find(
+    // ──── Hàm tìm bản ghi phân bổ trong DB ────
+    const findDbRecord = (periodCode: string) =>
+      allocationsList.find(
         (w) =>
-          w.period_code === selectedPeriod.period_code &&
+          w.period_code === periodCode &&
           (w.fund_key === fundKey ||
             normalizeFund(w.fund_source) === normSource ||
             normalizeFund(w.fund_source) === target)
       );
-      if (rec && rec.paid_amount !== undefined && rec.paid_amount !== null) {
-        return Number(rec.paid_amount);
+
+    // ──── Hàm tính từ phiếu chi (transaction_logs) ────
+    const calcFromLogs = () =>
+      logs
+        .filter((log) => {
+          const paidDate = log.payment_date || log.request_date;
+          if (!isPaidStatus(log.status) || !paidDate) return false;
+          if (isMonthOverview ? !withinMonth(paidDate, selectedMonth) : !selectedPeriod || !withinPeriod(paidDate, selectedPeriod)) return false;
+          const logFund = normalizeFund(log.fund_source);
+          return logFund === normSource || logFund === target;
+        })
+        .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
+
+    // ═══════════════════════════════════════════
+    // A. Các quỹ cập nhật THỦ CÔNG → chỉ lấy từ DB, mặc định = 0
+    // ═══════════════════════════════════════════
+    if (MANUAL_PAID_FUND_KEYS.has(fundKey)) {
+      if (!isMonthOverview && selectedPeriod) {
+        const rec = findDbRecord(selectedPeriod.period_code);
+        return rec && rec.paid_amount != null ? Number(rec.paid_amount) : 0;
       }
+      if (isMonthOverview) {
+        const monthRecs = allocationsList.filter(
+          (w) =>
+            w.period_month === selectedMonth &&
+            (w.fund_key === fundKey ||
+              normalizeFund(w.fund_source) === normSource ||
+              normalizeFund(w.fund_source) === target)
+        );
+        const monthOverviewRec = monthRecs.find((w) => w.period_code.endsWith('-MONTH'));
+        if (monthOverviewRec && Number(monthOverviewRec.paid_amount) > 0) {
+          return Number(monthOverviewRec.paid_amount);
+        }
+        return monthRecs
+          .filter((w) => !w.period_code.endsWith('-MONTH'))
+          .reduce((sum, w) => sum + Number(w.paid_amount || 0), 0);
+      }
+      return 0;
     }
 
-    // 2. Nếu đang xem tổng quan tháng: kiểm tra số đã chi tổng hợp từ các bản ghi trong tháng
+    // ═══════════════════════════════════════════
+    // B. Các quỹ TỰ ĐỘNG tính "Đã chi" từ phiếu chi (transaction_logs)
+    //    DB override ưu tiên nếu đã được set thủ công
+    // ═══════════════════════════════════════════
+    if (!isMonthOverview && selectedPeriod) {
+      const rec = findDbRecord(selectedPeriod.period_code);
+      // Chỉ dùng giá trị DB nếu đã được cập nhật thủ công (paid_amount > 0)
+      if (rec && rec.paid_amount != null && Number(rec.paid_amount) > 0) {
+        return Number(rec.paid_amount);
+      }
+      // Tự động tính từ phiếu chi
+      return calcFromLogs();
+    }
+
     if (isMonthOverview) {
       const monthRecs = allocationsList.filter(
         (w) =>
@@ -1644,17 +1701,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       }
     }
 
-    // 3. Phương án dự phòng: tính từ các phiếu chi thực tế trong transaction_logs
-    return logs
-      .filter((log) => {
-        const paidDate = log.payment_date || log.request_date;
-        if (!isPaidStatus(log.status) || !paidDate) return false;
-        if (isMonthOverview ? !withinMonth(paidDate, selectedMonth) : !selectedPeriod || !withinPeriod(paidDate, selectedPeriod)) return false;
-        const logFund = normalizeFund(log.fund_source);
-        return logFund === normSource || logFund === target;
-      })
-      .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
-  }, [allocationsList, logs, isMonthOverview, selectedMonth, selectedPeriod]);
+    // Tự động tính từ phiếu chi
+    return calcFromLogs();
+  }, [MANUAL_PAID_FUND_KEYS, allocationsList, logs, isMonthOverview, selectedMonth, selectedPeriod]);
 
   const fundRowsToDisplay = isMonthOverview ? monthFundRows : selectedRows;
   const summaryTotals = useMemo(() => {
