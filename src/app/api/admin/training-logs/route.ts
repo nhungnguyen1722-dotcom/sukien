@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1, $2)', [20261014, 7]);
     const courseResult = await client.query(
-      `SELECT course_code, course_name, budget FROM training_courses WHERE course_code = $1`,
+      `SELECT course_code, course_name, token_value, budget FROM training_courses WHERE course_code = $1`,
       [courseCode]
     );
     if (!courseResult.rows[0]) {
@@ -166,9 +166,9 @@ export async function POST(req: NextRequest) {
       const nextCode = await client.query(`
         SELECT COALESCE(MAX(NULLIF(REGEXP_REPLACE(session_code, '[^0-9]', '', 'g'), '')::integer), 0) + 1 AS next_code
         FROM training_logs
-        WHERE session_code ~ '^TR[0-9]+$'
+        WHERE session_code ~ '^(TR|MB)[0-9]+$'
       `);
-      sessionCode = `TR${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
+      sessionCode = `MB${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
     }
 
     const current = await client.query(
@@ -178,6 +178,13 @@ export async function POST(req: NextRequest) {
     );
     const addedTokens = participants.reduce((sum, p) => sum + Number(p.token_count), 0);
     const newTotalTokens = Number(current.rows[0]?.total_tokens || 0) + addedTokens;
+    if (newTotalTokens > Number(course.token_value)) {
+      await client.query('ROLLBACK');
+      return NextResponse.json({
+        success: false,
+        message: `Tổng token buổi học vượt định mức ${Number(course.token_value)} Token của khóa học.`,
+      }, { status: 400 });
+    }
     const sessionBudget = Number(course.budget);
 
     const insertedRows: any[] = [];
@@ -244,26 +251,70 @@ export async function PUT(req: NextRequest) {
       if (!courseCode) {
         return NextResponse.json({ success: false, message: 'Vui lòng chọn khóa học.' }, { status: 400 });
       }
-      const courseRes = await pool.query('SELECT course_code, course_name, budget FROM training_courses WHERE course_code = $1', [courseCode]);
-      const course = courseRes.rows[0];
-      if (!course) {
-        return NextResponse.json({ success: false, message: 'Khóa học không tồn tại.' }, { status: 400 });
+      const trainingDate = String(training_date || '');
+      const parsedTrainingDate = new Date(`${trainingDate}T00:00:00Z`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trainingDate)
+        || Number.isNaN(parsedTrainingDate.getTime())
+        || parsedTrainingDate.toISOString().slice(0, 10) !== trainingDate) {
+        return NextResponse.json({ success: false, message: 'Ngày đào tạo không hợp lệ.' }, { status: 400 });
+      }
+      if (!Array.isArray(participants) || participants.length === 0 || participants.some((participant: any) =>
+        !String(participant.member_name || '').trim()
+        || !Number.isInteger(Number(participant.token_count))
+        || Number(participant.token_count) <= 0
+      )) {
+        return NextResponse.json({ success: false, message: 'Vui lòng nhập nhân sự và số Token hợp lệ cho từng dòng.' }, { status: 400 });
       }
 
       client = await pool.connect();
       await client.query('BEGIN');
       transactionStarted = true;
+      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [20261014, 7]);
+
+      const courseRes = await client.query(
+        'SELECT course_code, course_name, token_value, budget FROM training_courses WHERE course_code = $1',
+        [courseCode]
+      );
+      const course = courseRes.rows[0];
+      if (!course) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+        return NextResponse.json({ success: false, message: 'Khóa học không tồn tại.' }, { status: 400 });
+      }
 
       const targetOldCode = old_course_code || courseCode;
       const targetOldDate = old_training_date || training_date;
+      const targetOldSession = old_session_code || session_code || targetOldCode;
+      const existingTargetTokensResult = await client.query(
+        `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
+         FROM training_logs
+         WHERE course_code = $1 AND training_date = $2::date AND session_code <> $3`,
+        [courseCode, trainingDate, targetOldSession]
+      );
+      const participantTokens = participants.reduce((sum: number, participant: any) => sum + Number(participant.token_count), 0);
+      const totalTokens = Number(existingTargetTokensResult.rows[0]?.total_tokens || 0) + participantTokens;
+      if (totalTokens > Number(course.token_value)) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+        return NextResponse.json({
+          success: false,
+          message: `Tổng token buổi học vượt định mức ${Number(course.token_value)} Token của khóa học.`,
+        }, { status: 400 });
+      }
+
+      const targetSession = await client.query(
+        `SELECT session_code FROM training_logs
+         WHERE course_code = $1 AND training_date = $2::date AND session_code <> $3
+         ORDER BY id LIMIT 1`,
+        [courseCode, trainingDate, targetOldSession]
+      );
       await client.query(
         `DELETE FROM training_logs 
          WHERE (course_code = $1 OR session_code = $2) AND training_date = $3::date`,
-        [targetOldCode, old_session_code || targetOldCode, targetOldDate]
+        [targetOldCode, targetOldSession, targetOldDate]
       );
 
-      const sessionCodeFinal = session_code || targetOldCode;
-      const totalTokens = participants.reduce((sum: number, p: any) => sum + Number(p.token_count || 0), 0);
+      const sessionCodeFinal = targetSession.rows[0]?.session_code || session_code || targetOldSession;
       const sessionBudget = Number(course.budget);
 
       const insertedRows = [];
@@ -287,6 +338,26 @@ export async function PUT(req: NextRequest) {
           ]
         );
         insertedRows.push(ins.rows[0]);
+      }
+
+      await client.query(
+        `UPDATE training_logs SET total_tokens = $1, session_budget = $2
+         WHERE course_code = $3 AND training_date = $4::date`,
+        [totalTokens, sessionBudget, courseCode, trainingDate]
+      );
+
+      if (targetOldCode !== courseCode || String(targetOldDate) !== trainingDate) {
+        const oldTotals = await client.query(
+          `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
+           FROM training_logs WHERE course_code = $1 AND training_date = $2::date`,
+          [targetOldCode, targetOldDate]
+        );
+        const oldCourse = await client.query('SELECT budget FROM training_courses WHERE course_code = $1', [targetOldCode]);
+        await client.query(
+          `UPDATE training_logs SET total_tokens = $1, session_budget = $2
+           WHERE course_code = $3 AND training_date = $4::date`,
+          [Number(oldTotals.rows[0]?.total_tokens || 0), Number(oldCourse.rows[0]?.budget || 0), targetOldCode, targetOldDate]
+        );
       }
 
       await client.query('COMMIT');
@@ -344,7 +415,7 @@ export async function PUT(req: NextRequest) {
       const oldCourseCode = selected.rows[0].course_code;
       const oldTrainingDate = selected.rows[0].training_date;
       const courseResult = await client.query(
-        `SELECT course_code, course_name, budget FROM training_courses WHERE course_code = $1`,
+        `SELECT course_code, course_name, token_value, budget FROM training_courses WHERE course_code = $1`,
         [courseCode]
       );
       if (!courseResult.rows[0]) {
@@ -353,6 +424,19 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ success: false, message: 'Khóa học không tồn tại trong danh mục.' }, { status: 400 });
       }
       const course = courseResult.rows[0];
+      const otherSessionTokens = await client.query(
+        `SELECT COALESCE(SUM(token_count), 0)::float8 AS total_tokens
+         FROM training_logs WHERE course_code = $1 AND training_date = $2::date AND id <> $3`,
+        [courseCode, trainingDate, logId]
+      );
+      if (Number(otherSessionTokens.rows[0]?.total_tokens || 0) + tokenCount > Number(course.token_value)) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+        return NextResponse.json({
+          success: false,
+          message: `Tổng token buổi học vượt định mức ${Number(course.token_value)} Token của khóa học.`,
+        }, { status: 400 });
+      }
       const targetSession = await client.query(
         `SELECT session_code FROM training_logs
          WHERE course_code = $1 AND training_date = $2::date AND id <> $3 ORDER BY id LIMIT 1`,
@@ -365,9 +449,9 @@ export async function PUT(req: NextRequest) {
       if (!sessionCode) {
         const nextCode = await client.query(`
           SELECT COALESCE(MAX(NULLIF(REGEXP_REPLACE(session_code, '[^0-9]', '', 'g'), '')::integer), 0) + 1 AS next_code
-          FROM training_logs WHERE session_code ~ '^TR[0-9]+$'
+          FROM training_logs WHERE session_code ~ '^(TR|MB)[0-9]+$'
         `);
-        sessionCode = `TR${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
+        sessionCode = `MB${String(nextCode.rows[0].next_code).padStart(3, '0')}`;
       }
 
       const rewardAmount = (body.reward_amount !== undefined && body.reward_amount !== null && !isNaN(Number(body.reward_amount)))

@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 async function getTrainingData() {
   try {
-    const [logsRes, statsRes, coursesRes, membersRes, contractsRes] = await Promise.all([
+    const [logsRes, statsRes, coursesRes, membersRes, contractsRes, fundExpensesRes] = await Promise.all([
       pool.query(`
         SELECT 
           log.id, log.session_code, log.course_code,
@@ -50,6 +50,54 @@ async function getTrainingData() {
           AND contract_date IS NOT NULL
         ORDER BY contract_date ASC, id ASC
       `),
+      pool.query(`
+        SELECT
+          tl.id,
+          tl.request_code,
+          COALESCE(tl.payment_date, tl.request_date)::text AS expense_date,
+          tl.fund_source,
+          tl.detail_content,
+          COALESCE(NULLIF(BTRIM(tl.beneficiary_name), ''), tl.requester_name, '') AS beneficiary_name,
+          COALESCE(tl.proposed_amount, 0)::float8 AS proposed_amount,
+          CASE
+            WHEN training_items.training_amount > 0
+              THEN CASE
+                WHEN tl.status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện')
+                  THEN COALESCE(NULLIF(tl.actual_expense, 0), tl.proposed_amount, training_items.training_amount, 0)
+                ELSE COALESCE(tl.actual_expense, 0)
+              END * training_items.training_amount / NULLIF(tl.proposed_amount, 0)
+            WHEN LOWER(COALESCE(tl.fund_source, '')) LIKE '%đào tạo chuyên môn%kỹ năng%'
+              OR LOWER(COALESCE(tl.detail_content, '')) LIKE '%đào tạo chuyên môn%kỹ năng%'
+              THEN CASE
+                WHEN tl.status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện')
+                  THEN COALESCE(NULLIF(tl.actual_expense, 0), tl.proposed_amount, 0)
+                ELSE COALESCE(tl.actual_expense, 0)
+              END
+            ELSE COALESCE(
+              CASE WHEN tl.status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện')
+                THEN COALESCE(NULLIF(tl.actual_expense, 0), training_items.training_amount, 0)
+                ELSE COALESCE(tl.actual_expense, 0)
+              END,
+              0
+            )
+          END::float8 AS actual_expense,
+          tl.status
+        FROM transaction_logs AS tl
+        LEFT JOIN LATERAL (
+          SELECT SUM(COALESCE(item.amount, 0)) FILTER (
+            WHERE LOWER(COALESCE(item.fund_source, '')) LIKE '%đào tạo chuyên môn%kỹ năng%'
+          )::float8 AS training_amount
+          FROM transaction_log_items AS item
+          WHERE item.transaction_log_id = tl.id
+        ) AS training_items ON TRUE
+        WHERE tl.status IN ('Đã duyệt', 'Đã chi', 'Đã thanh toán', 'Đã thực hiện')
+          AND (
+            LOWER(COALESCE(tl.fund_source, '')) LIKE '%đào tạo chuyên môn%kỹ năng%'
+            OR LOWER(COALESCE(tl.detail_content, '')) LIKE '%đào tạo chuyên môn%kỹ năng%'
+            OR training_items.training_amount > 0
+          )
+        ORDER BY COALESCE(tl.payment_date, tl.request_date) ASC, tl.id ASC
+      `),
     ]);
 
     const statsRow = statsRes.rows[0] || {
@@ -83,6 +131,13 @@ async function getTrainingData() {
       courses,
       members: membersRes.rows,
       contracts: contractsRes.rows.map((row) => ({ ...row, allocation_base: Number(row.allocation_base || 0) })),
+      fundExpenses: fundExpensesRes.rows.map((row) => ({
+        ...row,
+        id: Number(row.id),
+        expense_date: row.expense_date || '',
+        proposed_amount: Number(row.proposed_amount || 0),
+        actual_expense: Number(row.actual_expense || 0),
+      })),
       stats: {
         totalSessions: statsRow.total_sessions || 0,
         totalMembers: statsRow.total_members || 0,
@@ -105,6 +160,7 @@ export default async function NhatKyDaoTaoPage() {
       initialCourses={data.courses}
       initialMembers={data.members}
       initialContracts={data.contracts}
+      initialFundExpenses={data.fundExpenses}
       initialStats={data.stats}
     />
   );

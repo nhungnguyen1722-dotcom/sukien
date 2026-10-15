@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
 import { getMonthWeekRange } from '@/lib/weekRanges';
@@ -76,6 +76,105 @@ interface TrainingContract {
   allocation_base: number;
 }
 
+interface TrainingFundExpense {
+  id: number;
+  request_code: string;
+  expense_date: string;
+  fund_source: string;
+  detail_content: string;
+  beneficiary_name: string;
+  proposed_amount: number;
+  actual_expense: number;
+  status: string;
+}
+
+type TrainingParticipantDraft = {
+  member_name: string;
+  member_phone: string;
+  token_count: number;
+  reward_amount: number;
+};
+
+const TrainingParticipantRow = memo(function TrainingParticipantRow({
+  participant,
+  index,
+  memberByName,
+  memberOptions,
+  canRemove,
+  onUpdate,
+  onRemove,
+}: {
+  participant: TrainingParticipantDraft;
+  index: number;
+  memberByName: Map<string, TrainingMember>;
+  memberOptions: TrainingMember[];
+  canRemove: boolean;
+  onUpdate: (index: number, update: Partial<TrainingParticipantDraft>) => void;
+  onRemove: (index: number) => void;
+}) {
+  const optionsId = `training-member-options-${index}`;
+  return (
+    <tr className="border-t border-slate-100">
+      <td className="min-w-52 px-2 py-2">
+        <input
+          type="text"
+          required
+          list={optionsId}
+          aria-label={`Họ tên nhân sự ${index + 1}`}
+          value={participant.member_name}
+          onChange={(event) => {
+            const name = event.target.value;
+            const match = memberByName.get(name.trim().toLocaleLowerCase('vi-VN'));
+            onUpdate(index, { member_name: name, member_phone: match?.phone || '' });
+          }}
+          placeholder="Tìm và chọn nhân sự"
+          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-medium"
+        />
+        <datalist id={optionsId}>
+          {memberOptions.map((member) => <option key={`${member.full_name}-${member.phone}-${index}`} value={member.full_name} />)}
+        </datalist>
+      </td>
+      <td className="min-w-32 px-2 py-2">
+        <input type="text" value={participant.member_phone} readOnly aria-label={`Số điện thoại nhân sự ${index + 1}`} placeholder="Số điện thoại" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 font-mono" />
+      </td>
+      <td className="w-28 px-2 py-2">
+        <input
+          type="number"
+          min="1"
+          step="1"
+          required
+          value={participant.token_count || ''}
+          onChange={(event) => {
+            const tokenCount = Number(event.target.value) || 0;
+            onUpdate(index, { token_count: tokenCount, reward_amount: tokenCount * 5000 });
+          }}
+          aria-label={`Số Token nhân sự ${index + 1}`}
+          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-center font-bold"
+        />
+      </td>
+      <td className="w-40 px-2 py-2">
+        <input
+          type="number"
+          min="0"
+          step="1000"
+          required
+          value={participant.reward_amount}
+          onChange={(event) => onUpdate(index, { reward_amount: Number(event.target.value) || 0 })}
+          aria-label={`Thù lao riêng nhân sự ${index + 1}`}
+          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-right font-bold text-emerald-700 focus:border-blue-500"
+        />
+      </td>
+      <td className="w-10 px-1 py-2 text-center">
+        {canRemove && (
+          <button type="button" onClick={() => onRemove(index)} aria-label={`Xóa nhân sự ${index + 1}`} title="Xóa nhân sự" className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+});
+
 export interface TrainingCourse {
   id?: number;
   course_code: string;
@@ -90,6 +189,7 @@ interface TrainingManagementProps {
   initialCourses: TrainingCourse[];
   initialMembers: TrainingMember[];
   initialContracts: TrainingContract[];
+  initialFundExpenses: TrainingFundExpense[];
   initialStats: {
     totalSessions: number;
     totalMembers: number;
@@ -103,6 +203,7 @@ export default function TrainingManagement({
   initialCourses,
   initialMembers,
   initialContracts,
+  initialFundExpenses,
   initialStats,
 }: TrainingManagementProps) {
   const [logs, setLogs] = useState<TrainingLog[]>(initialLogs);
@@ -139,14 +240,14 @@ export default function TrainingManagement({
   const [participants, setParticipants] = useState<Array<{ member_name: string; member_phone: string; token_count: number; reward_amount: number }>>([{ member_name: '', member_phone: '', token_count: 0, reward_amount: 0 }]);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const showToast = (type: 'success' | 'error', text: string) => {
+  const showToast = useCallback((type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 3500);
-  };
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
-    session_code: 'TR001',
+    session_code: 'MB001',
     course_code: '',
     session_name: '',
     training_date: new Date().toISOString().split('T')[0],
@@ -168,11 +269,12 @@ export default function TrainingManagement({
   const memberByName = useMemo(() => new Map(
     initialMembers.map((member) => [member.full_name.trim().toLocaleLowerCase('vi-VN'), member])
   ), [initialMembers]);
-  const selectedCourse = courses.find((course) => course.course_code === formData.course_code);
-  const filteredCourses = courses.filter((course) => {
+  const memberOptions = useMemo(() => Array.from(memberByName.values()), [memberByName]);
+  const selectedCourse = useMemo(() => courses.find((course) => course.course_code === formData.course_code), [courses, formData.course_code]);
+  const filteredCourses = useMemo(() => courses.filter((course) => {
     const query = courseSearch.trim().toLocaleLowerCase('vi-VN');
     return !query || `${course.course_code} ${course.course_name} ${course.training_type}`.toLocaleLowerCase('vi-VN').includes(query);
-  });
+  }), [courseSearch, courses]);
   const nextCourseCode = useMemo(() => {
     const latestNumber = courses.reduce((latest, course) => {
       const match = course.course_code.match(/^TR(\d+)$/i);
@@ -188,16 +290,40 @@ export default function TrainingManagement({
     const existing = logs.find((log) => log.training_date === formData.training_date && log.course_code === formData.course_code);
     if (existing) return existing.session_code;
     const latestSequence = logs.reduce((max, log) => {
-      const match = log.session_code.match(/^TR(\d+)$/i);
+      const match = log.session_code.match(/^(?:TR|MB)(\d+)$/i);
       return match ? Math.max(max, Number(match[1])) : max;
     }, 0);
-    return `TR${String(latestSequence + 1).padStart(3, '0')}`;
+    return `MB${String(latestSequence + 1).padStart(3, '0')}`;
   }, [formData.course_code, formData.training_date, logs]);
+
+  const allocatedTokensOutsideForm = useMemo(() => logs.reduce((total, log) => {
+    if (log.course_code !== formData.course_code || log.training_date !== formData.training_date) return total;
+    if (editingLog && log.id === editingLog.id) return total;
+    if (editingSession && log.session_code === editingSession.session_code) return total;
+    return total + Number(log.token_count || 0);
+  }, 0), [editingLog, editingSession, formData.course_code, formData.training_date, logs]);
+  const formAllocatedTokens = editingLog
+    ? Number(formData.token_count || 0)
+    : participants.reduce((total, participant) => total + Number(participant.token_count || 0), 0);
+  const remainingCourseTokens = selectedCourse
+    ? selectedCourse.token_value - allocatedTokensOutsideForm - formAllocatedTokens
+    : 0;
+
+  const updateParticipant = useCallback((index: number, update: Partial<TrainingParticipantDraft>) => {
+    setParticipants((current) => current.map((participant, rowIndex) => rowIndex === index ? { ...participant, ...update } : participant));
+  }, []);
+  const removeParticipant = useCallback((index: number) => {
+    setParticipants((current) => current.filter((_, rowIndex) => rowIndex !== index));
+  }, []);
 
   const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.course_code) {
       showToast('error', 'Vui lòng tìm và chọn khóa học từ danh mục');
+      return;
+    }
+    if (selectedCourse && remainingCourseTokens < 0) {
+      showToast('error', `Đã phân bổ vượt định mức ${selectedCourse.token_value} Token của khóa học.`);
       return;
     }
 
@@ -477,7 +603,7 @@ export default function TrainingManagement({
     setEditingLog(null);
     setCourseSearch('');
     setFormData({
-      session_code: 'TR001',
+      session_code: 'MB001',
       course_code: '',
       session_name: '',
       training_date: new Date().toISOString().split('T')[0],
@@ -629,18 +755,6 @@ export default function TrainingManagement({
     });
   }, [courses, courseTypeFilter, courseCardSearch]);
 
-  const courseStatsMap = useMemo(() => {
-    const map = new Map<string, { totalSessions: number; totalTokens: number }>();
-    logs.forEach((log) => {
-      if (!log.course_code) return;
-      const current = map.get(log.course_code) || { totalSessions: 0, totalTokens: 0 };
-      current.totalSessions += 1;
-      current.totalTokens += log.token_count || 0;
-      map.set(log.course_code, current);
-    });
-    return map;
-  }, [logs]);
-
   interface TableSessionGroup {
     key: string;
     session_code: string;
@@ -723,16 +837,22 @@ export default function TrainingManagement({
 
   const periodContracts = useMemo(
     () => initialContracts.filter((contract) => contract.contract_date >= dateRange.start && contract.contract_date <= dateRange.endInclusive),
-    [dateRange, initialContracts]
+    [dateRange.endInclusive, dateRange.start, initialContracts]
   );
   const periodLogs = useMemo(
     () => logs.filter((log) => (log.training_date || '') >= dateRange.start && (log.training_date || '') <= dateRange.endInclusive && log.status === 'Đã duyệt'),
-    [dateRange, logs]
+    [dateRange.endInclusive, dateRange.start, logs]
   );
-  const incomingTotal = periodContracts.reduce((sum, contract) => sum + Math.round(contract.allocation_base * 0.003), 0);
-  const contractSalesTotal = periodContracts.reduce((sum, contract) => sum + contract.allocation_base, 0);
+  const periodFundExpenses = useMemo(
+    () => initialFundExpenses.filter((expense) => expense.expense_date >= dateRange.start && expense.expense_date <= dateRange.endInclusive),
+    [dateRange.endInclusive, dateRange.start, initialFundExpenses]
+  );
+  const incomingTotal = useMemo(() => periodContracts.reduce((sum, contract) => sum + Math.round(contract.allocation_base * 0.003), 0), [periodContracts]);
+  const contractSalesTotal = useMemo(() => periodContracts.reduce((sum, contract) => sum + contract.allocation_base, 0), [periodContracts]);
   const trainingFundTotal = incomingTotal;
-  const outgoingTotal = periodLogs.reduce((sum, log) => sum + log.reward_amount, 0);
+  const trainingRewardTotal = useMemo(() => periodLogs.reduce((sum, log) => sum + log.reward_amount, 0), [periodLogs]);
+  const voucherExpenseTotal = useMemo(() => periodFundExpenses.reduce((sum, expense) => sum + expense.actual_expense, 0), [periodFundExpenses]);
+  const outgoingTotal = trainingRewardTotal + voucherExpenseTotal;
   const fundUsagePercent = trainingFundTotal > 0
     ? Math.min(100, Math.round((outgoingTotal / trainingFundTotal) * 100))
     : 0;
@@ -785,13 +905,13 @@ export default function TrainingManagement({
         </div>
       </div>
 
-      <nav aria-label="Chức năng quỹ đào tạo" className="grid gap-2 sm:grid-cols-2">
+      <nav aria-label="Chức năng quỹ đào tạo" className="flex flex-wrap gap-2">
         <button type="button" role="tab" aria-selected={activeView === 'sessions'} onClick={() => setActiveView('sessions')}
-          className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${activeView === 'sessions' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+          className={`inline-flex w-fit items-center rounded-xl border px-4 py-3 text-left text-sm font-semibold ${activeView === 'sessions' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
           Danh sách buổi học (Tổng quan)
         </button>
         <button type="button" role="tab" aria-selected={activeView === 'ledger'} onClick={() => setActiveView('ledger')}
-          className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold ${activeView === 'ledger' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+          className={`inline-flex w-fit items-center rounded-xl border px-4 py-3 text-left text-sm font-semibold ${activeView === 'ledger' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
           Nhật ký thu chi quỹ đào tạo
         </button>
       </nav>
@@ -859,7 +979,7 @@ export default function TrainingManagement({
                 <h2 className="text-sm font-bold">Dòng tiền ra · {periodLabel}</h2>
               </div>
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50"><tr><th className="p-3 text-right">Khoản chi</th><th className="p-3 text-right">Đã thực chi thực tế</th><th className="p-3 text-right">Tổng tồn quỹ sau cộng</th></tr></thead>
+                <thead className="bg-slate-50"><tr><th className="p-3 text-right">Tồn quỹ đào tạo</th><th className="p-3 text-right">Đã thực chi thực tế</th><th className="p-3 text-right">Tồn quỹ</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   <tr>
                     <td className="p-3 text-right">{formatCurrency(incomingTotal)}</td>
@@ -868,6 +988,39 @@ export default function TrainingManagement({
                   </tr>
                 </tbody>
               </table>
+          </section>
+          <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <h2 className="text-sm font-bold">Phiếu chi Quỹ Đào tạo Chuyên môn &amp; Kỹ năng · {periodLabel}</h2>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{periodFundExpenses.length} phiếu</span>
+            </div>
+            <table className="w-full min-w-[900px] text-left text-xs">
+              <thead className="bg-slate-50"><tr>
+                <th className="p-3">Ngày chi</th><th className="p-3">Mã phiếu</th><th className="p-3">Quỹ / Nội dung chi</th>
+                <th className="p-3">Người nhận</th><th className="p-3">Trạng thái</th><th className="p-3 text-right">Thực chi</th>
+              </tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {periodFundExpenses.map((expense) => (
+                  <tr key={expense.id}>
+                    <td className="whitespace-nowrap p-3">{expense.expense_date ? expense.expense_date.split('-').reverse().join('/') : '—'}</td>
+                    <td className="whitespace-nowrap p-3 font-mono">{expense.request_code || '—'}</td>
+                    <td className="max-w-[420px] p-3">
+                      <div className="font-semibold text-slate-800">{expense.fund_source}</div>
+                      <div className="truncate text-[11px] text-slate-500" title={expense.detail_content}>{expense.detail_content || '—'}</div>
+                    </td>
+                    <td className="p-3">{expense.beneficiary_name || '—'}</td>
+                    <td className="whitespace-nowrap p-3">{expense.status}</td>
+                    <td className="whitespace-nowrap p-3 text-right font-semibold text-rose-700">{formatCurrency(expense.actual_expense)}</td>
+                  </tr>
+                ))}
+                {periodFundExpenses.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Không có phiếu chi quỹ đào tạo trong kỳ.</td></tr>}
+              </tbody>
+              {periodFundExpenses.length > 0 && (
+                <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
+                  <tr><td className="p-3" colSpan={5}>Tổng thực chi phiếu quỹ đào tạo</td><td className="p-3 text-right text-rose-700">{formatCurrency(voucherExpenseTotal)}</td></tr>
+                </tfoot>
+              )}
+            </table>
           </section>
         </section>
       )}
@@ -1223,9 +1376,6 @@ export default function TrainingManagement({
                 <div>
                   <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
                     <span>DANH MỤC BUỔI ĐÀO TẠO</span>
-                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-                      {courses.length} Buổi • {courses.reduce((sum, c) => sum + c.token_value, 0)} Token
-                    </span>
                   </h2>
                   <p className="text-[11px] text-slate-500">Định mức token & học phí chuẩn</p>
                 </div>
@@ -1323,7 +1473,7 @@ export default function TrainingManagement({
                     onClick={() => {
                       setSelectedCourseCardCode(isSelected ? null : course.course_code);
                     }}
-                    className={`group relative rounded-2xl p-4 transition-all duration-200 cursor-pointer border flex flex-col justify-between gap-3 ${
+                    className={`group relative rounded-2xl p-4 transition-all duration-200 cursor-pointer border flex flex-col justify-between gap-[5px] ${
                       isSelected
                         ? 'bg-blue-50/60 border-blue-500 shadow-sm ring-2 ring-blue-500/20'
                         : 'bg-white border-slate-200/90 hover:border-blue-400 hover:shadow-md'
@@ -1332,7 +1482,7 @@ export default function TrainingManagement({
                     {/* Top Row: Mã khóa học + Trạng thái Online / Offline + Nút Sửa, Xóa (Cùng 1 dòng) */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/70 tracking-wider">
+                        <span className="font-mono text-[11px] leading-none font-extrabold p-[5px] rounded-lg bg-blue-50 text-blue-700 border border-blue-200/70 tracking-wider">
                           {course.course_code}
                         </span>
                         {isSelected && (
@@ -1345,14 +1495,14 @@ export default function TrainingManagement({
                       <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         {/* Trạng thái Online / Offline */}
                         {isOnline ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                          <span className="inline-flex items-center gap-1.5 px-[10px] py-[5px] leading-none rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Online
+                            On
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                          <span className="inline-flex items-center gap-1.5 px-[10px] py-[5px] leading-none rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            Offline
+                            Off
                           </span>
                         )}
 
@@ -1389,11 +1539,11 @@ export default function TrainingManagement({
                     </div>
 
                     {/* Bottom Row: Token (left) + Đồng (right) - clean inline layout */}
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-sm font-semibold text-slate-500">
+                    <div className="flex items-center justify-between p-0">
+                      <span className="text-[12px] font-semibold text-slate-500">
                         {new Intl.NumberFormat('vi-VN').format(course.token_value)} Token
                       </span>
-                      <span className="text-sm sm:text-base font-extrabold text-slate-900">
+                      <span className="text-[13px] font-extrabold text-slate-900">
                         {formatCurrency(course.budget)}
                       </span>
                     </div>
@@ -1415,7 +1565,7 @@ export default function TrainingManagement({
       {/* Modal: Thêm hoặc sửa lượt tham gia đào tạo */}
       {activeView === 'sessions' && isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-5xl w-full p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[calc(100vh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div>
                 <h3 className="font-bold text-base text-slate-900">{editingLog ? 'Sửa lượt đào tạo' : editingSession ? 'Sửa buổi đào tạo' : 'Thêm buổi học'}</h3>
@@ -1491,12 +1641,11 @@ export default function TrainingManagement({
                             });
                             setCourseSearch(`${course.course_code} - ${course.course_name}`);
                             setIsCourseDropdownOpen(false);
-                            // Auto-fill token count for all participants when course is selected (add mode)
-                            if (!editingLog) {
-                              setParticipants((prev) => prev.map((p) => ({
-                                ...p,
-                                token_count: Number(course.token_value),
-                                reward_amount: Number(course.token_value) * 5000,
+                            if (!editingLog && !editingSession) {
+                              setParticipants((current) => current.map((participant) => ({
+                                ...participant,
+                                token_count: 0,
+                                reward_amount: 0,
                               })));
                             }
                           }}
@@ -1511,9 +1660,10 @@ export default function TrainingManagement({
                   </ul>
                 )}
                 {selectedCourse && (
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Đã điền {selectedCourse.token_value} token theo khóa học · Ngân sách {formatCurrency(selectedCourse.budget)}
-                  </p>
+                  <div className={`mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[11px] ${remainingCourseTokens < 0 ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-blue-100 bg-blue-50/70 text-blue-800'}`} aria-live="polite">
+                    <span>Định mức khóa học: <strong>{selectedCourse.token_value} Token</strong> · Ngoài buổi này đã phân bổ: <strong>{allocatedTokensOutsideForm} Token</strong></span>
+                    <span>Đã phân bổ: <strong>{formAllocatedTokens} Token</strong> · Còn lại: <strong>{remainingCourseTokens} Token</strong></span>
+                  </div>
                 )}
               </div>
 
@@ -1587,110 +1737,36 @@ export default function TrainingManagement({
                 </>
               ) : (
                 /* Multi-participant mode */
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="block font-bold text-slate-800">Danh sách nhân sự tham gia ({participants.length} người)</label>
-                    <button
-                      type="button"
-                      onClick={() => setParticipants((prev) => [...prev, {
-                        member_name: '',
-                        member_phone: '',
-                        token_count: selectedCourse ? selectedCourse.token_value : 0,
-                        reward_amount: selectedCourse ? selectedCourse.token_value * 5000 : 0,
-                      }])}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-bold border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Thêm nhân sự
-                    </button>
+                <div className="space-y-2">
+                  <label className="block font-bold text-slate-800">Danh sách nhân sự tham gia ({participants.length} người)</label>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full min-w-[850px] table-fixed text-left text-[11px]">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr><th className="w-[30%] px-2 py-2">Họ tên *</th><th className="w-[22%] px-2 py-2">SĐT</th><th className="w-[14%] px-2 py-2 text-center">Số Token *</th><th className="w-[26%] px-2 py-2 text-right">Thù lao riêng (VNĐ) *</th><th className="w-10 px-1 py-2" /></tr>
+                      </thead>
+                      <tbody>
+                        {participants.map((participant, index) => (
+                          <TrainingParticipantRow
+                            key={index}
+                            participant={participant}
+                            index={index}
+                            memberByName={memberByName}
+                            memberOptions={memberOptions}
+                            canRemove={participants.length > 1}
+                            onUpdate={updateParticipant}
+                            onRemove={removeParticipant}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  {participants.map((p, idx) => (
-                    <div key={idx} className="relative rounded-xl border border-slate-200 bg-slate-50/50 p-3 space-y-2">
-                      {participants.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setParticipants((prev) => prev.filter((_, i) => i !== idx))}
-                          className="absolute top-2 right-2 p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          title="Xóa nhân sự này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      <div className="text-[11px] font-bold text-slate-500 mb-1">Nhân sự {idx + 1}</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-0.5">Họ tên *</label>
-                          <input
-                            type="text"
-                            required
-                            list={`training-member-options-${idx}`}
-                            value={p.member_name}
-                            onChange={(e) => {
-                              const name = e.target.value;
-                              const member = memberByName.get(name.trim().toLocaleLowerCase('vi-VN'));
-                              setParticipants((prev) => prev.map((item, i) =>
-                                i === idx ? { ...item, member_name: name, member_phone: member?.phone || item.member_phone } : item
-                              ));
-                            }}
-                            placeholder="Tìm và chọn nhân sự"
-                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-medium"
-                          />
-                          <datalist id={`training-member-options-${idx}`}>
-                            {initialMembers.map((member) => <option key={`${member.full_name}-${member.phone}-${idx}`} value={member.full_name} />)}
-                          </datalist>
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-0.5">SĐT</label>
-                          <input
-                            type="text"
-                            value={p.member_phone}
-                            readOnly
-                            placeholder="0912 345 671"
-                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-mono"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-0.5">Số Token *</label>
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            required
-                            value={p.token_count || ''}
-                            onChange={(e) => {
-                              const tc = Number(e.target.value) || 0;
-                              setParticipants((prev) => prev.map((item, i) =>
-                                i === idx ? { ...item, token_count: tc, reward_amount: tc * 5000 } : item
-                              ));
-                            }}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center font-bold"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-0.5">Thù lao riêng (VNĐ) *</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1000"
-                            required
-                            value={p.reward_amount !== undefined ? p.reward_amount : p.token_count * 5000}
-                            onChange={(e) => {
-                              const val = Number(e.target.value) || 0;
-                              setParticipants((prev) => prev.map((item, i) =>
-                                i === idx ? { ...item, reward_amount: val } : item
-                              ));
-                            }}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-right font-bold text-emerald-700 focus:border-blue-500"
-                          />
-                          <p className="mt-0.5 text-[10px] text-right text-slate-500 font-medium">
-                            {formatCurrency(p.reward_amount !== undefined ? p.reward_amount : p.token_count * 5000)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setParticipants((current) => [...current, { member_name: '', member_phone: '', token_count: 0, reward_amount: 0 }])}
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <Plus className="h-3 w-3" /> Thêm nhân sự
+                  </button>
                 </div>
               )}
 
