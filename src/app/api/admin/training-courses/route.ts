@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { PoolClient } from 'pg';
 import pool from '@/lib/db';
+import { DEFAULT_TRAINING_TOKEN_RATE, normalizeTrainingTokenRate } from '@/lib/trainingTokenRate';
 
 const APPROVAL_LOCK_KEY = [219001, 1];
+
+async function getTrainingTokenRate() {
+  const result = await pool.query("SELECT value FROM system_settings WHERE key = 'training_token_rate' LIMIT 1");
+  return normalizeTrainingTokenRate(result.rows[0]?.value ?? DEFAULT_TRAINING_TOKEN_RATE);
+}
 
 function isDuplicateError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
@@ -20,7 +26,7 @@ export async function POST(req: NextRequest) {
     const courseName = String(body.course_name || '').trim();
     const trainingType = String(body.training_type || '').trim();
     const tokenValue = Number(body.token_value);
-    const budget = Number(body.budget);
+    const budget = tokenValue * await getTrainingTokenRate();
 
     if (!courseName || courseName.length > 255) {
       return NextResponse.json({ success: false, message: 'Tên khóa học không hợp lệ.' }, { status: 400 });
@@ -28,7 +34,7 @@ export async function POST(req: NextRequest) {
     if (!['Online', 'Offline'].includes(trainingType)) {
       return NextResponse.json({ success: false, message: 'Hình thức đào tạo không hợp lệ.' }, { status: 400 });
     }
-    if (!Number.isInteger(tokenValue) || tokenValue <= 0 || !Number.isFinite(budget) || budget < 0) {
+    if (!Number.isSafeInteger(tokenValue) || tokenValue <= 0 || !Number.isSafeInteger(budget)) {
       return NextResponse.json({ success: false, message: 'Token phải là số nguyên dương và ngân sách không được âm.' }, { status: 400 });
     }
 
@@ -88,7 +94,7 @@ export async function PUT(req: NextRequest) {
     const courseName = String(body.course_name || '').trim();
     const trainingType = String(body.training_type || '').trim();
     const tokenValue = Number(body.token_value);
-    const budget = Number(body.budget);
+    const budget = tokenValue * await getTrainingTokenRate();
 
     if (!/^[A-Z0-9_-]{1,50}$/.test(courseCode)) {
       return NextResponse.json({ success: false, message: 'Mã khóa học không hợp lệ.' }, { status: 400 });
@@ -99,7 +105,7 @@ export async function PUT(req: NextRequest) {
     if (!['Online', 'Offline'].includes(trainingType)) {
       return NextResponse.json({ success: false, message: 'Hình thức đào tạo không hợp lệ.' }, { status: 400 });
     }
-    if (!Number.isInteger(tokenValue) || tokenValue <= 0 || !Number.isFinite(budget) || budget < 0) {
+    if (!Number.isSafeInteger(tokenValue) || tokenValue <= 0 || !Number.isSafeInteger(budget)) {
       return NextResponse.json({ success: false, message: 'Token phải là số nguyên dương và ngân sách không được âm.' }, { status: 400 });
     }
 

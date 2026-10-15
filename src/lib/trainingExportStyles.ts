@@ -198,12 +198,9 @@ export function createStyledTrainingSheet(
 
   ws.getRow(2).height = 32;
 
-  // 4. Dòng 3: Dòng Highlight Tổng kết (Yellow #FFFF00)
-  const yellowCols = ['E', 'G', 'I'];
-  yellowCols.forEach((col) => {
-    const c = ws.getCell(`${col}3`);
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_YELLOW_HIGHLIGHT } };
-    c.border = thinBorder;
+  // Các ô tổng kết dưới ba cột này không tô vàng theo yêu cầu giao diện Excel.
+  ['E', 'G', 'I'].forEach((col) => {
+    ws.getCell(`${col}3`).border = thinBorder;
   });
 
   // Table 2 Summary Row 3: Count, Total Token, Total Budget

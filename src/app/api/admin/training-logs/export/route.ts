@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import ExcelJS from 'exceljs';
 import pool from '@/lib/db';
+import { DEFAULT_TRAINING_TOKEN_RATE, normalizeTrainingTokenRate } from '@/lib/trainingTokenRate';
 import {
   createStyledTrainingSheet,
   DEFAULT_TRAINING_COURSES,
@@ -12,6 +13,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const rateRes = await pool.query("SELECT value FROM system_settings WHERE key = 'training_token_rate' LIMIT 1");
+    const tokenRate = normalizeTrainingTokenRate(rateRes.rows[0]?.value ?? DEFAULT_TRAINING_TOKEN_RATE);
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
@@ -65,7 +68,7 @@ export async function GET(req: NextRequest) {
       token_count: Number(r.token_count || 0),
       session_budget: Number(r.session_budget || 0),
       total_tokens: Number(r.total_tokens || 0),
-      reward_amount: Number(r.reward_amount ?? (Number(r.token_count || 0) * 5000)),
+      reward_amount: Number(r.reward_amount ?? (Number(r.token_count || 0) * tokenRate)),
     }));
 
     // 2. Lấy danh mục buổi học

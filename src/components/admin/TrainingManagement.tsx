@@ -104,6 +104,7 @@ const TrainingParticipantRow = memo(function TrainingParticipantRow({
   memberByName,
   memberOptions,
   canRemove,
+  tokenRate,
   onUpdate,
   onRemove,
 }: {
@@ -112,6 +113,7 @@ const TrainingParticipantRow = memo(function TrainingParticipantRow({
   memberByName: Map<string, TrainingMember>;
   memberOptions: TrainingMember[];
   canRemove: boolean;
+  tokenRate: number;
   onUpdate: (index: number, update: Partial<TrainingParticipantDraft>) => void;
   onRemove: (index: number) => void;
 }) {
@@ -149,7 +151,7 @@ const TrainingParticipantRow = memo(function TrainingParticipantRow({
           value={participant.token_count || ''}
           onChange={(event) => {
             const tokenCount = Number(event.target.value) || 0;
-            onUpdate(index, { token_count: tokenCount, reward_amount: tokenCount * 5000 });
+            onUpdate(index, { token_count: tokenCount, reward_amount: tokenCount * tokenRate });
           }}
           aria-label={`Số Token nhân sự ${index + 1}`}
           className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-center font-bold"
@@ -238,6 +240,7 @@ interface TrainingManagementProps {
   initialMembers: TrainingMember[];
   initialContracts: TrainingContract[];
   initialFundExpenses: TrainingFundExpense[];
+  initialTokenRate: number;
   initialStats: {
     totalSessions: number;
     totalMembers: number;
@@ -253,6 +256,7 @@ export default function TrainingManagement({
   initialContracts,
   initialFundExpenses,
   initialStats,
+  initialTokenRate,
 }: TrainingManagementProps) {
   const [logs, setLogs] = useState<TrainingLog[]>(initialLogs);
   const [stats, setStats] = useState(initialStats);
@@ -275,6 +279,9 @@ export default function TrainingManagement({
   const [deletingCourseCode, setDeletingCourseCode] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [courses, setCourses] = useState(initialCourses);
+  const [tokenRate, setTokenRate] = useState(initialTokenRate);
+  const [tokenRateDraft, setTokenRateDraft] = useState(String(initialTokenRate));
+  const [isSavingTokenRate, setIsSavingTokenRate] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
   const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false);
   const [courseCardSearch, setCourseCardSearch] = useState('');
@@ -311,8 +318,9 @@ export default function TrainingManagement({
     course_name: '',
     training_type: 'Offline',
     token_value: 50,
-    budget: 250000,
+    budget: 50 * initialTokenRate,
   });
+  const tokenRateForPricing = tokenRate;
 
   const memberByName = useMemo(() => new Map(
     initialMembers.map((member) => [member.full_name.trim().toLocaleLowerCase('vi-VN'), member])
@@ -364,6 +372,50 @@ export default function TrainingManagement({
     setParticipants((current) => current.filter((_, rowIndex) => rowIndex !== index));
   }, []);
 
+  const saveTokenRate = useCallback(async () => {
+    const nextRate = Number(tokenRateDraft);
+    if (!Number.isSafeInteger(nextRate) || nextRate <= 0 || nextRate > 1_000_000_000) {
+      showToast('error', 'Tỷ giá Token phải là số nguyên dương hợp lệ.');
+      return;
+    }
+    if (nextRate === tokenRate) return;
+
+    setIsSavingTokenRate(true);
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'training_token_rate',
+          value: nextRate,
+          description: 'Giá trị quy đổi của một Token (VNĐ)',
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Không thể lưu tỷ giá Token.');
+      }
+
+      setTokenRate(nextRate);
+      setTokenRateDraft(String(nextRate));
+      setCourses((current) => current.map((course) => ({
+        ...course,
+        budget: course.token_value * nextRate,
+      })));
+      setLogs((current) => current.map((log) => {
+        const course = courses.find((item) => item.course_code === log.course_code);
+        return course ? { ...log, session_budget: course.token_value * nextRate } : log;
+      }));
+      setCourseForm((current) => ({ ...current, budget: current.token_value * nextRate }));
+      showToast('success', `Đã cập nhật tỷ giá: 1 Token = ${formatCurrency(nextRate)}.`);
+    } catch (error) {
+      setTokenRateDraft(String(tokenRate));
+      showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ.');
+    } finally {
+      setIsSavingTokenRate(false);
+    }
+  }, [courses, showToast, tokenRate, tokenRateDraft]);
+
   const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.course_code) {
@@ -402,7 +454,7 @@ export default function TrainingManagement({
             member_name: p.member_name,
             member_phone: p.member_phone,
             token_count: p.token_count,
-            reward_amount: p.reward_amount || p.token_count * 5000,
+            reward_amount: p.reward_amount || p.token_count * tokenRateForPricing,
           })),
         };
 
@@ -460,7 +512,7 @@ export default function TrainingManagement({
             ...formData,
             id: editingLog.id,
             session_code: sessionCodePreview,
-            reward_amount: formData.reward_amount !== undefined ? Number(formData.reward_amount) : formData.token_count * 5000,
+            reward_amount: formData.reward_amount !== undefined ? Number(formData.reward_amount) : formData.token_count * tokenRateForPricing,
           }
         : {
             course_code: formData.course_code,
@@ -472,7 +524,7 @@ export default function TrainingManagement({
               member_name: p.member_name,
               member_phone: p.member_phone,
               token_count: p.token_count,
-              reward_amount: p.reward_amount !== undefined ? Number(p.reward_amount) : p.token_count * 5000,
+              reward_amount: p.reward_amount !== undefined ? Number(p.reward_amount) : p.token_count * tokenRateForPricing,
             })),
           };
 
@@ -693,7 +745,7 @@ export default function TrainingManagement({
           ? { ...log, session_name: result.course.course_name, session_budget: result.course.budget }
           : log));
       }
-      setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 250000 });
+      setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 50 * tokenRateForPricing });
       setEditingCourse(null);
       setIsAddCourseOpen(false);
       showToast('success', editingCourse ? 'Đã cập nhật khóa học.' : 'Đã thêm khóa học vào danh mục.');
@@ -710,7 +762,7 @@ export default function TrainingManagement({
       course_name: course.course_name,
       training_type: course.training_type,
       token_value: course.token_value,
-      budget: course.budget,
+      budget: course.token_value * tokenRateForPricing,
     });
     setIsAddCourseOpen(true);
   };
@@ -981,21 +1033,21 @@ export default function TrainingManagement({
             <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <h2 className="p-4 text-sm font-bold">Chi phí buổi đào tạo · {periodLabel}</h2>
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50"><tr><th className="p-3">Ngày học</th><th className="p-3">Tên buổi học</th><th className="p-3">Người tham gia</th><th className="p-3 text-right">Token</th><th className="p-3 text-right">Thù lao thực nhận</th></tr></thead>
+                <thead className="bg-slate-50"><tr><th className="px-2 py-2">Ngày học</th><th className="px-2 py-2">Tên buổi học</th><th className="px-2 py-2">Người tham gia</th><th className="px-2 py-2 text-right">Token</th><th className="px-2 py-2 text-right">Thù lao thực nhận</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {periodLogs.map((log) => (
                     <tr key={log.id}>
-                      <td className="p-3 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
-                      <td className="p-3">{log.session_name || log.session_code}</td>
-                      <td className="p-3">{log.member_name}</td>
-                      <td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(log.token_count)}</td>
-                      <td className="p-3 text-right">{formatCurrency(log.reward_amount)}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">{log.training_date ? log.training_date.split('-').reverse().join('/') : '—'}</td>
+                      <td className="px-2 py-2">{log.session_name || log.session_code}</td>
+                      <td className="px-2 py-2">{log.member_name}</td>
+                      <td className="px-2 py-2 text-right">{new Intl.NumberFormat('vi-VN').format(log.token_count)}</td>
+                      <td className="px-2 py-2 text-right">{formatCurrency(log.reward_amount)}</td>
                     </tr>
                   ))}
                   {periodLogs.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">Không có buổi đào tạo đã duyệt trong kỳ.</td></tr>}
                 </tbody>
                 <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
-                  <tr><td className="p-3" colSpan={3}>Tổng thù lao</td><td className="p-3 text-right">{new Intl.NumberFormat('vi-VN').format(periodLogs.reduce((sum, log) => sum + log.token_count, 0))}</td><td className="p-3 text-right text-rose-700">{formatCurrency(periodLogs.reduce((sum, log) => sum + log.reward_amount, 0))}</td></tr>
+                  <tr><td className="px-2 py-2" colSpan={3}>Tổng thù lao</td><td className="px-2 py-2 text-right">{new Intl.NumberFormat('vi-VN').format(periodLogs.reduce((sum, log) => sum + log.token_count, 0))}</td><td className="px-2 py-2 text-right text-rose-700">{formatCurrency(periodLogs.reduce((sum, log) => sum + log.reward_amount, 0))}</td></tr>
                 </tfoot>
               </table>
             </section>
@@ -1004,30 +1056,30 @@ export default function TrainingManagement({
                 <h2 className="text-sm font-bold">Phiếu chi Quỹ Đào tạo Chuyên môn &amp; Kỹ năng · {periodLabel}</h2>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{periodFundExpenses.length} phiếu</span>
               </div>
-              <table className="w-full min-w-[900px] text-left text-xs">
+              <table className="w-full min-w-[680px] text-left text-xs">
                 <thead className="bg-slate-50"><tr>
-                  <th className="p-3">Ngày chi</th><th className="p-3">Mã phiếu</th><th className="p-3">Quỹ / Nội dung chi</th>
-                  <th className="p-3">Người nhận</th><th className="p-3">Trạng thái</th><th className="p-3 text-right">Thực chi</th>
+                  <th className="px-2 py-2">Ngày chi</th><th className="px-2 py-2">Mã phiếu</th><th className="px-2 py-2">Quỹ / Nội dung chi</th>
+                  <th className="px-2 py-2">Người nhận</th><th className="px-2 py-2">Trạng thái</th><th className="px-2 py-2 text-right">Thực chi</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {periodFundExpenses.map((expense) => (
                     <tr key={expense.id}>
-                      <td className="whitespace-nowrap p-3">{expense.expense_date ? expense.expense_date.split('-').reverse().join('/') : '—'}</td>
-                      <td className="whitespace-nowrap p-3 font-mono">{expense.request_code || '—'}</td>
-                      <td className="max-w-[420px] p-3">
+                      <td className="whitespace-nowrap px-2 py-2">{expense.expense_date ? expense.expense_date.split('-').reverse().join('/') : '—'}</td>
+                      <td className="whitespace-nowrap px-2 py-2 font-mono">{expense.request_code || '—'}</td>
+                      <td className="max-w-[420px] px-2 py-2">
                         <div className="font-semibold text-slate-800">{expense.fund_source}</div>
                         <div className="truncate text-[11px] text-slate-500" title={expense.detail_content}>{expense.detail_content || '—'}</div>
                       </td>
-                      <td className="p-3">{expense.beneficiary_name || '—'}</td>
-                      <td className="whitespace-nowrap p-3">{expense.status}</td>
-                      <td className="whitespace-nowrap p-3 text-right font-semibold text-rose-700">{formatCurrency(expense.actual_expense)}</td>
+                      <td className="px-2 py-2">{expense.beneficiary_name || '—'}</td>
+                      <td className="whitespace-nowrap px-2 py-2">{expense.status}</td>
+                      <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-rose-700">{formatCurrency(expense.actual_expense)}</td>
                     </tr>
                   ))}
                   {periodFundExpenses.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Không có phiếu chi quỹ đào tạo trong kỳ.</td></tr>}
                 </tbody>
                 {periodFundExpenses.length > 0 && (
                   <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
-                    <tr><td className="p-3" colSpan={5}>Tổng thực chi phiếu quỹ đào tạo</td><td className="p-3 text-right text-rose-700">{formatCurrency(voucherExpenseTotal)}</td></tr>
+                    <tr><td className="px-2 py-2" colSpan={5}>Tổng thực chi phiếu quỹ đào tạo</td><td className="px-2 py-2 text-right text-rose-700">{formatCurrency(voucherExpenseTotal)}</td></tr>
                   </tfoot>
                 )}
               </table>
@@ -1158,14 +1210,14 @@ export default function TrainingManagement({
       {/* Main Content Area: Table (Left cols) + Course Category Cards (Right cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left: Table Section */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+        <div className="lg:col-span-7 xl:col-span-8 space-y-4 lg:flex lg:h-[760px] lg:min-h-0 lg:flex-col">
           {/* Header Title for Left Table */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <span>Danh sách đào tạo • {groupedSessions.length} buổi học</span>
                 <span className="text-xs font-medium text-slate-500">
-                  1 token = 5.000 đ
+                  1 token = {formatCurrency(tokenRate)}
                 </span>
               </h2>
             </div>
@@ -1181,8 +1233,9 @@ export default function TrainingManagement({
             )}
           </div>
 
+          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
           {/* Filter Bar */}
-          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1205,7 +1258,7 @@ export default function TrainingManagement({
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>{isExporting ? 'Đang xuất...' : 'Xuất Báo Cáo Excel'}</span>
+                <span>{isExporting ? 'Đang xuất...' : 'Xuất Excel'}</span>
               </button>
 
               {/* Nút Thêm buổi học */}
@@ -1221,8 +1274,8 @@ export default function TrainingManagement({
           </div>
 
           {/* Table */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto max-h-[720px] overflow-y-auto custom-scrollbar">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+            <div className="overflow-x-auto custom-scrollbar lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               <table className="w-full text-left text-xs min-w-[980px]">
                 <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs text-slate-500 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200/80 shadow-2xs">
                   <tr>
@@ -1351,7 +1404,7 @@ export default function TrainingManagement({
             </div>
 
             {/* Pagination footer */}
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
               <div>
                 Hiển thị {groupedSessions.length ? (currentPage - 1) * itemsPerPage + 1 : 0} –{' '}
                 {Math.min(currentPage * itemsPerPage, groupedSessions.length)} trong tổng số {groupedSessions.length} buổi học ({totalParticipantsCount} lượt tham gia)
@@ -1390,11 +1443,12 @@ export default function TrainingManagement({
               </div>
             </div>
           </div>
+          </div>
         </div>
 
         {/* Right: Danh mục Khóa học đào tạo (Cards) */}
         <div className="lg:col-span-5 xl:col-span-4 space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5 lg:flex lg:h-[760px] lg:min-h-0 lg:flex-col">
             {/* Header */}
             <div className="flex items-center justify-between gap-3 mb-3.5 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -1413,7 +1467,7 @@ export default function TrainingManagement({
                 type="button"
                 onClick={() => {
                   setEditingCourse(null);
-                  setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 250000 });
+                  setCourseForm({ course_name: '', training_type: 'Offline', token_value: 50, budget: 50 * tokenRateForPricing });
                   setIsAddCourseOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
@@ -1422,6 +1476,36 @@ export default function TrainingManagement({
                 <span className="hidden sm:inline">Thêm khóa học</span>
                 <span className="sm:hidden">Thêm</span>
               </button>
+            </div>
+
+            <div className="mb-3.5 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <label htmlFor="training-token-rate" className="block text-xs font-bold text-slate-800">Tỷ giá quy đổi Token</label>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
+                    <span>1 Token =</span>
+                    <input
+                      id="training-token-rate"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={tokenRateDraft}
+                      onChange={(event) => setTokenRateDraft(event.target.value)}
+                      className="w-28 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-right font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                    <span className="font-semibold">đ</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void saveTokenRate()}
+                  disabled={isSavingTokenRate || !Number.isSafeInteger(Number(tokenRateDraft)) || Number(tokenRateDraft) <= 0 || Number(tokenRateDraft) === tokenRate}
+                  className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSavingTokenRate ? 'Đang lưu...' : 'Lưu tỷ giá'}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">Lưu tỷ giá để tính lại giá cho toàn bộ khóa học. Đổi số Token trong form sẽ tự cập nhật học phí.</p>
             </div>
 
             {/* Search & Type Filters */}
@@ -1490,7 +1574,7 @@ export default function TrainingManagement({
             )}
 
             {/* Cards List */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 max-h-[720px] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 max-h-[720px] overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
               {displayedCourses.map((course) => {
                 const isOnline = course.training_type.toLowerCase() === 'online';
                 const isSelected = selectedCourseCardCode === course.course_code;
@@ -1572,7 +1656,7 @@ export default function TrainingManagement({
                         {new Intl.NumberFormat('vi-VN').format(course.token_value)} Token
                       </span>
                       <span className="text-[13px] font-extrabold text-slate-900">
-                        {formatCurrency(course.budget)}
+                        {formatCurrency(course.token_value * tokenRate)}
                       </span>
                     </div>
                   </div>
@@ -1741,7 +1825,7 @@ export default function TrainingManagement({
                         value={formData.token_count || ''}
                         onChange={(e) => {
                           const tc = Number(e.target.value) || 0;
-                          setFormData({ ...formData, token_count: tc, reward_amount: tc * 5000 });
+                          setFormData({ ...formData, token_count: tc, reward_amount: tc * tokenRateForPricing });
                         }}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center font-bold"
                       />
@@ -1753,12 +1837,12 @@ export default function TrainingManagement({
                         min="0"
                         step="1000"
                         required
-                        value={formData.reward_amount ?? (formData.token_count * 5000)}
+                        value={formData.reward_amount ?? (formData.token_count * tokenRateForPricing)}
                         onChange={(e) => setFormData({ ...formData, reward_amount: Number(e.target.value) || 0 })}
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right font-bold text-emerald-700 focus:border-blue-500"
                       />
                       <p className="mt-1 text-[11px] text-right font-medium text-slate-500">
-                        {formatCurrency(formData.reward_amount ?? (formData.token_count * 5000))}
+                        {formatCurrency(formData.reward_amount ?? (formData.token_count * tokenRateForPricing))}
                       </p>
                     </div>
                   </div>
@@ -1781,6 +1865,7 @@ export default function TrainingManagement({
                             memberByName={memberByName}
                             memberOptions={memberOptions}
                             canRemove={participants.length > 1}
+                            tokenRate={tokenRateForPricing}
                             onUpdate={updateParticipant}
                             onRemove={removeParticipant}
                           />
@@ -1830,8 +1915,8 @@ export default function TrainingManagement({
 
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800">
                 {editingLog
-                  ? <>Thù lao riêng lượt này: <strong>{formatCurrency(formData.reward_amount ?? formData.token_count * 5000)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.</>
-                  : <>Tổng thù lao ({participants.length} người): <strong>{formatCurrency(participants.reduce((s, p) => s + (p.reward_amount !== undefined ? p.reward_amount : p.token_count * 5000), 0))}</strong> — Tổng token: <strong>{participants.reduce((s, p) => s + p.token_count, 0)}</strong></>
+                  ? <>Thù lao riêng lượt này: <strong>{formatCurrency(formData.reward_amount ?? formData.token_count * tokenRateForPricing)}</strong>. Tổng token và ngân sách của buổi học sẽ được cập nhật tự động.</>
+                  : <>Tổng thù lao ({participants.length} người): <strong>{formatCurrency(participants.reduce((s, p) => s + (p.reward_amount !== undefined ? p.reward_amount : p.token_count * tokenRateForPricing), 0))}</strong> — Tổng token: <strong>{participants.reduce((s, p) => s + p.token_count, 0)}</strong></>
                 }
               </div>
 
@@ -1880,7 +1965,7 @@ export default function TrainingManagement({
                   onChange={(event) => setCourseForm({ ...courseForm, course_name: event.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
                   <label htmlFor="training-course-type" className="mb-1 block font-semibold text-slate-700">Hình thức *</label>
                   <select id="training-course-type" value={courseForm.training_type}
@@ -1893,16 +1978,21 @@ export default function TrainingManagement({
                 <div>
                   <label htmlFor="training-course-tokens" className="mb-1 block font-semibold text-slate-700">Số lượng Token *</label>
                   <input id="training-course-tokens" type="number" min="1" step="1" required value={courseForm.token_value}
-                    onChange={(event) => setCourseForm({ ...courseForm, token_value: Number(event.target.value) })}
+                    onChange={(event) => {
+                      const tokenValue = Number(event.target.value) || 0;
+                      setCourseForm({ ...courseForm, token_value: tokenValue, budget: tokenValue * tokenRateForPricing });
+                    }}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
                 </div>
                 <div>
                   <label htmlFor="training-course-budget" className="mb-1 block font-semibold text-slate-700">Học phí (VNĐ) *</label>
-                  <input id="training-course-budget" type="number" min="0" step="1" required value={courseForm.budget}
-                    onChange={(event) => setCourseForm({ ...courseForm, budget: Number(event.target.value) })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
+                  <input id="training-course-budget" type="number" min="0" step="1" required readOnly value={courseForm.token_value * tokenRateForPricing}
+                    className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 font-bold text-slate-700" />
                 </div>
               </div>
+              <p className="rounded-lg bg-blue-50 px-3 py-2 text-[11px] text-blue-800" aria-live="polite">
+                Học phí tự động: {courseForm.token_value} Token × {formatCurrency(tokenRateForPricing)} = <strong>{formatCurrency(courseForm.token_value * tokenRateForPricing)}</strong>
+              </p>
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
                 <button type="button" onClick={() => { setIsAddCourseOpen(false); setEditingCourse(null); }} className="rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50">Hủy</button>
                 <button type="submit" disabled={isSavingCourse} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-50">

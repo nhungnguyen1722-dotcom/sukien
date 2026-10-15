@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { PoolClient } from 'pg';
 import pool from '@/lib/db';
+import { DEFAULT_TRAINING_TOKEN_RATE, normalizeTrainingTokenRate } from '@/lib/trainingTokenRate';
+
+async function getTrainingTokenRate(client?: PoolClient) {
+  const query = "SELECT value FROM system_settings WHERE key = 'training_token_rate' LIMIT 1";
+  const result = client ? await client.query(query) : await pool.query(query);
+  return normalizeTrainingTokenRate(result.rows[0]?.value ?? DEFAULT_TRAINING_TOKEN_RATE);
+}
 
 export async function GET(req: NextRequest) {
   try {
+    const tokenRate = await getTrainingTokenRate();
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
@@ -20,7 +28,7 @@ export async function GET(req: NextRequest) {
         training_logs.token_count,
         training_logs.session_budget,
         training_logs.total_tokens,
-        COALESCE(training_logs.reward_amount, training_logs.token_count * 5000) AS reward_amount,
+        COALESCE(training_logs.reward_amount, training_logs.token_count * $1) AS reward_amount,
         training_logs.status,
         training_logs.approver,
         TO_CHAR(training_logs.training_date, 'YYYY-MM-DD') AS training_date,
@@ -29,7 +37,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN training_courses AS course ON course.course_code = training_logs.course_code
       WHERE 1=1
     `;
-    const params: any[] = [];
+    const params: any[] = [tokenRate];
 
     if (search.trim()) {
       params.push(`%${search.trim().toLowerCase()}%`);
@@ -61,9 +69,9 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(DISTINCT (session_code, training_date))::int AS total_sessions,
         COUNT(DISTINCT COALESCE(NULLIF(member_phone, ''), member_name))::int AS total_members,
         COALESCE(SUM(token_count), 0)::float8 AS total_tokens,
-        COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN COALESCE(reward_amount, token_count * 5000) ELSE 0 END), 0)::float8 AS total_rewards
+      COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN COALESCE(reward_amount, token_count * $1) ELSE 0 END), 0)::float8 AS total_rewards
       FROM training_logs
-    `);
+    `, [tokenRate]);
     const stats = statsRes.rows[0] || {};
 
     return NextResponse.json({
@@ -92,6 +100,7 @@ export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
     const body = await req.json();
+    const tokenRate = await getTrainingTokenRate(client);
     const {
       course_code,
       training_date,
@@ -109,7 +118,7 @@ export async function POST(req: NextRequest) {
             token_count: Number(body.token_count) || 0,
             reward_amount: (body.reward_amount !== undefined && body.reward_amount !== null && !isNaN(Number(body.reward_amount)))
               ? Number(body.reward_amount)
-              : (Number(body.token_count) || 0) * 5000,
+              : (Number(body.token_count) || 0) * tokenRate,
           }];
 
     for (let i = 0; i < participants.length; i++) {
@@ -192,7 +201,7 @@ export async function POST(req: NextRequest) {
       const tCount = Number(p.token_count);
       const reward = (p.reward_amount !== undefined && p.reward_amount !== null && !isNaN(Number(p.reward_amount)))
         ? Number(p.reward_amount)
-        : tCount * 5000;
+        : tCount * tokenRate;
       const insertRes = await client.query(
         `INSERT INTO training_logs (
           session_code, course_code, session_name, member_phone, member_name, role,
@@ -233,6 +242,7 @@ export async function PUT(req: NextRequest) {
   let transactionStarted = false;
   try {
     const body = await req.json();
+    const tokenRate = await getTrainingTokenRate();
 
     if (body.action === 'update_session' || (body.participants && Array.isArray(body.participants))) {
       const {
@@ -322,7 +332,7 @@ export async function PUT(req: NextRequest) {
         const tCount = Number(p.token_count);
         const reward = (p.reward_amount !== undefined && p.reward_amount !== null && !isNaN(Number(p.reward_amount)))
           ? Number(p.reward_amount)
-          : tCount * 5000;
+          : tCount * tokenRate;
         const ins = await client.query(
           `INSERT INTO training_logs (
             session_code, course_code, session_name, member_phone, member_name, role,
@@ -456,7 +466,7 @@ export async function PUT(req: NextRequest) {
 
       const rewardAmount = (body.reward_amount !== undefined && body.reward_amount !== null && !isNaN(Number(body.reward_amount)))
         ? Number(body.reward_amount)
-        : tokenCount * 5000;
+        : tokenCount * tokenRate;
 
       await client.query(
         `UPDATE training_logs
@@ -492,7 +502,7 @@ export async function PUT(req: NextRequest) {
         const budgetResult = affectedCourseCode
           ? await client.query(`SELECT budget FROM training_courses WHERE course_code = $1`, [affectedCourseCode])
           : { rows: [] };
-        const sessionBudget = budgetResult.rows[0] ? Number(budgetResult.rows[0].budget) : totalTokens * 5000;
+        const sessionBudget = budgetResult.rows[0] ? Number(budgetResult.rows[0].budget) : totalTokens * tokenRate;
         await client.query(
           `UPDATE training_logs
            SET total_tokens = $1, session_budget = $2
@@ -552,6 +562,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const client = await pool.connect();
   try {
+    const tokenRate = await getTrainingTokenRate(client);
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const idsParam = searchParams.get('ids');
@@ -590,7 +601,7 @@ export async function DELETE(req: NextRequest) {
       const course = course_code
         ? await client.query(`SELECT budget FROM training_courses WHERE course_code = $1`, [course_code])
         : { rows: [] };
-      const sessionBudget = course.rows[0] ? Number(course.rows[0].budget) : totalTokens * 5000;
+      const sessionBudget = course.rows[0] ? Number(course.rows[0].budget) : totalTokens * tokenRate;
       await client.query(
         `UPDATE training_logs
          SET total_tokens = $1, session_budget = $2

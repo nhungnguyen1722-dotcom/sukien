@@ -1,11 +1,12 @@
 import pool from '@/lib/db';
 import TrainingManagement, { TrainingLog, TrainingCourse } from '@/components/admin/TrainingManagement';
+import { normalizeTrainingTokenRate } from '@/lib/trainingTokenRate';
 
 export const revalidate = 0;
 
 async function getTrainingData() {
   try {
-    const [logsRes, statsRes, coursesRes, membersRes, contractsRes, fundExpensesRes] = await Promise.all([
+    const [logsRes, statsRes, coursesRes, membersRes, contractsRes, fundExpensesRes, tokenRateRes] = await Promise.all([
       pool.query(`
         SELECT 
           log.id, log.session_code, log.course_code,
@@ -23,7 +24,10 @@ async function getTrainingData() {
           COUNT(DISTINCT (session_code, training_date))::int AS total_sessions,
           COUNT(DISTINCT member_name)::int AS total_members,
           COALESCE(SUM(token_count), 0)::int AS total_tokens,
-          COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN COALESCE(reward_amount, token_count * 5000) ELSE 0 END), 0)::numeric AS total_rewards
+          COALESCE(SUM(CASE WHEN status = 'Đã duyệt' THEN COALESCE(reward_amount, token_count * COALESCE((
+            SELECT CASE WHEN value ~ '^[0-9]+$' THEN CASE WHEN value::numeric > 0 THEN value::numeric ELSE 5000 END ELSE 5000 END
+            FROM system_settings WHERE key = 'training_token_rate'
+          ), 5000)) ELSE 0 END), 0)::numeric AS total_rewards
         FROM training_logs
       `),
       pool.query(`
@@ -98,7 +102,9 @@ async function getTrainingData() {
           )
         ORDER BY COALESCE(tl.payment_date, tl.request_date) ASC, tl.id ASC
       `),
+      pool.query("SELECT value FROM system_settings WHERE key = 'training_token_rate' LIMIT 1"),
     ]);
+    const tokenRate = normalizeTrainingTokenRate(tokenRateRes.rows[0]?.value);
 
     const statsRow = statsRes.rows[0] || {
       total_sessions: 0,
@@ -113,7 +119,7 @@ async function getTrainingData() {
         token_count: Number(row.token_count || 0),
         session_budget: Number(row.session_budget || 0),
         total_tokens: Number(row.total_tokens || 0),
-        reward_amount: Number(row.reward_amount ?? (Number(row.token_count || 0) * 5000)),
+        reward_amount: Number(row.reward_amount ?? (Number(row.token_count || 0) * tokenRate)),
         training_date: row.training_date || '',
       };
     });
@@ -144,6 +150,7 @@ async function getTrainingData() {
         totalTokens: statsRow.total_tokens || 0,
         totalRewards: Number(statsRow.total_rewards || 0),
       },
+      tokenRate,
     };
   } catch (error) {
     console.error('Error loading training logs:', error);
@@ -162,6 +169,7 @@ export default async function NhatKyDaoTaoPage() {
       initialContracts={data.contracts}
       initialFundExpenses={data.fundExpenses}
       initialStats={data.stats}
+      initialTokenRate={data.tokenRate}
     />
   );
 }

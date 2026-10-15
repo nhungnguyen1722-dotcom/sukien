@@ -9,6 +9,7 @@ import ContractTermBadge from '@/components/admin/ContractTermBadge';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { nextDate } from '@/lib/contractTerms';
 import {
+  calculateContractAllocatedValue,
   calculateContractAllBeneficiaries,
   decomposeBeneficiarySource,
   TEAM_LEADER_ROSTER,
@@ -332,13 +333,7 @@ export function isTwoYearContract(contractType?: string | null): boolean {
 }
 
 export function getContractAllocatedValue(contract: { value: number; contract_type?: string | null; allocated_value?: number }): number {
-  if (isBdsContract(contract.contract_type)) {
-    return Math.round((Number(contract.value || 0) * 4) / 15);
-  }
-  if (isTwoYearContract(contract.contract_type)) {
-    return Math.round(Number(contract.value || 0));
-  }
-  return Number(contract.allocated_value || contract.value || 0);
+  return calculateContractAllocatedValue(Number(contract.value || 0), contract.contract_type);
 }
 
 function withinPeriod(date: string, period: WeeklyAllocation) {
@@ -844,32 +839,45 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       })
       .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   }, [normalizedContracts, selectedMonth]);
-  const monthBase = useMemo(() => {
-    return monthContracts.reduce((total, contract) => total + contract.allocated_value, 0);
-  }, [monthContracts]);
+  const { gross: monthGrossSales, general: monthBase, allocation: monthAllocationBase } = useMemo(() => (
+    monthContracts.reduce((totals, contract) => ({
+      gross: totals.gross + Number(contract.value || 0),
+      general: totals.general + (isBdsContract(contract.contract_type) ? contract.allocated_value : Number(contract.value || 0)),
+      allocation: totals.allocation + contract.allocated_value,
+    }), { gross: 0, general: 0, allocation: 0 })
+  ), [monthContracts]);
 
   const periodBasesMap = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { gross: number; general: number; allocation: number }>();
     for (const period of periodsForMonth) {
-      let total = 0;
+      let gross = 0;
+      let general = 0;
+      let allocation = 0;
       for (const contract of monthContracts) {
         if (contractWithinPeriod(contract, period)) {
-          total += contract.allocated_value;
+          gross += Number(contract.value || 0);
+          general += isBdsContract(contract.contract_type) ? contract.allocated_value : Number(contract.value || 0);
+          allocation += contract.allocated_value;
         }
       }
-      map.set(period.period_code, total);
+      map.set(period.period_code, { gross, general, allocation });
     }
     return map;
   }, [periodsForMonth, monthContracts]);
 
   const periodBase = useCallback((period: WeeklyAllocation) => {
-    return periodBasesMap.get(period.period_code) ?? 0;
+    return periodBasesMap.get(period.period_code)?.general ?? 0;
   }, [periodBasesMap]);
 
   const selectedBase = useMemo(() => {
     return selectedPeriod ? periodBase(selectedPeriod) : 0;
   }, [selectedPeriod, periodBase]);
-  const monthPool = useMemo(() => Math.round(monthBase * 0.15), [monthBase]);
+  const selectedGrossSales = useMemo(() => {
+    return selectedPeriod ? periodBasesMap.get(selectedPeriod.period_code)?.gross ?? 0 : 0;
+  }, [selectedPeriod, periodBasesMap]);
+  const selectedAllocationBase = useMemo(() => {
+    return selectedPeriod ? periodBasesMap.get(selectedPeriod.period_code)?.allocation ?? 0 : 0;
+  }, [selectedPeriod, periodBasesMap]);
   const monthEventPool = useMemo(() => Math.round(monthBase * 0.005), [monthBase]);
 
   const monthlyEventExpenses = useMemo(() => {
@@ -963,7 +971,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             (row) => row.period_code === selectedPeriod.period_code && row.fund_key === fund.key
           );
           const rate = existing?.allocation_rate ?? fund.rate;
-          const requested_amount = Math.round(selectedBase * rate);
+          const requested_amount = Math.round(selectedAllocationBase * rate);
           return {
             period_code: selectedPeriod.period_code,
             period_month: selectedPeriod.period_month,
@@ -979,14 +987,14 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           };
         }).sort((a, b) => FUND_ORDER.indexOf(a.fund_key) - FUND_ORDER.indexOf(b.fund_key))
       : [];
-  }, [selectedPeriod, normalizedWeeklyAllocations, selectedBase]);
+  }, [selectedPeriod, normalizedWeeklyAllocations, selectedAllocationBase]);
 
   const monthFundRows = useMemo(() => {
     return DEFAULT_FUNDS.map((fund) => {
       let totalAllocation = 0;
       let totalRequested = 0;
       for (const period of periodsForMonth) {
-        const base = periodBasesMap.get(period.period_code) ?? 0;
+        const base = periodBasesMap.get(period.period_code)?.allocation ?? 0;
         const existing = normalizedWeeklyAllocations.find(
           (row) => row.period_code === period.period_code && row.fund_key === fund.key
         );
@@ -1690,10 +1698,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       </header>
 
       <Panel className="p-2">
-        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-3">
+        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-2">
           {[
             { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
-            { id: 'event' as const, title: 'Báo cáo Đào tạo & Sự kiện', subtitle: 'Chi tiết từng buổi & Sinh phiếu chi' },
             { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
           ].map((tab) => (
             <button
@@ -1750,10 +1757,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
       {activeTab === 'cashflow' && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Wallet className="h-5 w-5" />} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthBase : selectedBase)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
-        <StatCard icon={<CircleDollarSign className="h-5 w-5" />} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
-        <StatCard icon={<Receipt className="h-5 w-5" />} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
-        <StatCard icon={<Users className="h-5 w-5" />} label={isMonthOverview ? 'Số người được nhận hoa hồng theo tháng' : 'Số người được nhận hoa hồng'} value={`${(isMonthOverview ? peopleRows : monthPeopleRows).length} người`} note={isMonthOverview ? `Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}` : `Kỳ tuần: ${peopleRows.length} người · Cả tháng: ${monthPeopleRows.length} người`} tint="emerald" />
+        <StatCard icon={Wallet} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthGrossSales : selectedGrossSales)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
+        <StatCard icon={CircleDollarSign} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
+        <StatCard icon={Receipt} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
+        <StatCard icon={Users} label={isMonthOverview ? 'Số người được nhận hoa hồng theo tháng' : 'Số người được nhận hoa hồng'} value={`${(isMonthOverview ? peopleRows : monthPeopleRows).length} người`} note={isMonthOverview ? `Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}` : `Kỳ tuần: ${peopleRows.length} người · Cả tháng: ${monthPeopleRows.length} người`} tint="emerald" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-12 items-stretch">
@@ -1790,7 +1797,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {displayedContracts.length ? paginatedContracts.map((contract) => (
+                    {displayedContracts.length ? paginatedContracts.map((contract) => {
+                      const beneficiaries = contractBeneficiaries(contract, initialMembers);
+                      return (
                       <tr
                         key={contract.id}
                         role="button"
@@ -1817,30 +1826,36 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                               BĐS · 4/15
                             </span>
                           )}
+                          {isTwoYearContract(contract.contract_type) && (
+                            <span className="inline-block mt-0.5 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+                              HĐ 2 năm · 70%
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex min-w-[330px] flex-wrap gap-1.5">
-                            {contractBeneficiaries(contract, initialMembers).map((person, index) => (
+                            {beneficiaries.map((person, index) => (
                               <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
                                 <span className="font-semibold text-slate-700">{person.name}</span>
                                 <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
                               </span>
                             ))}
-                            {!contractBeneficiaries(contract, initialMembers).length && <span className="text-slate-400">Chưa có nhân sự</span>}
+                            {!beneficiaries.length && <span className="text-slate-400">Chưa có nhân sự</span>}
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
                         <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract, initialMembers))}</td>
                         <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract, initialMembers))}</td>
                       </tr>
-                    )) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
+                      );
+                    }) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
                   </tbody>
                   <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
                     <tr>
                       <td className="px-4 py-3 bg-blue-50">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700 bg-blue-50">{formatVND(isMonthOverview ? monthBase : selectedBase)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700 bg-blue-50">{formatVND(isMonthOverview ? monthAllocationBase : selectedAllocationBase)}</td>
                       <td className="px-3 py-3 text-slate-600 bg-blue-50">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(isMonthOverview ? Math.round(monthBase * 0.15) : displayedContractTotals.pool)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.pool)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.commission)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.remaining)}</td>
                     </tr>
@@ -2380,7 +2395,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             <div className="mt-3 shrink-0 rounded-xl bg-slate-900 p-3 text-white space-y-1.5">
               <div className="flex justify-between text-xs font-bold">
                 <span>{isMonthOverview ? 'TỔNG QUỸ PHÂN BỔ THÁNG (15%)' : 'TỔNG QUỸ PHÂN BỔ TUẦN (15%)'}</span>
-                <span className="text-emerald-400">{formatVND((isMonthOverview ? monthBase : selectedBase) * 0.15)}</span>
+                <span className="text-emerald-400">{formatVND(displayedContractTotals.pool)}</span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-300">
                 <span>Tổng đề nghị chi DNTT:</span>
@@ -2388,7 +2403,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
                 <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
-                <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthBase : selectedBase)}</strong></span>
+                <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthGrossSales : selectedGrossSales)}</strong></span>
               </div>
             </div>
           </Panel>
@@ -3126,10 +3141,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   );
 }
 
-function StatCard({ icon, label, value, note, tint }: { icon: React.ReactNode; label: string; value: string; note: string; tint: string }) {
+const StatCard = React.memo(function StatCard({ icon: Icon, label, value, note, tint }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; note: string; tint: string }) {
   const tints: Record<string, string> = { blue: 'bg-blue-50 text-blue-700', indigo: 'bg-indigo-50 text-indigo-700', amber: 'bg-amber-50 text-amber-700', emerald: 'bg-emerald-50 text-emerald-700' };
-  return <Panel className="p-4"><div className="flex items-start justify-between"><div className="text-xs font-semibold text-slate-500">{label}</div><div className={`rounded-xl p-2 ${tints[tint]}`}>{icon}</div></div><div className="mt-3 text-xl font-bold tracking-tight text-slate-900">{value}</div><div className="mt-1 text-[10px] text-slate-500">{note}</div></Panel>;
-}
+  return <Panel className="p-4"><div className="flex items-start justify-between"><div className="text-xs font-semibold text-slate-500">{label}</div><div className={`rounded-xl p-2 ${tints[tint]}`}><Icon className="h-5 w-5" /></div></div><div className="mt-3 text-xl font-bold tracking-tight text-slate-900">{value}</div><div className="mt-1 text-[10px] text-slate-500">{note}</div></Panel>;
+});
 
 
 function SplitRow({ label, amount, color }: { label: string; amount: number; color: string }) {

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
+import { normalizeTrainingTokenRate } from '@/lib/trainingTokenRate';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,8 @@ export async function GET() {
         settings[row.key] = row.value;
       }
     }
+
+    settings.training_token_rate = normalizeTrainingTokenRate(settings.training_token_rate);
 
     if (!settings.system_logo) {
       settings.system_logo = '/logo-nghieng.png';
@@ -49,6 +52,41 @@ export async function PUT(request: NextRequest) {
     }
 
     const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+    if (key === 'training_token_rate') {
+      const rate = Number(value);
+      if (!Number.isSafeInteger(rate) || rate <= 0 || rate > 1_000_000_000) {
+        return Response.json({ success: false, error: 'Tỷ giá Token phải là số nguyên dương hợp lệ.' }, { status: 400 });
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`
+          INSERT INTO system_settings (key, value, description, updated_at)
+          VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+          ON CONFLICT (key) DO UPDATE SET
+            value = EXCLUDED.value,
+            description = COALESCE(EXCLUDED.description, system_settings.description),
+            updated_at = CURRENT_TIMESTAMP
+        `, [key, String(rate), description || 'Giá trị quy đổi của một Token (VNĐ)']);
+        await client.query('UPDATE training_courses SET budget = token_value * $1', [rate]);
+        await client.query(`
+          UPDATE training_logs AS log
+          SET session_budget = course.budget
+          FROM training_courses AS course
+          WHERE course.course_code = log.course_code
+        `);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+
+      return Response.json({ success: true, key, value: rate });
+    }
 
     await pool.query(`
       INSERT INTO system_settings (key, value, description, updated_at)
