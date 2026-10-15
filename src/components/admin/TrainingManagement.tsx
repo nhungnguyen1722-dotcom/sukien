@@ -95,6 +95,9 @@ type TrainingParticipantDraft = {
   reward_amount: number;
 };
 
+const formatCurrency = (val: number) =>
+  `${new Intl.NumberFormat('vi-VN').format(Math.round(val || 0))} đ`;
+
 const TrainingParticipantRow = memo(function TrainingParticipantRow({
   participant,
   index,
@@ -172,6 +175,51 @@ const TrainingParticipantRow = memo(function TrainingParticipantRow({
         )}
       </td>
     </tr>
+  );
+});
+
+const IncomingContractsTable = memo(function IncomingContractsTable({
+  contracts,
+  contractSalesTotal,
+  incomingTotal,
+}: {
+  contracts: TrainingContract[];
+  contractSalesTotal: number;
+  incomingTotal: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const canExpand = contracts.length > 10;
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <h2 className="p-4 text-sm font-bold">Dòng tiền vào · 0,3% hợp đồng đã duyệt</h2>
+      <div className={`overflow-x-auto ${expanded ? '' : 'max-h-[560px] overflow-y-auto'}`}>
+        <table className="w-full min-w-[680px] text-left text-xs">
+          <thead className="sticky top-0 z-10 bg-slate-50">
+            <tr><th className="p-3">Ngày chốt</th><th className="p-3">Mã HĐ</th><th className="p-3">Khách hàng</th><th className="p-3 text-right">Căn cứ phân bổ</th><th className="p-3 text-right">Thu 0,3%</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {contracts.map((contract, index) => (
+              <tr key={`${contract.contract_code || contract.contract_date}-${index}`}>
+                <td className="whitespace-nowrap p-3">{contract.contract_date}</td><td className="p-3">{contract.contract_code || '—'}</td><td className="p-3">{contract.customer_name}</td>
+                <td className="whitespace-nowrap p-3 text-right">{formatCurrency(contract.allocation_base)}</td><td className="whitespace-nowrap p-3 text-right font-semibold text-emerald-700">{formatCurrency(Math.round(contract.allocation_base * 0.003))}</td>
+              </tr>
+            ))}
+            {contracts.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">Không có hợp đồng đã duyệt trong kỳ.</td></tr>}
+          </tbody>
+          <tfoot className="sticky bottom-0 z-10 border-t border-slate-200 bg-slate-50 font-bold shadow-[0_-2px_4px_rgba(15,23,42,0.04)]">
+            <tr><td className="p-3" colSpan={3}>Tổng thu 0,3%</td><td className="whitespace-nowrap p-3 text-right">{formatCurrency(contractSalesTotal)}</td><td className="whitespace-nowrap p-3 text-right text-emerald-700">{formatCurrency(incomingTotal)}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+      {canExpand && (
+        <div className="border-t border-slate-100 p-2 text-center">
+          <button type="button" onClick={() => setExpanded((value) => !value)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">
+            {expanded ? 'Thu gọn' : 'Mở rộng'}
+          </button>
+        </div>
+      )}
+    </section>
   );
 });
 
@@ -831,10 +879,6 @@ export default function TrainingManagement({
   const totalPages = Math.max(1, Math.ceil(groupedSessions.length / itemsPerPage));
   const paginatedSessions = groupedSessions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('vi-VN').format(Math.round(val || 0)) + ' đ';
-  };
-
   const periodContracts = useMemo(
     () => initialContracts.filter((contract) => contract.contract_date >= dateRange.start && contract.contract_date <= dateRange.endInclusive),
     [dateRange.endInclusive, dateRange.start, initialContracts]
@@ -898,9 +942,6 @@ export default function TrainingManagement({
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Nhật ký đào tạo
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Quản lý buổi học, token thực nhận và Quỹ đào tạo
-            </p>
           </div>
         </div>
       </div>
@@ -919,6 +960,7 @@ export default function TrainingManagement({
       {activeView === 'ledger' && (
         <section className="space-y-4">
           <AdminTimeFilter
+            className="w-fit max-w-full"
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
             selectedMonth={selectedMonth}
@@ -934,24 +976,8 @@ export default function TrainingManagement({
             <article className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="text-xs font-semibold text-slate-500">Tồn quỹ đào tạo sau cộng</h2><p className="mt-2 text-xl font-extrabold text-indigo-700">{formatCurrency(balance)}</p></article>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
-            <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-              <h2 className="p-4 text-sm font-bold">Dòng tiền vào · 0,3% hợp đồng đã duyệt</h2>
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50"><tr><th className="p-3">Ngày chốt</th><th className="p-3">Mã HĐ</th><th className="p-3">Khách hàng</th><th className="p-3 text-right">Căn cứ phân bổ</th><th className="p-3 text-right">Thu 0,3%</th></tr></thead>
-                <tbody className="divide-y divide-slate-100">
-                  {periodContracts.map((contract, index) => (
-                    <tr key={`${contract.contract_code || contract.contract_date}-${index}`}>
-                      <td className="p-3">{contract.contract_date}</td><td className="p-3">{contract.contract_code || '—'}</td><td className="p-3">{contract.customer_name}</td>
-                      <td className="p-3 text-right">{formatCurrency(contract.allocation_base)}</td><td className="p-3 text-right font-semibold text-emerald-700">{formatCurrency(Math.round(contract.allocation_base * 0.003))}</td>
-                    </tr>
-                  ))}
-                  {periodContracts.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">Không có hợp đồng đã duyệt trong kỳ.</td></tr>}
-                </tbody>
-                <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
-                  <tr><td className="p-3" colSpan={3}>Tổng thu 0,3%</td><td className="p-3 text-right">{formatCurrency(contractSalesTotal)}</td><td className="p-3 text-right text-emerald-700">{formatCurrency(incomingTotal)}</td></tr>
-                </tfoot>
-              </table>
-            </section>
+            <IncomingContractsTable contracts={periodContracts} contractSalesTotal={contractSalesTotal} incomingTotal={incomingTotal} />
+            <div className="space-y-4">
             <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <h2 className="p-4 text-sm font-bold">Chi phí buổi đào tạo · {periodLabel}</h2>
               <table className="w-full text-left text-xs">
@@ -973,60 +999,63 @@ export default function TrainingManagement({
                 </tfoot>
               </table>
             </section>
+            <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <h2 className="text-sm font-bold">Phiếu chi Quỹ Đào tạo Chuyên môn &amp; Kỹ năng · {periodLabel}</h2>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{periodFundExpenses.length} phiếu</span>
+              </div>
+              <table className="w-full min-w-[900px] text-left text-xs">
+                <thead className="bg-slate-50"><tr>
+                  <th className="p-3">Ngày chi</th><th className="p-3">Mã phiếu</th><th className="p-3">Quỹ / Nội dung chi</th>
+                  <th className="p-3">Người nhận</th><th className="p-3">Trạng thái</th><th className="p-3 text-right">Thực chi</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {periodFundExpenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td className="whitespace-nowrap p-3">{expense.expense_date ? expense.expense_date.split('-').reverse().join('/') : '—'}</td>
+                      <td className="whitespace-nowrap p-3 font-mono">{expense.request_code || '—'}</td>
+                      <td className="max-w-[420px] p-3">
+                        <div className="font-semibold text-slate-800">{expense.fund_source}</div>
+                        <div className="truncate text-[11px] text-slate-500" title={expense.detail_content}>{expense.detail_content || '—'}</div>
+                      </td>
+                      <td className="p-3">{expense.beneficiary_name || '—'}</td>
+                      <td className="whitespace-nowrap p-3">{expense.status}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-semibold text-rose-700">{formatCurrency(expense.actual_expense)}</td>
+                    </tr>
+                  ))}
+                  {periodFundExpenses.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Không có phiếu chi quỹ đào tạo trong kỳ.</td></tr>}
+                </tbody>
+                {periodFundExpenses.length > 0 && (
+                  <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
+                    <tr><td className="p-3" colSpan={5}>Tổng thực chi phiếu quỹ đào tạo</td><td className="p-3 text-right text-rose-700">{formatCurrency(voucherExpenseTotal)}</td></tr>
+                  </tfoot>
+                )}
+              </table>
+            </section>
+            </div>
           </div>
           <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <h2 className="text-sm font-bold">Dòng tiền ra · {periodLabel}</h2>
               </div>
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50"><tr><th className="p-3 text-right">Tồn quỹ đào tạo</th><th className="p-3 text-right">Đã thực chi thực tế</th><th className="p-3 text-right">Tồn quỹ</th></tr></thead>
+                <thead className="bg-slate-50"><tr><th className="p-3 text-right">Tổng quỹ</th><th className="p-3">Loại</th><th className="p-3 text-right">Đã thực chi thực tế</th><th className="p-3 text-right">Tồn quỹ</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   <tr>
                     <td className="p-3 text-right">{formatCurrency(incomingTotal)}</td>
+                    <td className="p-3">Thù lao buổi học + phiếu chi quỹ</td>
                     <td className="p-3 text-right">{formatCurrency(outgoingTotal)}</td>
                     <td className={`p-3 text-right font-semibold ${balance >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(balance)}</td>
                   </tr>
                 </tbody>
               </table>
           </section>
-          <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <h2 className="text-sm font-bold">Phiếu chi Quỹ Đào tạo Chuyên môn &amp; Kỹ năng · {periodLabel}</h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{periodFundExpenses.length} phiếu</span>
-            </div>
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead className="bg-slate-50"><tr>
-                <th className="p-3">Ngày chi</th><th className="p-3">Mã phiếu</th><th className="p-3">Quỹ / Nội dung chi</th>
-                <th className="p-3">Người nhận</th><th className="p-3">Trạng thái</th><th className="p-3 text-right">Thực chi</th>
-              </tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {periodFundExpenses.map((expense) => (
-                  <tr key={expense.id}>
-                    <td className="whitespace-nowrap p-3">{expense.expense_date ? expense.expense_date.split('-').reverse().join('/') : '—'}</td>
-                    <td className="whitespace-nowrap p-3 font-mono">{expense.request_code || '—'}</td>
-                    <td className="max-w-[420px] p-3">
-                      <div className="font-semibold text-slate-800">{expense.fund_source}</div>
-                      <div className="truncate text-[11px] text-slate-500" title={expense.detail_content}>{expense.detail_content || '—'}</div>
-                    </td>
-                    <td className="p-3">{expense.beneficiary_name || '—'}</td>
-                    <td className="whitespace-nowrap p-3">{expense.status}</td>
-                    <td className="whitespace-nowrap p-3 text-right font-semibold text-rose-700">{formatCurrency(expense.actual_expense)}</td>
-                  </tr>
-                ))}
-                {periodFundExpenses.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Không có phiếu chi quỹ đào tạo trong kỳ.</td></tr>}
-              </tbody>
-              {periodFundExpenses.length > 0 && (
-                <tfoot className="border-t border-slate-200 bg-slate-50 font-bold">
-                  <tr><td className="p-3" colSpan={5}>Tổng thực chi phiếu quỹ đào tạo</td><td className="p-3 text-right text-rose-700">{formatCurrency(voucherExpenseTotal)}</td></tr>
-                </tfoot>
-              )}
-            </table>
-          </section>
         </section>
       )}
 
       {activeView === 'sessions' && <>
       <AdminTimeFilter
+        className="w-fit max-w-full"
         selectedYear={selectedYear}
         onYearChange={setSelectedYear}
         selectedMonth={selectedMonth}
@@ -1040,11 +1069,11 @@ export default function TrainingManagement({
         {/* 4 Stat Cards (8 Cols on Desktop) */}
         <div className="lg:col-span-12 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {/* Card 1: Tổng số buổi học */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <BookOpen className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-medium text-slate-500 block">Tổng số buổi học</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-xl sm:text-2xl font-extrabold text-slate-900">
@@ -1056,11 +1085,11 @@ export default function TrainingManagement({
           </div>
 
           {/* Card 2: Tổng số thành viên */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-medium text-slate-500 block">Tổng số thành viên</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-xl sm:text-2xl font-extrabold text-slate-900">
@@ -1072,11 +1101,11 @@ export default function TrainingManagement({
           </div>
 
           {/* Card 3: Tổng Token phát sinh */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
               <Coins className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-medium text-slate-500 block">Tổng Token phát sinh</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-xl sm:text-2xl font-extrabold text-slate-900">
@@ -1088,11 +1117,11 @@ export default function TrainingManagement({
           </div>
 
           {/* Card 4: Tổng thù lao đã chi */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
               <Wallet className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-medium text-slate-500 block">Tổng thù lao đã chi</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-lg sm:text-xl font-extrabold text-slate-900 truncate">
@@ -1134,12 +1163,11 @@ export default function TrainingManagement({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <span>Danh sách đào tạo</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-700 font-semibold font-mono">
-                  {groupedSessions.length} buổi học • {totalParticipantsCount} lượt tham gia
+                <span>Danh sách đào tạo • {groupedSessions.length} buổi học</span>
+                <span className="text-xs font-medium text-slate-500">
+                  1 token = 5.000 đ
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Các buổi học nhiều người cùng chung 1 STT, chung ngày và mã khóa học; riêng biệt số token và thù lao từng người.</p>
             </div>
             {selectedCourseCardCode && (
               <button
