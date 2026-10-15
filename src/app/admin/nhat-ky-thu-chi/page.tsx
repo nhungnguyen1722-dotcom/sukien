@@ -7,7 +7,6 @@ import TransactionLogManagement, {
   TransactionMember,
   WeeklyAllocation,
 } from '@/components/admin/TransactionLogManagement';
-import { loadSeptemberContractDistributions } from '@/lib/contractDistributionWorkbooks';
 import { SELECT_TRANSACTION_LOGS } from '@/lib/transactionLogs';
 import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL, UNIFIED_TITLE_SQL } from '@/lib/memberTeams';
 import { ensureOperationsFundBeneficiaries } from '@/lib/operationsFundBeneficiaries';
@@ -155,23 +154,6 @@ async function getTransactionsData() {
     ...row,
     full_name: sanitizeVietnameseText(row.full_name),
   })) as TransactionMember[];
-  const workbookDistributions = loadSeptemberContractDistributions(
-    contracts,
-    members.map((member) => member.full_name),
-  );
-  const workbookContracts = workbookDistributions.contracts.map((contract) => ({
-    ...contract,
-    customer_name: sanitizeVietnameseText(contract.customer_name),
-    closer_name: sanitizeVietnameseText(contract.closer_name),
-    referrer_name: sanitizeVietnameseText(contract.referrer_name),
-    supporter_name: sanitizeVietnameseText(contract.supporter_name),
-    team_name: sanitizeVietnameseText(contract.team_name),
-    status: sanitizeVietnameseText(contract.status),
-    source_beneficiaries: contract.source_beneficiaries?.map((person) => ({
-      ...person,
-      name: sanitizeVietnameseText(person.name),
-    })),
-  }));
   const eventExpenses = eventExpensesRes.rows.map((row) => ({
     ...row,
     beneficiary_name: sanitizeVietnameseText(row.beneficiary_name),
@@ -187,8 +169,6 @@ async function getTransactionsData() {
     logs,
     weeklyAllocations: weeklyRes.rows as WeeklyAllocation[],
     contracts,
-    workbookContracts,
-    workbookWarnings: workbookDistributions.warningsByPeriod,
     eventExpenses,
     events,
     members,
@@ -203,8 +183,6 @@ export default async function NhatKyThuChiPage() {
       initialMembers={data.members}
       weeklyAllocations={data.weeklyAllocations}
       contracts={data.contracts}
-      workbookContracts={data.workbookContracts}
-      workbookWarnings={data.workbookWarnings}
       eventExpenses={data.eventExpenses}
       events={data.events}
       currentMonth={getCurrentMonth()}

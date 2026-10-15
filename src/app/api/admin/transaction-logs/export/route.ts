@@ -320,7 +320,8 @@ export async function GET(request: NextRequest) {
       exportFileName = `Bao-cao-chot-quy-thang-${month}.xlsx`;
 
       let monthlyData: MonthlyReportData | null = null;
-      if (month === '2026-09' || month.includes('09') || month.includes('-9')) {
+      // September 2026 totals, including weeks 3–5, must come from contract records in Neon.
+      if (month !== '2026-09' && (month.includes('09') || month.includes('-9'))) {
         const monthFilePath = resolveWorkbookPath('DN_thanh_toan_HH_T9_T10.xlsx');
         if (monthFilePath) {
           monthlyData = parseMonthlySheetFromFile(monthFilePath, 'Chốt quỹ t9 (1.9-2.10)', month);
@@ -331,10 +332,15 @@ export async function GET(request: NextRequest) {
         // Tạo dữ liệu tháng động từ database
         const { databaseContracts, memberNames } = await getContractsAndMembers();
         const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
-        let monthContracts = contracts.filter((c) => c.contract_date.startsWith(month));
+        const monthRange = getMonthWeekRange(month);
+        let monthContracts = contracts.filter((c) => (
+          c.contract_date >= monthRange.start && c.contract_date <= monthRange.endInclusive
+        ));
 
         if (monthContracts.length === 0) {
-          const rawMonthContracts = databaseContracts.filter((c) => c.contract_date && c.contract_date.startsWith(month));
+          const rawMonthContracts = databaseContracts.filter((c) => (
+            c.contract_date && c.contract_date >= monthRange.start && c.contract_date <= monthRange.endInclusive
+          ));
           monthContracts = rawMonthContracts.map((c) => {
             const beneficiaries: WorkbookBeneficiary[] = [];
             if (c.closer_name && c.closer_fee > 0) {
@@ -500,19 +506,21 @@ export async function GET(request: NextRequest) {
       let sheetTitle = 'DNTT tuần';
 
       const pUpper = periodCode.toUpperCase().replace(/\s+/g, '');
-      if (pUpper.includes('10') && (pUpper.includes('W1') || pUpper.includes('TUAN1') || pUpper.endsWith('-1') || pUpper.endsWith('_1'))) {
+      // Keep September weeks 3–5 on the database-generated export path.
+      const isDatabaseOnlySeptemberWeek = /^2026-09-W[345]$/i.test(periodCode);
+      if (!isDatabaseOnlySeptemberWeek && pUpper.includes('10') && (pUpper.includes('W1') || pUpper.includes('TUAN1') || pUpper.endsWith('-1') || pUpper.endsWith('_1'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan1_T10.xlsx');
         sheetTitle = 'DNTT HH tuần 1 T10';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 1 tháng 10');
-      } else if (pUpper.includes('09') && (pUpper.includes('W5') || pUpper.includes('TUAN5') || pUpper.endsWith('-5') || pUpper.endsWith('_5'))) {
+      } else if (!isDatabaseOnlySeptemberWeek && pUpper.includes('09') && (pUpper.includes('W5') || pUpper.includes('TUAN5') || pUpper.endsWith('-5') || pUpper.endsWith('_5'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan5_T9.xlsx');
         sheetTitle = 'DNTT tuần 5 T9';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 5 tháng 9');
-      } else if (pUpper.includes('09') && (pUpper.includes('W4') || pUpper.includes('TUAN4') || pUpper.endsWith('-4') || pUpper.endsWith('_4'))) {
+      } else if (!isDatabaseOnlySeptemberWeek && pUpper.includes('09') && (pUpper.includes('W4') || pUpper.includes('TUAN4') || pUpper.endsWith('-4') || pUpper.endsWith('_4'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan4_T9.xlsx');
         sheetTitle = 'DNTT HH tuần 4 T9';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 4 tháng 9');
-      } else if (pUpper.includes('09') && (pUpper.includes('W3') || pUpper.includes('TUAN3') || pUpper.endsWith('-3') || pUpper.endsWith('_3'))) {
+      } else if (!isDatabaseOnlySeptemberWeek && pUpper.includes('09') && (pUpper.includes('W3') || pUpper.includes('TUAN3') || pUpper.endsWith('-3') || pUpper.endsWith('_3'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan3_T9.xlsx');
         sheetTitle = 'DN thanh toán HH tuần 3 T9';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 3 tháng 9');

@@ -199,8 +199,6 @@ interface Props {
   initialMembers: TransactionMember[];
   weeklyAllocations: WeeklyAllocation[];
   contracts: FundContract[];
-  workbookContracts: FundContract[];
-  workbookWarnings: Record<string, string[]>;
   eventExpenses: EventFundExpense[];
   events?: EventItemRecord[];
   currentMonth: string;
@@ -693,7 +691,7 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>;
 }
 
-export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, events = [], currentMonth }: Props) {
+export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, eventExpenses, events = [], currentMonth }: Props) {
   const [logs, setLogs] = useState(() => initialLogs.map(sanitizeTransactionLogNames));
   const [allocationsList, setAllocationsList] = useState<WeeklyAllocation[]>(() => weeklyAllocations);
   useEffect(() => {
@@ -881,19 +879,17 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   ), [monthContracts]);
 
   const periodBasesMap = useMemo(() => {
-    const map = new Map<string, { gross: number; general: number; allocation: number }>();
+    const map = new Map<string, { general: number; allocation: number }>();
     for (const period of periodsForMonth) {
-      let gross = 0;
       let general = 0;
       let allocation = 0;
       for (const contract of monthContracts) {
         if (contractWithinPeriod(contract, period)) {
-          gross += Number(contract.value || 0);
           general += isBdsContract(contract.contract_type) ? contract.allocated_value : Number(contract.value || 0);
           allocation += contract.allocated_value;
         }
       }
-      map.set(period.period_code, { gross, general, allocation });
+      map.set(period.period_code, { general, allocation });
     }
     return map;
   }, [periodsForMonth, monthContracts]);
@@ -905,9 +901,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const selectedBase = useMemo(() => {
     return selectedPeriod ? periodBase(selectedPeriod) : 0;
   }, [selectedPeriod, periodBase]);
-  const selectedGrossSales = useMemo(() => {
-    return selectedPeriod ? periodBasesMap.get(selectedPeriod.period_code)?.gross ?? 0 : 0;
-  }, [selectedPeriod, periodBasesMap]);
   const selectedAllocationBase = useMemo(() => {
     return selectedPeriod ? periodBasesMap.get(selectedPeriod.period_code)?.allocation ?? 0 : 0;
   }, [selectedPeriod, periodBasesMap]);
@@ -1062,6 +1055,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
       : [];
   }, [selectedPeriod, monthContracts]);
+  const selectedGrossSales = useMemo(() => (
+    selectedContracts.reduce((sum, contract) => sum + Number(contract.value || 0), 0)
+  ), [selectedContracts]);
   const displayedContracts = useMemo(() => {
     return isMonthOverview ? monthContracts : selectedContracts;
   }, [isMonthOverview, monthContracts, selectedContracts]);

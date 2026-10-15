@@ -788,6 +788,14 @@ export function loadSeptemberContractDistributions(
   const findDatabaseContract = createDatabaseContractMatcher(databaseContracts);
 
   for (const source of SOURCES) {
+    // Week 3–5 September rows are not reconciled against spreadsheet sources anymore.
+    if (
+      source.periodCode === '2026-09-W3' ||
+      source.periodCode === '2026-09-W4' ||
+      source.periodCode === '2026-09-W5'
+    ) {
+      continue;
+    }
     try {
       const result = readSource(source, memberNames);
       warningsByPeriod[source.periodCode] = result.warnings;
