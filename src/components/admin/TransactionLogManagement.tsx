@@ -341,6 +341,12 @@ export function getContractAllocatedValue(contract: { value: number; contract_ty
   return calculateContractAllocatedValue(Number(contract.value || 0), contract.contract_type);
 }
 
+function contractSalesValue(contract: FundContract): number {
+  return isBdsContract(contract.contract_type)
+    ? Number(contract.allocated_value || 0)
+    : Number(contract.value || 0);
+}
+
 function withinPeriod(date: string, period: WeeklyAllocation) {
   const dateOnly = date.slice(0, 10);
   if (period.period_month === '2026-10' && dateOnly <= '2026-10-02') {
@@ -870,12 +876,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       })
       .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id);
   }, [normalizedContracts, selectedMonth]);
-  const { gross: monthGrossSales, general: monthBase, allocation: monthAllocationBase } = useMemo(() => (
+  const { contractSales: monthContractSales, general: monthBase, allocation: monthAllocationBase } = useMemo(() => (
     monthContracts.reduce((totals, contract) => ({
-      gross: totals.gross + Number(contract.value || 0),
-      general: totals.general + (isBdsContract(contract.contract_type) ? contract.allocated_value : Number(contract.value || 0)),
+      contractSales: totals.contractSales + contractSalesValue(contract),
+      general: totals.general + contractSalesValue(contract),
       allocation: totals.allocation + contract.allocated_value,
-    }), { gross: 0, general: 0, allocation: 0 })
+    }), { contractSales: 0, general: 0, allocation: 0 })
   ), [monthContracts]);
 
   const periodBasesMap = useMemo(() => {
@@ -885,7 +891,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       let allocation = 0;
       for (const contract of monthContracts) {
         if (contractWithinPeriod(contract, period)) {
-          general += isBdsContract(contract.contract_type) ? contract.allocated_value : Number(contract.value || 0);
+          general += contractSalesValue(contract);
           allocation += contract.allocated_value;
         }
       }
@@ -1055,8 +1061,8 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           .sort((a, b) => a.contract_date.localeCompare(b.contract_date) || a.id - b.id)
       : [];
   }, [selectedPeriod, monthContracts]);
-  const selectedGrossSales = useMemo(() => (
-    selectedContracts.reduce((sum, contract) => sum + Number(contract.value || 0), 0)
+  const selectedContractSales = useMemo(() => (
+    selectedContracts.reduce((sum, contract) => sum + contractSalesValue(contract), 0)
   ), [selectedContracts]);
   const displayedContracts = useMemo(() => {
     return isMonthOverview ? monthContracts : selectedContracts;
@@ -1896,7 +1902,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
       {activeTab === 'cashflow' && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Wallet} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthGrossSales : selectedGrossSales)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
+        <StatCard icon={Wallet} label={isMonthOverview ? 'Doanh số HĐ tháng' : 'Doanh số HĐ kỳ tuần'} value={formatVND(isMonthOverview ? monthContractSales : selectedContractSales)} note={`${isMonthOverview ? monthContracts.length : selectedContracts.length} hợp đồng ${isMonthOverview ? 'trong tháng' : 'trong kỳ'}`} tint="blue" />
         <StatCard icon={CircleDollarSign} label={isMonthOverview ? 'Quỹ phân bổ tháng (15%)' : 'Quỹ phân bổ tuần (15%)'} value={formatVND(displayedContractTotals.pool)} note="Tính theo giá trị chốt được phân bổ" tint="indigo" />
         <StatCard icon={Receipt} label={isMonthOverview ? 'Đề nghị chi theo tháng' : 'Đề nghị chi theo bảng tuần'} value={formatVND(isMonthOverview ? monthRequests : selectedRequests)} note={isMonthOverview ? 'Cộng tất cả các tuần trong tháng' : 'Tổng cột đề nghị trong DNTT'} tint="amber" />
         <StatCard icon={Users} label={isMonthOverview ? 'Số người được nhận hoa hồng theo tháng' : 'Số người được nhận hoa hồng'} value={`${(isMonthOverview ? peopleRows : monthPeopleRows).length} người`} note={isMonthOverview ? `Tháng ${Number(selectedMonth.slice(5)) || '—'}/${selectedMonth.slice(0, 4) || '—'}` : `Kỳ tuần: ${peopleRows.length} người · Cả tháng: ${monthPeopleRows.length} người`} tint="emerald" />
@@ -2554,7 +2560,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
                 <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
-                <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthGrossSales : selectedGrossSales)}</strong></span>
+                <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthContractSales : selectedContractSales)}</strong></span>
               </div>
             </div>
           </Panel>
