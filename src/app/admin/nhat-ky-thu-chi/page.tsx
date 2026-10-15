@@ -31,10 +31,14 @@ async function getTransactionsData() {
   const [logsRes, weeklyRes, contractsRes, eventExpensesRes, membersRes, eventsRes] = await Promise.all([
     pool.query(`${SELECT_TRANSACTION_LOGS} ORDER BY tl.id DESC`),
     pool.query(`
-      SELECT period_code, period_month, period_label, period_start::text AS period_start,
+      SELECT id, period_code, period_month, period_label, period_start::text AS period_start,
         period_end::text AS period_end, fund_key, fund_source,
         allocation_rate::float8 AS allocation_rate,
-        requested_amount::float8 AS requested_amount, source_sheet
+        requested_amount::float8 AS requested_amount,
+        COALESCE(allocated_amount, 0)::float8 AS allocated_amount,
+        COALESCE(paid_amount, 0)::float8 AS paid_amount,
+        COALESCE(remaining_amount, 0)::float8 AS remaining_amount,
+        source_sheet
       FROM fund_weekly_allocations
       ORDER BY period_start, id
     `),

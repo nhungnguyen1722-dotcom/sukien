@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Copy,
+  Edit3,
   Eye,
   FilePlus,
   FileSpreadsheet,
@@ -46,6 +47,8 @@ import {
 } from 'lucide-react';
 
 import CreatePaymentProposalModal from '@/components/admin/CreatePaymentProposalModal';
+import ExcelPreviewModal, { ExcelPreviewCashflowFund, ExcelPreviewCashflowPerson } from '@/components/admin/ExcelPreviewModal';
+import UpdateFundAllocationPaidModal from '@/components/admin/UpdateFundAllocationPaidModal';
 import { numberToVietnameseWords } from '@/lib/numberToWords';
 
 export interface TransactionLogItem {
@@ -115,6 +118,7 @@ export interface TransactionMember {
 }
 
 export interface WeeklyAllocation {
+  id?: number;
   period_code: string;
   period_month: string;
   period_label: string;
@@ -124,6 +128,9 @@ export interface WeeklyAllocation {
   fund_source: string;
   allocation_rate: number;
   requested_amount: number;
+  allocated_amount?: number;
+  paid_amount?: number;
+  remaining_amount?: number;
   source_sheet: string;
 }
 
@@ -688,6 +695,32 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
 
 export default function TransactionLogManagement({ initialLogs, initialMembers, weeklyAllocations, contracts, workbookContracts, workbookWarnings, eventExpenses, events = [], currentMonth }: Props) {
   const [logs, setLogs] = useState(() => initialLogs.map(sanitizeTransactionLogNames));
+  const [allocationsList, setAllocationsList] = useState<WeeklyAllocation[]>(() => weeklyAllocations);
+  useEffect(() => {
+    setAllocationsList(weeklyAllocations);
+  }, [weeklyAllocations]);
+
+  const [isExcelPreviewOpen, setIsExcelPreviewOpen] = useState(false);
+  const [isUpdatePaidOpen, setIsUpdatePaidOpen] = useState(false);
+
+  const handleUpdatePaidSuccess = useCallback((updatedRows: any[]) => {
+    setAllocationsList((prev) => {
+      const updatedMap = new Map(updatedRows.map((r) => [`${r.period_code}_${r.fund_key}`, r]));
+      return prev.map((item) => {
+        const key = `${item.period_code}_${item.fund_key}`;
+        if (updatedMap.has(key)) {
+          const u = updatedMap.get(key);
+          return {
+            ...item,
+            paid_amount: Number(u.paid_amount),
+            remaining_amount: Number(u.remaining_amount),
+          };
+        }
+        return item;
+      });
+    });
+  }, []);
+
   const [activeTab, setActiveTab] = useState<'cashflow' | 'event' | 'vouchers'>('cashflow');
 
   useEffect(() => {
@@ -703,7 +736,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const normalizedWeeklyAllocations = useMemo(() => {
     const periodsByMonth = new Map<string, WeeklyAllocation[]>();
-    for (const row of weeklyAllocations) {
+    for (const row of allocationsList) {
       if (row.period_code.endsWith('-MONTH')) continue;
       const monthPeriods = periodsByMonth.get(row.period_month) || [];
       if (!monthPeriods.some((period) => period.period_code === row.period_code)) monthPeriods.push(row);
@@ -717,7 +750,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       });
     }
 
-    const mapped = weeklyAllocations.map((row) => {
+    const mapped = allocationsList.map((row) => {
       const standardRate = DEFAULT_FUND_RATES[row.fund_key];
       const rawRate = Number(row.allocation_rate || 0);
       const allocation_rate = standardRate !== undefined ? standardRate : (rawRate > 1 ? rawRate / 100 : rawRate);
@@ -1577,6 +1610,41 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const paidAmountForFund = useCallback((fundKey: string, fundSource: string) => {
     const target = normalizeFund(FUND_SOURCE_BY_KEY[fundKey] || fundSource);
     const normSource = normalizeFund(fundSource);
+
+    // 1. Nếu đang xem một kỳ tuần cụ thể: kiểm tra số đã chi từ danh mục phân bổ kỳ tuần
+    if (!isMonthOverview && selectedPeriod) {
+      const rec = allocationsList.find(
+        (w) =>
+          w.period_code === selectedPeriod.period_code &&
+          (w.fund_key === fundKey ||
+            normalizeFund(w.fund_source) === normSource ||
+            normalizeFund(w.fund_source) === target)
+      );
+      if (rec && rec.paid_amount !== undefined && rec.paid_amount !== null) {
+        return Number(rec.paid_amount);
+      }
+    }
+
+    // 2. Nếu đang xem tổng quan tháng: kiểm tra số đã chi tổng hợp từ các bản ghi trong tháng
+    if (isMonthOverview) {
+      const monthRecs = allocationsList.filter(
+        (w) =>
+          w.period_month === selectedMonth &&
+          (w.fund_key === fundKey ||
+            normalizeFund(w.fund_source) === normSource ||
+            normalizeFund(w.fund_source) === target)
+      );
+      const monthOverviewRec = monthRecs.find((w) => w.period_code.endsWith('-MONTH'));
+      if (monthOverviewRec && Number(monthOverviewRec.paid_amount) > 0) {
+        return Number(monthOverviewRec.paid_amount);
+      }
+      const weeklyRecs = monthRecs.filter((w) => !w.period_code.endsWith('-MONTH'));
+      if (weeklyRecs.length > 0 && weeklyRecs.some((w) => Number(w.paid_amount) > 0)) {
+        return weeklyRecs.reduce((sum, w) => sum + Number(w.paid_amount || 0), 0);
+      }
+    }
+
+    // 3. Phương án dự phòng: tính từ các phiếu chi thực tế trong transaction_logs
     return logs
       .filter((log) => {
         const paidDate = log.payment_date || log.request_date;
@@ -1586,7 +1654,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         return logFund === normSource || logFund === target;
       })
       .reduce((sum, log) => sum + Number(log.actual_expense ?? log.proposed_amount ?? 0), 0);
-  }, [logs, isMonthOverview, selectedMonth, selectedPeriod]);
+  }, [allocationsList, logs, isMonthOverview, selectedMonth, selectedPeriod]);
 
   const fundRowsToDisplay = isMonthOverview ? monthFundRows : selectedRows;
   const summaryTotals = useMemo(() => {
@@ -1671,6 +1739,40 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     }
   };
 
+  const previewFunds: ExcelPreviewCashflowFund[] = useMemo(() => {
+    return fundRowsToDisplay.map((r) => {
+      const paid = paidAmountForFund(r.fund_key, r.fund_source);
+      const remaining = r.allocation_amount - paid;
+      const ratePct = r.allocation_rate > 1 ? r.allocation_rate : r.allocation_rate * 100;
+      return {
+        name: FUND_LABELS[r.fund_key] || r.fund_source,
+        rateText: `${ratePct.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`,
+        allocated: r.allocation_amount,
+        spent: paid,
+        remaining,
+      };
+    });
+  }, [fundRowsToDisplay, paidAmountForFund]);
+
+  const previewPeople: ExcelPreviewCashflowPerson[] = useMemo(() => {
+    const list = isMonthOverview ? monthPeopleRows : selectedPeopleRows;
+    return list.map((p, idx) => {
+      const amounts: Record<string, number> = {};
+      const memberKey = normalizePersonName(p.name).replace(/y/g, 'i');
+      const memberInfo = initialMembersMap.get(memberKey);
+      return {
+        stt: idx + 1,
+        name: p.name,
+        phone: memberInfo?.phone || null,
+        bankAccount: memberInfo?.bank_account || null,
+        bankName: memberInfo?.bank_name || 'MB Bank',
+        total: p.total,
+        detail: p.contracts?.map((c) => `- HĐ ${c.contract.contract_code || c.contract.customer_name}: ${formatVND(c.amount)}`).join('\n') || '',
+        amounts,
+      };
+    });
+  }, [isMonthOverview, monthPeopleRows, selectedPeopleRows, initialMembersMap]);
+
   return (
     <div className="space-y-5 px-[30px] pt-6 pb-8">
       <header className="flex flex-col gap-4 rounded-2xl bg-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
@@ -1697,26 +1799,28 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         </div>
       </header>
 
-      <Panel className="p-2">
-        <nav role="tablist" aria-label="Các phân hệ nhật ký thu chi" className="grid gap-2 sm:grid-cols-2">
-          {[
-            { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
-            { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`rounded-xl px-3 py-3 text-left transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-50'}`}
-            >
-              <span className="block text-xs font-bold sm:text-sm">{tab.title}</span>
-              <span className={`mt-1 block text-[10px] ${activeTab === tab.id ? 'text-blue-100' : 'text-slate-500'}`}>{tab.subtitle}</span>
-            </button>
-          ))}
-        </nav>
-      </Panel>
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          { id: 'cashflow' as const, title: 'Nhật ký dòng tiền & Phân bổ quỹ', subtitle: 'Quản lý theo hợp đồng' },
+          { id: 'vouchers' as const, title: 'Nhật ký phiếu thu chi', subtitle: 'Phiếu tự động và thủ công' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`rounded-xl px-4 py-2.5 text-left transition cursor-pointer border shadow-2xs ${
+              activeTab === tab.id
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className="block text-xs font-bold sm:text-sm">{tab.title}</span>
+            <span className={`mt-0.5 block text-[10px] ${activeTab === tab.id ? 'text-blue-100' : 'text-slate-500'}`}>{tab.subtitle}</span>
+          </button>
+        ))}
+      </div>
 
       {activeTab !== 'vouchers' && (
         <AdminTimeFilter
@@ -1732,23 +1836,13 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleExportAllFunds}
-                disabled={isExportingAllFunds}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
-                title={`Xuất báo cáo tổng hợp phân bổ tất cả các bộ phận & tất cả các quỹ Tháng ${selectedMonth}`}
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                <span>{isExportingAllFunds ? 'Đang xuất...' : 'Xuất tất cả các quỹ'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExportExcel}
+                onClick={() => setIsExcelPreviewOpen(true)}
                 disabled={isExporting}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
-                title={isMonthOverview ? `Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
+                title={isMonthOverview ? `Xem trước & Xuất báo cáo quyết toán quỹ Tháng ${selectedMonth}` : `Xem trước & Xuất đề nghị thanh toán ${selectedPeriodHeading}`}
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Excel'}</span>
+                <span>Xuất Excel</span>
               </button>
             </div>
           }
@@ -2329,18 +2423,28 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               <div className="mb-3 flex shrink-0 items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h2 className="font-bold text-slate-900">{isMonthOverview ? 'Phân bổ quỹ trong tháng' : 'Phân bổ quỹ kỳ tuần'}</h2>
-                  <p className="mt-1 text-[11px] text-slate-500">Đề nghị chi và số phân bổ được tách riêng.</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Tổng chi quỹ và số dư tồn quỹ theo kỳ.</p>
                 </div>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUpdatePaidOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition active:scale-95 cursor-pointer shadow-2xs"
+                    title="Cập nhật số tiền Đã chi thực tế cho kỳ này"
+                  >
+                    <Edit3 className="h-3 w-3" />
+                    <span>Cập nhật</span>
+                  </button>
+                  <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">15%</span>
+                </div>
               </div>
               <div className="flex-1 min-h-0 overflow-x-auto">
-                <table className="min-w-[580px] w-full text-left text-[10px]">
+                <table className="min-w-[480px] w-full text-left text-[10px]">
                   <thead className="border-b border-slate-200 bg-slate-50/60 font-semibold text-slate-500">
                     <tr>
                       <th className="px-2 py-2">Quỹ</th>
                       <th className="px-2 py-2 text-center">Tỷ lệ</th>
                       <th className="px-2 py-2 text-right">Phân bổ (15%)</th>
-                      <th className="px-2 py-2 text-right text-amber-700">Đề nghị chi</th>
                       <th className="px-2 py-2 text-right text-emerald-700">Đã chi</th>
                       <th className="px-2 py-2 text-right">Còn tồn</th>
                     </tr>
@@ -2369,13 +2473,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-slate-800">{formatVND(allocation)}</td>
-                          <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-amber-700 bg-amber-50/30">{formatVND(row.requested_amount)}</td>
                           <td className="whitespace-nowrap px-2 py-2 text-right font-semibold text-emerald-700">{formatVND(paid)}</td>
                           <td className={`whitespace-nowrap px-2 py-2 text-right font-bold ${remaining < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatVND(remaining)}</td>
                         </tr>
                       );
                     })}
-                    {!fundRowsToDisplay.length && <tr><td colSpan={6} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
+                    {!fundRowsToDisplay.length && <tr><td colSpan={5} className="px-2 py-8 text-center text-slate-500">Chưa có dữ liệu phân bổ cho kỳ này.</td></tr>}
                   </tbody>
                   {fundRowsToDisplay.length > 0 && (
                     <tfoot className="border-t-2 border-slate-200 bg-slate-50/80 font-bold text-slate-900">
@@ -2383,7 +2486,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                         <td className="px-2 py-2">TỔNG CỘNG</td>
                         <td className="px-2 py-2 text-center text-blue-700">15%</td>
                         <td className="px-2 py-2 text-right text-blue-700">{formatVND(summaryTotals.allocation)}</td>
-                        <td className="px-2 py-2 text-right text-amber-700">{formatVND(summaryTotals.requested)}</td>
                         <td className="px-2 py-2 text-right text-emerald-700">{formatVND(summaryTotals.paid)}</td>
                         <td className={`px-2 py-2 text-right ${summaryTotals.remaining < 0 ? 'text-red-600' : 'text-slate-900'}`}>{formatVND(summaryTotals.remaining)}</td>
                       </tr>
@@ -2398,8 +2500,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 <span className="text-emerald-400">{formatVND(displayedContractTotals.pool)}</span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-300">
-                <span>Tổng đề nghị chi DNTT:</span>
-                <span className="font-semibold text-amber-300">{formatVND(summaryTotals.requested)}</span>
+                <span>Tổng chi quỹ (Đã chi):</span>
+                <span className="font-semibold text-emerald-400">{formatVND(summaryTotals.paid)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-300">
+                <span>Còn lại quỹ (Còn tồn):</span>
+                <span className="font-semibold text-amber-300">{formatVND(summaryTotals.remaining)}</span>
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
                 <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
@@ -3137,6 +3243,52 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       >
         <Plus className="h-6 w-6" />
       </button>
+
+      {/* EXCEL PREVIEW MODAL */}
+      <ExcelPreviewModal
+        isOpen={isExcelPreviewOpen}
+        onClose={() => setIsExcelPreviewOpen(false)}
+        onExport={handleExportExcel}
+        isExporting={isExporting}
+        mode={isMonthOverview ? 'cashflow_month' : 'cashflow_week'}
+        title={isMonthOverview
+          ? `Báo cáo quyết toán quỹ Tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}`
+          : `Đề nghị thanh toán hoa hồng — ${selectedPeriodHeading}`}
+        subtitle={isMonthOverview
+          ? `Tổng hợp tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}`
+          : selectedPeriodHeading}
+        fileName={isMonthOverview
+          ? `Bao_cao_chot_quy_thang_${selectedMonth}.xlsx`
+          : `DNTT_hoa_hong_${selectedPeriodCode}.xlsx`}
+        data={{
+          salesBase: isMonthOverview ? displayedContractTotals.pool : selectedBase,
+          periodLabel: isMonthOverview
+            ? `Tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}`
+            : selectedPeriodHeading,
+          funds: previewFunds,
+          totalAllocated: summaryTotals.allocation,
+          totalSpent: summaryTotals.paid,
+          totalRemaining: summaryTotals.remaining,
+          people: previewPeople,
+        }}
+      />
+
+      {/* UPDATE FUND ALLOCATION PAID MODAL */}
+      <UpdateFundAllocationPaidModal
+        isOpen={isUpdatePaidOpen}
+        onClose={() => setIsUpdatePaidOpen(false)}
+        periodCode={isMonthOverview ? '' : selectedPeriodCode}
+        periodLabel={isMonthOverview ? `Tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}
+        salesBase={isMonthOverview ? displayedContractTotals.pool : selectedBase}
+        fundRows={fundRowsToDisplay.map((r) => ({
+          fund_key: r.fund_key,
+          fund_source: r.fund_source,
+          allocation_rate: r.allocation_rate,
+          allocation_amount: r.allocation_amount,
+          paid_amount: paidAmountForFund(r.fund_key, r.fund_source),
+        }))}
+        onSaveSuccess={handleUpdatePaidSuccess}
+      />
     </div>
   );
 }

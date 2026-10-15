@@ -3,6 +3,7 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminTimeFilter from '@/components/admin/AdminTimeFilter';
+import ExcelPreviewModal, { ExcelPreviewTrainingItem, ExcelPreviewTrainingCourse } from '@/components/admin/ExcelPreviewModal';
 import { getMonthWeekRange } from '@/lib/weekRanges';
 import {
   GraduationCap,
@@ -13,6 +14,7 @@ import {
   Search,
   Filter,
   Download,
+  FileSpreadsheet,
   Plus,
   Eye,
   Edit2,
@@ -268,6 +270,7 @@ export default function TrainingManagement({
   const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExcelPreviewOpen, setIsExcelPreviewOpen] = useState(false);
   const itemsPerPage = 10;
   const periodLabel = selectedMonth === 'all' ? 'toàn bộ dữ liệu' : selectedWeek ? 'theo tuần' : 'theo tháng';
 
@@ -1253,12 +1256,12 @@ export default function TrainingManagement({
               {/* Nút Xuất Báo Cáo Excel */}
               <button
                 type="button"
-                onClick={handleExportExcel}
+                onClick={() => setIsExcelPreviewOpen(true)}
                 disabled={isExporting}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>{isExporting ? 'Đang xuất...' : 'Xuất Excel'}</span>
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Xuất Excel</span>
               </button>
 
               {/* Nút Thêm buổi học */}
@@ -2036,6 +2039,45 @@ export default function TrainingManagement({
           </section>
         </div>
       )}
+
+      {/* EXCEL PREVIEW MODAL */}
+      <ExcelPreviewModal
+        isOpen={isExcelPreviewOpen}
+        onClose={() => setIsExcelPreviewOpen(false)}
+        onExport={handleExportExcel}
+        isExporting={isExporting}
+        mode="training"
+        title="Báo cáo Lịch Đào tạo"
+        subtitle={`${periodLabel} — ${filteredLogs.length} bản ghi`}
+        fileName={`Bao_cao_lich_dao_tao_${new Date().toISOString().split('T')[0]}.xlsx`}
+        data={{
+          trainingLogs: filteredLogs.map((l, idx) => ({
+            stt: idx + 1,
+            courseCode: l.course_code || '—',
+            date: l.training_date ? l.training_date.split('-').reverse().join('/') : '—',
+            memberPhone: l.member_phone || '—',
+            memberName: l.member_name,
+            tokenCount: l.token_count,
+            sessionBudget: l.session_budget,
+            totalTokens: l.total_tokens,
+            rewardAmount: l.reward_amount,
+            status: l.status,
+            validExpense: l.reward_amount,
+            trainingDate: l.training_date || '',
+          })),
+          trainingCourses: courses.map((c) => ({
+            code: c.course_code,
+            name: c.course_name,
+            type: c.training_type,
+            tokenValue: c.token_value,
+            budget: c.token_value * tokenRate,
+          })),
+          tokenRate,
+          totalTokenCount: stats.totalTokens,
+          totalRewards: stats.totalRewards,
+          totalValidExpense: stats.totalRewards,
+        }}
+      />
     </div>
   );
 }
