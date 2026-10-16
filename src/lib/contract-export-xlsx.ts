@@ -51,6 +51,8 @@ const columns: SpreadsheetColumn[] = [
   { header: 'SĐT người giới thiệu', width: 20, style: 8, headerStyle: 3, value: (row) => String(row.referrer_phone ?? '') },
   { header: 'Người hỗ trợ', width: 24, style: 12, value: (row) => String(row.supporter_name ?? '') },
   { header: 'SĐT người hỗ trợ', width: 19, style: 8, value: (row) => String(row.supporter_phone ?? '') },
+  { header: 'Cộng tác viên', width: 24, style: 12, value: (row) => String(row.collaborator_name ?? '') },
+  { header: 'SĐT cộng tác viên', width: 19, style: 8, value: (row) => String(row.collaborator_phone ?? '') },
   { header: 'Đội nhóm', width: 22, style: 13, value: (row) => String(row.team_name ?? '').trim() },
   { header: 'Trạng thái', width: 16, style: 14, value: (row) => String(row.status ?? '') },
 ];

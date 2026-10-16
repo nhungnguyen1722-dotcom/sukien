@@ -270,7 +270,10 @@ CREATE TABLE public.contracts (
     approved_date date,
     customer_phone character varying(50),
     customer_birth_date date,
-    customer_address character varying(500)
+    customer_address character varying(500),
+    collaborator_id integer,
+    collaborator_name character varying(255),
+    collaborator_phone character varying(50)
 );
 
 

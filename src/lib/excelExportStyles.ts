@@ -107,6 +107,21 @@ export interface WeeklyReportData {
   personMatrix?: WeeklyPersonMatrixData | null;
 }
 
+function formatWeeklyPeriodTitle(data: WeeklyReportData) {
+  const label = String(data.weekLabel || '').trim();
+  const friendlyLabel = label.match(/tuần\s*([1-5])\s*tháng\s*(\d{1,2})/i);
+  if (friendlyLabel) return `tuần ${Number(friendlyLabel[1])} tháng ${Number(friendlyLabel[2])}`;
+
+  const code = `${data.periodCode || ''} ${label}`;
+  const codedLabel = code.match(/(\d{4})-(\d{1,2})-W([1-5])/i);
+  if (codedLabel) return `tuần ${Number(codedLabel[3])} tháng ${Number(codedLabel[2])}`;
+
+  const weekFirstLabel = label.match(/(?:week|wk|w|tuần|tuan)\s*0?([1-5]).*?(?:month|tháng|thang)\s*0?(\d{1,2})/i);
+  if (weekFirstLabel) return `tuần ${Number(weekFirstLabel[1])} tháng ${Number(weekFirstLabel[2])}`;
+
+  return label;
+}
+
 export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: WeeklyReportData, sheetName: string) {
   const ws = workbook.addWorksheet(sheetName, {
     views: [{ showGridLines: true }],
@@ -154,7 +169,7 @@ export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: Weekly
   // 3. Tiêu đề chính bảng 1 (MÀU XANH ĐẬM #5B9BD5)
   ws.mergeCells('A5:H5');
   const cellA5 = ws.getCell('A5');
-  cellA5.value = `Phân bổ hoa hồng và thù lao ${data.weekLabel}`;
+  cellA5.value = `Phân bổ hoa hồng và thù lao ${formatWeeklyPeriodTitle(data)}`;
   cellA5.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF000000' } };
   cellA5.fill = primaryHeaderFill;
   cellA5.alignment = { horizontal: 'center', vertical: 'middle' };

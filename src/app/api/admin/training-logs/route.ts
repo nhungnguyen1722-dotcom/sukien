@@ -377,6 +377,19 @@ export async function PUT(req: NextRequest) {
 
     const { id, status, approver } = body;
 
+    if (Array.isArray(body.ids)) {
+      const logIds = [...new Set<number>((body.ids as unknown[]).map((value) => Number(value)))].filter((value) => Number.isInteger(value) && value > 0);
+      if (logIds.length === 0 || !['Đã duyệt', 'Chờ duyệt'].includes(status)) {
+        return NextResponse.json({ success: false, message: 'Missing training log IDs or approval status.' }, { status: 400 });
+      }
+
+      const updated = await pool.query(
+        `UPDATE training_logs SET status = $1 WHERE id = ANY($2::int[]) RETURNING id, status`,
+        [status, logIds]
+      );
+      return NextResponse.json({ success: true, logs: updated.rows });
+    }
+
     const logId = Number(id);
     if (!Number.isInteger(logId) || logId <= 0) {
       return NextResponse.json({ success: false, message: 'Thiếu ID' }, { status: 400 });

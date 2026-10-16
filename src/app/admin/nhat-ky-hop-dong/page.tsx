@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { ensureTeamLeadSchema } from '@/lib/teamlead';
 import { ensureMemberSchema, UNIFIED_TEAM_NAME_SQL } from '@/lib/memberTeams';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { ensureContractCollaboratorSchema } from '@/lib/contractCollaboratorSchema';
 
 import ContractManagement, { Contract, Stats, TeamOption, UserOption } from '@/components/admin/ContractManagement';
 
@@ -15,6 +16,7 @@ async function getContractsData(year: number): Promise<{
   teams: TeamOption[];
 }> {
   try {
+    await ensureContractCollaboratorSchema();
     await ensureTeamLeadSchema();
     await ensureMemberSchema();
     const [contractsRes, statsRes, closersRes, usersRes, teamsRes] = await Promise.all([
@@ -52,6 +54,9 @@ async function getContractsData(year: number): Promise<{
             ELSE COALESCE(NULLIF(BTRIM(c.supporter_name), ''), u_supporter.full_name)
           END as supporter_name,
           COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone) as supporter_phone,
+          c.collaborator_id,
+          COALESCE(NULLIF(BTRIM(c.collaborator_name), ''), u_collaborator.full_name) AS collaborator_name,
+          COALESCE(NULLIF(BTRIM(c.collaborator_phone), ''), u_collaborator.phone) AS collaborator_phone,
           c.team_name,
           c.contract_type,
           c.closer_fee,
@@ -63,6 +68,7 @@ async function getContractsData(year: number): Promise<{
         LEFT JOIN users u_closer ON c.closer_id = u_closer.id
         LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
         LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+        LEFT JOIN users u_collaborator ON c.collaborator_id = u_collaborator.id
         WHERE EXTRACT(YEAR FROM c.contract_date) = $1
         ORDER BY c.contract_date DESC, c.id DESC
       `, [year]),
@@ -143,6 +149,7 @@ async function getContractsData(year: number): Promise<{
       closer_name: sanitizeVietnameseText(row.closer_name),
       referrer_name: sanitizeVietnameseText(row.referrer_name),
       supporter_name: sanitizeVietnameseText(row.supporter_name),
+      collaborator_name: sanitizeVietnameseText(row.collaborator_name),
       status: sanitizeVietnameseText(row.status),
       contract_date: row.contract_date_text || '',
       created_at: row.created_at ? new Date(row.created_at).toISOString() : '',

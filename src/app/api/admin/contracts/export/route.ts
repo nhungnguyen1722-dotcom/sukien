@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import { createContractsWorkbook } from '@/lib/contract-export-xlsx';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
+import { ensureContractCollaboratorSchema } from '@/lib/contractCollaboratorSchema';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,7 @@ function dateStamp(): string {
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureContractCollaboratorSchema();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search')?.trim() || '';
     const status = searchParams.get('status') || '';
@@ -55,6 +57,8 @@ export async function GET(request: NextRequest) {
         OR COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone) ILIKE $${idx}
         OR COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name) ILIKE $${idx}
         OR COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.collaborator_name), ''), u_collaborator.full_name) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.collaborator_phone), ''), u_collaborator.phone) ILIKE $${idx}
       )`);
       values.push(`%${search}%`);
       idx += 1;
@@ -113,12 +117,16 @@ export async function GET(request: NextRequest) {
           ELSE COALESCE(NULLIF(BTRIM(c.supporter_name), ''), u_supporter.full_name)
         END AS supporter_name,
         COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone) AS supporter_phone,
+        c.collaborator_id,
+        COALESCE(NULLIF(BTRIM(c.collaborator_name), ''), u_collaborator.full_name) AS collaborator_name,
+        COALESCE(NULLIF(BTRIM(c.collaborator_phone), ''), u_collaborator.phone) AS collaborator_phone,
         c.team_name,
         CASE WHEN c.status = 'Ch? duy?t' THEN 'Chờ duyệt' ELSE c.status END AS status
       FROM contracts c
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
       LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+      LEFT JOIN users u_collaborator ON c.collaborator_id = u_collaborator.id
       ${whereClause}
       ORDER BY c.contract_date DESC, c.id DESC
     `, values);
@@ -128,6 +136,7 @@ export async function GET(request: NextRequest) {
       closer_name: sanitizeVietnameseText(row.closer_name),
       referrer_name: sanitizeVietnameseText(row.referrer_name),
       supporter_name: sanitizeVietnameseText(row.supporter_name),
+      collaborator_name: sanitizeVietnameseText(row.collaborator_name),
       status: sanitizeVietnameseText(row.status),
       contract_date_text: formatDate(row.contract_date_text),
     }));

@@ -617,6 +617,12 @@ export default function TrainingManagement({
         throw new Error(result.message || 'Không thể cập nhật trạng thái lượt đào tạo.');
       }
       setLogs((current) => current.map((item) => item.id === log.id ? { ...item, status } : item));
+      const rewardDelta = (status === 'Đã duyệt' ? Number(log.reward_amount) : 0)
+        - (log.status === 'Đã duyệt' ? Number(log.reward_amount) : 0);
+      setStats((current) => ({
+        ...current,
+        totalRewards: Math.max(0, current.totalRewards + rewardDelta),
+      }));
       showToast('success', 'Đã cập nhật trạng thái duyệt.');
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
@@ -626,23 +632,32 @@ export default function TrainingManagement({
   };
 
   const handleSessionStatusChange = async (session: GroupedTrainingSession, status: string) => {
-    if (status === session.status) return;
+    if (session.participants.every((participant) => participant.status === status)) return;
     setUpdatingStatusId(session.participants[0]?.id ?? -1);
     try {
-      await Promise.all(
-        session.participants.map((p) =>
-          fetch('/api/admin/training-logs', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: p.id, status }),
-          })
-        )
-      );
+      const response = await fetch('/api/admin/training-logs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: session.participants.map((participant) => participant.id), status }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Could not update the training session status.');
+      }
       setLogs((current) =>
         current.map((item) =>
           session.participants.some((p) => p.id === item.id) ? { ...item, status } : item
         )
       );
+      const rewardDelta = session.participants.reduce((sum, participant) => (
+        sum
+        + (status === 'Đã duyệt' ? Number(participant.reward_amount) : 0)
+        - (participant.status === 'Đã duyệt' ? Number(participant.reward_amount) : 0)
+      ), 0);
+      setStats((current) => ({
+        ...current,
+        totalRewards: Math.max(0, current.totalRewards + rewardDelta),
+      }));
       showToast('success', `Đã cập nhật trạng thái buổi ${session.course_code} thành ${status}.`);
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : 'Lỗi kết nối máy chủ');
@@ -1988,13 +2003,13 @@ export default function TrainingManagement({
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
                 </div>
                 <div>
-                  <label htmlFor="training-course-budget" className="mb-1 block font-semibold text-slate-700">Học phí (VNĐ) *</label>
+                  <label htmlFor="training-course-budget" className="mb-1 block font-semibold text-slate-700">Ngân sách (VNĐ) *</label>
                   <input id="training-course-budget" type="number" min="0" step="1" required readOnly value={courseForm.token_value * tokenRateForPricing}
                     className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 font-bold text-slate-700" />
                 </div>
               </div>
               <p className="rounded-lg bg-blue-50 px-3 py-2 text-[11px] text-blue-800" aria-live="polite">
-                Học phí tự động: {courseForm.token_value} Token × {formatCurrency(tokenRateForPricing)} = <strong>{formatCurrency(courseForm.token_value * tokenRateForPricing)}</strong>
+                Ngân sách tự động: {courseForm.token_value} Token × {formatCurrency(tokenRateForPricing)} = <strong>{formatCurrency(courseForm.token_value * tokenRateForPricing)}</strong>
               </p>
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
                 <button type="button" onClick={() => { setIsAddCourseOpen(false); setEditingCourse(null); }} className="rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50">Hủy</button>

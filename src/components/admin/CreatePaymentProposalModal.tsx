@@ -162,9 +162,7 @@ export default function CreatePaymentProposalModal({
   const [approverName, setApproverName] = useState('');
   const [status, setStatus] = useState('Chờ duyệt');
   const [fundSource, setFundSource] = useState(() => getFundOptionLabel(initialFundSource || FUND_OPTIONS[0]));
-  const [note, setNote] = useState(
-    () => initialNote || 'Đề nghị Kế toán thanh toán thù lao hoa hồng và đào tạo theo bảng kê phân bổ đã được duyệt.'
-  );
+  const [note, setNote] = useState(() => initialNote ?? '');
 
   const createEmptyItem = (order: number = 1): TransactionLogItem => {
     return {
@@ -195,7 +193,7 @@ export default function CreatePaymentProposalModal({
         setItems(initialItems);
       }
       if (initialFundSource) setFundSource(getFundOptionLabel(initialFundSource));
-      if (initialNote) setNote(initialNote);
+      setNote(initialNote ?? '');
     }
   }, [isOpen, initialItems, initialFundSource, initialNote]);
 
@@ -1001,7 +999,7 @@ export default function CreatePaymentProposalModal({
                 maxLength={500}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Đề nghị Kế toán thanh toán thù lao hoa hồng và đào tạo theo bảng kê phân bổ..."
+                placeholder=""
                 className="w-full rounded-2xl border border-slate-200 bg-white p-3 pb-6 text-xs text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-2xs"
               />
               <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 font-mono">

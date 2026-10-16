@@ -50,6 +50,9 @@ export interface Contract {
   supporter_id: number | null;
   supporter_name?: string | null;
   supporter_phone?: string | null;
+  collaborator_id?: number | null;
+  collaborator_name?: string | null;
+  collaborator_phone?: string | null;
   team_name?: string | null;
   contract_type?: string | null;
   closer_fee?: number | string | null;
@@ -83,7 +86,7 @@ export interface TeamOption {
   name: string;
 }
 
-type MemberRole = 'closer' | 'referrer' | 'supporter';
+type MemberRole = 'closer' | 'referrer' | 'supporter' | 'collaborator';
 
 interface ContractManagementProps {
   initialContracts: Contract[];
@@ -112,6 +115,9 @@ interface ContractFormData {
   supporter_id: string;
   supporter_name: string;
   supporter_phone: string;
+  collaborator_id: string;
+  collaborator_name: string;
+  collaborator_phone: string;
   team_name: string;
 }
 
@@ -134,6 +140,9 @@ const emptyForm: ContractFormData = {
   supporter_id: '',
   supporter_name: '',
   supporter_phone: '',
+  collaborator_id: '',
+  collaborator_name: '',
+  collaborator_phone: '',
   team_name: '',
 };
 
@@ -608,6 +617,7 @@ function normalizeContract(contract: Contract): Contract {
     closer_name: sanitizeVietnameseText(contract.closer_name),
     referrer_name: sanitizeVietnameseText(contract.referrer_name),
     supporter_name: sanitizeVietnameseText(contract.supporter_name),
+    collaborator_name: sanitizeVietnameseText(contract.collaborator_name),
     status: sanitizeVietnameseText(contract.status),
   };
 }
@@ -793,6 +803,9 @@ export default function ContractManagement({
       supporter_id: contract.supporter_id ? String(contract.supporter_id) : '',
       supporter_name: contract.supporter_name || '',
       supporter_phone: contract.supporter_phone || '',
+      collaborator_id: contract.collaborator_id ? String(contract.collaborator_id) : '',
+      collaborator_name: contract.collaborator_name || '',
+      collaborator_phone: contract.collaborator_phone || '',
       team_name: contract.team_name || '',
     });
     setValueFormatted(cleanNumber(String(contractVal)));
@@ -804,7 +817,13 @@ export default function ContractManagement({
     if (selectedId === 'legacy') {
       setFormData((current) => ({
         ...current,
-        ...(role === 'closer' ? { closer_id: '' } : role === 'referrer' ? { referrer_id: '' } : { supporter_id: '' }),
+        ...(role === 'closer'
+          ? { closer_id: '' }
+          : role === 'referrer'
+            ? { referrer_id: '' }
+            : role === 'supporter'
+              ? { supporter_id: '' }
+              : { collaborator_id: '' }),
       }));
       return;
     }
@@ -815,7 +834,9 @@ export default function ContractManagement({
           ? { closer_id: '', closer_name: '', closer_phone: '' }
           : role === 'referrer'
             ? { referrer_id: '', referrer_name: '', referrer_phone: '' }
-            : { supporter_id: '', supporter_name: '', supporter_phone: '' }),
+            : role === 'supporter'
+              ? { supporter_id: '', supporter_name: '', supporter_phone: '' }
+              : { collaborator_id: '', collaborator_name: '', collaborator_phone: '' }),
       }));
       return;
     }
@@ -827,7 +848,9 @@ export default function ContractManagement({
         ? { closer_id: String(selected.id), closer_name: selected.full_name, closer_phone: selected.phone || '' }
         : role === 'referrer'
           ? { referrer_id: String(selected.id), referrer_name: selected.full_name, referrer_phone: selected.phone || '' }
-          : { supporter_id: String(selected.id), supporter_name: selected.full_name, supporter_phone: selected.phone || '' };
+          : role === 'supporter'
+            ? { supporter_id: String(selected.id), supporter_name: selected.full_name, supporter_phone: selected.phone || '' }
+            : { collaborator_id: String(selected.id), collaborator_name: selected.full_name, collaborator_phone: selected.phone || '' };
       const next = { ...current, ...selectedFields };
 
       if (role === 'closer') {
@@ -1002,6 +1025,11 @@ export default function ContractManagement({
       name: viewingContract.supporter_name || '—',
       phone: viewingContract.supporter_phone || '—',
     },
+    {
+      role: 'Cộng tác viên',
+      name: viewingContract.collaborator_name || '—',
+      phone: viewingContract.collaborator_phone || '—',
+    },
   ] : [];
 
   const exportContractDetail = () => {
@@ -1025,6 +1053,8 @@ export default function ContractManagement({
       'SĐT người giới thiệu': viewingContract.referrer_phone || '',
       'Người hỗ trợ': viewingContract.supporter_name || '',
       'SĐT người hỗ trợ': viewingContract.supporter_phone || '',
+      'Cộng tác viên': viewingContract.collaborator_name || '',
+      'SĐT cộng tác viên': viewingContract.collaborator_phone || '',
       'Thù lao Người chốt 6% (VNĐ)': numeric(viewingContract.closer_fee),
       'Thù lao Người giới thiệu 1% (VNĐ)': numeric(viewingContract.referrer_fee),
       'Thù lao Người hỗ trợ 0,5% (VNĐ)': numeric(viewingContract.supporter_fee),
@@ -1295,7 +1325,7 @@ export default function ContractManagement({
             <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
               {formError && <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"><AlertCircle className="h-4 w-4 shrink-0" />{formError}</div>}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="text-xs font-semibold text-slate-700">
                   Mã hợp đồng
                   <input
@@ -1326,9 +1356,7 @@ export default function ContractManagement({
                     {contractTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                   </select>
                 </label>
-              </div>
 
-              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <label className="text-xs font-semibold text-slate-700">
                   Ngày ký <span className="text-rose-500">*</span>
                   <input type="date" value={formData.contract_date} onChange={(event) => setFormData({ ...formData, contract_date: event.target.value })} required className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" />
@@ -1429,6 +1457,7 @@ export default function ContractManagement({
                 {memberSelect('closer', 'Người chốt', formData.closer_name, formData.closer_phone, formData.closer_id)}
                 {memberSelect('referrer', 'Người giới thiệu F1', formData.referrer_name, formData.referrer_phone, formData.referrer_id)}
                 {memberSelect('supporter', 'Người hỗ trợ Sale', formData.supporter_name, formData.supporter_phone, formData.supporter_id)}
+                {memberSelect('collaborator', 'Cộng tác viên', formData.collaborator_name, formData.collaborator_phone, formData.collaborator_id)}
                 <div className="relative rounded-xl border border-slate-200 bg-white p-3 flex flex-col justify-between">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <label htmlFor="team-select" className="text-xs font-semibold text-slate-700">
@@ -1508,15 +1537,18 @@ export default function ContractManagement({
                 <button type="button" onClick={() => setViewingContract(null)} aria-label="Đóng Pop-up" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
-                <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                  <div><span className="block text-slate-400">Mã hợp đồng</span><strong className="mt-1 block text-slate-800">{viewingContract.contract_code || '—'}</strong></div>
                   <div><span className="block text-slate-400">Loại hợp đồng</span><strong className="mt-1 block text-slate-800">{viewingContract.contract_type || '—'}</strong></div>
+                  <div><span className="block text-slate-400">Ngày ký</span><strong className="mt-1 block text-slate-800">{formatDate(viewingContract.contract_date)}</strong></div>
+                  <div><span className="block text-slate-400">Giá trị hợp đồng</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.value)}</strong></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs sm:grid-cols-3">
                   <div><span className="block text-slate-400">Khách hàng</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_name}</strong></div>
                   <div><span className="block text-slate-400">SĐT khách hàng</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_phone || '—'}</strong></div>
                   <div><span className="block text-slate-400">Ngày sinh</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_birth_date ? formatDate(viewingContract.customer_birth_date) : '—'}</strong></div>
                   <div><span className="block text-slate-400">Địa chỉ</span><strong className="mt-1 block text-slate-800">{viewingContract.customer_address || '—'}</strong></div>
-                  <div><span className="block text-slate-400">Ngày ký</span><strong className="mt-1 block text-slate-800">{formatDate(viewingContract.contract_date)}</strong></div>
                   <div className="sm:col-span-2"><ContractTermBadge contractDate={viewingContract.contract_date} contractType={viewingContract.contract_type} /></div>
-                  <div><span className="block text-slate-400">Giá trị hợp đồng</span><strong className="mt-1 block text-blue-700">{formatMoney(viewingContract.value)}</strong></div>
                   {(isBdsContract(viewingContract.contract_type) || isTwoYearContract(viewingContract.contract_type)) && (
                     <div><span className="block text-slate-400">Giá trị hợp đồng phân bổ</span><strong className="mt-1 block text-emerald-700">{formatMoney(getAllocatedContractValue(viewingContract.value, viewingContract.contract_type))}</strong></div>
                   )}

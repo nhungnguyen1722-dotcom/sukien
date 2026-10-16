@@ -4,6 +4,7 @@ import { ensureTeamLeadSchema } from '@/lib/teamlead';
 import { generateAutomaticContractSlips } from '@/lib/transactionLogs';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { calculateContractAllocatedValue, isBdsContract, isTwoYearContract } from '@/lib/allocationFormulas';
+import { ensureContractCollaboratorSchema } from '@/lib/contractCollaboratorSchema';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,7 @@ interface RouteParams {
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
+    await ensureContractCollaboratorSchema();
     const { id } = await params;
     const contractId = parseInt(id, 10);
 
@@ -54,6 +56,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
           ELSE COALESCE(c.supporter_name, u_supporter.full_name)
         END as supporter_name,
         COALESCE(c.supporter_phone, u_supporter.phone) as supporter_phone,
+        c.collaborator_id,
+        COALESCE(NULLIF(BTRIM(c.collaborator_name), ''), u_collaborator.full_name) as collaborator_name,
+        COALESCE(NULLIF(BTRIM(c.collaborator_phone), ''), u_collaborator.phone) as collaborator_phone,
         c.team_name,
         c.contract_type,
         c.created_at
@@ -61,6 +66,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
       LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+      LEFT JOIN users u_collaborator ON c.collaborator_id = u_collaborator.id
       WHERE c.id = $1
       `,
       [contractId]
@@ -78,6 +84,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         closer_name: sanitizeVietnameseText(contractRow.closer_name),
         referrer_name: sanitizeVietnameseText(contractRow.referrer_name),
         supporter_name: sanitizeVietnameseText(contractRow.supporter_name),
+        collaborator_name: sanitizeVietnameseText(contractRow.collaborator_name),
         contract_date: contractRow.contract_date_text || '',
       },
     });
@@ -89,6 +96,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    await ensureContractCollaboratorSchema();
     const { id } = await params;
     const contractId = parseInt(id, 10);
 
@@ -114,6 +122,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       supporter_id,
       supporter_name,
       supporter_phone,
+      collaborator_id,
+      collaborator_name,
+      collaborator_phone,
       team_name,
       contract_type,
     } = body;
@@ -170,13 +181,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         supporter_id = $14,
         supporter_name = $15,
         supporter_phone = $16,
-        team_name = $17,
-        contract_type = $18,
-        allocated_value = $19,
-        closer_fee = $20,
-        referrer_fee = $21,
-        supporter_fee = $22
-      WHERE id = $23
+        collaborator_id = $17,
+        collaborator_name = $18,
+        collaborator_phone = $19,
+        team_name = $20,
+        contract_type = $21,
+        allocated_value = $22,
+        closer_fee = $23,
+        referrer_fee = $24,
+        supporter_fee = $25
+      WHERE id = $26
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
@@ -196,6 +210,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         supporter_id && Number.isInteger(Number(supporter_id)) ? Number(supporter_id) : null,
         supporter_name || null,
         supporter_phone || null,
+        collaborator_id && Number.isInteger(Number(collaborator_id)) ? Number(collaborator_id) : null,
+        collaborator_name || null,
+        collaborator_phone || null,
         normalizedTeamName || null,
         contract_type || null,
         allocatedValue,

@@ -6,12 +6,14 @@ import { generateAutomaticContractSlips } from '@/lib/transactionLogs';
 import { sanitizeVietnameseText } from '@/lib/nameSanitizer';
 import { getMonthWeekRange } from '@/lib/weekRanges';
 import { calculateContractAllocatedValue, isBdsContract, isTwoYearContract } from '@/lib/allocationFormulas';
+import { ensureContractCollaboratorSchema } from '@/lib/contractCollaboratorSchema';
 
 export const dynamic = 'force-dynamic';
 
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureContractCollaboratorSchema();
     await ensureTeamLeadSchema();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -37,6 +39,8 @@ export async function GET(request: NextRequest) {
         OR COALESCE(NULLIF(BTRIM(c.closer_phone), ''), u_closer.phone) ILIKE $${idx}
         OR COALESCE(NULLIF(BTRIM(c.referrer_name), ''), u_referrer.full_name) ILIKE $${idx}
         OR COALESCE(NULLIF(BTRIM(c.referrer_phone), ''), u_referrer.phone) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.collaborator_name), ''), u_collaborator.full_name) ILIKE $${idx}
+        OR COALESCE(NULLIF(BTRIM(c.collaborator_phone), ''), u_collaborator.phone) ILIKE $${idx}
       )`);
       values.push(`%${search}%`);
       idx++;
@@ -166,6 +170,9 @@ export async function GET(request: NextRequest) {
           ELSE COALESCE(NULLIF(BTRIM(c.supporter_name), ''), u_supporter.full_name)
         END as supporter_name,
         COALESCE(NULLIF(BTRIM(c.supporter_phone), ''), u_supporter.phone) as supporter_phone,
+        c.collaborator_id,
+        COALESCE(NULLIF(BTRIM(c.collaborator_name), ''), u_collaborator.full_name) as collaborator_name,
+        COALESCE(NULLIF(BTRIM(c.collaborator_phone), ''), u_collaborator.phone) as collaborator_phone,
         c.team_name,
         c.contract_type,
         c.closer_fee,
@@ -177,6 +184,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
       LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+      LEFT JOIN users u_collaborator ON c.collaborator_id = u_collaborator.id
       ${whereClause}
       ORDER BY c.contract_date DESC, c.id DESC
     `;
@@ -214,6 +222,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN users u_closer ON c.closer_id = u_closer.id
       LEFT JOIN users u_referrer ON c.referrer_id = u_referrer.id
       LEFT JOIN users u_supporter ON c.supporter_id = u_supporter.id
+      LEFT JOIN users u_collaborator ON c.collaborator_id = u_collaborator.id
       ${whereClause}
     `;
 
@@ -270,6 +279,7 @@ export async function GET(request: NextRequest) {
       closer_name: sanitizeVietnameseText(row.closer_name),
       referrer_name: sanitizeVietnameseText(row.referrer_name),
       supporter_name: sanitizeVietnameseText(row.supporter_name),
+      collaborator_name: sanitizeVietnameseText(row.collaborator_name),
       status: sanitizeVietnameseText(row.status),
       contract_date: row.contract_date_text || '',
       created_at: row.created_at ? new Date(row.created_at).toISOString() : '',
@@ -298,6 +308,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureContractCollaboratorSchema();
     const body = await request.json();
     const {
       contract_code,
@@ -316,6 +327,9 @@ export async function POST(request: NextRequest) {
       supporter_id,
       supporter_name,
       supporter_phone,
+      collaborator_id,
+      collaborator_name,
+      collaborator_phone,
       team_name,
       contract_type,
     } = body;
@@ -371,6 +385,9 @@ export async function POST(request: NextRequest) {
         supporter_id,
         supporter_name,
         supporter_phone,
+        collaborator_id,
+        collaborator_name,
+        collaborator_phone,
         allocated_value,
         closer_fee,
         referrer_fee,
@@ -381,7 +398,7 @@ export async function POST(request: NextRequest) {
         approved_date,
         notes,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 'Đã duyệt', $21, $22, NULL, NULL, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'Đã duyệt', $24, $25, NULL, NULL, CURRENT_TIMESTAMP)
       RETURNING *, contract_date::text AS contract_date_text, approved_date::text AS approved_date_text
       `,
       [
@@ -401,6 +418,9 @@ export async function POST(request: NextRequest) {
         supporter_id && Number.isInteger(Number(supporter_id)) ? Number(supporter_id) : null,
         supporter_name || null,
         supporter_phone || null,
+        collaborator_id && Number.isInteger(Number(collaborator_id)) ? Number(collaborator_id) : null,
+        collaborator_name || null,
+        collaborator_phone || null,
         allocatedValue,
         closer_fee,
         referrer_fee,

@@ -546,7 +546,13 @@ function beneficiarySourceDisclosure(contract: FundContract, person: FundContrac
   };
 }
 
-function groupContractsByPerson(contracts: FundContract[], members?: TransactionMember[]) {
+interface FundPersonRow {
+  name: string;
+  total: number;
+  contracts: Array<{ contract: FundContract; amount: number }>;
+}
+
+function groupContractsByPerson(contracts: FundContract[], members?: TransactionMember[]): FundPersonRow[] {
   const people = new Map<string, {
     name: string;
     total: number;
@@ -576,6 +582,212 @@ function groupContractsByPerson(contracts: FundContract[], members?: Transaction
     .map((person) => ({ ...person, contracts: Array.from(person.contracts.values()) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
+
+interface FundDistributionMatrixProps {
+  view: 'contract' | 'person';
+  contracts: FundContract[];
+  contractCount: number;
+  people: FundPersonRow[];
+  members: TransactionMember[];
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}
+
+const FundDistributionMatrix = React.memo(function FundDistributionMatrix({
+  view,
+  contracts,
+  contractCount,
+  people,
+  members,
+  currentPage,
+  pageSize,
+  totalPages,
+  onPageChange,
+  onPageSizeChange,
+}: FundDistributionMatrixProps) {
+  const memberByName = useMemo(() => {
+    const map = new Map<string, TransactionMember>();
+    for (const member of members) {
+      map.set(normalizePersonName(member.full_name).replace(/y/g, 'i'), member);
+    }
+    return map;
+  }, [members]);
+
+  const amountsByContract = useMemo(() => {
+    const map = new Map<number, Map<string, number>>();
+    for (const person of people) {
+      const personKey = normalizePersonName(person.name).replace(/y/g, 'i');
+      for (const item of person.contracts) {
+        let contractAmounts = map.get(item.contract.id);
+        if (!contractAmounts) {
+          contractAmounts = new Map<string, number>();
+          map.set(item.contract.id, contractAmounts);
+        }
+        contractAmounts.set(personKey, (contractAmounts.get(personKey) || 0) + Number(item.amount || 0));
+      }
+    }
+    return map;
+  }, [people]);
+
+  const contractTotals = useMemo(() => contracts.map((contract) => ({
+    pool: contractPool(contract),
+    commission: contractCommission(contract, members),
+    remaining: contractRemainingFund(contract, members),
+  })), [contracts, members]);
+
+  const personTotals = useMemo(() => people.map((person) => {
+    const personKey = normalizePersonName(person.name).replace(/y/g, 'i');
+    return contracts.reduce((sum, contract) => sum + (amountsByContract.get(contract.id)?.get(personKey) || 0), 0);
+  }), [amountsByContract, contracts, people]);
+
+  const pageStart = contractCount === 0 ? 0 : (currentPage - 1) * (pageSize || contractCount) + 1;
+  const pageEnd = Math.min(currentPage * (pageSize || contractCount), contractCount);
+  const totalPool = contractTotals.reduce((sum, row) => sum + row.pool, 0);
+  const totalCommission = contractTotals.reduce((sum, row) => sum + row.commission, 0);
+  const totalRemaining = contractTotals.reduce((sum, row) => sum + row.remaining, 0);
+
+  const contractHeading = (contract: FundContract, index: number) => (
+    <div className="min-w-[132px] max-w-[180px] whitespace-normal text-left normal-case tracking-normal">
+      <div className="font-bold text-slate-800">{formatDate(contract.contract_date)} · {contract.customer_name || 'Khách hàng'}</div>
+      <div className="mt-1 text-[10px] font-normal text-slate-500">{contract.contract_code || `HĐ #${contract.id}`}</div>
+      <div className="text-[10px] font-normal text-slate-600">Giá trị HĐ: {formatVND(contract.allocated_value ?? contract.value)}</div>
+      <span className="sr-only">Hợp đồng {index + 1}</span>
+    </div>
+  );
+
+  const personHeading = (person: FundPersonRow) => {
+    const member = memberByName.get(normalizePersonName(person.name).replace(/y/g, 'i'));
+    return (
+      <div className="min-w-[132px] max-w-[175px] whitespace-normal text-left normal-case tracking-normal">
+        <div className="font-bold text-slate-800">{person.name}</div>
+        <div className="mt-1 text-[10px] font-normal text-slate-500">STK: {member?.bank_account || '—'}</div>
+        <div className="text-[10px] font-normal text-slate-500">{member?.bank_name || 'Chưa cập nhật ngân hàng'}</div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <div className="overflow-auto rounded-lg border border-slate-200">
+        <table
+          aria-label={view === 'contract' ? 'Ma trận phân bổ theo hợp đồng' : 'Ma trận phân bổ theo họ tên'}
+          className="border-collapse text-left text-[11px]"
+          style={{ minWidth: `${view === 'contract' ? 350 + contracts.length * 150 : 480 + people.length * 150}px` }}
+        >
+          {view === 'contract' ? (
+            <>
+              <thead className="sticky top-0 z-20 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600 shadow-sm">
+                <tr>
+                  <th className="sticky left-0 z-30 min-w-[220px] bg-slate-100 px-3 py-2.5">Nhân sự thụ hưởng</th>
+                  {contracts.map((contract, index) => <th key={contract.id} className="min-w-[150px] border-l border-slate-200 px-2.5 py-2.5">{contractHeading(contract, index)}</th>)}
+                  <th className="sticky right-0 z-30 min-w-[130px] bg-blue-50 px-3 py-2.5 text-right">Tổng chi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {people.map((person, personIndex) => {
+                  const personKey = normalizePersonName(person.name).replace(/y/g, 'i');
+                  const member = memberByName.get(personKey);
+                  const total = personTotals[personIndex] || 0;
+                  return (
+                    <tr key={personKey} className="hover:bg-blue-50/40">
+                      <th scope="row" className="sticky left-0 z-10 min-w-[220px] bg-white px-3 py-2 text-left">
+                        <div className="font-bold text-slate-800">{person.name}</div>
+                        <div className="mt-0.5 text-[10px] font-normal text-slate-500">STK: {member?.bank_account || '—'}</div>
+                        <div className="text-[10px] font-normal text-slate-500">{member?.bank_name || 'Chưa cập nhật ngân hàng'}</div>
+                      </th>
+                      {contracts.map((contract) => {
+                        const amount = amountsByContract.get(contract.id)?.get(personKey) || 0;
+                        return <td key={contract.id} className="whitespace-nowrap border-l border-slate-100 px-2.5 py-2 text-right tabular-nums">{amount ? formatVND(amount) : '—'}</td>;
+                      })}
+                      <td className="sticky right-0 z-10 whitespace-nowrap bg-blue-50/70 px-3 py-2 text-right font-bold tabular-nums text-slate-900">{formatVND(total)}</td>
+                    </tr>
+                  );
+                })}
+                {!people.length && <tr><td colSpan={contracts.length + 2} className="px-4 py-8 text-center text-slate-500">Chưa có nhân sự thụ hưởng trong kỳ này.</td></tr>}
+              </tbody>
+              <tfoot className="sticky bottom-0 z-20 font-semibold text-slate-800">
+                {([
+                  ['Tổng quỹ chưa chia (15%)', 'pool'],
+                  ['Tổng hoa hồng chia', 'commission'],
+                  ['Tổng quỹ còn lại', 'remaining'],
+                ] as const).map(([label, key]) => (
+                  <tr key={key} className="border-t border-slate-200 bg-slate-50">
+                    <th className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-left">{label}</th>
+                    {contractTotals.map((row, index) => <td key={contracts[index].id} className="whitespace-nowrap border-l border-slate-200 px-2.5 py-2 text-right tabular-nums">{formatVND(row[key])}</td>)}
+                    <td className="sticky right-0 z-10 whitespace-nowrap bg-blue-50 px-3 py-2 text-right font-bold tabular-nums">{formatVND(key === 'pool' ? totalPool : key === 'commission' ? totalCommission : totalRemaining)}</td>
+                  </tr>
+                ))}
+              </tfoot>
+            </>
+          ) : (
+            <>
+              <thead className="sticky top-0 z-20 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600 shadow-sm">
+                <tr>
+                  <th className="sticky left-0 z-30 min-w-[230px] bg-slate-100 px-3 py-2.5">Hợp đồng</th>
+                  {people.map((person) => <th key={person.name} className="min-w-[150px] border-l border-slate-200 px-2.5 py-2.5">{personHeading(person)}</th>)}
+                  <th className="min-w-[145px] border-l border-slate-200 bg-blue-50 px-2.5 py-2.5 text-right">Tổng quỹ chưa chia (15%)</th>
+                  <th className="min-w-[145px] border-l border-slate-200 bg-blue-50 px-2.5 py-2.5 text-right">Tổng hoa hồng chia</th>
+                  <th className="min-w-[145px] border-l border-slate-200 bg-blue-50 px-2.5 py-2.5 text-right">Tổng quỹ còn lại</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {contracts.map((contract, index) => {
+                  const allocations = amountsByContract.get(contract.id);
+                  const totals = contractTotals[index];
+                  return (
+                    <tr key={contract.id} className="hover:bg-blue-50/40">
+                      <th scope="row" className="sticky left-0 z-10 min-w-[230px] bg-white px-3 py-2 text-left">
+                        {contractHeading(contract, index)}
+                      </th>
+                      {people.map((person) => {
+                        const personKey = normalizePersonName(person.name).replace(/y/g, 'i');
+                        const amount = allocations?.get(personKey) || 0;
+                        return <td key={personKey} className="whitespace-nowrap border-l border-slate-100 px-2.5 py-2 text-right tabular-nums">{amount ? formatVND(amount) : '—'}</td>;
+                      })}
+                      <td className="whitespace-nowrap border-l border-slate-200 bg-blue-50/50 px-2.5 py-2 text-right tabular-nums">{formatVND(totals.pool)}</td>
+                      <td className="whitespace-nowrap border-l border-slate-200 bg-blue-50/50 px-2.5 py-2 text-right font-semibold tabular-nums">{formatVND(totals.commission)}</td>
+                      <td className="whitespace-nowrap border-l border-slate-200 bg-blue-50/50 px-2.5 py-2 text-right tabular-nums">{formatVND(totals.remaining)}</td>
+                    </tr>
+                  );
+                })}
+                {!contracts.length && <tr><td colSpan={people.length + 4} className="px-4 py-8 text-center text-slate-500">Chưa có hợp đồng phát sinh trong kỳ này.</td></tr>}
+              </tbody>
+              <tfoot className="sticky bottom-0 z-20 border-t-2 border-slate-200 bg-slate-100 font-bold text-slate-900">
+                <tr>
+                  <th className="sticky left-0 z-10 bg-slate-100 px-3 py-2.5 text-left">TỔNG CỘNG</th>
+                  {personTotals.map((total, index) => <td key={people[index].name} className="whitespace-nowrap border-l border-slate-200 px-2.5 py-2.5 text-right tabular-nums">{formatVND(total)}</td>)}
+                  <td className="whitespace-nowrap border-l border-slate-200 px-2.5 py-2.5 text-right text-blue-700 tabular-nums">{formatVND(totalPool)}</td>
+                  <td className="whitespace-nowrap border-l border-slate-200 px-2.5 py-2.5 text-right text-emerald-700 tabular-nums">{formatVND(totalCommission)}</td>
+                  <td className="whitespace-nowrap border-l border-slate-200 px-2.5 py-2.5 text-right text-amber-700 tabular-nums">{formatVND(totalRemaining)}</td>
+                </tr>
+              </tfoot>
+            </>
+          )}
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+          <span>Hiển thị {pageStart}–{pageEnd} trong {contractCount} hợp đồng</span>
+          <div className="flex items-center gap-2">
+            <select aria-label="Số hợp đồng mỗi trang" value={pageSize} onChange={(event) => { onPageSizeChange(Number(event.target.value)); onPageChange(1); }} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+              <option value={25}>25 / trang</option>
+              <option value={50}>50 / trang</option>
+              <option value={100}>100 / trang</option>
+              <option value={0}>Tất cả</option>
+            </select>
+            <button type="button" disabled={currentPage <= 1} onClick={() => onPageChange(Math.max(1, currentPage - 1))} className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold disabled:opacity-40">Trước</button>
+            <span>Trang {currentPage} / {totalPages}</span>
+            <button type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold disabled:opacity-40">Sau</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
 
 function resolveMemberTitle(
   personName: string,
@@ -1922,133 +2134,37 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                     Xem theo hợp đồng
                   </button>
                   <button type="button" aria-pressed={distributionView === 'person'} onClick={() => setDistributionView('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${distributionView === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
-                    Xem theo Họ và tên
+                    Xem theo họ tên
                   </button>
                 </div>
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scrollbar-thin [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-transparent">
-              {distributionView === 'contract' ? (
-                <>
-                  <table className="min-w-[1120px] w-full text-left text-xs border-collapse">
-                  <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
-                    <tr>
-                      <th className="px-4 py-3 bg-slate-50">Ngày / HĐ / Khách hàng</th>
-                      <th className="px-3 py-3 text-right bg-slate-50">Giá trị phân bổ</th>
-                      <th className="px-3 py-3 bg-slate-50">Danh sách nhân sự thụ hưởng</th>
-                      <th className="px-3 py-3 text-right bg-slate-50">Quỹ chưa chia (15%)</th>
-                      <th className="px-3 py-3 text-right bg-slate-50">Hoa hồng chia</th>
-                      <th className="px-3 py-3 text-right bg-slate-50">Quỹ còn lại</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {displayedContracts.length ? paginatedContracts.map((contract) => {
-                      const beneficiaries = contractBeneficiaries(contract, initialMembers);
-                      return (
-                      <tr
-                        key={contract.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setViewContract(contract)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            setViewContract(contract);
-                          }
-                        }}
-                        title="Xem chi tiết hợp đồng"
-                        className="cursor-pointer hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
-                          <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
-                          <div className="mt-1"><ContractTermBadge contractDate={contract.contract_date} contractType={contract.contract_type} /></div>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">
-                          <div>{formatVND(contract.allocated_value)}</div>
-                          {isBdsContract(contract.contract_type) && (
-                            <span className="inline-block mt-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                              BĐS · 4/15
-                            </span>
-                          )}
-                          {isTwoYearContract(contract.contract_type) && (
-                            <span className="inline-block mt-0.5 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
-                              HĐ 2 năm · 70%
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex min-w-[330px] flex-wrap gap-1.5">
-                            {beneficiaries.map((person, index) => (
-                              <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
-                                <span className="font-semibold text-slate-700">{person.name}</span>
-                                <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
-                              </span>
-                            ))}
-                            {!beneficiaries.length && <span className="text-slate-400">Chưa có nhân sự</span>}
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract, initialMembers))}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract, initialMembers))}</td>
-                      </tr>
-                      );
-                    }) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
-                  </tbody>
-                  <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
-                    <tr>
-                      <td className="px-4 py-3 bg-blue-50">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700 bg-blue-50">{formatVND(isMonthOverview ? monthAllocationBase : selectedAllocationBase)}</td>
-                      <td className="px-3 py-3 text-slate-600 bg-blue-50">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.pool)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.commission)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.remaining)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-                {totalContractPages > 1 && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
-                    <div>
-                      Hiển thị {((cashflowContractPage - 1) * cashflowContractPageSize) + 1} - {Math.min(cashflowContractPage * cashflowContractPageSize, displayedContracts.length)} trong {displayedContracts.length} hợp đồng
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        aria-label="Số dòng hợp đồng mỗi trang"
-                        value={cashflowContractPageSize}
-                        onChange={(e) => {
-                          setCashflowContractPageSize(Number(e.target.value));
-                          setCashflowContractPage(1);
-                        }}
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                      >
-                        <option value={25}>25 / trang</option>
-                        <option value={50}>50 / trang</option>
-                        <option value={100}>100 / trang</option>
-                        <option value={0}>Tất cả</option>
-                      </select>
-                      <button
-                        type="button"
-                        disabled={cashflowContractPage <= 1}
-                        onClick={() => setCashflowContractPage((p) => Math.max(1, p - 1))}
-                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
-                      >
-                        Trước
-                      </button>
-                      <span className="text-xs font-medium">Trang {cashflowContractPage} / {totalContractPages}</span>
-                      <button
-                        type="button"
-                        disabled={cashflowContractPage >= totalContractPages}
-                        onClick={() => setCashflowContractPage((p) => Math.min(totalContractPages, p + 1))}
-                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
-                      >
-                        Sau
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
+              {distributionView === 'contract' ? <FundDistributionMatrix
+                  view="contract"
+                  contracts={paginatedContracts}
+                  contractCount={displayedContracts.length}
+                  people={peopleRows}
+                  members={initialMembers}
+                  currentPage={cashflowContractPage}
+                  pageSize={cashflowContractPageSize}
+                  totalPages={totalContractPages}
+                  onPageChange={setCashflowContractPage}
+                  onPageSizeChange={setCashflowContractPageSize}
+                /> : (
                 <div className="flex flex-col min-w-[980px]">
+                  <FundDistributionMatrix
+                    view="person"
+                    contracts={paginatedContracts}
+                    contractCount={displayedContracts.length}
+                    people={peopleRows}
+                    members={initialMembers}
+                    currentPage={cashflowContractPage}
+                    pageSize={cashflowContractPageSize}
+                    totalPages={totalContractPages}
+                    onPageChange={setCashflowContractPage}
+                    onPageSizeChange={setCashflowContractPageSize}
+                  />
                   {/* Báo cáo thống kê số lượng thành viên theo từng chức danh/chức vụ nhận hoa hồng */}
                   <div className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur-xs">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">
@@ -2559,7 +2675,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 <span className="font-semibold text-amber-300">{formatVND(summaryTotals.remaining)}</span>
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
-                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
+                {isMonthOverview && <span>Tổng hợp {periodsForMonth.length} kỳ tuần</span>}
                 <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthContractSales : selectedContractSales)}</strong></span>
               </div>
             </div>
@@ -3162,9 +3278,9 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               <strong className="text-slate-900">{safeText(printLog.requester_name)}</strong>
               {printLog.requester_phone && <span> · {printLog.requester_phone}</span>}
             </div>
-            <div>
-              <span className="text-slate-600">Người phê duyệt:</span>{' '}
-              <strong className="text-slate-900">{safeText(printLog.approver_name)}</strong>
+            <div className="space-y-1">
+              <div><span className="text-slate-600">PHÓ CHỦ TỊCH:</span>{' '}<strong className="text-slate-900">Nguyễn Thị Thương Hiếu</strong></div>
+              <div><span className="text-slate-600">TỔNG GIÁM ĐỐC:</span>{' '}<strong className="text-slate-900">Nguyễn Thị Hương Thảo</strong></div>
             </div>
             <div>
               <span className="text-slate-600">Người thụ hưởng:</span>{' '}
@@ -3178,19 +3294,17 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               </strong>
             </div>
             <div>
-              <span className="text-slate-600">Nguồn quỹ trích:</span>{' '}
+              <span className="text-slate-600">Quỹ:</span>{' '}
               <strong className="text-slate-900">{printLog.fund_source}</strong>
             </div>
             <div>
               <span className="text-slate-600">Trạng thái phiếu:</span>{' '}
               <strong className="text-slate-900 uppercase">{printLog.status}</strong>
             </div>
-            {printLog.note && (
-              <div className="col-span-2 mt-1 rounded-lg bg-slate-50 p-2.5 border border-slate-200">
-                <span className="font-semibold text-slate-700">Căn cứ / Ghi chú đề xuất:</span>{' '}
-                <span className="text-slate-800">{printLog.note}</span>
-              </div>
-            )}
+            <div className="col-span-2 mt-1 rounded-lg bg-slate-50 p-2.5 border border-slate-200">
+              <span className="font-semibold text-slate-700">Lý do thanh toán:</span>{' '}
+              <span className="text-slate-800">{printLog.note?.trim() || '—'}</span>
+            </div>
           </div>
 
           {/* ITEM BREAKDOWN TABLE */}
@@ -3259,26 +3373,21 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           </div>
 
           {/* SIGNATURES BLOCK */}
-          <div className="mt-14 grid grid-cols-4 gap-4 text-center text-xs">
+          <div className="mt-14 grid grid-cols-3 gap-4 text-center text-xs">
             <div>
               <div className="font-bold uppercase text-slate-900">NGƯỜI ĐỀ NGHỊ</div>
               <div className="text-[11px] text-slate-500 italic mt-0.5">(Ký, họ tên)</div>
               <div className="mt-16 font-bold text-slate-800">{safeText(printLog.requester_name)}</div>
             </div>
             <div>
-              <div className="font-bold uppercase text-slate-900">PHỤ TRÁCH QUỸ</div>
+              <div className="font-bold uppercase text-slate-900">PHÓ CHỦ TỊCH</div>
               <div className="text-[11px] text-slate-500 italic mt-0.5">(Ký, họ tên)</div>
-              <div className="mt-16 font-bold text-slate-800">&nbsp;</div>
+              <div className="mt-16 font-bold text-slate-800">Nguyễn Thị Thương Hiếu</div>
             </div>
             <div>
-              <div className="font-bold uppercase text-slate-900">KẾ TOÁN THANH TOÁN</div>
-              <div className="text-[11px] text-slate-500 italic mt-0.5">(Ký, họ tên)</div>
-              <div className="mt-16 font-bold text-slate-800">&nbsp;</div>
-            </div>
-            <div>
-              <div className="font-bold uppercase text-slate-900">BAN GIÁM ĐỐC</div>
+              <div className="font-bold uppercase text-slate-900">TỔNG GIÁM ĐỐC</div>
               <div className="text-[11px] text-slate-500 italic mt-0.5">(Phê duyệt chi)</div>
-              <div className="mt-16 font-bold text-slate-800">{safeText(printLog.approver_name)}</div>
+              <div className="mt-16 font-bold text-slate-800">Nguyễn Thị Hương Thảo</div>
             </div>
           </div>
         </div>
