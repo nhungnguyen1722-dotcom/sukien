@@ -13,13 +13,23 @@ export async function GET(request: NextRequest) {
     let query = `
       SELECT 
         e.*,
-        (COALESCE((SELECT COUNT(*)::int FROM event_registrations r WHERE r.event_id = e.id), 0) + 
-         COALESCE((SELECT COUNT(*)::int FROM event_in_charge eic WHERE eic.event_id = e.id), 0)) AS registration_count,
-        COALESCE((SELECT COUNT(*)::int FROM event_in_charge eic WHERE eic.event_id = e.id), 0) AS in_charge_count,
+        (COALESCE(registrations.registration_count, 0) + COALESCE(in_charge.in_charge_count, 0))::int AS registration_count,
+        COALESCE(in_charge.in_charge_count, 0)::int AS in_charge_count,
         m.full_name as manager_name,
-        ARRAY(SELECT eic.user_id FROM event_in_charge eic WHERE eic.event_id = e.id AND eic.user_id IS NOT NULL) AS in_charge_user_ids
+        COALESCE(in_charge.user_ids, ARRAY[]::integer[]) AS in_charge_user_ids
       FROM events e
       LEFT JOIN users m ON e.manager_id = m.id
+      LEFT JOIN (
+        SELECT event_id, COUNT(*)::int AS registration_count
+        FROM event_registrations
+        GROUP BY event_id
+      ) registrations ON registrations.event_id = e.id
+      LEFT JOIN (
+        SELECT event_id, COUNT(*)::int AS in_charge_count,
+          ARRAY_AGG(user_id) FILTER (WHERE user_id IS NOT NULL) AS user_ids
+        FROM event_in_charge
+        GROUP BY event_id
+      ) in_charge ON in_charge.event_id = e.id
       WHERE 1=1
     `;
     const params: (string | number)[] = [];

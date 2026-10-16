@@ -148,10 +148,8 @@ function hasTeamLeadTitle(title: string | null | undefined) {
   return TEAMLEAD_TITLES.has(title?.trim() || '');
 }
 
-function statusText(locked: boolean, imported: boolean) {
-  if (imported) return 'Đã nhập từ Excel';
-  if (locked) return 'Đã khóa';
-  return 'Chưa chốt';
+function statusText(locked: boolean) {
+  return locked ? 'Đã khóa' : 'Chưa chốt';
 }
 
 export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo }: { activeTab: Tab; initialMonth?: string; initialWeekNo?: number }) {
@@ -1425,7 +1423,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                 <button onClick={() => void loadAllocation(true)} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Search className="h-4 w-4" /> Cập nhật</button>
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-500">
-                {allocation?.meta.locked ? <><LockKeyhole className="h-4 w-4 text-rose-600" /> {statusText(true, allocation.meta.imported)}{allocation.meta.sourceFile ? ` · ${allocation.meta.sourceFile}` : ''}</> : <><Clock className="h-4 w-4 text-amber-500" /> Dữ liệu đang ở trạng thái dự thảo</>}
+                {allocation?.meta.locked ? <><LockKeyhole className="h-4 w-4 text-rose-600" /> {statusText(true)}</> : <><Clock className="h-4 w-4 text-amber-500" /> Dữ liệu đang ở trạng thái dự thảo</>}
               </div>
             </section>
 

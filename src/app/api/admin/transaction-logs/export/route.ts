@@ -22,6 +22,85 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+const MANUAL_PAID_FUND_KEYS = new Set(['event_close', 'customer_care', 'training', 'incentive', 'travel']);
+const FUND_SOURCE_BY_KEY: Record<string, string> = {
+  direct_sale: 'Sale trực tiếp - Pro sale (Nguồn khách)',
+  tribute_connection: 'Tri ân kết nối sale trực tiếp',
+  tribute_support: 'Tri ân hỗ trợ sale',
+  event_close: 'Quỹ Sự kiện & Chốt hợp đồng',
+  customer_care: 'Quỹ Chăm sóc khách hàng',
+  training: 'Quỹ Đào tạo Chuyên môn & Kỹ năng',
+  incentive: 'Quỹ Thi đua & Chương trình thúc đẩy',
+  travel: 'Chi phí Công tác phí',
+  operations: 'Quỹ Vận hành',
+  support_kt: 'BP hỗ trợ KT',
+  support_cn: 'BP hỗ trợ CN',
+  leader: 'Leader team - giám đốc Kd',
+};
+
+function normalizeFundSource(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim().toLocaleLowerCase('vi');
+}
+
+function dbFundKey(fundKey: string) {
+  return fundKey === 'leader_70' || fundKey === 'leader_30' ? 'leader' : fundKey;
+}
+
+function allocationRowsForFund<T extends { fund_key: string; fund_source?: string | null }>(rows: T[], fundKey: string) {
+  const key = dbFundKey(fundKey);
+  const source = FUND_SOURCE_BY_KEY[key];
+  const normalizedSource = source ? normalizeFundSource(source) : '';
+  return rows.filter((row) => row.fund_key === key || (normalizedSource && normalizeFundSource(row.fund_source || '') === normalizedSource));
+}
+
+function paidFromLogs(logs: Array<{ fund_source: string | null; amount: number | string }>, fundKey: string) {
+  const source = FUND_SOURCE_BY_KEY[dbFundKey(fundKey)];
+  const normalizedSource = source ? normalizeFundSource(source) : '';
+  return logs
+    .filter((log) => normalizedSource && normalizeFundSource(log.fund_source || '') === normalizedSource)
+    .reduce((sum, log) => sum + Number(log.amount || 0), 0);
+}
+
+function monthlyPaidFromAllocations(
+  rows: Array<{ fund_key: string; fund_source?: string | null; period_code: string; paid_amount: number | string | null }>,
+  fundKey: string,
+) {
+  const records = allocationRowsForFund(rows, fundKey);
+  const monthlyRecord = records.find((row) => row.period_code.endsWith('-MONTH'));
+  if (Number(monthlyRecord?.paid_amount || 0) > 0) return Number(monthlyRecord?.paid_amount || 0);
+  const weeklyRecords = records.filter((row) => !row.period_code.endsWith('-MONTH'));
+  if (weeklyRecords.some((row) => Number(row.paid_amount || 0) > 0)) {
+    return weeklyRecords.reduce((sum, row) => sum + Number(row.paid_amount || 0), 0);
+  }
+  return null;
+}
+
+function formatDateDMY(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function periodRangeForExport(periodCode: string, fallbackMonth: string) {
+  const match = periodCode.match(/(\d{4}-\d{2})-W([1-5])/i);
+  if (match) return getMonthWeekRange(match[1], Number(match[2]));
+  const weekMatch = periodCode.match(/W([1-5])|TUAN([1-5])/i);
+  const monthMatch = periodCode.match(/(\d{4}-\d{2})|T(\d{1,2})/i);
+  const month = monthMatch?.[1] || (monthMatch?.[2] ? `2026-${monthMatch[2].padStart(2, '0')}` : fallbackMonth);
+  return weekMatch ? getMonthWeekRange(month, Number(weekMatch[1] || weekMatch[2])) : getMonthWeekRange(month);
+}
+
+async function loadPaidLogs(start: string, endExclusive: string) {
+  const result = await pool.query(
+    `SELECT fund_source, COALESCE(actual_expense, proposed_amount, 0)::float8 AS amount
+     FROM transaction_logs
+     WHERE status IN ('Đã chi', 'Đã thanh toán', 'Đã thực hiện')
+       AND COALESCE(payment_date::date, request_date::date) >= $1::date
+       AND COALESCE(payment_date::date, request_date::date) < $2::date`,
+    [start, endExclusive],
+  );
+  return result.rows as Array<{ fund_source: string | null; amount: number | string }>;
+}
+
 function parseWeeklySheetFromFile(filePath: string | null | undefined, sheetName: string, weekLabel: string): WeeklyReportData | null {
   try {
     if (!filePath || !fs.existsSync(filePath)) return null;
@@ -288,10 +367,11 @@ function parseMonthlySheetFromFile(filePath: string | null | undefined, sheetNam
       }
     }
 
+    const monthRange = getMonthWeekRange(month);
     return {
       month,
-      startDate: '01/09/2026',
-      endDate: '02/10/2026',
+      startDate: formatDateDMY(monthRange.start),
+      endDate: formatDateDMY(monthRange.endInclusive),
       salesBase,
       funds,
       totalAllocated: Number(totalFundRow[5]) || 0,
@@ -305,7 +385,7 @@ function parseMonthlySheetFromFile(filePath: string | null | undefined, sheetNam
   }
 }
 
-async function getContractsAndMembers() {
+async function getContractsAndMembers(start: string, endExclusive: string) {
   const [contractsRes, membersRes] = await Promise.all([
     pool.query(`
       SELECT
@@ -316,8 +396,9 @@ async function getContractsAndMembers() {
         c.supporter_id, c.supporter_name, c.supporter_phone, c.supporter_fee,
         c.status, c.team_name
       FROM contracts c
+      WHERE c.contract_date >= $1::date AND c.contract_date < $2::date
       ORDER BY c.contract_date DESC NULLS LAST, c.id DESC
-    `),
+    `, [start, endExclusive]),
     pool.query(`
       SELECT u.id, u.full_name, u.phone, u.bank_account
       FROM users u
@@ -375,9 +456,9 @@ export async function GET(request: NextRequest) {
 
       if (!monthlyData) {
         // Tạo dữ liệu tháng động từ database
-        const { databaseContracts, memberNames } = await getContractsAndMembers();
-        const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
         const monthRange = getMonthWeekRange(month);
+        const { databaseContracts, memberNames } = await getContractsAndMembers(monthRange.start, monthRange.endExclusive);
+        const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
         let monthContracts = contracts.filter((c) => (
           c.contract_date >= monthRange.start && c.contract_date <= monthRange.endInclusive
         ));
@@ -392,21 +473,21 @@ export async function GET(request: NextRequest) {
               beneficiaries.push({
                 name: c.closer_name,
                 amount: Math.round(c.closer_fee),
-                lines: [{ source: 'Sale trực tiếp', amount: Math.round(c.closer_fee), calculation: `${Math.round(c.closer_fee).toLocaleString('vi-VN')} đ` }],
+                lines: [{ source: 'Hoa hồng Sale trực tiếp - Pro sale (6%)', amount: Math.round(c.closer_fee), calculation: `${Math.round(c.closer_fee).toLocaleString('vi-VN')} đ` }],
               });
             }
             if (c.referrer_name && c.referrer_fee > 0) {
               beneficiaries.push({
                 name: c.referrer_name,
                 amount: Math.round(c.referrer_fee),
-                lines: [{ source: 'Người giới thiệu', amount: Math.round(c.referrer_fee), calculation: `${Math.round(c.referrer_fee).toLocaleString('vi-VN')} đ` }],
+                lines: [{ source: 'Hoa hồng Người giới thiệu (1%)', amount: Math.round(c.referrer_fee), calculation: `${Math.round(c.referrer_fee).toLocaleString('vi-VN')} đ` }],
               });
             }
             if (c.supporter_name && c.supporter_fee > 0) {
               beneficiaries.push({
                 name: c.supporter_name,
                 amount: Math.round(c.supporter_fee),
-                lines: [{ source: 'Người hỗ trợ', amount: Math.round(c.supporter_fee), calculation: `${Math.round(c.supporter_fee).toLocaleString('vi-VN')} đ` }],
+                lines: [{ source: 'Hoa hồng Người hỗ trợ (0,5%)', amount: Math.round(c.supporter_fee), calculation: `${Math.round(c.supporter_fee).toLocaleString('vi-VN')} đ` }],
               });
             }
             return {
@@ -440,17 +521,21 @@ export async function GET(request: NextRequest) {
 
         const totalMonthRevenue = monthContracts.reduce((sum, c) => sum + (c.allocated_value || c.value || 0), 0);
 
-        const fundAllocationsRes = await pool.query(
-          `SELECT fund_key, SUM(requested_amount) as total_requested 
+        const [fundAllocationsRes, paidLogs] = await Promise.all([
+          pool.query(
+          `SELECT period_code, fund_key, fund_source, COALESCE(paid_amount, 0)::float8 AS paid_amount
            FROM fund_weekly_allocations 
-           WHERE period_month = $1 
-           GROUP BY fund_key`,
+           WHERE period_month = $1`,
           [month]
-        );
-        const requestedByFund: Record<string, number> = {};
-        for (const row of fundAllocationsRes.rows) {
-          requestedByFund[row.fund_key] = Number(row.total_requested || 0);
-        }
+          ),
+          loadPaidLogs(monthRange.start, monthRange.endExclusive),
+        ]);
+        const allocations = fundAllocationsRes.rows as Array<{
+          period_code: string;
+          fund_key: string;
+          fund_source: string | null;
+          paid_amount: number | string | null;
+        }>;
 
         let sumAllocated = 0;
         let sumSpent = 0;
@@ -458,13 +543,17 @@ export async function GET(request: NextRequest) {
 
         for (const item of STANDARD_RATES) {
           const allocated = Math.round(totalMonthRevenue * item.rate);
+          const sourceKey = dbFundKey(item.key);
+          const allocationPaid = monthlyPaidFromAllocations(allocations, sourceKey);
           let spent = 0;
           if (item.key === 'leader_70') {
-            spent = Math.round((requestedByFund['leader'] || 0) * 0.7);
+            spent = Math.round(Number(allocationPaid ?? paidFromLogs(paidLogs, 'leader')) * 0.7);
           } else if (item.key === 'leader_30') {
-            spent = Math.round((requestedByFund['leader'] || 0) * 0.3);
+            spent = Math.round(Number(allocationPaid ?? paidFromLogs(paidLogs, 'leader')) * 0.3);
           } else {
-            spent = requestedByFund[item.key] !== undefined ? requestedByFund[item.key] : allocated;
+            spent = allocationPaid !== null
+              ? allocationPaid
+              : MANUAL_PAID_FUND_KEYS.has(item.key) ? 0 : paidFromLogs(paidLogs, item.key);
           }
           const remaining = allocated - spent;
           sumAllocated += allocated;
@@ -529,8 +618,8 @@ export async function GET(request: NextRequest) {
 
         monthlyData = {
           month,
-          startDate: `01/${month.slice(5)}/${month.slice(0, 4)}`,
-          endDate: `31/${month.slice(5)}/${month.slice(0, 4)}`,
+          startDate: formatDateDMY(monthRange.start),
+          endDate: formatDateDMY(monthRange.endInclusive),
           salesBase: totalMonthRevenue,
           funds,
           totalAllocated: sumAllocated,
@@ -553,19 +642,20 @@ export async function GET(request: NextRequest) {
       const pUpper = periodCode.toUpperCase().replace(/\s+/g, '');
       // Keep September weeks 3–5 on the database-generated export path.
       const isDatabaseOnlySeptemberWeek = /^2026-09-W[345]$/i.test(periodCode);
-      if (!isDatabaseOnlySeptemberWeek && pUpper.includes('10') && (pUpper.includes('W1') || pUpper.includes('TUAN1') || pUpper.endsWith('-1') || pUpper.endsWith('_1'))) {
+      const isDatabaseOnlyOctoberWeekOne = /^2026-10-W1$/i.test(periodCode);
+      if (!isDatabaseOnlySeptemberWeek && !isDatabaseOnlyOctoberWeekOne && pUpper.includes('10') && (pUpper.includes('W1') || pUpper.includes('TUAN1') || pUpper.endsWith('-1') || pUpper.endsWith('_1'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan1_T10.xlsx');
         sheetTitle = 'DNTT HH tuần 1 T10';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 1 tháng 10');
-      } else if (!isDatabaseOnlySeptemberWeek && pUpper.includes('09') && (pUpper.includes('W5') || pUpper.includes('TUAN5') || pUpper.endsWith('-5') || pUpper.endsWith('_5'))) {
+      } else if (!isDatabaseOnlySeptemberWeek && !isDatabaseOnlyOctoberWeekOne && pUpper.includes('09') && (pUpper.includes('W5') || pUpper.includes('TUAN5') || pUpper.endsWith('-5') || pUpper.endsWith('_5'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan5_T9.xlsx');
         sheetTitle = 'DNTT tuần 5 T9';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 5 tháng 9');
-      } else if (!isDatabaseOnlySeptemberWeek && pUpper.includes('09') && (pUpper.includes('W4') || pUpper.includes('TUAN4') || pUpper.endsWith('-4') || pUpper.endsWith('_4'))) {
+      } else if (!isDatabaseOnlySeptemberWeek && !isDatabaseOnlyOctoberWeekOne && pUpper.includes('09') && (pUpper.includes('W4') || pUpper.includes('TUAN4') || pUpper.endsWith('-4') || pUpper.endsWith('_4'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan4_T9.xlsx');
         sheetTitle = 'DNTT HH tuần 4 T9';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 4 tháng 9');
-      } else if (!isDatabaseOnlySeptemberWeek && pUpper.includes('09') && (pUpper.includes('W3') || pUpper.includes('TUAN3') || pUpper.endsWith('-3') || pUpper.endsWith('_3'))) {
+      } else if (!isDatabaseOnlySeptemberWeek && !isDatabaseOnlyOctoberWeekOne && pUpper.includes('09') && (pUpper.includes('W3') || pUpper.includes('TUAN3') || pUpper.endsWith('-3') || pUpper.endsWith('_3'))) {
         const filePath = resolveWorkbookPath('DN_thanh_toan_HH_Tuan3_T9.xlsx');
         sheetTitle = 'DN thanh toán HH tuần 3 T9';
         if (filePath) weeklyData = parseWeeklySheetFromFile(filePath, sheetTitle, 'tuần 3 tháng 9');
@@ -573,29 +663,23 @@ export async function GET(request: NextRequest) {
 
       if (!weeklyData) {
         // Tạo dữ liệu tuần động từ database
-        const { databaseContracts, memberNames } = await getContractsAndMembers();
+        const weekRange = periodRangeForExport(periodCode, month);
+        const { databaseContracts, memberNames } = await getContractsAndMembers(weekRange.start, weekRange.endExclusive);
         const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
         let weekContracts = contracts.filter((c) => c.source_period_code === periodCode);
 
         if (weekContracts.length === 0) {
-          const weekMatch = periodCode.match(/W(\d+)|TUAN(\d+)/i);
-          const weekNo = weekMatch ? Number(weekMatch[1] || weekMatch[2]) : 0;
-          const monthMatch = periodCode.match(/(\d{4}-\d{2})|T(\d+)/i);
-          const targetMonth = monthMatch?.[1] || (monthMatch?.[2] ? `2026-${monthMatch[2].padStart(2, '0')}` : month);
-
-          const { start, endInclusive } = weekNo > 0 ? getMonthWeekRange(targetMonth, weekNo) : { start: `${targetMonth}-01`, endInclusive: `${targetMonth}-31` };
-
-          const rawWeekContracts = databaseContracts.filter((c) => c.contract_date && c.contract_date >= start && c.contract_date <= endInclusive);
+          const rawWeekContracts = databaseContracts.filter((c) => c.contract_date && c.contract_date >= weekRange.start && c.contract_date < weekRange.endExclusive);
           weekContracts = rawWeekContracts.map((c) => {
             const beneficiaries: WorkbookBeneficiary[] = [];
             if (c.closer_name && c.closer_fee > 0) {
-              beneficiaries.push({ name: c.closer_name, amount: Math.round(c.closer_fee) });
+              beneficiaries.push({ name: c.closer_name, amount: Math.round(c.closer_fee), lines: [{ source: 'Hoa hồng Sale trực tiếp - Pro sale (6%)', amount: Math.round(c.closer_fee), calculation: `${Math.round(c.closer_fee).toLocaleString('vi-VN')} đ` }] });
             }
             if (c.referrer_name && c.referrer_fee > 0) {
-              beneficiaries.push({ name: c.referrer_name, amount: Math.round(c.referrer_fee) });
+              beneficiaries.push({ name: c.referrer_name, amount: Math.round(c.referrer_fee), lines: [{ source: 'Hoa hồng Người giới thiệu (1%)', amount: Math.round(c.referrer_fee), calculation: `${Math.round(c.referrer_fee).toLocaleString('vi-VN')} đ` }] });
             }
             if (c.supporter_name && c.supporter_fee > 0) {
-              beneficiaries.push({ name: c.supporter_name, amount: Math.round(c.supporter_fee) });
+              beneficiaries.push({ name: c.supporter_name, amount: Math.round(c.supporter_fee), lines: [{ source: 'Hoa hồng Người hỗ trợ (0,5%)', amount: Math.round(c.supporter_fee), calculation: `${Math.round(c.supporter_fee).toLocaleString('vi-VN')} đ` }] });
             }
             return {
               id: c.id,
@@ -628,16 +712,20 @@ export async function GET(request: NextRequest) {
 
         const totalWeekRevenue = weekContracts.reduce((sum, c) => sum + (c.allocated_value || c.value || 0), 0);
 
-        const weeklyFundRes = await pool.query(
-          `SELECT fund_key, requested_amount 
+        const [weeklyFundRes, paidLogs] = await Promise.all([
+          pool.query(
+          `SELECT fund_key, fund_source, COALESCE(paid_amount, 0)::float8 AS paid_amount
            FROM fund_weekly_allocations 
            WHERE period_code = $1`,
           [periodCode]
-        );
-        const requestedByFund: Record<string, number> = {};
-        for (const row of weeklyFundRes.rows) {
-          requestedByFund[row.fund_key] = Number(row.requested_amount || 0);
-        }
+          ),
+          loadPaidLogs(weekRange.start, weekRange.endExclusive),
+        ]);
+        const allocations = weeklyFundRes.rows as Array<{
+          fund_key: string;
+          fund_source: string | null;
+          paid_amount: number | string | null;
+        }>;
 
         let sumAllocated = 0;
         let sumSpent = 0;
@@ -647,7 +735,11 @@ export async function GET(request: NextRequest) {
 
         for (const item of WEEK_RATES) {
           const allocated = Math.round(totalWeekRevenue * item.rate);
-          const spent = requestedByFund[item.key] !== undefined ? requestedByFund[item.key] : allocated;
+          const allocation = allocationRowsForFund(allocations, item.key)[0];
+          const paidAmount = Number(allocation?.paid_amount || 0);
+          const spent = MANUAL_PAID_FUND_KEYS.has(item.key)
+            ? paidAmount
+            : paidAmount > 0 ? paidAmount : paidFromLogs(paidLogs, item.key);
           const remaining = allocated - spent;
           sumAllocated += allocated;
           sumSpent += spent;

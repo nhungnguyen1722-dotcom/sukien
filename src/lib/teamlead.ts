@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import pool from '@/lib/db';
 import { getMonthWeekNo, getMonthWeekRange } from '@/lib/weekRanges';
-import { isContractActiveInPeriod } from '@/lib/contractTerms';
 
 export const TEAMLEAD_DEFAULT_RATE = 0.029;
 export const TEAMLEAD_ROLE_ORDER = ['Giám đốc', 'Phó Giám đốc', 'Trưởng phòng'] as const;
@@ -353,19 +352,12 @@ async function loadContracts(month: string, db: typeof pool = pool) {
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
       FROM contracts
-      WHERE contract_date < $1::date
+      WHERE contract_date >= $1::date AND contract_date < $2::date
       ORDER BY contract_date, id
     `,
-    [end]
+    [start, end]
   );
-  return result.rows
-    .filter((row) => isContractActiveInPeriod(
-      row.contract_date,
-      row.contract_type,
-      start,
-      end,
-    ))
-    .map((row) => ({ ...row, id: Number(row.id), value: amount(row.value), team_name: row.team_name || '' }));
+  return result.rows.map((row) => ({ ...row, id: Number(row.id), value: amount(row.value), team_name: row.team_name || '' }));
 }
 
 function contractsInPeriod(
@@ -374,12 +366,10 @@ function contractsInPeriod(
   weekNo: number,
 ) {
   const { start, end } = periodBounds(month, weekNo);
-  return contracts.filter((contract) => isContractActiveInPeriod(
-    contract.contract_date,
-    contract.contract_type,
-    start,
-    end,
-  ));
+  return contracts.filter((contract) => {
+    const contractDate = contract.contract_date.slice(0, 10);
+    return contractDate >= start && contractDate < end;
+  });
 }
 
 function rowFor(member: RosterMember, team?: RosterMember['teams'][number]): AllocationRow {
@@ -588,7 +578,7 @@ export async function getTeamLeadAllocation(monthInput: string, weekNo: number, 
   const locked = await readLockedPeriod(month, weekNo, db);
   if (locked) {
     const period = locked.period;
-    const effectiveTotalSales = dynamicSales > 0 ? dynamicSales : amount(period.total_sales);
+    const effectiveTotalSales = dynamicSales;
     const effectiveRate = Number(period.fund_rate);
     const effectiveGross = amount(effectiveTotalSales * effectiveRate);
     const effective30 = amount(effectiveGross * 0.3);

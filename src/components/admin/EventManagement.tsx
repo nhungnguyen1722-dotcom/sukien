@@ -169,7 +169,7 @@ export default function EventManagement({
 
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Phân quyền (Mục 1 & Mục 2.1)
@@ -286,23 +286,28 @@ export default function EventManagement({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleSyncSheet = async () => {
-    setIsSyncingSheet(true);
+  const handleExportEvents = async () => {
+    setIsExportingExcel(true);
     try {
-      const res = await fetch('/api/admin/events/sync-sheet', {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast('success', data.message || 'Đồng bộ danh sách sự kiện lên Google Sheet thành công!');
-      } else {
-        showToast('error', data.error || 'Lỗi khi đồng bộ Google Sheet');
+      const res = await fetch('/api/admin/events/export');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Không thể xuất file sự kiện.');
       }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `Nhat-ky-quan-ly-su-kien-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      showToast('success', 'Đã xuất danh sách sự kiện ra Excel.');
     } catch (err) {
-      console.error('Sync sheet error:', err);
-      showToast('error', 'Lỗi kết nối khi đồng bộ Google Sheet');
+      showToast('error', err instanceof Error ? err.message : 'Lỗi kết nối khi xuất Excel.');
     } finally {
-      setIsSyncingSheet(false);
+      setIsExportingExcel(false);
     }
   };
 
@@ -705,17 +710,17 @@ export default function EventManagement({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Nút Đồng bộ Google Sheet: trên mobile đổi thành "Đồng bộ" */}
+          {/* Xuất danh sách sự kiện theo mẫu quản lý chi phí */}
           <button
             type="button"
-            onClick={handleSyncSheet}
-            disabled={isSyncingSheet}
+            onClick={handleExportEvents}
+            disabled={isExportingExcel}
             className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
-            title="Đồng bộ danh sách sự kiện sang Google Sheet"
+            title="Xuất danh sách sự kiện theo mẫu NHẬT KÝ QUẢN LÝ SỰ KIỆN & CHI PHÍ"
           >
-            <FileSpreadsheet className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-            <span className="hidden lg:inline">{isSyncingSheet ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}</span>
-            <span className="lg:hidden">{isSyncingSheet ? 'Đang...' : 'Đồng bộ'}</span>
+            <FileSpreadsheet className={`w-4 h-4 ${isExportingExcel ? 'animate-pulse' : ''}`} />
+            <span className="hidden lg:inline">{isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}</span>
+            <span className="lg:hidden">{isExportingExcel ? 'Đang...' : 'Xuất Excel'}</span>
           </button>
 
           {isAdmin && (

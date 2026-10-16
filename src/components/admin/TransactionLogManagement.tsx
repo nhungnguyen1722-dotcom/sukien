@@ -2772,7 +2772,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 <span className="font-semibold text-amber-300">{formatVND(summaryTotals.remaining)}</span>
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
-                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
+                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : 'Chính sách phân bổ 15%'}</span>
                 <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthContractSales : selectedContractSales)}</strong></span>
               </div>
             </div>
