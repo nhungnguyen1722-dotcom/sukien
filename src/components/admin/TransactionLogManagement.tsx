@@ -1576,6 +1576,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
   const [viewLog, setViewLog] = useState<TransactionLog | null>(null);
   const [viewContract, setViewContract] = useState<FundContract | null>(null);
   const [distributionView, setDistributionView] = useState<'contract' | 'person'>('contract');
+  const [previewMatrixView, setPreviewMatrixView] = useState<'contract' | 'person'>('contract');
   const [printLog, setPrintLog] = useState<TransactionLog | null>(null);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -2140,31 +2141,127 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scrollbar-thin [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-transparent">
-              {distributionView === 'contract' ? <FundDistributionMatrix
-                  view="contract"
-                  contracts={paginatedContracts}
-                  contractCount={displayedContracts.length}
-                  people={peopleRows}
-                  members={initialMembers}
-                  currentPage={cashflowContractPage}
-                  pageSize={cashflowContractPageSize}
-                  totalPages={totalContractPages}
-                  onPageChange={setCashflowContractPage}
-                  onPageSizeChange={setCashflowContractPageSize}
-                /> : (
+              {distributionView === 'contract' ? (
+                <>
+                  <table className="min-w-[1120px] w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 shadow-2xs">
+                    <tr>
+                      <th className="px-4 py-3 bg-slate-50">Ngày / HĐ / Khách hàng</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Giá trị phân bổ</th>
+                      <th className="px-3 py-3 bg-slate-50">Danh sách nhân sự thụ hưởng</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Quỹ chưa chia (15%)</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Hoa hồng chia</th>
+                      <th className="px-3 py-3 text-right bg-slate-50">Quỹ còn lại</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {displayedContracts.length ? paginatedContracts.map((contract) => {
+                      const beneficiaries = contractBeneficiaries(contract, initialMembers);
+                      return (
+                      <tr
+                        key={contract.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setViewContract(contract)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setViewContract(contract);
+                          }
+                        }}
+                        title="Xem chi tiết hợp đồng"
+                        className="cursor-pointer hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-800">{contract.contract_code || `HĐ #${contract.id}`} · {contract.customer_name}</div>
+                          <div className="mt-1 text-[10px] text-slate-500">Ngày ký {formatDate(contract.contract_date)} · {contract.status}</div>
+                          <div className="mt-1"><ContractTermBadge contractDate={contract.contract_date} contractType={contract.contract_type} /></div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-900">
+                          <div>{formatVND(contract.allocated_value)}</div>
+                          {isBdsContract(contract.contract_type) && (
+                            <span className="inline-block mt-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                              BĐS · 4/15
+                            </span>
+                          )}
+                          {isTwoYearContract(contract.contract_type) && (
+                            <span className="inline-block mt-0.5 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+                              HĐ 2 năm · 70%
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex min-w-[330px] flex-wrap gap-1.5">
+                            {beneficiaries.map((person, index) => (
+                              <span key={`${person.name}-${index}`} className="inline-flex flex-wrap items-center gap-x-1 rounded-md bg-slate-50 px-2 py-1 text-[10px]">
+                                <span className="font-semibold text-slate-700">{person.name}</span>
+                                <span className="whitespace-nowrap text-slate-500">{formatVND(person.amount)}</span>
+                              </span>
+                            ))}
+                            {!beneficiaries.length && <span className="text-slate-400">Chưa có nhân sự</span>}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right">{formatVND(contractPool(contract))}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractCommission(contract, initialMembers))}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-slate-800">{formatVND(contractRemainingFund(contract, initialMembers))}</td>
+                      </tr>
+                      );
+                    }) : <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">{isMonthOverview ? 'Không có hợp đồng trong tháng này.' : 'Không có hợp đồng trong kỳ này.'}</td></tr>}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 z-10 bg-blue-50 font-bold text-slate-800 shadow-2xs">
+                    <tr>
+                      <td className="px-4 py-3 bg-blue-50">{isMonthOverview ? 'TỔNG CỘNG THÁNG' : 'TỔNG CỘNG KỲ TUẦN'}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right text-blue-700 bg-blue-50">{formatVND(isMonthOverview ? monthAllocationBase : selectedAllocationBase)}</td>
+                      <td className="px-3 py-3 text-slate-600 bg-blue-50">{displayedContracts.length} hợp đồng · {peopleRows.length} nhân sự</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.pool)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.commission)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right bg-blue-50">{formatVND(displayedContractTotals.remaining)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+                {totalContractPages > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                    <div>
+                      Hiển thị {((cashflowContractPage - 1) * cashflowContractPageSize) + 1} - {Math.min(cashflowContractPage * cashflowContractPageSize, displayedContracts.length)} trong {displayedContracts.length} hợp đồng
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label="Số dòng hợp đồng mỗi trang"
+                        value={cashflowContractPageSize}
+                        onChange={(e) => {
+                          setCashflowContractPageSize(Number(e.target.value));
+                          setCashflowContractPage(1);
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                      >
+                        <option value={25}>25 / trang</option>
+                        <option value={50}>50 / trang</option>
+                        <option value={100}>100 / trang</option>
+                        <option value={0}>Tất cả</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={cashflowContractPage <= 1}
+                        onClick={() => setCashflowContractPage((p) => Math.max(1, p - 1))}
+                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Trước
+                      </button>
+                      <span className="text-xs font-medium">Trang {cashflowContractPage} / {totalContractPages}</span>
+                      <button
+                        type="button"
+                        disabled={cashflowContractPage >= totalContractPages}
+                        onClick={() => setCashflowContractPage((p) => Math.min(totalContractPages, p + 1))}
+                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Sau
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
                 <div className="flex flex-col min-w-[980px]">
-                  <FundDistributionMatrix
-                    view="person"
-                    contracts={paginatedContracts}
-                    contractCount={displayedContracts.length}
-                    people={peopleRows}
-                    members={initialMembers}
-                    currentPage={cashflowContractPage}
-                    pageSize={cashflowContractPageSize}
-                    totalPages={totalContractPages}
-                    onPageChange={setCashflowContractPage}
-                    onPageSizeChange={setCashflowContractPageSize}
-                  />
                   {/* Báo cáo thống kê số lượng thành viên theo từng chức danh/chức vụ nhận hoa hồng */}
                   <div className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur-xs">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">
@@ -2675,7 +2772,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
                 <span className="font-semibold text-amber-300">{formatVND(summaryTotals.remaining)}</span>
               </div>
               <div className="mt-1 pt-1.5 border-t border-slate-800 flex justify-between text-[10px] text-slate-400">
-                {isMonthOverview && <span>Tổng hợp {periodsForMonth.length} kỳ tuần</span>}
+                <span>{isMonthOverview ? `Tổng hợp ${periodsForMonth.length} kỳ tuần` : (selectedPeriod?.source_sheet ? `Nguồn bảng: ${selectedPeriod.source_sheet}` : 'Chính sách phân bổ 15%')}</span>
                 <span>Doanh số: <strong className="text-white">{formatVND(isMonthOverview ? monthContractSales : selectedContractSales)}</strong></span>
               </div>
             </div>
@@ -3420,6 +3517,21 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         fileName={isMonthOverview
           ? `Bao_cao_chot_quy_thang_${selectedMonth}.xlsx`
           : `DNTT_hoa_hong_${selectedPeriodCode}.xlsx`}
+        distributionTitle={`Bảng kê hợp đồng & nhân sự thụ hưởng — ${isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}`}
+        distributionView={previewMatrixView}
+        onDistributionViewChange={setPreviewMatrixView}
+        distributionMatrix={<FundDistributionMatrix
+          view={previewMatrixView}
+          contracts={displayedContracts}
+          contractCount={displayedContracts.length}
+          people={peopleRows}
+          members={initialMembers}
+          currentPage={1}
+          pageSize={0}
+          totalPages={1}
+          onPageChange={() => undefined}
+          onPageSizeChange={() => undefined}
+        />}
         data={{
           salesBase: isMonthOverview ? displayedContractTotals.pool : selectedBase,
           periodLabel: isMonthOverview

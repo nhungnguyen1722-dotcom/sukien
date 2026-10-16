@@ -56,6 +56,10 @@ export interface ExcelPreviewModalProps {
   title: string;
   subtitle?: string;
   fileName?: string;
+  distributionTitle?: string;
+  distributionView?: 'contract' | 'person';
+  onDistributionViewChange?: (view: 'contract' | 'person') => void;
+  distributionMatrix?: React.ReactNode;
   data: {
     // For cashflow_week and cashflow_month
     salesBase?: number;
@@ -87,6 +91,40 @@ const formatPlainNumber = (val?: number | null) => {
   return Math.round(val).toLocaleString('vi-VN');
 };
 
+function DistributionMatrixSection({
+  title,
+  view,
+  onViewChange,
+  matrix,
+}: {
+  title?: string;
+  view?: 'contract' | 'person';
+  onViewChange?: (view: 'contract' | 'person') => void;
+  matrix?: React.ReactNode;
+}) {
+  if (!matrix || !view || !onViewChange) return null;
+
+  return (
+    <section className="mt-8 border-t border-slate-200 pt-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">{title || 'Bảng kê hợp đồng & nhân sự thụ hưởng'}</h2>
+          <p className="mt-1 text-[11px] text-slate-500">Chi tiết số tiền phân bổ theo hợp đồng và người thụ hưởng.</p>
+        </div>
+        <div role="group" aria-label="Chế độ xem ma trận phân bổ" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <button type="button" aria-pressed={view === 'contract'} onClick={() => onViewChange('contract')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${view === 'contract' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+            Xem theo hợp đồng
+          </button>
+          <button type="button" aria-pressed={view === 'person'} onClick={() => onViewChange('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${view === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+            Xem theo họ tên
+          </button>
+        </div>
+      </div>
+      {matrix}
+    </section>
+  );
+}
+
 export default function ExcelPreviewModal({
   isOpen,
   onClose,
@@ -96,6 +134,10 @@ export default function ExcelPreviewModal({
   title,
   subtitle,
   fileName,
+  distributionTitle,
+  distributionView,
+  onDistributionViewChange,
+  distributionMatrix,
   data,
 }: ExcelPreviewModalProps) {
   // Close on ESC key
@@ -164,8 +206,12 @@ export default function ExcelPreviewModal({
         {/* 2-Directional Scrollable Content */}
         <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-slate-100/80">
           <div className="min-w-[1050px] bg-white p-6 sm:p-8 shadow-sm border border-slate-300 rounded-sm font-sans text-xs text-slate-800">
-            {mode === 'cashflow_week' && <CashflowWeekPreview data={data} />}
-            {mode === 'cashflow_month' && <CashflowMonthPreview data={data} />}
+            {mode === 'cashflow_week' && <CashflowWeekPreview data={data} distributionSection={(
+              <DistributionMatrixSection title={distributionTitle} view={distributionView} onViewChange={onDistributionViewChange} matrix={distributionMatrix} />
+            )} />}
+            {mode === 'cashflow_month' && <CashflowMonthPreview data={data} distributionSection={(
+              <DistributionMatrixSection title={distributionTitle} view={distributionView} onViewChange={onDistributionViewChange} matrix={distributionMatrix} />
+            )} />}
             {mode === 'training' && <TrainingPreview data={data} />}
           </div>
         </div>
@@ -206,7 +252,7 @@ export default function ExcelPreviewModal({
 // -------------------------------------------------------------
 // PREVIEW 1: Cashflow Weekly Report (Theo tuần - chuẩn Hình 1 & Hình 3)
 // -------------------------------------------------------------
-function CashflowWeekPreview({ data }: { data: ExcelPreviewModalProps['data'] }) {
+function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreviewModalProps['data']; distributionSection?: React.ReactNode }) {
   const funds = data.funds || [];
   const people = data.people || [];
   const fundCols = data.fundColumns || [];
@@ -305,6 +351,8 @@ function CashflowWeekPreview({ data }: { data: ExcelPreviewModalProps['data'] })
           </tfoot>
         </table>
       </div>
+
+      {distributionSection}
 
       {/* Bảng 2: Bảng kê chi tiết nhân sự nhận hoa hồng nếu có */}
       {people.length > 0 && (
@@ -413,7 +461,7 @@ function CashflowWeekPreview({ data }: { data: ExcelPreviewModalProps['data'] })
 // -------------------------------------------------------------
 // PREVIEW 2: Cashflow Monthly Report (Quyết toán tháng)
 // -------------------------------------------------------------
-function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }) {
+function CashflowMonthPreview({ data, distributionSection }: { data: ExcelPreviewModalProps['data']; distributionSection?: React.ReactNode }) {
   const funds = data.funds || [];
   const people = data.people || [];
   const salesBase = data.salesBase || 0;
@@ -506,6 +554,8 @@ function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }
           </tfoot>
         </table>
       </div>
+
+      {distributionSection}
 
       {/* Bảng Kê Người Nhận Tháng */}
       {people.length > 0 && (
