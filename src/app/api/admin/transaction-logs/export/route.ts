@@ -191,6 +191,51 @@ function parseWeeklySheetFromFile(filePath: string | null | undefined, sheetName
   }
 }
 
+function normalizeMemberHeaderName(value: string): string {
+  return sanitizeVietnameseText(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ');
+}
+
+async function addMemberBankDetailsToWeeklyHeaders(data: WeeklyReportData): Promise<WeeklyReportData> {
+  const columns = data.beneficiaryColumns || [];
+  const hasDetail = (value?: string) => Boolean(value?.trim() && !['—', '-', 'n/a'].includes(value.trim().toLowerCase()));
+  if (!data.contractRows?.length || !columns.some((person) => !hasDetail(person.bankAccount) || !hasDetail(person.bankName))) return data;
+
+  const membersRes = await pool.query(`
+    SELECT full_name, bank_account, bank_name
+    FROM users
+    WHERE full_name IS NOT NULL
+      AND (NULLIF(BTRIM(bank_account), '') IS NOT NULL OR NULLIF(BTRIM(bank_name), '') IS NOT NULL)
+  `);
+  const detailsByName = new Map<string, { bankAccount: string; bankName: string }>();
+  for (const row of membersRes.rows) {
+    const key = normalizeMemberHeaderName(String(row.full_name || ''));
+    if (!key) continue;
+    const existing = detailsByName.get(key) || { bankAccount: '', bankName: '' };
+    detailsByName.set(key, {
+      bankAccount: existing.bankAccount || String(row.bank_account || '').trim(),
+      bankName: existing.bankName || String(row.bank_name || '').trim(),
+    });
+  }
+
+  return {
+    ...data,
+    beneficiaryColumns: columns.map((person) => {
+      const details = detailsByName.get(normalizeMemberHeaderName(person.name));
+      return {
+        ...person,
+        bankAccount: hasDetail(person.bankAccount) ? person.bankAccount : details?.bankAccount || '',
+        bankName: hasDetail(person.bankName) ? person.bankName : details?.bankName || '',
+      };
+    }),
+  };
+}
+
 function parseMonthlySheetFromFile(filePath: string | null | undefined, sheetName: string, month: string): MonthlyReportData | null {
   try {
     if (!filePath || !fs.existsSync(filePath)) return null;
@@ -686,6 +731,7 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      weeklyData = await addMemberBankDetailsToWeeklyHeaders(weeklyData);
       createStyledWeeklySheet(workbook, weeklyData, sheetTitle);
     }
 

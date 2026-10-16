@@ -91,18 +91,27 @@ const formatPlainNumber = (val?: number | null) => {
   return Math.round(val).toLocaleString('vi-VN');
 };
 
-function DistributionMatrixSection({
-  title,
+function DistributionMatrixControls({
   view,
   onViewChange,
-  matrix,
 }: {
-  title?: string;
-  view?: 'contract' | 'person';
-  onViewChange?: (view: 'contract' | 'person') => void;
-  matrix?: React.ReactNode;
+  view: 'contract' | 'person';
+  onViewChange: (view: 'contract' | 'person') => void;
 }) {
-  if (!matrix || !view || !onViewChange) return null;
+  return (
+    <div role="group" aria-label="Chế độ xem ma trận phân bổ" className="flex shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+      <button type="button" aria-pressed={view === 'contract'} onClick={() => onViewChange('contract')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${view === 'contract' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>
+        Xem theo hợp đồng
+      </button>
+      <button type="button" aria-pressed={view === 'person'} onClick={() => onViewChange('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${view === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>
+        Xem theo họ tên
+      </button>
+    </div>
+  );
+}
+
+function DistributionMatrixSection({ title, matrix }: { title?: string; matrix?: React.ReactNode }) {
+  if (!matrix) return null;
 
   return (
     <section className="mt-8 border-t border-slate-200 pt-6">
@@ -110,14 +119,6 @@ function DistributionMatrixSection({
         <div>
           <h2 className="text-sm font-bold text-slate-900">{title || 'Bảng kê hợp đồng & nhân sự thụ hưởng'}</h2>
           <p className="mt-1 text-[11px] text-slate-500">Chi tiết số tiền phân bổ theo hợp đồng và người thụ hưởng.</p>
-        </div>
-        <div role="group" aria-label="Chế độ xem ma trận phân bổ" className="flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
-          <button type="button" aria-pressed={view === 'contract'} onClick={() => onViewChange('contract')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${view === 'contract' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
-            Xem theo hợp đồng
-          </button>
-          <button type="button" aria-pressed={view === 'person'} onClick={() => onViewChange('person')} className={`rounded-md px-3 py-2 text-[11px] font-semibold ${view === 'person' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
-            Xem theo họ tên
-          </button>
         </div>
       </div>
       {matrix}
@@ -205,13 +206,16 @@ export default function ExcelPreviewModal({
 
         {/* 2-Directional Scrollable Content */}
         <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-slate-100/80">
+          {mode === 'cashflow_week' && distributionMatrix && distributionView && onDistributionViewChange && (
+            <div className="min-w-[1050px] mb-3 flex justify-end">
+              <DistributionMatrixControls view={distributionView} onViewChange={onDistributionViewChange} />
+            </div>
+          )}
           <div className="min-w-[1050px] bg-white p-6 sm:p-8 shadow-sm border border-slate-300 rounded-sm font-sans text-xs text-slate-800">
             {mode === 'cashflow_week' && <CashflowWeekPreview data={data} distributionSection={(
-              <DistributionMatrixSection title={distributionTitle} view={distributionView} onViewChange={onDistributionViewChange} matrix={distributionMatrix} />
+              <DistributionMatrixSection title={distributionTitle} matrix={distributionMatrix} />
             )} />}
-            {mode === 'cashflow_month' && <CashflowMonthPreview data={data} distributionSection={(
-              <DistributionMatrixSection title={distributionTitle} view={distributionView} onViewChange={onDistributionViewChange} matrix={distributionMatrix} />
-            )} />}
+            {mode === 'cashflow_month' && <CashflowMonthPreview data={data} />}
             {mode === 'training' && <TrainingPreview data={data} />}
           </div>
         </div>
@@ -259,7 +263,7 @@ function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreview
   const salesBase = data.salesBase || 0;
   const totalAllocated = data.totalAllocated || funds.reduce((s, f) => s + f.allocated, 0);
   const totalSpent = data.totalSpent || funds.reduce((s, f) => s + f.spent, 0);
-  const totalRemaining = data.totalRemaining !== undefined ? data.totalRemaining : totalAllocated - totalSpent;
+  const totalRemaining = totalAllocated - totalSpent;
 
   return (
     <div className="space-y-8 select-text">
@@ -302,7 +306,9 @@ function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreview
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {funds.map((f, idx) => (
+            {funds.map((f, idx) => {
+              const remaining = f.allocated - f.spent;
+              return (
               <tr key={idx} className="hover:bg-blue-50/30">
                 <td className="w-8 px-2 py-2 text-center text-slate-400 font-mono border-r border-slate-200">
                   {idx + 1}
@@ -325,13 +331,14 @@ function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreview
                 </td>
                 <td
                   className={`px-3 py-2 text-right font-semibold font-mono ${
-                    f.remaining === 0 ? 'text-red-600' : 'text-slate-800'
+                    remaining === 0 ? 'text-red-600' : 'text-slate-800'
                   }`}
                 >
-                  {formatMoney(f.remaining)}
+                  {formatMoney(remaining)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
@@ -461,13 +468,13 @@ function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreview
 // -------------------------------------------------------------
 // PREVIEW 2: Cashflow Monthly Report (Quyết toán tháng)
 // -------------------------------------------------------------
-function CashflowMonthPreview({ data, distributionSection }: { data: ExcelPreviewModalProps['data']; distributionSection?: React.ReactNode }) {
+function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }) {
   const funds = data.funds || [];
   const people = data.people || [];
   const salesBase = data.salesBase || 0;
   const totalAllocated = data.totalAllocated || funds.reduce((s, f) => s + f.allocated, 0);
   const totalSpent = data.totalSpent || funds.reduce((s, f) => s + f.spent, 0);
-  const totalRemaining = data.totalRemaining !== undefined ? data.totalRemaining : totalAllocated - totalSpent;
+  const totalRemaining = totalAllocated - totalSpent;
 
   return (
     <div className="space-y-8 select-text">
@@ -505,7 +512,9 @@ function CashflowMonthPreview({ data, distributionSection }: { data: ExcelPrevie
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {funds.map((f, idx) => (
+            {funds.map((f, idx) => {
+              const remaining = f.allocated - f.spent;
+              return (
               <tr key={idx} className="hover:bg-blue-50/30">
                 <td className="w-8 px-2 py-2 text-center text-slate-400 font-mono border-r border-slate-200">
                   {idx + 1}
@@ -528,13 +537,14 @@ function CashflowMonthPreview({ data, distributionSection }: { data: ExcelPrevie
                 </td>
                 <td
                   className={`px-3 py-2 text-right font-semibold font-mono ${
-                    f.remaining === 0 ? 'text-red-600' : 'text-slate-800'
+                    remaining === 0 ? 'text-red-600' : 'text-slate-800'
                   }`}
                 >
-                  {formatMoney(f.remaining)}
+                  {formatMoney(remaining)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
@@ -554,8 +564,6 @@ function CashflowMonthPreview({ data, distributionSection }: { data: ExcelPrevie
           </tfoot>
         </table>
       </div>
-
-      {distributionSection}
 
       {/* Bảng Kê Người Nhận Tháng */}
       {people.length > 0 && (

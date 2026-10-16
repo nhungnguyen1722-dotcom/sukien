@@ -226,11 +226,12 @@ export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: Weekly
     spentCell.border = thinBorder;
 
     const remCell = ws.getCell(`H${currentRow}`);
-    remCell.value = formatVND(fund.remaining);
+    const remaining = fund.allocated - fund.spent;
+    remCell.value = formatVND(remaining);
     remCell.font = {
       name: 'Arial',
       size: 10,
-      color: { argb: fund.remaining === 0 ? COLOR_RED_TEXT : 'FF000000' },
+      color: { argb: remaining === 0 ? COLOR_RED_TEXT : 'FF000000' },
     };
     remCell.alignment = { horizontal: 'right', vertical: 'middle' };
     remCell.border = thinBorder;
@@ -260,7 +261,7 @@ export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: Weekly
   totalSpent.alignment = { horizontal: 'right', vertical: 'middle' };
 
   const totalRem = ws.getCell(`H${currentRow}`);
-  totalRem.value = formatVND(data.totalRemaining);
+  totalRem.value = formatVND(data.totalAllocated - data.totalSpent);
   totalRem.font = { name: 'Arial', size: 10, bold: true };
   totalRem.alignment = { horizontal: 'right', vertical: 'middle' };
 
@@ -428,18 +429,14 @@ export function createStyledWeeklySheet(workbook: ExcelJS.Workbook, data: Weekly
     currentRow = 30;
     const matrixHeaders = ['STT', 'Hợp đồng'];
     for (const b of data.beneficiaryColumns) {
-      const parts = [b.name];
-      if (b.bankAccount) {
-        const cleanAcc = b.bankAccount.replace(/^STK:\s*/i, '').trim();
-        parts.push(`STK: ${cleanAcc}`);
-      }
-      if (b.bankName) parts.push(b.bankName);
+      const cleanAcc = (b.bankAccount || '').replace(/^STK:\s*/i, '').trim();
+      const parts = [b.name, `STK: ${cleanAcc || '—'}`, b.bankName || '—'];
       matrixHeaders.push(parts.join('\n'));
     }
     matrixHeaders.push('Tổng quỹ chưa chia (15%)', 'Tổng hoa hồng chia', 'Tổng quỹ còn lại');
 
     const matrixHeaderRow = ws.getRow(currentRow);
-    matrixHeaderRow.height = 46;
+    matrixHeaderRow.height = 54;
     for (let c = 0; c < matrixHeaders.length; c++) {
       const cell = matrixHeaderRow.getCell(c + 1);
       cell.value = matrixHeaders[c];
@@ -691,11 +688,12 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
     spentCell.border = thinBorder;
 
     const remCell = ws.getCell(`H${currentRow}`);
-    remCell.value = formatVND(fund.remaining);
+    const remaining = fund.allocated - fund.spent;
+    remCell.value = formatVND(remaining);
     remCell.font = {
       name: 'Arial',
       size: 10,
-      color: { argb: fund.remaining === 0 ? COLOR_RED_TEXT : 'FF000000' },
+      color: { argb: remaining === 0 ? COLOR_RED_TEXT : 'FF000000' },
     };
     remCell.alignment = { horizontal: 'center', vertical: 'middle' };
     remCell.border = thinBorder;
@@ -726,7 +724,7 @@ export function createStyledMonthlySheet(workbook: ExcelJS.Workbook, data: Month
   totalSpent.alignment = { horizontal: 'center', vertical: 'middle' };
 
   const totalRem = ws.getCell(`H${currentRow}`);
-  totalRem.value = formatVND(data.totalRemaining);
+  totalRem.value = formatVND(data.totalAllocated - data.totalSpent);
   totalRem.font = { name: 'Arial', size: 10, bold: true };
   totalRem.alignment = { horizontal: 'center', vertical: 'middle' };
 

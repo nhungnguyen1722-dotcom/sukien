@@ -3520,7 +3520,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         distributionTitle={`Bảng kê hợp đồng & nhân sự thụ hưởng — ${isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}`}
         distributionView={previewMatrixView}
         onDistributionViewChange={setPreviewMatrixView}
-        distributionMatrix={<FundDistributionMatrix
+        distributionMatrix={!isMonthOverview ? <FundDistributionMatrix
           view={previewMatrixView}
           contracts={displayedContracts}
           contractCount={displayedContracts.length}
@@ -3531,7 +3531,7 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
           totalPages={1}
           onPageChange={() => undefined}
           onPageSizeChange={() => undefined}
-        />}
+        /> : null}
         data={{
           salesBase: isMonthOverview ? displayedContractTotals.pool : selectedBase,
           periodLabel: isMonthOverview

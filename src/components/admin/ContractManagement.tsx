@@ -1387,12 +1387,12 @@ export default function ContractManagement({
                     </span>
                   </label>
 
-                  {isBdsContract(formData.contract_type) && (
+                  {(isBdsContract(formData.contract_type) || isTwoYearContract(formData.contract_type)) && (
                     <label className="block text-xs font-semibold text-slate-700">
                       <span className="flex items-center justify-between">
                         <span>Giá trị hợp đồng phân bổ</span>
                         <span className="text-[11px] font-normal text-slate-400">
-                          (Tự động: × 4 / 15)
+                          (Tự động: {isTwoYearContract(formData.contract_type) ? '70%' : '× 4 / 15'})
                         </span>
                       </span>
                       <span className="relative mt-1.5 block">
