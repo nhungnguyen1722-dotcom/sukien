@@ -347,7 +347,7 @@ async function loadContracts(month: string, db: typeof pool = pool) {
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
             THEN ROUND(COALESCE(value, 0) * 0.70)
-          ELSE COALESCE(allocated_value, value, 0)
+          ELSE COALESCE(NULLIF(allocated_value, 0), value, 0)
         END::float8 AS value,
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
@@ -693,7 +693,7 @@ export async function getTeamLeadContractBreakdown(month: string, contractId: nu
           OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
           OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
           THEN ROUND(COALESCE(value, 0) * 0.70)
-        ELSE COALESCE(allocated_value, value, 0)
+        ELSE COALESCE(NULLIF(allocated_value, 0), value, 0)
       END::float8 AS value,
       BTRIM(COALESCE(team_name, '')) AS team_name,
       COALESCE(contract_type, '') AS contract_type
@@ -774,7 +774,7 @@ export async function getTeamLeadReports(month: string, db: typeof pool = pool) 
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 nam'
             OR LOWER(TRIM(COALESCE(contract_type, ''))) = '2 năm'
             THEN ROUND(COALESCE(value, 0) * 0.70)
-          ELSE COALESCE(allocated_value, value, 0)
+          ELSE COALESCE(NULLIF(allocated_value, 0), value, 0)
         END::float8 AS value,
         BTRIM(COALESCE(team_name, '')) AS team_name,
         COALESCE(contract_type, '') AS contract_type
