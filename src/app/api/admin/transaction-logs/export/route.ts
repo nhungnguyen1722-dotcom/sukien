@@ -280,25 +280,34 @@ function normalizeMemberHeaderName(value: string): string {
     .replace(/\s+/g, ' ');
 }
 
-async function addMemberBankDetailsToWeeklyHeaders(data: WeeklyReportData): Promise<WeeklyReportData> {
+async function addMemberBankDetailsToWeeklyHeaders(data: WeeklyReportData, providedMembers?: MemberBankDetails[]): Promise<WeeklyReportData> {
   const columns = data.beneficiaryColumns || [];
   const hasDetail = (value?: string) => Boolean(value?.trim() && !['—', '-', 'n/a'].includes(value.trim().toLowerCase()));
-  if (!data.contractRows?.length || !columns.some((person) => !hasDetail(person.bankAccount) || !hasDetail(person.bankName))) return data;
+  const needsColumnDetails = columns.some((person) => !hasDetail(person.bankAccount) || !hasDetail(person.bankName));
+  const needsPersonDetails = data.personMatrix?.rows.some((person) => {
+    const parts = person.info.split(/\r?\n/).map((part) => part.trim());
+    return !hasDetail((parts[1] || '').replace(/^STK:\s*/i, '')) || !hasDetail(parts[2]);
+  }) || false;
+  if ((!data.contractRows?.length && !data.personMatrix?.rows.length) || (!needsColumnDetails && !needsPersonDetails)) return data;
 
-  const membersRes = await pool.query(`
+  const members = providedMembers || (await pool.query(`
     SELECT full_name, bank_account, bank_name
     FROM users
     WHERE full_name IS NOT NULL
       AND (NULLIF(BTRIM(bank_account), '') IS NOT NULL OR NULLIF(BTRIM(bank_name), '') IS NOT NULL)
-  `);
+  `)).rows.map((row) => ({
+    fullName: sanitizeVietnameseText(row.full_name),
+    bankAccount: String(row.bank_account || '').trim(),
+    bankName: String(row.bank_name || '').trim(),
+  }));
   const detailsByName = new Map<string, { bankAccount: string; bankName: string }>();
-  for (const row of membersRes.rows) {
-    const key = normalizeMemberHeaderName(String(row.full_name || ''));
+  for (const member of members) {
+    const key = normalizeMemberHeaderName(member.fullName);
     if (!key) continue;
     const existing = detailsByName.get(key) || { bankAccount: '', bankName: '' };
     detailsByName.set(key, {
-      bankAccount: existing.bankAccount || String(row.bank_account || '').trim(),
-      bankName: existing.bankName || String(row.bank_name || '').trim(),
+      bankAccount: existing.bankAccount || member.bankAccount,
+      bankName: existing.bankName || member.bankName,
     });
   }
 
@@ -312,7 +321,78 @@ async function addMemberBankDetailsToWeeklyHeaders(data: WeeklyReportData): Prom
         bankName: hasDetail(person.bankName) ? person.bankName : details?.bankName || '',
       };
     }),
+    personMatrix: data.personMatrix ? {
+      ...data.personMatrix,
+      rows: data.personMatrix.rows.map((person) => {
+        const [name = '', accountLine = '', bankLine = '', ...otherLines] = person.info.split(/\r?\n/).map((part) => part.trim());
+        const details = detailsByName.get(normalizeMemberHeaderName(name));
+        const account = accountLine.replace(/^STK:\s*/i, '').trim();
+        return {
+          ...person,
+          info: [
+            name,
+            `STK: ${hasDetail(account) ? account : details?.bankAccount || '\u2014'}`,
+            hasDetail(bankLine) ? bankLine : details?.bankName || '\u2014',
+            ...otherLines,
+          ].join('\n'),
+        };
+      }),
+    } : null,
   };
+}
+
+function buildPersonMatrixFromContractRows(data: WeeklyReportData): WeeklyPersonMatrixData | null {
+  const contracts = data.contractRows || [];
+  const people = data.beneficiaryColumns || [];
+  if (!contracts.length || !people.length) return null;
+
+  return {
+    titleColumn: 'Nhân sự thụ hưởng',
+    columns: contracts.map((contract) => contract.contractDesc),
+    totalColumn: 'Tổng chi',
+    rows: people.map((person, personIndex) => {
+      const amounts = contracts.map((contract) => contract.beneficiaryAmounts[personIndex] || 0);
+      return {
+        info: [
+          person.name,
+          `STK: ${(person.bankAccount || '').replace(/^STK:\s*/i, '').trim() || '—'}`,
+          person.bankName || '—',
+        ].join('\n'),
+        amounts,
+        totalSpent: amounts.reduce((sum, amount) => sum + (amount || 0), 0),
+      };
+    }),
+    summaries: [],
+  };
+}
+
+function buildContractRowsFromPersonMatrix(data: WeeklyReportData): WeeklyContractMatrixRow[] {
+  const matrix = data.personMatrix;
+  if (!matrix?.rows.length || !matrix.columns.length) return [];
+  const summaryValue = (labelPart: string, contractIndex: number) => {
+    const summary = matrix.summaries.find((row) => row.label.toLocaleLowerCase('vi').includes(labelPart));
+    return Number(summary?.values[contractIndex] || 0);
+  };
+
+  return matrix.columns.map((contractDesc, contractIndex) => ({
+    stt: contractIndex + 1,
+    contractDesc,
+    beneficiaryAmounts: matrix.rows.map((person) => person.amounts[contractIndex] ?? null),
+    unallocatedPool: summaryValue('chưa chia', contractIndex),
+    distributedCommission: summaryValue('hoa hồng', contractIndex),
+    remainingFund: summaryValue('còn lại', contractIndex),
+  }));
+}
+
+function buildBeneficiaryColumnsFromPersonMatrix(data: WeeklyReportData) {
+  return (data.personMatrix?.rows || []).map((person) => {
+    const [name = '', accountLine = '', bankName = ''] = person.info.split(/\r?\n/).map((part) => part.trim());
+    return {
+      name,
+      bankAccount: accountLine.replace(/^STK:\s*/i, '').trim(),
+      bankName,
+    };
+  });
 }
 
 function parseMonthlySheetFromFile(filePath: string | null | undefined, sheetName: string, month: string): MonthlyReportData | null {
@@ -385,6 +465,12 @@ function parseMonthlySheetFromFile(filePath: string | null | undefined, sheetNam
   }
 }
 
+interface MemberBankDetails {
+  fullName: string;
+  bankAccount: string;
+  bankName: string;
+}
+
 async function getContractsAndMembers(start: string, endExclusive: string) {
   const [contractsRes, membersRes] = await Promise.all([
     pool.query(`
@@ -400,7 +486,7 @@ async function getContractsAndMembers(start: string, endExclusive: string) {
       ORDER BY c.contract_date DESC NULLS LAST, c.id DESC
     `, [start, endExclusive]),
     pool.query(`
-      SELECT u.id, u.full_name, u.phone, u.bank_account
+      SELECT u.id, u.full_name, u.phone, u.bank_account, u.bank_name
       FROM users u
       ORDER BY u.full_name ASC
     `),
@@ -417,8 +503,13 @@ async function getContractsAndMembers(start: string, endExclusive: string) {
   }));
 
   const memberNames = membersRes.rows.map((row) => sanitizeVietnameseText(row.full_name));
+  const memberBankDetails: MemberBankDetails[] = membersRes.rows.map((row) => ({
+    fullName: sanitizeVietnameseText(row.full_name),
+    bankAccount: String(row.bank_account || '').trim(),
+    bankName: String(row.bank_name || '').trim(),
+  }));
 
-  return { databaseContracts, memberNames };
+  return { databaseContracts, memberNames, memberBankDetails };
 }
 
 export async function GET(request: NextRequest) {
@@ -426,6 +517,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month') || '2026-09';
     const periodCode = searchParams.get('period_code') || 'MONTH_OVERVIEW';
+    const matrixView = searchParams.get('matrix_view') === 'name' ? 'name' : 'contract';
 
     const pCodeNorm = (periodCode || '').trim().toLowerCase();
     const isMonthOverview =
@@ -637,6 +729,7 @@ export async function GET(request: NextRequest) {
       exportFileName = `DNTT-hoa-hong-${periodCode}.xlsx`;
 
       let weeklyData: WeeklyReportData | null = null;
+      let memberBankDetails: MemberBankDetails[] | undefined;
       let sheetTitle = 'DNTT tuần';
 
       const pUpper = periodCode.toUpperCase().replace(/\s+/g, '');
@@ -664,7 +757,8 @@ export async function GET(request: NextRequest) {
       if (!weeklyData) {
         // Tạo dữ liệu tuần động từ database
         const weekRange = periodRangeForExport(periodCode, month);
-        const { databaseContracts, memberNames } = await getContractsAndMembers(weekRange.start, weekRange.endExclusive);
+        const { databaseContracts, memberNames, memberBankDetails: loadedMemberBankDetails } = await getContractsAndMembers(weekRange.start, weekRange.endExclusive);
+        memberBankDetails = loadedMemberBankDetails;
         const { contracts } = loadSeptemberContractDistributions(databaseContracts, memberNames);
         let weekContracts = contracts.filter((c) => c.source_period_code === periodCode);
 
@@ -823,8 +917,37 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      weeklyData = await addMemberBankDetailsToWeeklyHeaders(weeklyData);
-      createStyledWeeklySheet(workbook, weeklyData, sheetTitle);
+      weeklyData = await addMemberBankDetailsToWeeklyHeaders(weeklyData, memberBankDetails);
+      const contractRows = weeklyData.contractRows?.length
+        ? weeklyData.contractRows
+        : buildContractRowsFromPersonMatrix(weeklyData);
+      const beneficiaryColumns = weeklyData.beneficiaryColumns?.length
+        ? weeklyData.beneficiaryColumns
+        : buildBeneficiaryColumnsFromPersonMatrix(weeklyData);
+      const summaryGrandTotal = (labelPart: string) => {
+        const summary = weeklyData?.personMatrix?.summaries.find((row) => row.label.toLocaleLowerCase('vi').includes(labelPart));
+        return Number(summary?.values[summary.values.length - 1] || 0);
+      };
+      const selectedViewData: WeeklyReportData = matrixView === 'contract'
+        ? {
+            ...weeklyData,
+            personMatrix: weeklyData.personMatrix?.rows.length
+              ? { ...weeklyData.personMatrix, titleColumn: 'Nhân sự thụ hưởng' }
+              : buildPersonMatrixFromContractRows({ ...weeklyData, contractRows, beneficiaryColumns }),
+          }
+        : {
+            ...weeklyData,
+            personMatrix: null,
+            contractRows,
+            beneficiaryColumns,
+            beneficiaryTotals: weeklyData.beneficiaryTotals?.length
+              ? weeklyData.beneficiaryTotals
+              : weeklyData.personMatrix?.rows.map((person) => person.totalSpent) || [],
+            matrixTotalPool: weeklyData.matrixTotalPool || summaryGrandTotal('chưa chia'),
+            matrixTotalDistributed: weeklyData.matrixTotalDistributed || summaryGrandTotal('hoa hồng'),
+            matrixTotalRemaining: weeklyData.matrixTotalRemaining || summaryGrandTotal('còn lại'),
+          };
+      createStyledWeeklySheet(workbook, selectedViewData, sheetTitle);
     }
 
     const buffer = await workbook.xlsx.writeBuffer();

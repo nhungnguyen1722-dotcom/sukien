@@ -9,6 +9,7 @@ import {
   Printer,
   Copy,
   Check,
+  CheckCircle2,
   FileSpreadsheet,
   Link as LinkIcon,
   Send,
@@ -399,6 +400,10 @@ export default function CreatePaymentProposalModal({
   // Save Proposal
   const handleSaveProposal = async (customStatus?: string) => {
     const finalStatus = customStatus || status || 'Chờ duyệt';
+    if (finalStatus === 'Xóa phiếu') {
+      if (confirm('Xóa phiếu đề xuất chưa lưu?')) onClose();
+      return;
+    }
     const isDraft = finalStatus === 'Lưu nháp';
     if (!isDraft && !approverName.trim()) {
       alert('Vui lòng chọn người phê duyệt.');
@@ -664,9 +669,7 @@ export default function CreatePaymentProposalModal({
                     >
                       <option value="Chờ duyệt">CHỜ DUYỆT</option>
                       <option value="Đã duyệt">ĐÃ DUYỆT</option>
-                      <option value="Đã thanh toán">ĐÃ THANH TOÁN</option>
-                      <option value="Lưu nháp">LƯU NHÁP</option>
-                      <option value="Từ chối">TỪ CHỐI</option>
+                      <option value="Xóa phiếu">XÓA PHIẾU</option>
                     </select>
                   </div>
                 </div>
@@ -1035,7 +1038,7 @@ export default function CreatePaymentProposalModal({
             <button
               type="button"
               onClick={() => handleSaveProposal('Lưu nháp')}
-              disabled={isSubmitting}
+              disabled={isSubmitting || status === 'Xóa phiếu'}
               className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer disabled:opacity-50"
             >
               <Save className="h-3.5 w-3.5" />
@@ -1044,12 +1047,12 @@ export default function CreatePaymentProposalModal({
 
             <button
               type="button"
-              onClick={() => handleSaveProposal('Chờ duyệt')}
+              onClick={() => handleSaveProposal()}
               disabled={isSubmitting}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition cursor-pointer disabled:opacity-50"
             >
-              <Send className="h-3.5 w-3.5" />
-              <span>{isSubmitting ? 'Đang lưu…' : 'Lưu & gửi duyệt chi'}</span>
+              {status === 'Xóa phiếu' ? <Trash2 className="h-3.5 w-3.5" /> : status === 'Đã duyệt' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+              <span>{isSubmitting ? 'Đang lưu…' : status === 'Xóa phiếu' ? 'Xóa phiếu' : status === 'Đã duyệt' ? 'Lưu phiếu đã duyệt' : 'Lưu & gửi duyệt chi'}</span>
             </button>
           </div>
         </div>

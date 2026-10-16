@@ -51,6 +51,8 @@ export interface ExcelPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   onExport: () => void | Promise<void>;
+  onExportByContract?: () => void | Promise<void>;
+  onExportByName?: () => void | Promise<void>;
   isExporting?: boolean;
   mode: ExcelPreviewMode;
   title: string;
@@ -126,10 +128,12 @@ function DistributionMatrixSection({ title, matrix }: { title?: string; matrix?:
   );
 }
 
-export default function ExcelPreviewModal({
+function ExcelPreviewModal({
   isOpen,
   onClose,
   onExport,
+  onExportByContract,
+  onExportByName,
   isExporting = false,
   mode,
   title,
@@ -141,6 +145,12 @@ export default function ExcelPreviewModal({
   distributionMatrix,
   data,
 }: ExcelPreviewModalProps) {
+  const activeExportHandler = useMemo(() => {
+    if (mode === 'cashflow_week' && distributionView === 'contract' && onExportByContract) return onExportByContract;
+    if (mode === 'cashflow_week' && distributionView === 'person' && onExportByName) return onExportByName;
+    return onExport;
+  }, [distributionView, mode, onExport, onExportByContract, onExportByName]);
+
   // Close on ESC key
   useEffect(() => {
     if (!isOpen) return;
@@ -185,7 +195,7 @@ export default function ExcelPreviewModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onExport}
+              onClick={activeExportHandler}
               disabled={isExporting}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition disabled:opacity-50 cursor-pointer"
               title="Tải tệp Excel .xlsx về máy"
@@ -239,7 +249,7 @@ export default function ExcelPreviewModal({
             </button>
             <button
               type="button"
-              onClick={onExport}
+              onClick={activeExportHandler}
               disabled={isExporting}
               className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 font-bold text-white shadow-2xs hover:bg-emerald-700 transition disabled:opacity-50 cursor-pointer"
             >
@@ -252,6 +262,8 @@ export default function ExcelPreviewModal({
     </div>
   );
 }
+
+export default React.memo(ExcelPreviewModal);
 
 // -------------------------------------------------------------
 // PREVIEW 1: Cashflow Weekly Report (Theo tuần - chuẩn Hình 1 & Hình 3)

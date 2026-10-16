@@ -22,6 +22,7 @@ import {
   CalendarCheck,
   CalendarDays,
   CheckCircle2,
+  Clock3,
   CircleDollarSign,
   Copy,
   Edit3,
@@ -43,7 +44,6 @@ import {
   Users,
   Wallet,
   X,
-  XCircle,
 } from 'lucide-react';
 
 import CreatePaymentProposalModal from '@/components/admin/CreatePaymentProposalModal';
@@ -1969,11 +1969,12 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     }
   };
 
-  const handleExportExcel = async () => {
+  const downloadTransactionLogExcel = useCallback(async (matrixView?: 'contract' | 'name') => {
     try {
       setIsExporting(true);
       const periodParam = isMonthOverview ? 'MONTH_OVERVIEW' : selectedPeriodCode;
-      const url = `/api/admin/transaction-logs/export?month=${encodeURIComponent(selectedMonth)}&period_code=${encodeURIComponent(periodParam)}`;
+      const matrixParam = matrixView ? `&matrix_view=${encodeURIComponent(matrixView)}` : '';
+      const url = `/api/admin/transaction-logs/export?month=${encodeURIComponent(selectedMonth)}&period_code=${encodeURIComponent(periodParam)}${matrixParam}`;
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -2001,7 +2002,14 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
     } finally {
       setIsExporting(false);
     }
-  };
+  }, [isMonthOverview, selectedMonth, selectedPeriodCode]);
+
+  const handleExportViewByContract = useCallback(() => downloadTransactionLogExcel('contract'), [downloadTransactionLogExcel]);
+  const handleExportViewByName = useCallback(() => downloadTransactionLogExcel('name'), [downloadTransactionLogExcel]);
+  const handleExportExcel = useCallback(() => {
+    if (isMonthOverview) return downloadTransactionLogExcel();
+    return previewMatrixView === 'contract' ? handleExportViewByContract() : handleExportViewByName();
+  }, [downloadTransactionLogExcel, handleExportViewByContract, handleExportViewByName, isMonthOverview, previewMatrixView]);
 
   const previewFunds: ExcelPreviewCashflowFund[] = useMemo(() => {
     return fundRowsToDisplay.map((r) => {
@@ -2036,6 +2044,33 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       };
     });
   }, [isMonthOverview, monthPeopleRows, selectedPeopleRows, initialMembersMap]);
+
+  const closeExcelPreview = useCallback(() => setIsExcelPreviewOpen(false), []);
+  const handlePreviewPageChange = useCallback((_page: number) => undefined, []);
+  const handlePreviewPageSizeChange = useCallback((_size: number) => undefined, []);
+  const previewDistributionMatrix = useMemo(() => !isMonthOverview ? <FundDistributionMatrix
+    view={previewMatrixView}
+    contracts={displayedContracts}
+    contractCount={displayedContracts.length}
+    people={peopleRows}
+    members={initialMembers}
+    currentPage={1}
+    pageSize={0}
+    totalPages={1}
+    onPageChange={handlePreviewPageChange}
+    onPageSizeChange={handlePreviewPageSizeChange}
+  /> : null, [displayedContracts, handlePreviewPageChange, handlePreviewPageSizeChange, initialMembers, isMonthOverview, peopleRows, previewMatrixView]);
+  const previewData = useMemo(() => ({
+    salesBase: isMonthOverview ? displayedContractTotals.pool : selectedBase,
+    periodLabel: isMonthOverview
+      ? `Tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}`
+      : selectedPeriodHeading,
+    funds: previewFunds,
+    totalAllocated: summaryTotals.allocation,
+    totalSpent: summaryTotals.paid,
+    totalRemaining: summaryTotals.remaining,
+    people: previewPeople,
+  }), [displayedContractTotals.pool, isMonthOverview, previewFunds, previewPeople, selectedBase, selectedMonth, selectedPeriodHeading, summaryTotals.allocation, summaryTotals.paid, summaryTotals.remaining]);
 
   return (
     <div className="space-y-5 px-[30px] pt-6 pb-8">
@@ -3108,7 +3143,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               <td className="px-3 py-3 text-right"><div className="font-semibold">{log.proposed_amount == null ? '—' : formatVND(log.proposed_amount)}</div><div className="text-[10px] text-slate-500">Thực chi {formatVND(log.actual_expense)}</div></td>
               <td className="px-3 py-3 text-center"><StatusBadge status={log.status} /></td>
               <td className="relative px-3 py-3 text-center"><div className="inline-flex items-center gap-1"><button onClick={() => setViewLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="Chi tiết"><Eye className="h-4 w-4" /></button><button onClick={() => setPrintLog(log)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="In phiếu / Lưu PDF"><Printer className="h-4 w-4" /></button><button onClick={() => setActionMenuId(actionMenuId === log.id ? null : log.id)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" title="Thao tác"><MoreVertical className="h-4 w-4" /></button></div>
-                {actionMenuId === log.id && <div className="absolute right-5 top-10 z-20 w-48 rounded-xl border border-slate-200 bg-white py-1 text-left shadow-xl">{log.status !== 'Đã duyệt' && <button onClick={() => updateLogStatus(log, 'Đã duyệt')} className="flex w-full items-center gap-2 px-3 py-2 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="h-3.5 w-3.5" /> Duyệt phiếu</button>}{!isPaidStatus(log.status) && <button onClick={() => updateLogStatus(log, 'Đã thanh toán')} className="flex w-full items-center gap-2 px-3 py-2 text-blue-700 hover:bg-blue-50"><Receipt className="h-3.5 w-3.5" /> Đã thanh toán</button>}{!isPaidStatus(log.status) && <button onClick={() => updateLogStatus(log, 'Đã thực hiện')} className="flex w-full items-center gap-2 px-3 py-2 text-indigo-700 hover:bg-indigo-50"><CheckCircle2 className="h-3.5 w-3.5" /> Đã thực hiện</button>}{log.status !== 'Từ chối' && <button onClick={() => updateLogStatus(log, 'Từ chối')} className="flex w-full items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50"><XCircle className="h-3.5 w-3.5" /> Từ chối</button>}<button onClick={() => deleteLog(log)} className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-red-700 hover:bg-red-50"><X className="h-3.5 w-3.5" /> Xóa phiếu</button></div>}</td>
+                {actionMenuId === log.id && <div className="absolute right-5 top-10 z-20 w-48 rounded-xl border border-slate-200 bg-white py-1 text-left shadow-xl">
+                  <button disabled={log.status === 'Chờ duyệt'} onClick={() => updateLogStatus(log, 'Chờ duyệt')} className="flex w-full items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"><Clock3 className="h-3.5 w-3.5" /> Chờ duyệt</button>
+                  <button disabled={log.status === 'Đã duyệt'} onClick={() => updateLogStatus(log, 'Đã duyệt')} className="flex w-full items-center gap-2 px-3 py-2 text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 className="h-3.5 w-3.5" /> Đã duyệt</button>
+                  <button onClick={() => deleteLog(log)} className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-red-700 hover:bg-red-50"><X className="h-3.5 w-3.5" /> Xóa phiếu</button>
+                </div>}</td>
             </tr>)}{!filteredLogs.length && <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-500">Không có phiếu phù hợp.</td></tr>}</tbody>
           </table>
         </div>
@@ -3504,8 +3543,10 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
       {/* EXCEL PREVIEW MODAL */}
       <ExcelPreviewModal
         isOpen={isExcelPreviewOpen}
-        onClose={() => setIsExcelPreviewOpen(false)}
+        onClose={closeExcelPreview}
         onExport={handleExportExcel}
+        onExportByContract={handleExportViewByContract}
+        onExportByName={handleExportViewByName}
         isExporting={isExporting}
         mode={isMonthOverview ? 'cashflow_month' : 'cashflow_week'}
         title={isMonthOverview
@@ -3520,29 +3561,8 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         distributionTitle={`Bảng kê hợp đồng & nhân sự thụ hưởng — ${isMonthOverview ? `Tổng quan tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}` : selectedPeriodHeading}`}
         distributionView={previewMatrixView}
         onDistributionViewChange={setPreviewMatrixView}
-        distributionMatrix={!isMonthOverview ? <FundDistributionMatrix
-          view={previewMatrixView}
-          contracts={displayedContracts}
-          contractCount={displayedContracts.length}
-          people={peopleRows}
-          members={initialMembers}
-          currentPage={1}
-          pageSize={0}
-          totalPages={1}
-          onPageChange={() => undefined}
-          onPageSizeChange={() => undefined}
-        /> : null}
-        data={{
-          salesBase: isMonthOverview ? displayedContractTotals.pool : selectedBase,
-          periodLabel: isMonthOverview
-            ? `Tháng ${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}`
-            : selectedPeriodHeading,
-          funds: previewFunds,
-          totalAllocated: summaryTotals.allocation,
-          totalSpent: summaryTotals.paid,
-          totalRemaining: summaryTotals.remaining,
-          people: previewPeople,
-        }}
+        distributionMatrix={previewDistributionMatrix}
+        data={previewData}
       />
 
       {/* UPDATE FUND ALLOCATION PAID MODAL */}
