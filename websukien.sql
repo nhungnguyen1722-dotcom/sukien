@@ -585,11 +585,23 @@ ALTER SEQUENCE public.events_id_seq OWNED BY public.events.id;
 
 
 --
+-- Name: fund_beneficiary_allocations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.fund_beneficiary_allocations_id_seq
+    START WITH 1185
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
 -- Name: fund_beneficiary_allocations; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.fund_beneficiary_allocations (
-    id integer NOT NULL,
+    id integer DEFAULT nextval('public.fund_beneficiary_allocations_id_seq'::regclass) NOT NULL,
     source_key character varying(255) NOT NULL,
     source_sheet character varying(255) NOT NULL,
     source_row integer NOT NULL,
@@ -812,7 +824,43 @@ CREATE VIEW public.operations_fund AS
     fund_weekly_allocations.paid_amount,
     fund_weekly_allocations.remaining_amount
    FROM public.fund_weekly_allocations
-  WHERE ((fund_weekly_allocations.fund_key)::text = ANY ((ARRAY['operations'::character varying, 'support_cn'::character varying, 'support_kt'::character varying])::text[]));
+  WHERE ((fund_weekly_allocations.fund_key)::text = ANY (ARRAY[('operations'::character varying)::text, ('support_cn'::character varying)::text, ('support_kt'::character varying)::text]));
+
+
+--
+-- Name: operations_fund_beneficiaries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.operations_fund_beneficiaries_id_seq
+    START WITH 6
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: operations_fund_beneficiaries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.operations_fund_beneficiaries (
+    id bigint DEFAULT nextval('public.operations_fund_beneficiaries_id_seq'::regclass) NOT NULL,
+    department_key text NOT NULL,
+    fund_key text NOT NULL,
+    fund_source text NOT NULL,
+    department text NOT NULL,
+    full_name text DEFAULT ''::text NOT NULL,
+    phone text DEFAULT ''::text NOT NULL,
+    bank_account text DEFAULT ''::text NOT NULL,
+    bank_name text DEFAULT ''::text NOT NULL,
+    weekly_rate numeric NOT NULL,
+    monthly_rate numeric NOT NULL,
+    effective_from date NOT NULL,
+    created_by text,
+    updated_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -864,7 +912,9 @@ CREATE TABLE public.transaction_logs (
     expense_type character varying(20) DEFAULT 'Thủ công'::character varying NOT NULL,
     beneficiary_user_id integer,
     source_contract_id integer,
-    beneficiary_role character varying(40)
+    beneficiary_role character varying(40),
+    items json DEFAULT '[]'::json,
+    note text
 );
 
 
@@ -1077,6 +1127,18 @@ CREATE VIEW public.teamlead_fund AS
 
 
 --
+-- Name: teamlead_fund_splits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teamlead_fund_splits (
+    fund_month bpchar NOT NULL,
+    leader_percent smallint NOT NULL,
+    updated_by character varying(255),
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: teamlead_member_teams; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1257,6 +1319,33 @@ ALTER SEQUENCE public.teams_id_seq OWNED BY public.teams.id;
 
 
 --
+-- Name: training_courses_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.training_courses_id_seq
+    START WITH 6
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: training_courses; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.training_courses (
+    id integer DEFAULT nextval('public.training_courses_id_seq'::regclass) NOT NULL,
+    course_code character varying(50) NOT NULL,
+    course_name character varying(255) NOT NULL,
+    training_type character varying(50) DEFAULT 'Online'::character varying NOT NULL,
+    token_value numeric DEFAULT 50 NOT NULL,
+    budget numeric DEFAULT 250000 NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
 -- Name: training_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1287,7 +1376,53 @@ CREATE TABLE public.training_logs (
     approver character varying(100) DEFAULT 'Chị Cúc'::character varying,
     status character varying(50) DEFAULT 'Đã duyệt'::character varying,
     training_date date,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    course_code character varying(50)
+);
+
+
+--
+-- Name: transaction_log_items_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.transaction_log_items_id_seq
+    START WITH 64
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: transaction_log_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.transaction_log_items (
+    id integer DEFAULT nextval('public.transaction_log_items_id_seq'::regclass) NOT NULL,
+    transaction_log_id integer,
+    item_order integer DEFAULT 1,
+    title character varying(255) NOT NULL,
+    subtitle character varying(255),
+    fund_source character varying(255),
+    beneficiary_name character varying(255),
+    beneficiary_phone character varying(50),
+    beneficiary_bank_account character varying(255),
+    beneficiary_bank_name character varying(255),
+    beneficiary_user_id integer,
+    amount numeric DEFAULT 0 NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: user_teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_teams (
+    user_id integer NOT NULL,
+    team_id integer NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1322,7 +1457,10 @@ CREATE TABLE public.users (
     google_id character varying(255),
     avatar_url character varying(500),
     team_name text,
-    business_unit character varying(100) DEFAULT 'Khối kinh doanh'::character varying
+    business_unit character varying(100) DEFAULT 'Khối kinh doanh'::character varying,
+    bank_name text,
+    created_by_name text,
+    updated_by_name text
 );
 
 
@@ -1498,38 +1636,48 @@ COPY public.allocation_policy_versions (id, version_label, effective_date, note,
 -- Data for Name: contracts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.contracts (id, contract_code, contract_date, value, seller_id, referrer_id, closer_id, event_id, created_at, updated_at, customer_name, supporter_id, status, closer_fee, referrer_fee, supporter_fee, file_url, notes, allocated_value, closer_name, closer_phone, referrer_name, referrer_phone, supporter_name, supporter_phone, team_name, contract_type, approved_date, customer_phone, customer_birth_date, customer_address) FROM stdin;
-20	HĐ 150626,1	2026-09-15	40000000.00	\N	40	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	TRẦN THỊ THANH HƯƠNG	40	Đã duyệt	2400000.000	400000.000	200000.000	\N		40000000.00	Trần Thị Thanh Hương	0329685009	Cung Thu Hà	0965759559	Cung Thu Hà	0965759559	Kiến Vàng	\N	2026-09-27	\N	\N	\N
-21	\N	2026-09-17	20000000.00	\N	\N	210	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ NGA	210	Đã duyệt	1200000.000	200000.000	100000.000	\N		20000000.00	Nguyễn Thị Hương	0399868786	Diệp Thị Huế	0915095848	Nguyễn Thị Hương	0399868786	Ong Vàng	\N	2026-09-27	\N	\N	\N
-22	\N	2026-09-18	15000000.00	\N	161	162	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	PHẠM THÙY LAN	161	Đã duyệt	900000.000	150000.000	75000.000	\N		15000000.00	Phạm Thùy Lan	0912137909	Phạm Vinh Quang	0913073619	Phạm Vinh Quang	0913073619	Ong Vàng	\N	2026-09-27	\N	\N	\N
-23	\N	2026-09-19	45000000.00	\N	41	217	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN TẤT THẮNG	217	Đã duyệt	2700000.000	450000.000	225000.000	\N		45000000.00	Phượng Ngọc Thu	0969881698	Nguyễn Hùng Vĩ	0326894993	Phượng Ngọc Thu	0969881698	Lộc Phát	\N	2026-09-27	\N	\N	\N
-24	\N	2026-09-22	30000000.00	\N	\N	41	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	GIANG THANH NGỌC	41	Đã duyệt	1800000.000	300000.000	150000.000	\N		30000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Nguyễn Hùng Vĩ	0326894993	Thành Công	\N	2026-09-27	\N	\N	\N
-25	\N	2026-09-23	20000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	LÊ VĂN TIẾN	\N	Đã duyệt	1200000.000	200000.000	100000.000	\N		20000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	\N	2026-09-27	\N	\N	\N
-26	\N	2026-09-23	500000000.00	\N	145	81	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	HOÀNG VĂN NHẬT	43	Đã duyệt	30000000.000	5000000.000	2500000.000	\N		500000000.00	Hoàng Văn Nhật	0915026767	Nguyễn Thị Hà	0373360136	Phạm Thị Hương	0947876133	Ong Vàng	\N	2026-09-27	\N	\N	\N
-27	\N	2026-09-27	10000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	TRƯƠNG THỊ THÙY TRANG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	\N	\N	\N	\N	\N
-28	\N	2026-09-27	10000000.00	\N	\N	210	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ HƯƠNG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Nguyễn Thị Hương	0399868786	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Ong Vàng	\N	\N	\N	\N	\N
-29	\N	2026-09-27	1000000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	PHAN THỊ KIM DUNG	\N	Chờ duyệt	16000000.000	2666666.670	1333333.330	\N		266666666.70	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	BĐS	\N	\N	\N	\N
-30	\N	2026-09-30	10000000.00	\N	41	221	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	DƯƠNG HỒNG PHƯƠNG	221	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Dương Hồng Phương	0979345229	Nguyễn Hùng Vĩ	0326894993	Dương Hồng Phương	0979345229	Biệt đội Kim Cương	\N	\N	\N	\N	\N
-31	\N	2026-10-02	135000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ CÚC	\N	Chờ duyệt	8100000.000	1350000.000	675000.000	\N		135000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Nguyễn Minh Châu	0349791507	Happy	\N	\N	\N	\N	\N
-32	\N	2026-10-08	40000000.00	\N	109	405	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ LOAN	109	Chờ duyệt	2400000.000	400000.000	200000.000	\N		40000000.00	Hoàng Thị Chích	0912415469	Nguyễn Đức Vĩnh	0384081272	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-33	\N	2026-10-02	100000000.00	\N	90	109	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	ĐỖ MỘNG LONG	109	Chờ duyệt	6000000.000	1000000.000	500000.000	\N		100000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-34	\N	2026-10-03	10000000.00	\N	\N	41	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ THOA	15	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Vũ Thị Cúc	0889225989	Thành Công	\N	\N	\N	\N	\N
-35	\N	2026-10-03	20000000.00	\N	\N	41	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	LÊ THỊ THẢO	41	Chờ duyệt	1200000.000	200000.000	100000.000	\N		20000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Nguyễn Hùng Vĩ	0326894993	Thành Công	\N	\N	\N	\N	\N
-36	\N	2026-10-03	50000000.00	\N	\N	205	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	LÊ THỊ MỸ	43	Chờ duyệt	3000000.000	500000.000	250000.000	\N		50000000.00	Trần Thị Hồng Vân	0962240952	Đào Thị Hòa	0949482658	Phạm Thị Hương	0947876133	Ong Vàng	\N	\N	\N	\N	\N
-38	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	TRẦN THỊ LAN HƯƠNG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-39	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	PHẠM THỊ THANH PHƯƠNG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-40	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	QUÀNG THỊ ĐOÀN	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-41	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	NGUYỄN THỊ MINH	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Nguyễn Minh Châu	0349791507	Hoàng Thị Chích	0384081272	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-42	\N	2026-10-05	100000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	NGUYỄN VĂN DẬU	\N	Chờ duyệt	6000000.000	1000000.000	500000.000	\N	\N	100000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	\N	\N	\N	\N	\N
-43	\N	2026-10-05	430000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	VŨ HÙNG VỸ	\N	Chờ duyệt	25800000.000	4300000.000	2150000.000	\N	\N	430000000.00	Vũ Hùng Vỹ	0984065555	Phạm Minh Tuấn	0768635148	Vũ Hùng Vỹ	0984065555	Ong Vàng	\N	\N	\N	\N	\N
-44	\N	2026-10-02	500000000.00	\N	40	375	\N	2026-10-07 16:26:49.588	2026-10-07 16:26:49.588	HOÀNG TRẦN NGỌC DIỆU	375	Đã duyệt	30000000.000	5000000.000	2500000.000	\N		500000000.00	Trần Thị Thanh Hương	0329685009	Cung Thu Hà	0965759559	Trần Thị Thanh Hương	0329685009	Kiến Vàng	\N	\N	\N	\N	\N
-45	\N	2026-10-07	10000000.00	\N	90	109	\N	2026-10-07 16:26:49.611	2026-10-07 16:26:49.611	HOÀNG THỊ CHÍCH	109	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
-46	\N	2026-10-07	50000000.00	\N	\N	41	\N	2026-10-07 16:26:49.625	2026-10-07 16:26:49.625	NGUYỄN HÙNG VĨ	41	Chờ duyệt	3000000.000	500000.000	250000.000	\N		50000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Nguyễn Hùng Vĩ	0326894993	Thành Công	2 năm	\N	\N	\N	\N
-47	HD753305	2026-10-10	10000000.00	\N	401	402	\N	2026-10-11 02:14:11.27	2026-10-11 02:14:11.27	HỒ XUÂN THU	\N	Đã duyệt	0.000	0.000	0.000	\N	\N	0.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	\N	\N	Ong Vàng	\N	\N	\N	\N	\N
-48	HD857845	2026-10-10	35000000.00	\N	41	217	\N	2026-10-11 02:15:40.995	2026-10-11 02:15:40.995	NGUYỄN TẤT THẮNG	217	Đã duyệt	0.000	0.000	0.000	\N	\N	0.00	Phượng Ngọc Thu	0969881698	Nguyễn Hùng Vĩ	0326894993	Phượng Ngọc Thu	0969881698	Lộc Phát	\N	\N	\N	\N	\N
-49	HD532507	2026-10-11	20000000.00	\N	43	123	\N	2026-10-12 02:05:23.68	2026-10-12 02:05:23.68	HOÀNG THỊ BÍCH	43	Đã duyệt	1200000.000	200000.000	100000.000	\N	\N	20000000.00	Hoàng thị bích	0904708586	Phạm Thị Hương	0947876133	Phạm Thị Hương	0947876133	Thịnh Vượng	\N	\N	\N	\N	\N
-50	HD794594	2026-10-12	10000000.00	\N	40	375	\N	2026-10-12 02:07:29.957	2026-10-12 02:07:29.957	TRẦN THỊ THANH HƯƠNG	40	Đã duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Trần Thị Thanh Hương	0329685009	Cung Thu Hà	0965759559	Cung Thu Hà	0965759559	Kiến Vàng	\N	\N	\N	\N	\N
-51	HD051746	2026-10-12	50000000.00	\N	90	109	\N	2026-10-12 02:11:40.512	2026-10-12 02:11:40.512	TRẦN LỆ XUÂN	109	Đã duyệt	3000000.000	500000.000	250000.000	\N	\N	50000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N
+COPY public.contracts (id, contract_code, contract_date, value, seller_id, referrer_id, closer_id, event_id, created_at, updated_at, customer_name, supporter_id, status, closer_fee, referrer_fee, supporter_fee, file_url, notes, allocated_value, closer_name, closer_phone, referrer_name, referrer_phone, supporter_name, supporter_phone, team_name, contract_type, approved_date, customer_phone, customer_birth_date, customer_address, collaborator_id, collaborator_name, collaborator_phone) FROM stdin;
+49	HD532507	2026-10-11	20000000.00	\N	43	123	\N	2026-10-12 02:05:23.68	2026-10-12 02:05:23.68	HOÀNG THỊ BÍCH	43	Đã duyệt	1200000.000	200000.000	100000.000	\N	\N	20000000.00	Hoàng thị bích	0904708586	Phạm Thị Hương	0947876133	Phạm Thị Hương	0947876133	Thịnh Vượng	\N	\N	0904708586	1981-07-11	\N	\N	\N	\N
+51	HD051746	2026-10-12	50000000.00	\N	90	109	\N	2026-10-12 02:11:40.512	2026-10-12 02:11:40.512	NGUYỄN OANH KIỀU	109	Đã duyệt	3000000.000	500000.000	250000.000	\N	\N	50000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	3 năm	\N	0343552002	2002-02-17	\N	\N	\N	\N
+58	HD239443	2026-10-15	50000000.00	\N	401	402	\N	2026-10-16 09:18:49.895	2026-10-16 09:18:49.895	Hồ Xuân Thu	402	Đã duyệt	3000000.000	500000.000	250000.000	\N	\N	50000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	3 năm	\N	\N	\N	\N	118	Hồ Xuân thu( diệp Huế)	0988388012
+52	HD231853	2026-10-12	10000000.00	\N	90	109	\N	2026-10-13 07:58:54.394	2026-10-13 07:58:54.394	NGUYỄN THỊ HẰNG	109	Đã duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+53	HD366526	2026-10-12	150000000.00	\N	90	109	\N	2026-10-13 08:00:06.175	2026-10-13 08:00:06.175	NGUYỄN ĐẮC NGÀ	109	Đã duyệt	9000000.000	1500000.000	750000.000	\N	\N	150000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+20	HĐ 150626,1	2026-09-15	40000000.00	\N	40	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	TRẦN THỊ THANH HƯƠNG	40	Đã duyệt	2400000.000	400000.000	200000.000	\N		40000000.00	Trần Thị Thanh Hương	0329685009	Cung Thu Hà	0965759559	Cung Thu Hà	0965759559	Kiến Vàng	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+21	\N	2026-09-17	20000000.00	\N	\N	210	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ NGA	210	Đã duyệt	1200000.000	200000.000	100000.000	\N		20000000.00	Nguyễn Thị Hương	0399868786	Diệp Thị Huế	0915095848	Nguyễn Thị Hương	0399868786	Ong Vàng	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+22	\N	2026-09-18	15000000.00	\N	161	162	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	PHẠM THÙY LAN	161	Đã duyệt	900000.000	150000.000	75000.000	\N		15000000.00	Phạm Thùy Lan	0912137909	Phạm Vinh Quang	0913073619	Phạm Vinh Quang	0913073619	Ong Vàng	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+23	\N	2026-09-19	45000000.00	\N	41	217	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN TẤT THẮNG	217	Đã duyệt	2700000.000	450000.000	225000.000	\N		45000000.00	Phượng Ngọc Thu	0969881698	Nguyễn Hùng Vĩ	0326894993	Phượng Ngọc Thu	0969881698	Lộc Phát	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+24	\N	2026-09-22	30000000.00	\N	\N	41	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	GIANG THANH NGỌC	41	Đã duyệt	1800000.000	300000.000	150000.000	\N		30000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Nguyễn Hùng Vĩ	0326894993	Thành Công	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+25	\N	2026-09-23	20000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	LÊ VĂN TIẾN	\N	Đã duyệt	1200000.000	200000.000	100000.000	\N		20000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+26	\N	2026-09-23	500000000.00	\N	145	81	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	HOÀNG VĂN NHẬT	43	Đã duyệt	30000000.000	5000000.000	2500000.000	\N		500000000.00	Hoàng Văn Nhật	0915026767	Nguyễn Thị Hà	0373360136	Phạm Thị Hương	0947876133	Ong Vàng	\N	2026-09-27	\N	\N	\N	\N	\N	\N
+27	\N	2026-09-27	10000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	TRƯƠNG THỊ THÙY TRANG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+60	HD396706	2026-10-15	30000000.00	\N	43	486	\N	2026-10-16 09:21:40.238	2026-10-16 09:21:40.238	Vũ Thị Tấm	43	Đã duyệt	1800000.000	300000.000	150000.000	\N	\N	30000000.00	Hoàng Thị Huề	0966116573	Phạm Thị Hương	0947876133	Phạm Thị Hương	0947876133	Thịnh Vượng	3 năm	\N	\N	\N	\N	\N	\N	\N
+61	HD507948	2026-10-15	200000000.00	\N	43	407	\N	2026-10-16 09:23:04.135	2026-10-16 09:23:04.135	Nguyễn Văn Hà	43	Đã duyệt	12000000.000	2000000.000	1000000.000	\N	\N	200000000.00	Nguyễn Văn Hà	0943167088	Phạm Thị Hương	0947876133	Phạm Thị Hương	0947876133	Happy	3 năm	\N	\N	\N	\N	\N	\N	\N
+55	HD971636	2026-10-12	400000000.00	\N	323	410	\N	2026-10-13 08:10:40.768	2026-10-13 08:10:40.768	HÀ THỊ QUYÊN	109	Đã duyệt	24000000.000	4000000.000	2000000.000	\N	\N	400000000.00	Quảng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	0912577346	1969-10-20	\N	\N	\N	\N
+57	HD286757	2026-10-14	10000000.00	\N	402	210	\N	2026-10-14 13:09:23.947	2026-10-14 13:09:23.947	Nguyễn Thị Hương	402	Đã duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Nguyễn Thị Hương	0399868786	Diệp Thị Huế	0915095848	Diệp Thị Huế	0915095848	Ong Vàng	3 năm	\N	\N	\N	\N	\N	\N	\N
+54	HD417407	2026-10-12	50000000.00	\N	221	121	\N	2026-10-13 08:01:13.087	2026-10-13 08:01:13.087	NGÔ QUANG TRUNG	221	Đã duyệt	3000000.000	500000.000	250000.000	\N	\N	50000000.00	Ngô Quang Trung	0913527524	Dương Hồng Phương	0979345229	Dương Hồng Phương	0979345229	Biệt đội Kim Cương	\N	\N	\N	\N	\N	\N	\N	\N
+56	HD636970	2026-10-13	10000000.00	\N	109	\N	\N	2026-10-13 08:24:39.802	2026-10-13 08:24:39.802	LÊ THỊ NHUNG	109	Đã duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	\N	\N	Hoàng Thị Chích	0384081272	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+28	\N	2026-09-27	10000000.00	\N	\N	210	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ HƯƠNG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Nguyễn Thị Hương	0399868786	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Ong Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+29	\N	2026-09-27	1000000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	PHAN THỊ KIM DUNG	\N	Chờ duyệt	16000000.000	2666666.670	1333333.330	\N		266666666.70	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	BĐS	\N	\N	\N	\N	\N	\N	\N
+30	\N	2026-09-30	10000000.00	\N	41	221	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	DƯƠNG HỒNG PHƯƠNG	221	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Dương Hồng Phương	0979345229	Nguyễn Hùng Vĩ	0326894993	Dương Hồng Phương	0979345229	Biệt đội Kim Cương	\N	\N	\N	\N	\N	\N	\N	\N
+31	\N	2026-10-02	135000000.00	\N	\N	\N	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ CÚC	\N	Chờ duyệt	8100000.000	1350000.000	675000.000	\N		135000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Nguyễn Minh Châu	0349791507	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+32	\N	2026-10-08	40000000.00	\N	109	405	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ LOAN	109	Chờ duyệt	2400000.000	400000.000	200000.000	\N		40000000.00	Hoàng Thị Chích	0912415469	Nguyễn Đức Vĩnh	0384081272	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+33	\N	2026-10-02	100000000.00	\N	90	109	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	ĐỖ MỘNG LONG	109	Chờ duyệt	6000000.000	1000000.000	500000.000	\N		100000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+34	\N	2026-10-03	10000000.00	\N	\N	41	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	NGUYỄN THỊ THOA	15	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Vũ Thị Cúc	0889225989	Thành Công	\N	\N	\N	\N	\N	\N	\N	\N
+35	\N	2026-10-03	20000000.00	\N	\N	41	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	LÊ THỊ THẢO	41	Chờ duyệt	1200000.000	200000.000	100000.000	\N		20000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Nguyễn Hùng Vĩ	0326894993	Thành Công	\N	\N	\N	\N	\N	\N	\N	\N
+36	\N	2026-10-03	50000000.00	\N	\N	205	\N	2026-10-04 19:27:29.434	2026-10-04 19:27:29.434	LÊ THỊ MỸ	43	Chờ duyệt	3000000.000	500000.000	250000.000	\N		50000000.00	Trần Thị Hồng Vân	0962240952	Đào Thị Hòa	0949482658	Phạm Thị Hương	0947876133	Ong Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+38	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	TRẦN THỊ LAN HƯƠNG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+39	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	PHẠM THỊ THANH PHƯƠNG	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+46	\N	2026-10-07	50000000.00	\N	\N	41	\N	2026-10-07 16:26:49.625	2026-10-07 16:26:49.625	NGUYỄN HÙNG VĨ	41	Chờ duyệt	3000000.000	500000.000	250000.000	\N		35000000.00	Nguyễn Hùng Vĩ	0326894993	Chu Thị Lương	0972008333	Nguyễn Hùng Vĩ	0326894993	Thành Công	2 năm	\N	\N	\N	\N	\N	\N	\N
+40	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	QUÀNG THỊ ĐOÀN	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Quàng Thị Đoàn	0988677522	Trần Thị Ban	0379863712	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+43	\N	2026-10-05	430000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	VŨ HÙNG VỸ	\N	Chờ duyệt	25800000.000	4300000.000	2150000.000	\N	\N	430000000.00	Vũ Hùng Vỹ	0984065555	Phạm Minh Tuấn	0768635148	Vũ Hùng Vỹ	0984065555	Ong Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+44	\N	2026-10-02	500000000.00	\N	40	375	\N	2026-10-07 16:26:49.588	2026-10-07 16:26:49.588	HOÀNG TRẦN NGỌC DIỆU	375	Đã duyệt	30000000.000	5000000.000	2500000.000	\N		500000000.00	Trần Thị Thanh Hương	0329685009	Cung Thu Hà	0965759559	Trần Thị Thanh Hương	0329685009	Kiến Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+45	\N	2026-10-07	10000000.00	\N	90	109	\N	2026-10-07 16:26:49.611	2026-10-07 16:26:49.611	HOÀNG THỊ CHÍCH	109	Chờ duyệt	600000.000	100000.000	50000.000	\N		10000000.00	Hoàng Thị Chích	0384081272	Nguyễn Đức Vĩnh	0984398568	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+41	\N	2026-10-04	10000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	NGUYỄN THỊ MINH	\N	Chờ duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Nguyễn Minh Châu	0349791507	Hoàng Thị Chích	0384081272	Hoàng Thị Chích	0384081272	Happy	\N	\N	\N	\N	\N	\N	\N	\N
+42	\N	2026-10-05	100000000.00	\N	\N	\N	\N	2026-10-07 02:28:48.395	2026-10-07 02:28:48.395	NGUYỄN VĂN DẬU	\N	Chờ duyệt	6000000.000	1000000.000	500000.000	\N	\N	100000000.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	Diệp Thị Huế	0915095848	Ong Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+47	HD753305	2026-10-10	10000000.00	\N	401	402	\N	2026-10-11 02:14:11.27	2026-10-11 02:14:11.27	HỒ XUÂN THU	\N	Đã duyệt	0.000	0.000	0.000	\N	\N	0.00	Diệp Thị Huế	0915095848	Vũ Hùng Vỹ	0984065555	\N	\N	Ong Vàng	\N	\N	\N	\N	\N	\N	\N	\N
+48	HD857845	2026-10-10	35000000.00	\N	41	217	\N	2026-10-11 02:15:40.995	2026-10-11 02:15:40.995	NGUYỄN TẤT THẮNG	217	Đã duyệt	0.000	0.000	0.000	\N	\N	0.00	Phượng Ngọc Thu	0969881698	Nguyễn Hùng Vĩ	0326894993	Phượng Ngọc Thu	0969881698	Lộc Phát	\N	\N	\N	\N	\N	\N	\N	\N
+59	HD336247	2026-10-15	30000000.00	\N	40	465	\N	2026-10-16 09:19:47.723	2026-10-16 09:19:47.723	Nguyễn Mai Thiện	40	Đã duyệt	1800000.000	300000.000	150000.000	\N	\N	30000000.00	Nguyễn Mai Thiện	0986813114	Cung Thu Hà	0965759559	Cung Thu Hà	0965759559	Kiến Vàng	3 năm	\N	\N	\N	\N	\N	\N	\N
+50	HD794594	2026-10-11	10000000.00	\N	40	375	\N	2026-10-12 02:07:29.957	2026-10-12 02:07:29.957	TRẦN THỊ THANH HƯƠNG	40	Đã duyệt	600000.000	100000.000	50000.000	\N	\N	10000000.00	Trần Thị Thanh Hương	0329685009	Cung Thu Hà	0965759559	Cung Thu Hà	0965759559	Kiến Vàng	\N	\N	0329685009	1966-11-14	\N	\N	\N	\N
 \.
 
 
@@ -1594,10 +1742,21 @@ COPY public.event_in_charge (id, event_id, user_id, full_name, "position", phone
 71	66	217	Phượng Ngọc Thu	Thành viên	0969881698	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-09 08:16:15.402	2026-10-09 08:16:15.402	t
 72	66	109	Hoàng Thị Chích	Thành viên	0384081272	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-09 08:16:26.339	2026-10-09 08:16:26.339	t
 73	66	396	Phạm Thị Hương	Khác	0947876136	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-09 08:16:53.3	2026-10-09 08:16:53.3	t
-68	66	45	Chu Thị Lương	Thành viên	0368684468	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Diễn giả"}	Đã duyệt	2026-10-09 08:15:15.891535	2026-10-10 01:42:01.044476	t
-69	66	15	Vũ Thị Cúc	Admin	0889225989	cucvt@nghiengcomplex.vn	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Chốt sự kiện"}	Đã duyệt	2026-10-09 08:15:41.163128	2026-10-10 01:41:48.728995	t
-74	66	65	Nguyễn Trà My	Thành viên	0344514394	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Lễ tân"}	Đã duyệt	2026-10-09 08:18:07.973226	2026-10-10 01:42:35.57873	t
-75	66	369	Đàm Thành Đạt	Thành viên	0399665717	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-10 01:34:22.687417	2026-10-10 01:34:22.687417	t
+75	66	369	Đàm Thành Đạt	Thành viên	0399665717	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-10 01:34:22.687	2026-10-10 01:34:22.687	t
+69	66	15	Vũ Thị Cúc	Admin	0889225989	cucvt@nghiengcomplex.vn	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Chốt sự kiện"}	Đã duyệt	2026-10-09 08:15:41.163	2026-10-10 01:41:48.728	t
+68	66	45	Chu Thị Lương	Thành viên	0368684468	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Diễn giả"}	Đã duyệt	2026-10-09 08:15:15.891	2026-10-10 01:42:01.044	t
+78	85	109	Hoàng Thị Chích	Thành viên	0384081272	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-14 01:23:58.114	2026-10-14 01:23:58.114	t
+74	66	65	Nguyễn Trà My	Thành viên	0344514394	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Lễ tân"}	Đã duyệt	2026-10-09 08:18:07.973	2026-10-10 01:42:35.578	t
+76	85	41	Nguyễn Hùng Vĩ	MC	0326894993	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{MC}	Đã duyệt	2026-10-14 01:22:04.006	2026-10-14 01:22:04.006	t
+77	85	396	Phạm Thị Hương	Khác	0947876136	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-14 01:22:50.854	2026-10-14 01:22:50.854	t
+79	85	217	Phượng Ngọc Thu	Thành viên	0969881698	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-14 01:24:11.83	2026-10-14 01:24:11.83	t
+80	85	369	Đàm Thành Đạt	Thành viên	0399665717	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-14 01:24:36.134	2026-10-14 01:24:36.134	t
+81	85	15	Vũ Thị Cúc	Admin	0889225989	cucvt@nghiengcomplex.vn	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Chốt sự kiện"}	Đã duyệt	2026-10-14 01:24:50.855	2026-10-14 01:24:50.855	t
+82	86	41	Nguyễn Hùng Vĩ	MC	0326894993	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{MC}	Đã duyệt	2026-10-16 13:18:09.36	2026-10-16 13:18:09.36	t
+83	86	15	Vũ Thị Cúc	Admin	0889225989	cucvt@nghiengcomplex.vn	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-16 13:18:29.86	2026-10-16 13:18:29.86	t
+84	86	40	Cung Thu Hà	Phụng sự	0965759559	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Điều phối"}	Đã duyệt	2026-10-16 13:19:01.384	2026-10-16 13:19:01.384	t
+85	86	42	Lê Thị Chanh	Phụng sự	0385213858	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-16 13:19:39.015	2026-10-16 13:19:39.015	t
+86	86	217	Phượng Ngọc Thu	Thành viên	0969881698	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-16 13:19:55.962	2026-10-16 13:19:55.962	t
 \.
 
 
@@ -1630,7 +1789,6 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 256	41	47	Đào thị lan	0976067881	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-30 01:53:37.956	2026-09-30 01:55:14.111	2026-09-30 01:53:37.956	2026-09-30 01:55:14.111	QR-41-706880	MC	Khối kinh doanh
 242	41	228	Chị châu	0328377148	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-09-29 08:57:47.704	2026-09-30 01:56:11.906	2026-09-29 08:57:47.704	2026-09-30 01:56:25.866	QR-41-296834	MC	Khối kinh doanh
 251	41	\N	Vũ Trọng Minh	0989986911	\N	\N	Đăng ký hộ	44	Vũ Thị Thúy (0945172578)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Thúy (0945172578)	2026-09-29 13:03:41.035	2026-09-30 02:19:36.215	2026-09-29 13:03:41.035	2026-09-30 02:19:36.215	KH021029	MC	Ban nguồn vốn
-112	39	128	Dũng(chỉnh)	0755161779	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	f	\N	\N	2026-09-23 07:26:32.628	2026-09-23 07:26:49.463	2026-09-23 07:26:32.628	2026-09-23 07:26:49.463	QR-39-410546	MC	Khối kinh doanh
 368	42	314	Nguyễn Thị Thoa	0364761955	\N	Khách mời tham dự	Trang chủ Web	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-03 03:27:02.038	2026-10-03 04:34:02.179	2026-10-03 03:27:02.038	2026-10-03 04:34:02.179	QR-42-758602	MC	Khối kinh doanh
 250	41	44	Vũ Thị Thúy	0945172578	\N	\N	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-29 13:00:33.905	2026-09-30 02:42:19.586	2026-09-29 13:00:33.905	2026-09-30 02:42:19.586	QR-41-617694	MC	Ban nguồn vốn
 252	41	\N	Nguyễn Văn Tuấn	0901759436	\N	\N	Đăng ký hộ	44	Vũ Thị Thúy (0945172578)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Thúy (0945172578)	2026-09-30 00:10:35.478	2026-09-30 02:42:14.411	2026-09-30 00:10:35.478	2026-09-30 02:42:14.411	KH035470	MC	Ban nguồn vốn
@@ -1642,22 +1800,21 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 37	38	60	Vũ Thị Kim Thư( Hùng Vỹ)	0854716372	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-19 02:05:22.906	2026-09-19 02:19:36.078	2026-09-19 02:05:22.906	2026-09-19 04:05:12.917	QR-38-275080	MC	Khối kinh doanh
 38	38	61	Lê Văn kiểm	0968085316	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-09-19 02:06:30.412	2026-09-19 02:19:36.832	2026-09-19 02:06:30.412	2026-09-19 03:04:31.367	QR-38-631666	MC	Khối kinh doanh
 253	41	230	Trần Phương Giang	0982251616	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-09-30 00:27:59.734	\N	2026-09-30 00:27:59.734	2026-09-30 03:28:38.57	QR-41-659128	MC	Ban nguồn vốn
-255	41	65	Nguyễn Trà My	0344514394	\N	Khách vãng lai	Trang chủ Web	\N	Lễ tân	Đã check-in	t	\N	\N	2026-09-30 01:42:31.66	2026-09-30 02:41:10.049	2026-09-30 01:42:31.66	2026-09-30 07:36:45.185	QR-41-743841	MC	Khối kinh doanh
-369	42	315	Nguyễn Thanh Loan	0364658692	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:27:19.672	2026-10-03 04:34:02.768	2026-10-03 03:27:19.672	2026-10-03 04:34:02.768	QR-42-487083	MC	Khối kinh doanh
-370	42	316	Nguyễn Tuấn Hồng	0399812392	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:27:44.597	2026-10-03 04:34:04.342	2026-10-03 03:27:44.597	2026-10-03 04:34:04.342	QR-42-461371	MC	Khối kinh doanh
-371	42	56	Lê Thanh Vi	0913258659	\N	Khách mời tham dự	Trang chủ Web	\N	Chu Lương	Đã check-in	t	\N	\N	2026-10-03 03:30:02.058	2026-10-03 04:34:04.997	2026-10-03 03:30:02.058	2026-10-03 04:34:04.997	QR-42-784492	MC	Khối kinh doanh
-39	38	62	Phạm văn Pha	0973765167	\N	Khách mời tham dự	Trang chủ Web	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-09-19 02:06:39.915	2026-09-19 02:19:37.436	2026-09-19 02:06:39.915	2026-09-19 02:19:37.436	QR-38-918076	MC	Khối kinh doanh
-40	38	63	Nguyễn thế viễn	0988359108	\N	Khách mời tham dự	Trang chủ Web	\N	Lê Thanh Vi	Đã check-in	t	\N	\N	2026-09-19 02:07:14.74	2026-09-19 02:19:39.073	2026-09-19 02:07:14.74	2026-09-19 04:04:59.278	QR-38-281840	MC	Khối kinh doanh
-372	42	317	Đỗ thị Lan	0988203165	\N	Khách mời tham dự	Trang chủ Web	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-03 03:30:28.007	2026-10-03 04:34:05.61	2026-10-03 03:30:28.007	2026-10-03 04:34:05.61	QR-42-833361	MC	Khối kinh doanh
-373	42	318	Vũ Huy San	0836752083	\N	Khách mời tham dự	Trang chủ Web	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-03 03:31:36.372	2026-10-03 04:34:06.986	2026-10-03 03:31:36.372	2026-10-03 04:34:06.986	QR-42-922766	MC	Khối kinh doanh
 374	42	68	Lưu Thanh Hải	0775935866	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 03:32:44.461	2026-10-03 04:34:07.41	2026-10-03 03:32:44.461	2026-10-03 04:34:07.41	QR-42-654329	MC	Khối kinh doanh
-375	42	319	Kiều Tâm	0918140195	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-03 03:33:09.444	2026-10-03 04:34:07.92	2026-10-03 03:33:09.444	2026-10-03 04:34:07.92	QR-42-549201	MC	Khối kinh doanh
 432	65	40	Cung Thu Hà	0965759559	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã check-in	t	\N	\N	2026-10-07 01:59:48.164	2026-10-07 02:05:18.725	2026-10-07 01:59:48.164	2026-10-07 02:05:18.725	QR-65-727141	MC	Khối kinh doanh
 418	65	\N	Dương Lê Thanh	0919838653	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-06 11:10:21.232	2026-10-07 01:59:17.098	2026-10-06 11:10:21.232	2026-10-07 02:24:31.174	KH021227	MC	Ban nguồn vốn
 416	65	43	Phạm Thị Hương	0947876133	\N	Khách mời tham dự	Trang chủ Web	15	Vũ Thị Cúc	Đã hủy	f	\N	\N	2026-10-06 03:52:51.637	2026-10-07 02:05:02.044	2026-10-06 03:52:51.637	2026-10-07 02:24:37.97	QR-65-249290	MC	Khối kinh doanh
-19	38	45	Chu Thị Lương	0368684468	\N	Khách mời tham dự	Trang chủ Web	\N	Giảng sư	Đã check-in	t	\N	\N	2026-09-19 01:34:26.713	2026-09-19 01:45:44.242	2026-09-19 01:34:26.713	2026-09-19 04:05:49.24	QR-38-107145	MC	Khối kinh doanh
 20	38	\N	Vũ Thị Cúc	0889225989	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã hủy	f	\N	\N	2026-09-19 01:34:28.202	2026-09-19 01:45:42.951	2026-09-19 01:34:28.202	2026-09-19 03:21:58.466	QR-38-933395	MC	Khối kinh doanh
 26	38	50	Cao văn trường	0865680267	\N	Khách mời tham dự	Trang chủ Web	\N	Trần Thị Thanh Hương - HDV	Đã check-in	t	\N	\N	2026-09-19 01:55:41.885	2026-09-19 02:19:27.365	2026-09-19 01:55:41.885	2026-09-19 03:03:43.231	QR-38-245975	MC	Khối kinh doanh
+40	38	63	Nguyễn thế viễn	0988359108	\N	Khách mời tham dự	Trang chủ Web	\N	Lê Thanh Vi	Đã check-in	t	\N	\N	2026-09-19 02:07:14.74	2026-09-19 02:19:39.073	2026-09-19 02:07:14.74	2026-10-15 04:02:17.94	QR-38-281840	MC	Ban nguồn vốn
+39	38	62	Phạm văn Pha	0973765167	\N	Khách mời tham dự	Trang chủ Web	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-09-19 02:06:39.915	2026-09-19 02:19:37.436	2026-09-19 02:06:39.915	2026-10-15 04:02:22.502	QR-38-918076	MC	Ban nguồn vốn
+255	41	65	Nguyễn Trà My	0344514394	\N	Khách vãng lai	Trang chủ Web	\N	Lễ tân	Đã check-in	t	\N	\N	2026-09-30 01:42:31.66	2026-09-30 02:41:10.049	2026-09-30 01:42:31.66	2026-10-15 04:53:29.515	QR-41-743841	MC	Ban nguồn vốn
+112	39	128	Dũng(chỉnh)	0755161779	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	\N	2026-09-23 07:26:32.628	2026-09-23 07:26:49.463	2026-09-23 07:26:32.628	2026-10-15 04:04:24.2	QR-39-410546	MC	Ban nguồn vốn
+375	42	319	Kiều Tâm	0918140195	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-03 03:33:09.444	2026-10-03 04:34:07.92	2026-10-03 03:33:09.444	2026-10-15 06:36:48.164	QR-42-549201	MC	Ban nguồn vốn
+373	42	318	Vũ Huy San	0836752083	\N	Khách mời tham dự	Trang chủ Web	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-03 03:31:36.372	2026-10-03 04:34:06.986	2026-10-03 03:31:36.372	2026-10-15 06:36:53.656	QR-42-922766	MC	Ban nguồn vốn
+372	42	317	Đỗ thị Lan	0988203165	\N	Khách mời tham dự	Trang chủ Web	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-03 03:30:28.007	2026-10-03 04:34:05.61	2026-10-03 03:30:28.007	2026-10-15 06:36:55.802	QR-42-833361	MC	Ban nguồn vốn
+371	42	56	Lê Thanh Vi	0913258659	\N	Khách mời tham dự	Trang chủ Web	\N	Chu Lương	Đã check-in	t	\N	\N	2026-10-03 03:30:02.058	2026-10-03 04:34:04.997	2026-10-03 03:30:02.058	2026-10-15 06:36:58.974	QR-42-784492	MC	Ban nguồn vốn
+369	42	315	Nguyễn Thanh Loan	0364658692	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:27:19.672	2026-10-03 04:34:02.768	2026-10-03 03:27:19.672	2026-10-15 06:37:20.733	QR-42-487083	MC	Ban nguồn vốn
 35	38	58	Đỗ Văn hành	0985425466	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 02:04:49.852	2026-09-19 02:19:33.836	2026-09-19 02:04:49.852	2026-09-19 02:19:33.836	QR-38-772869	MC	Khối kinh doanh
 47	38	70	Lê Thị Loan( Hà )	0904220531	\N	Khách mời tham dự	Trang chủ Web	\N	Lê Thị Hà	Đã check-in	t	\N	\N	2026-09-19 02:22:07.026	2026-09-19 02:28:52.597	2026-09-19 02:22:07.026	2026-09-19 03:01:39.447	QR-38-979452	MC	Khối kinh doanh
 258	41	232	Lê Tiến Hùng	0352963796	\N	\N	Trang chủ Web	\N	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-09-30 02:02:32.408	2026-09-30 02:02:32.402	2026-09-30 02:02:32.408	2026-09-30 02:02:32.408	QR-41-549434	MC	Khối kinh doanh
@@ -1692,10 +1849,10 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 78	38	99	Cao quốc trường	0983835893	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-09-19 03:16:42.831	2026-09-19 03:43:20.043	2026-09-19 03:16:42.831	2026-09-19 04:02:05.975	QR-38-240615	MC	Khối kinh doanh
 274	41	246	NguyễN Thị Thơ	0363462286	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-09-30 02:37:53.925	2026-09-30 02:38:06.442	2026-09-30 02:37:53.925	2026-09-30 02:38:06.442	QR-41-186962	MC	Khối kinh doanh
 264	41	237	Nguyễn Thị Tuất	0397966465	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-30 02:15:23.282	2026-09-30 02:37:43.239	2026-09-30 02:15:23.282	2026-09-30 02:38:30.787	QR-41-818111	MC	Ban nguồn vốn
-367	42	313	Nguyễn Thị Hằng	0958003134	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:26:54.033	2026-10-03 04:34:00.995	2026-10-03 03:26:54.033	2026-10-03 04:34:00.995	QR-42-833576	MC	Khối kinh doanh
-376	42	320	Nguyễn Thị Huyền	0961824106	\N	Khách mời tham dự	Trang chủ Web	\N	Chu Lương	Đã check-in	t	\N	\N	2026-10-03 03:34:15.969	2026-10-03 04:34:08.698	2026-10-03 03:34:15.969	2026-10-03 04:34:08.698	QR-42-829834	MC	Khối kinh doanh
+1201	86	\N	Vũ Văn Kiên	09613204368	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-17 02:07:15.968	\N	2026-10-17 02:07:15.968	2026-10-17 02:07:22.986	KH835961	MC	Ban nguồn vốn
 58	38	81	Hoàng văn Nhật	0915026767	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Về sớm	f	\N	\N	2026-09-19 02:41:56.523	2026-09-19 02:52:19.257	2026-09-19 02:41:56.523	2026-09-25 09:15:30.342	QR-38-829414	MC	Khối kinh doanh
 81	38	102	Phạm Quang Hiếu ( Hương)	0855123268	\N	Khách mời tham dự	Trang chủ Web	\N	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-09-19 03:20:00.664	2026-09-19 03:43:23.13	2026-09-19 03:20:00.664	2026-09-19 04:01:50.595	QR-38-316770	MC	Khối kinh doanh
+526	67	\N	Vũ Thúy Lợi	0853578966	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-09 09:43:16.401	\N	2026-10-09 09:43:16.401	2026-10-09 09:43:26.2	KH996395	MC	Khối kinh doanh
 390	64	334	Cầm Thị Tươi	0978366318	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-05 08:00:16.683	2026-10-05 10:13:23.794	2026-10-05 08:00:16.683	2026-10-05 10:13:23.794	QR-64-272303	MC	Khối kinh doanh
 389	64	333	Đặng Mai Ly	086031629	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-05 07:59:16.015	2026-10-05 10:13:51.428	2026-10-05 07:59:16.015	2026-10-05 10:13:51.428	QR-64-453432	MC	Khối kinh doanh
 388	64	332	Phạm Thị Hà	0984067961	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-05 07:57:43.878	2026-10-05 10:14:04.808	2026-10-05 07:57:43.878	2026-10-05 10:14:04.808	QR-64-860355	MC	Khối kinh doanh
@@ -1710,7 +1867,6 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 392	64	335	Nguyễn Thế Hợp	09779266165	\N	Khách mời tham dự	Trang chủ Web	323	Trần Thị Ban	Đã check-in	t	\N	\N	2026-10-06 03:28:52.443	2026-10-06 03:39:42.678	2026-10-06 03:28:52.443	2026-10-06 03:43:42.34	QR-64-871181	MC	Khối kinh doanh
 394	64	336	Nguyễn Thị Minh	0983906208	\N	Khách mời tham dự	Trang chủ Web	323	Trần Thị Ban	Đã check-in	t	\N	\N	2026-10-06 03:29:57.832	2026-10-06 03:39:41.163	2026-10-06 03:29:57.832	2026-10-06 03:44:01.62	QR-64-491435	MC	Khối kinh doanh
 396	65	15	Vũ Thị Cúc	0889225989	\N	Khách mời tham dự	Trang chủ Web	66	Đinh thị thảo	Đã hủy	f	\N	\N	2026-10-06 03:30:32.026	\N	2026-10-06 03:30:32.026	2026-10-06 13:54:23.165	QR-65-348855	MC	Khối kinh doanh
-111	39	127	Khuyến	0911755777	\N	Khách mời tham dự	Trang chủ Web	\N	Chỉnh	Đã check-in	f	\N	\N	2026-09-23 07:26:28.189	2026-09-23 07:26:48.722	2026-09-23 07:26:28.189	2026-09-23 07:26:48.722	QR-39-407367	MC	Khối kinh doanh
 425	65	\N	Nguyễn Hồng Vân	0388608581	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã hủy	f	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-06 14:06:00.736	2026-10-07 02:05:12.22	2026-10-06 14:06:00.736	2026-10-07 02:49:45.036	KH560730	MC	Khối kinh doanh
 391	65	152	NGUYỄN NGỌC THỦ	0966382168	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-06 03:01:41.367	2026-10-07 02:04:47.434	2026-10-06 03:01:41.367	2026-10-07 02:04:47.434	QR-65-257314	MC	Khối kinh doanh
 393	65	109	Hoàng thị chích	0384081272	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-06 03:29:56.714	2026-10-07 02:04:48.923	2026-10-06 03:29:56.714	2026-10-07 02:04:48.923	QR-65-905622	MC	Khối kinh doanh
@@ -1726,10 +1882,9 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 268	41	240	Trần Thị Ngọc Lan	0348616616	\N	Khách mời tham dự	Trang chủ Web	\N	NGUYỄN THÚY HẰNG	Đã check-in	t	\N	\N	2026-09-30 02:26:22.234	2026-09-30 02:40:18.872	2026-09-30 02:26:22.234	2026-09-30 02:44:50.291	QR-41-509402	MC	Ban nguồn vốn
 276	41	247	Nguyễn Thị Luận	0966762185	\N	Khách mời tham dự	Trang chủ Web	67	phạm thị Tuyết(vỹ)	Đã check-in	t	\N	\N	2026-09-30 02:45:02.187	2026-09-30 02:45:11.183	2026-09-30 02:45:02.187	2026-09-30 02:45:11.183	QR-41-177775	MC	Khối kinh doanh
 275	41	117	Hoàng Thị Luyện	0972831568	\N	Khách mời tham dự	Trang chủ Web	122	Phạm Văn thịnh (a thủ )	Đã check-in	t	\N	\N	2026-09-30 02:42:30.299	2026-09-30 02:45:17.771	2026-09-30 02:42:30.299	2026-09-30 02:45:17.771	QR-41-686281	MC	Ban nguồn vốn
-121	39	137	Nguyễn thị kim loan	0963239211	\N	Khách mời tham dự	Trang chủ Web	136	Đỗ thuý Hằng	Đã check-in	f	\N	\N	2026-09-23 08:01:32.48	2026-09-23 08:03:30.695	2026-09-23 08:01:32.48	2026-09-23 08:03:30.695	QR-39-255150	MC	Khối kinh doanh
-122	39	138	Lê Thị Xuân Mai	0988560303	\N	Khách mời tham dự	Trang chủ Web	\N	Cô Thu	Đã check-in	f	\N	\N	2026-09-23 08:02:15.056	2026-09-23 08:03:31.408	2026-09-23 08:02:15.056	2026-09-23 08:03:31.408	QR-39-835017	MC	Khối kinh doanh
+376	42	320	Nguyễn Thị Huyền	0961824106	\N	Khách mời tham dự	Trang chủ Web	\N	Chu Lương	Đã check-in	t	\N	\N	2026-10-03 03:34:15.969	2026-10-03 04:34:08.698	2026-10-03 03:34:15.969	2026-10-15 06:36:45.38	QR-42-829834	MC	Ban nguồn vốn
+111	39	127	Khuyến	0911755777	\N	Khách mời tham dự	Trang chủ Web	\N	Chỉnh	Đã check-in	t	\N	\N	2026-09-23 07:26:28.189	2026-09-23 07:26:48.722	2026-09-23 07:26:28.189	2026-10-15 04:04:19.6	QR-39-407367	MC	Khối kinh doanh
 277	41	248	Lưu Đức Ngọ	0775935886	\N	Khách mời tham dự	Trang chủ Web	\N	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-09-30 02:46:08.58	2026-09-30 02:48:01.025	2026-09-30 02:46:08.58	2026-09-30 02:48:01.025	QR-41-461312	MC	Khối kinh doanh
-123	39	139	Nguyễn Thị Vân	0974059609	\N	Khách mời tham dự	Trang chủ Web	\N	Cô Thu	Đã check-in	f	\N	\N	2026-09-23 08:02:55.198	2026-09-23 08:03:32.303	2026-09-23 08:02:55.198	2026-09-23 08:03:32.303	QR-39-994741	MC	Khối kinh doanh
 279	41	250	Hà Thu Thảo	0968265146	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-09-30 02:47:57.048	2026-09-30 02:48:06.926	2026-09-30 02:47:57.048	2026-09-30 02:48:06.926	QR-41-907754	MC	Khối kinh doanh
 403	64	340	Lường Thị Hậu	0853541579	\N	Khách mời tham dự	Trang chủ Web	\N	Đào Minh Thanh ( Chích)	Đã check-in	t	\N	\N	2026-10-06 03:33:41.683	2026-10-06 03:39:36.169	2026-10-06 03:33:41.683	2026-10-06 03:39:36.169	QR-64-352454	MC	Khối kinh doanh
 278	41	249	Bùi Hồng Ánh	0763511386	\N	Khách mời tham dự	Trang chủ Web	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	t	\N	\N	2026-09-30 02:46:27.623	2026-09-30 02:48:08.708	2026-09-30 02:46:27.623	2026-09-30 02:48:11.716	QR-41-760862	MC	Ban nguồn vốn
@@ -1762,7 +1917,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 281	41	56	Lê Thanh Vi	0913258659	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-30 02:49:39.566	2026-09-30 02:51:24.155	2026-09-30 02:49:39.566	2026-09-30 02:51:24.155	QR-41-390430	MC	Ban nguồn vốn
 302	42	214	Lê.Thị Nhung	0398733976	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-02 05:07:47.211	2026-10-03 02:26:57.271	2026-10-02 05:07:47.211	2026-10-03 02:26:57.271	QR-42-288596	MC	Khối kinh doanh
 280	41	251	Hoàng Thị Bằng	0349758813	\N	Khách mời tham dự	Trang chủ Web	249	Bùi Hồng Ánh	Đã check-in	t	\N	\N	2026-09-30 02:49:21.58	2026-09-30 02:53:33.601	2026-09-30 02:49:21.58	2026-09-30 02:53:33.601	QR-41-702864	MC	Ban nguồn vốn
-303	41	262	Nguyễn Văn Duân	0987730562	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã đăng ký	t	\N	\N	2026-10-02 14:11:51.203	\N	2026-10-02 14:11:51.203	2026-10-02 14:11:51.203	QR-41-273935	MC	Khối kinh doanh
+303	41	262	Nguyễn Văn Duân	0987730562	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-02 14:11:51.203	2026-10-15 05:03:32.386	2026-10-02 14:11:51.203	2026-10-15 05:03:32.386	QR-41-273935	MC	Khối kinh doanh
 322	42	67	Phạm Thị Tuyết	0936446922	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 02:10:32.652	2026-10-03 02:27:13.464	2026-10-03 02:10:32.652	2026-10-03 02:27:13.464	QR-42-331513	MC	Khối kinh doanh
 304	42	263	Nguyễn Thị Chuyên	0969945022	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-03 00:49:27.941	2026-10-03 02:26:57.7	2026-10-03 00:49:27.941	2026-10-03 02:31:24.569	QR-42-392804	MC	Ban nguồn vốn
 306	42	205	Trần Thị Hồng Vân	0962240952	\N	Khách mời tham dự	Trang chủ Web	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-03 01:38:18.724	2026-10-03 02:27:00.009	2026-10-03 01:38:18.724	2026-10-03 02:27:00.009	QR-42-299577	MC	Khối kinh doanh
@@ -1788,7 +1943,6 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 405	64	342	Cà Thị Mai Hương	0904023462	\N	Khách mời tham dự	Trang chủ Web	\N	Quàng Thị Đoàn ( Chích)	Đã check-in	t	\N	\N	2026-10-06 03:34:55.566	2026-10-06 03:39:34.832	2026-10-06 03:34:55.566	2026-10-06 03:39:34.832	QR-64-294144	MC	Khối kinh doanh
 404	64	341	Trần Thị Lan Hương	0986562245	\N	Khách mời tham dự	Trang chủ Web	\N	Quàng Thị Đoàn ( Chích)	Đã check-in	t	\N	\N	2026-10-06 03:34:28.398	2026-10-06 03:39:35.607	2026-10-06 03:34:28.398	2026-10-06 03:39:35.607	QR-64-873218	MC	Khối kinh doanh
 407	65	344	Nguyễn thi Trang	0847470626	\N	Khách mời tham dự	Trang chủ Web	\N	Dương Hồng Phương (N_0979345229)	Đã hủy	f	\N	\N	2026-10-06 03:35:56.24	2026-10-07 02:04:57.382	2026-10-06 03:35:56.24	2026-10-07 02:47:47.59	QR-65-996381	MC	Khối kinh doanh
-157	40	163	Phạm Thu Hương	0349572568	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:36:06.705	2026-09-26 02:36:40.876	2026-09-26 02:36:06.705	2026-09-26 02:36:40.876	QR-40-858117	MC	Khối kinh doanh
 312	42	269	Nguyễn nghi Lộc	0768941968	\N	Khách mời tham dự	Trang chủ Web	122	Phạm Văn thịnh (a thủ )	Đã check-in	t	\N	\N	2026-10-03 01:43:31.934	2026-10-03 02:27:05.349	2026-10-03 01:43:31.934	2026-10-03 02:31:02.278	QR-42-767881	MC	Ban nguồn vốn
 285	41	92	Nguyễn Thúy Hằng	0975656429	\N	Khách mời tham dự	Trang chủ Web	\N	CTV	Đã check-in	t	\N	\N	2026-09-30 02:56:57.128	2026-09-30 02:58:26.675	2026-09-30 02:56:57.128	2026-09-30 02:58:26.675	QR-41-774480	MC	Ban nguồn vốn
 288	41	255	Vũ Thị Nà	0971060729	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-30 03:00:11.76	2026-09-30 03:01:00.305	2026-09-30 03:00:11.76	2026-09-30 03:01:00.305	QR-41-652411	MC	Khối kinh doanh
@@ -1797,17 +1951,15 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 286	41	167	Kiều Hồng Tâm	0918140192	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-30 02:58:30.658	2026-09-30 03:01:14.423	2026-09-30 02:58:30.658	2026-09-30 03:01:14.423	QR-41-557786	MC	Ban nguồn vốn
 289	41	256	Lê Ngọc Thành	0976690454	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-30 03:01:07.147	2026-09-30 03:02:09.717	2026-09-30 03:01:07.147	2026-09-30 03:02:09.717	QR-41-972035	MC	Khối kinh doanh
 290	41	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	\N	Tổng Quý	Đã check-in	t	\N	\N	2026-09-30 03:01:40.952	2026-09-30 03:02:11.548	2026-09-30 03:01:40.952	2026-09-30 03:02:11.548	QR-41-130873	MC	Ban nguồn vốn
+1202	86	\N	Trần Thị Thanh Hương	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 02:15:15.237	2026-10-17 02:15:23.089	2026-10-17 02:15:15.237	2026-10-17 02:15:29.958	KH315230	MC	Khối kinh doanh
 314	42	271	Lại Thanh Tuấn	0814717222	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-03 01:53:00.31	2026-10-03 02:27:06.355	2026-10-03 01:53:00.31	2026-10-03 02:30:54.565	QR-42-914853	MC	Ban nguồn vốn
 315	42	272	Lại Hồng Dương	0916831228	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-03 01:53:39.676	2026-10-03 02:27:06.985	2026-10-03 01:53:39.676	2026-10-03 02:30:57.089	QR-42-117692	MC	Ban nguồn vốn
 313	42	270	Vũ Đình Thiết	0986539758	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-03 01:52:19.649	2026-10-03 02:27:05.821	2026-10-03 01:52:19.649	2026-10-03 02:31:00.104	QR-42-625618	MC	Ban nguồn vốn
-338	42	290	Vũ Thị Thúy	+84945172578	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-03 02:55:09.836	2026-10-03 03:24:53.591	2026-10-03 02:55:09.836	2026-10-03 03:24:53.591	QR-42-127211	MC	Khối kinh doanh
 336	42	288	Nguyễn Văn Tiến	0384566639	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-03 02:44:57.211	2026-10-03 03:24:56.007	2026-10-03 02:44:57.211	2026-10-03 03:24:56.007	QR-42-582006	MC	Khối kinh doanh
 335	42	287	Nguyễn Văn Ngọ	0915023899	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-03 02:44:17.098	2026-10-03 03:24:57.496	2026-10-03 02:44:17.098	2026-10-03 03:24:57.496	QR-42-230041	MC	Khối kinh doanh
 334	42	161	Phạm Vinh Quang	0913073619	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-03 02:39:34.849	2026-10-03 03:24:58.126	2026-10-03 02:39:34.849	2026-10-03 03:24:58.126	QR-42-967696	MC	Khối kinh doanh
-333	42	286	Trần Thị Yên	0399634855	\N	Khách mời tham dự	Trang chủ Web	44	Vũ Thị Thủy	Đã check-in	t	\N	\N	2026-10-03 02:38:39.367	2026-10-03 03:24:58.86	2026-10-03 02:38:39.367	2026-10-03 03:24:58.86	QR-42-381048	MC	Khối kinh doanh
 332	42	285	Nguyễn Thị Hoàng	0983273968	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-03 02:37:09.487	2026-10-03 03:25:00.03	2026-10-03 02:37:09.487	2026-10-03 03:25:00.03	QR-42-806814	MC	Khối kinh doanh
 331	42	89	Trần Thị Thanh Hương	0904555254	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 02:30:44.279	2026-10-03 03:25:00.704	2026-10-03 02:30:44.279	2026-10-03 03:25:00.704	QR-42-590320	MC	Khối kinh doanh
-414	41	150	Đào Thi Hòa	0981398785	\N	Khách mời tham dự	Trang chủ Web	204	Đào Thị Hòa (Diệp Huế)	Đã đăng ký	t	\N	\N	2026-10-06 03:38:58.146	\N	2026-10-06 03:38:58.146	2026-10-06 03:38:58.146	QR-41-122142	MC	Khối kinh doanh
 413	64	349	Quàng Văn Chiêu	0946867262	\N	Khách mời tham dự	Trang chủ Web	\N	Quàng Thị Đoàn ( Chích)	Đã check-in	t	\N	\N	2026-10-06 03:37:13.848	2026-10-06 03:39:30.151	2026-10-06 03:37:13.848	2026-10-06 03:39:30.151	QR-64-602990	MC	Khối kinh doanh
 411	64	347	Lò Văn Loan	0986936767	\N	Khách mời tham dự	Trang chủ Web	\N	Quàng Thị Đoàn ( Chích)	Đã check-in	t	\N	\N	2026-10-06 03:36:41.328	2026-10-06 03:39:30.936	2026-10-06 03:36:41.328	2026-10-06 03:39:30.936	QR-64-239136	MC	Khối kinh doanh
 52	38	75	Phạm thị nguyệt	0979012294	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 02:30:01.066	2026-09-19 02:31:22.501	2026-09-19 02:30:01.066	2026-09-19 02:31:22.501	QR-38-853150	MC	Khối kinh doanh
@@ -1829,9 +1981,11 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 316	42	273	Nguyễn Ngọc tiếp	0866671972	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-03 01:54:54.522	2026-10-03 02:27:08.472	2026-10-03 01:54:54.522	2026-10-03 02:30:52.213	QR-42-701359	MC	Ban nguồn vốn
 59	38	82	Nguyễn Phú Vụng( A Hoàng)	0865209758	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 02:44:12.822	2026-09-19 02:52:19.932	2026-09-19 02:44:12.822	2026-09-25 09:15:16.637	QR-38-579892	MC	Khối kinh doanh
 21	38	42	Lê thị chanh	0385213858	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã hủy	f	\N	\N	2026-09-19 01:34:37.102	2026-09-19 01:45:40.898	2026-09-19 01:34:37.102	2026-09-19 03:24:05.539	QR-38-929215	MC	Khối kinh doanh
-356	42	74	Vũ Ngọc Bảo	0966289668	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:16:18.743	2026-10-03 03:24:37.418	2026-10-03 03:16:18.743	2026-10-03 03:24:37.418	QR-42-536593	MC	Khối kinh doanh
-355	42	302	Cao Minh chỉnh	0383918182	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:15:50.546	2026-10-03 03:24:38.761	2026-10-03 03:15:50.546	2026-10-03 03:24:38.761	QR-42-451416	MC	Khối kinh doanh
-22	38	46	Vy Văn Hiền ( A Thủ)	0915312849	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	t	\N	\N	2026-09-19 01:43:00.556	2026-09-19 01:45:38.522	2026-09-19 01:43:00.556	2026-09-19 03:03:05.801	QR-38-700334	MC	Khối kinh doanh
+414	41	150	Đào Thi Hòa	0981398785	\N	Khách mời tham dự	Trang chủ Web	204	Đào Thị Hòa (Diệp Huế)	Đã check-in	t	\N	\N	2026-10-06 03:38:58.146	2026-10-15 05:03:33.207	2026-10-06 03:38:58.146	2026-10-15 05:03:33.207	QR-41-122142	MC	Khối kinh doanh
+356	42	74	Vũ Ngọc Bảo	0966289668	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:16:18.743	2026-10-03 03:24:37.418	2026-10-03 03:16:18.743	2026-10-15 06:38:45.007	QR-42-536593	MC	Ban nguồn vốn
+355	42	302	Cao Minh chỉnh	0383918182	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:15:50.546	2026-10-03 03:24:38.761	2026-10-03 03:15:50.546	2026-10-15 06:38:47.817	QR-42-451416	MC	Ban nguồn vốn
+338	42	290	Vũ Thị Thúy	+84945172578	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-03 02:55:09.836	2026-10-03 03:24:53.591	2026-10-03 02:55:09.836	2026-10-15 06:39:43.027	QR-42-127211	MC	Ban nguồn vốn
+333	42	286	Trần Thị Yên	0399634855	\N	Khách mời tham dự	Trang chủ Web	44	Vũ Thị Thủy	Đã check-in	t	\N	\N	2026-10-03 02:38:39.367	2026-10-03 03:24:58.86	2026-10-03 02:38:39.367	2026-10-15 06:39:58.988	QR-42-381048	MC	Khối kinh doanh
 23	38	47	Đào Thị Lan ( Thơ )	0976067881	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 01:48:22.187	2026-09-19 01:59:07.051	2026-09-19 01:48:22.187	2026-09-19 01:59:07.051	QR-38-205764	MC	Khối kinh doanh
 24	38	48	Phạm Minh Tuấn	0768635148	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 01:49:07.56	2026-09-19 01:59:05.579	2026-09-19 01:49:07.56	2026-09-19 01:59:05.579	QR-38-247290	MC	Khối kinh doanh
 41	38	64	Lê Văn Hải ( khách của Vũ Thuý)	0903213785	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-09-19 02:07:31.262	2026-09-19 02:19:39.62	2026-09-19 02:07:31.262	2026-09-19 04:04:44.508	QR-38-340032	MC	Khối kinh doanh
@@ -1839,21 +1993,9 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 43	38	66	Đinh thị thảo	0356044186	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 02:14:29.413	2026-09-19 02:19:41.181	2026-09-19 02:14:29.413	2026-09-19 02:19:41.181	QR-38-881329	MC	Khối kinh doanh
 68	38	91	Phượng Ngọc Thu	+84969881698	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 03:03:23.931	2026-09-19 03:43:11.293	2026-09-19 03:03:23.931	2026-09-19 03:43:11.293	QR-38-995981	MC	Khối kinh doanh
 69	38	44	Vũ Thị Thúy	0945172578	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã hủy	f	\N	\N	2026-09-19 03:03:31.219	\N	2026-09-19 03:03:31.219	2026-09-19 03:22:27.361	QR-38-935900	MC	Khối kinh doanh
-354	42	301	Nguyễn Hải Quý	0974684398	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:15:10.391	2026-10-03 03:24:39.352	2026-10-03 03:15:10.391	2026-10-03 03:24:39.352	QR-42-866078	MC	Khối kinh doanh
-353	42	196	LÊ thị Huyền Trang	0988732586	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:14:36.243	2026-10-03 03:24:40.314	2026-10-03 03:14:36.243	2026-10-03 03:24:40.314	QR-42-938246	MC	Khối kinh doanh
-352	42	51	Lương Hồng Hải	0919520885	\N	Khách mời tham dự	Trang chủ Web	154	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-03 03:14:22.651	2026-10-03 03:24:41.72	2026-10-03 03:14:22.651	2026-10-03 03:24:41.72	QR-42-991839	MC	Khối kinh doanh
-351	42	300	Nguyễn Thị Hường	0936463782	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:14:03.38	2026-10-03 03:24:42.232	2026-10-03 03:14:03.38	2026-10-03 03:24:42.232	QR-42-623851	MC	Khối kinh doanh
-350	42	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:12:57.283	2026-10-03 03:24:42.856	2026-10-03 03:12:57.283	2026-10-03 03:24:42.856	QR-42-147869	MC	Khối kinh doanh
-349	42	299	Nguyễn Văn quyết	00328906789	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:12:24.976	2026-10-03 03:24:44.41	2026-10-03 03:12:24.976	2026-10-03 03:24:44.41	QR-42-433386	MC	Khối kinh doanh
 348	42	298	Nguyễn Đức Huy	0348774893	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 03:09:48.538	2026-10-03 03:24:45.104	2026-10-03 03:09:48.538	2026-10-03 03:24:45.104	QR-42-251242	MC	Khối kinh doanh
 347	42	297	Lê Thị Thảo	0904360412	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 03:09:24.208	2026-10-03 03:24:45.713	2026-10-03 03:09:24.208	2026-10-03 03:24:45.713	QR-42-121120	MC	Khối kinh doanh
-346	42	296	Phạm thị thủy	0987581195	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:09:23.693	2026-10-03 03:24:46.365	2026-10-03 03:09:23.693	2026-10-03 03:24:46.365	QR-42-655736	MC	Khối kinh doanh
 345	42	295	Lê Thị Hạnh	0376544168	\N	Khách mời tham dự	Trang chủ Web	60	Vũ Thị Kim Thư( Hùng Vỹ)	Đã check-in	t	\N	\N	2026-10-03 03:08:27.727	2026-10-03 03:24:47.121	2026-10-03 03:08:27.727	2026-10-03 03:24:47.121	QR-42-224000	MC	Khối kinh doanh
-344	42	294	Bùi quyết thắng	0968565999	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:01:43.789	2026-10-03 03:24:48.491	2026-10-03 03:01:43.789	2026-10-03 03:24:48.491	QR-42-997227	MC	Khối kinh doanh
-343	42	293	Ngô Thị Hằng	0816231188	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:01:18.479	2026-10-03 03:24:49.062	2026-10-03 03:01:18.479	2026-10-03 03:24:49.062	QR-42-246981	MC	Khối kinh doanh
-342	42	292	Đồng Văn truyền	0817248899	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:00:12.444	2026-10-03 03:24:49.782	2026-10-03 03:00:12.444	2026-10-03 03:24:49.782	QR-42-382842	MC	Khối kinh doanh
-341	42	60	Vũ Thị Kim Thư	0854716372	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 03:00:11.591	2026-10-03 03:24:51.01	2026-10-03 03:00:11.591	2026-10-03 03:24:51.01	QR-42-855515	MC	Khối kinh doanh
-340	42	291	Lương Hồng Phong	0967695768	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 02:59:25.021	2026-10-03 03:24:51.673	2026-10-03 02:59:25.021	2026-10-03 03:24:51.673	QR-42-178530	MC	Khối kinh doanh
 339	42	209	Nguyễn Thị Liên	0972624075	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-03 02:55:43.411	2026-10-03 03:24:52.321	2026-10-03 02:55:43.411	2026-10-03 03:24:52.321	QR-42-950200	MC	Khối kinh doanh
 44	38	67	phạm thị Tuyết(vỹ)	0936446922	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 02:16:37.311	2026-09-19 02:19:42.699	2026-09-19 02:16:37.311	2026-09-19 02:19:42.699	QR-38-771482	MC	Khối kinh doanh
 45	38	68	Lưu Thanh Hải( Nhung)	0775935866	\N	Khách mời tham dự	Trang chủ Web	\N	Lê Nhung - Happy	Đã check-in	t	\N	\N	2026-09-19 02:16:38.823	2026-09-19 02:19:43.509	2026-09-19 02:16:38.823	2026-09-19 04:04:31.649	QR-38-917124	MC	Khối kinh doanh
@@ -1867,59 +2009,61 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 79	38	100	Nguyễn Văn Đạt	0983323746	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 03:16:47.995	2026-09-19 03:43:21.716	2026-09-19 03:16:47.995	2026-09-19 03:43:21.716	QR-38-395209	MC	Khối kinh doanh
 80	38	101	Hoàng Hương	0849672866	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 03:19:42.883	2026-09-19 03:43:22.256	2026-09-19 03:19:42.883	2026-09-19 03:43:22.256	QR-38-130351	MC	Khối kinh doanh
 82	38	\N	Anh Thắng ( Hồng Hải)	0123456789	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Hồng Hải	Đã check-in	t	\N	\N	2026-09-19 03:22:48.535	2026-09-19 03:43:24.611	2026-09-19 03:22:48.535	2026-09-19 04:01:33.07	QR-38-322538	MC	Khối kinh doanh
+353	42	196	LÊ thị Huyền Trang	0988732586	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:14:36.243	2026-10-03 03:24:40.314	2026-10-03 03:14:36.243	2026-10-15 06:38:56.142	QR-42-938246	MC	Ban nguồn vốn
+351	42	300	Nguyễn Thị Hường	0936463782	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:14:03.38	2026-10-03 03:24:42.232	2026-10-03 03:14:03.38	2026-10-15 06:39:05.176	QR-42-623851	MC	Ban nguồn vốn
+352	42	51	Lương Hồng Hải	0919520885	\N	Khách mời tham dự	Trang chủ Web	154	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-03 03:14:22.651	2026-10-03 03:24:41.72	2026-10-03 03:14:22.651	2026-10-15 06:39:01.932	QR-42-991839	MC	Khối kinh doanh
+350	42	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:12:57.283	2026-10-03 03:24:42.856	2026-10-03 03:12:57.283	2026-10-15 06:39:07.265	QR-42-147869	MC	Ban nguồn vốn
+349	42	299	Nguyễn Văn quyết	00328906789	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:12:24.976	2026-10-03 03:24:44.41	2026-10-03 03:12:24.976	2026-10-15 06:39:10.865	QR-42-433386	MC	Ban nguồn vốn
+346	42	296	Phạm thị thủy	0987581195	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:09:23.693	2026-10-03 03:24:46.365	2026-10-03 03:09:23.693	2026-10-15 06:39:19.389	QR-42-655736	MC	Ban nguồn vốn
+344	42	294	Bùi quyết thắng	0968565999	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:01:43.789	2026-10-03 03:24:48.491	2026-10-03 03:01:43.789	2026-10-15 06:39:25.094	QR-42-997227	MC	Ban nguồn vốn
+343	42	293	Ngô Thị Hằng	0816231188	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:01:18.479	2026-10-03 03:24:49.062	2026-10-03 03:01:18.479	2026-10-15 06:39:27.65	QR-42-246981	MC	Ban nguồn vốn
+342	42	292	Đồng Văn truyền	0817248899	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:00:12.444	2026-10-03 03:24:49.782	2026-10-03 03:00:12.444	2026-10-15 06:39:32.332	QR-42-382842	MC	Ban nguồn vốn
+341	42	60	Vũ Thị Kim Thư	0854716372	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-03 03:00:11.591	2026-10-03 03:24:51.01	2026-10-03 03:00:11.591	2026-10-15 06:39:34.871	QR-42-855515	MC	Ban nguồn vốn
+340	42	291	Lương Hồng Phong	0967695768	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 02:59:25.021	2026-10-03 03:24:51.673	2026-10-03 02:59:25.021	2026-10-15 06:39:37.962	QR-42-178530	MC	Ban nguồn vốn
 83	38	103	Đoàn thị bạch yến	0983894308	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 03:25:42.263	2026-09-19 03:43:27.066	2026-09-19 03:25:42.263	2026-09-19 03:43:27.066	QR-38-352990	MC	Khối kinh doanh
 86	38	106	Hoàng Sỹ Tuấn	0931527739	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-09-19 03:41:45.097	2026-09-19 03:43:54.469	2026-09-19 03:41:45.097	2026-09-19 04:01:16.298	QR-38-442615	MC	Khối kinh doanh
 87	38	107	Vũ Hùng Vỹ	0984967555	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-19 03:41:53.723	2026-09-19 03:43:55.047	2026-09-19 03:41:53.723	2026-09-19 03:43:55.047	QR-38-491160	MC	Khối kinh doanh
-89	39	109	Hoàng Thị Chích	0384081272	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã check-in	f	\N	\N	2026-09-22 11:09:43.708	2026-09-23 07:04:11.773	2026-09-22 11:09:43.708	2026-09-23 07:04:11.773	QR-39-107767	MC	Khối kinh doanh
-90	39	110	Ngô Huyền Dịu	0353729533	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	f	\N	\N	2026-09-23 06:24:07.477	2026-09-23 07:04:13.028	2026-09-23 06:24:07.477	2026-09-23 07:04:13.028	QR-39-817579	MC	Khối kinh doanh
-91	39	111	Đặng Thế Long	0972847275	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	f	\N	\N	2026-09-23 06:25:36.05	2026-09-23 07:04:13.899	2026-09-23 06:25:36.05	2026-09-23 07:04:13.899	QR-39-170536	MC	Khối kinh doanh
-92	39	112	A Phong	0934635468	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	f	\N	\N	2026-09-23 06:25:45.6	2026-09-23 07:04:15.392	2026-09-23 06:25:45.6	2026-09-23 07:04:15.392	QR-39-588450	MC	Khối kinh doanh
-93	39	113	Nguyễn Văn Bình	0385029771	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	f	\N	\N	2026-09-23 06:42:48.113	2026-09-23 07:04:16.208	2026-09-23 06:42:48.113	2026-09-23 07:04:16.208	QR-39-431412	MC	Khối kinh doanh
-94	39	114	Nguyễn kim Oanh (thủ)	0964675506	\N	Khách vãng lai	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	f	\N	\N	2026-09-23 06:46:14.215	2026-09-23 07:04:17.706	2026-09-23 06:46:14.215	2026-09-23 11:33:29.603	QR-39-862373	MC	Khối kinh doanh
-95	39	115	Đỗ thị phương (thủ)	0362593296	\N	Khách vãng lai	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	f	\N	\N	2026-09-23 06:46:54.922	2026-09-23 07:04:18.303	2026-09-23 06:46:54.922	2026-09-23 11:33:14.813	QR-39-258912	MC	Khối kinh doanh
-96	39	48	Phạm Minh Tuấn	0768635148	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	f	\N	\N	2026-09-23 06:47:55.496	2026-09-23 07:04:18.984	2026-09-23 06:47:55.496	2026-09-23 07:04:18.984	QR-39-240979	MC	Khối kinh doanh
-97	39	44	Vũ Thị Thuý	0945172578	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	f	\N	\N	2026-09-23 06:49:05.536	2026-09-23 07:04:19.601	2026-09-23 06:49:05.536	2026-09-23 07:04:19.601	QR-39-919928	MC	Khối kinh doanh
-98	39	42	Lê thị chanh	0385213858	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã check-in	f	\N	\N	2026-09-23 06:51:46.03	2026-09-23 07:04:21.536	2026-09-23 06:51:46.03	2026-09-23 07:04:21.536	QR-39-401074	MC	Khối kinh doanh
-99	39	116	Vũ thị Tuất (thịnh)	0935667676	\N	Khách vãng lai	Trang chủ Web	\N	Thịnh BNV	Đã check-in	f	\N	\N	2026-09-23 06:54:24.617	2026-09-23 07:04:22.773	2026-09-23 06:54:24.617	2026-09-23 11:33:49.598	QR-39-493421	MC	Khối kinh doanh
-100	39	117	Hoàng Thị Luyện ( A thịnh)	0972831568	\N	Khách vãng lai	Trang chủ Web	\N	Thịnh BNV	Đã check-in	f	\N	\N	2026-09-23 06:54:31.432	2026-09-23 07:04:23.472	2026-09-23 06:54:31.432	2026-09-23 11:32:55.154	QR-39-356411	MC	Khối kinh doanh
-101	39	118	Hồ Xuân thu( diệp Huế)	0988388012	\N	Khách vãng lai	Trang chủ Web	\N	Diệp Thị Huế	Đã check-in	f	\N	\N	2026-09-23 06:58:00.731	2026-09-23 07:04:24.117	2026-09-23 06:58:00.731	2026-09-23 11:32:43.583	QR-39-787103	MC	Khối kinh doanh
-102	39	119	Ngô Thanh Bình ( Quang Trung)	0987922275	\N	Khách vãng lai	Trang chủ Web	\N	Ngô Quang Trung	Đã check-in	f	\N	\N	2026-09-23 06:58:55.132	2026-09-23 07:04:25.552	2026-09-23 06:58:55.132	2026-09-23 11:32:30.45	QR-39-129251	MC	Khối kinh doanh
-103	39	120	Lê Văn tiến	0394799052	\N	Khách mời tham dự	Trang chủ Web	118	Hồ Xuân thu( diệp Huế)	Đã check-in	f	\N	\N	2026-09-23 06:59:04.027	2026-09-23 07:04:26.152	2026-09-23 06:59:04.027	2026-09-23 07:04:26.152	QR-39-642895	MC	Khối kinh doanh
-104	39	90	Nguyễn Đức Vĩnh	0984398568	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	f	\N	\N	2026-09-23 07:01:14.332	2026-09-23 07:04:26.786	2026-09-23 07:01:14.332	2026-09-23 07:04:26.786	QR-39-665976	MC	Khối kinh doanh
-105	39	121	Ngô Quang Trung	0913527524	\N	Khách mời tham dự	Trang chủ Web	\N	0979345229	Đã check-in	f	\N	0979345229 - Dương Hồng Phương	2026-09-23 07:01:31.314	2026-09-23 07:04:27.42	2026-09-23 07:01:31.314	2026-09-23 07:04:27.42	QR-39-883220	MC	Khối kinh doanh
-106	39	122	Phạm Văn thịnh (a thủ )	09771133668	\N	Khách vãng lai	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	f	\N	\N	2026-09-23 07:06:28.979	2026-09-23 07:07:42.595	2026-09-23 07:06:28.979	2026-09-23 11:32:09.39	QR-39-408652	MC	Khối kinh doanh
-107	39	123	Hoàng thị bích	0904708586	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	f	\N	\N	2026-09-23 07:14:17.523	2026-09-23 07:15:07.88	2026-09-23 07:14:17.523	2026-09-23 07:15:07.88	QR-39-823266	MC	Khối kinh doanh
-108	39	124	Giang Thanh Ngọc	0376317831	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	f	\N	\N	2026-09-23 07:14:45.614	2026-09-23 07:15:08.597	2026-09-23 07:14:45.614	2026-09-23 07:15:08.597	QR-39-718889	MC	Khối kinh doanh
-109	39	125	Nguyễn Thị Bảy	0912882722	\N	Khách mời tham dự	Trang chủ Web	\N	Hải Quý	Đã check-in	f	\N	\N	2026-09-23 07:20:49.732	2026-09-23 07:22:13.651	2026-09-23 07:20:49.732	2026-09-23 07:22:13.651	QR-39-109204	MC	Khối kinh doanh
-110	39	126	Lê Thị Bích Ngần	0984298738	\N	Khách mời tham dự	Trang chủ Web	\N	Hải Quý	Đã check-in	f	\N	\N	2026-09-23 07:21:22.454	2026-09-23 07:22:14.23	2026-09-23 07:21:22.454	2026-09-23 07:22:14.23	QR-39-382816	MC	Khối kinh doanh
-113	39	129	Bùi đăng lâm	0328001998	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn hải quý	Đã check-in	f	\N	\N	2026-09-23 07:26:36.294	2026-09-23 07:26:50.222	2026-09-23 07:26:36.294	2026-09-23 07:26:50.222	QR-39-624816	MC	Khối kinh doanh
-114	39	130	Hà trọng Dũng	0913367713	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	f	\N	\N	2026-09-23 07:29:38.974	2026-09-23 07:30:03.986	2026-09-23 07:29:38.974	2026-09-23 07:30:03.986	QR-39-557927	MC	Khối kinh doanh
-115	39	131	Triệu Thị Yến	0352287668	\N	Khách mời tham dự	Trang chủ Web	\N	Chị Khôi	Đã check-in	f	\N	\N	2026-09-23 07:29:42.694	2026-09-23 07:30:04.764	2026-09-23 07:29:42.694	2026-09-23 07:30:04.764	QR-39-450058	MC	Khối kinh doanh
-116	39	132	Hoàng Văn Định	0913968752	\N	Khách mời tham dự	Trang chủ Web	\N	Cô Linh	Đã check-in	f	\N	\N	2026-09-23 07:34:16.595	2026-09-23 07:38:17.635	2026-09-23 07:34:16.595	2026-09-23 07:38:17.635	QR-39-654684	MC	Khối kinh doanh
-117	39	133	Bùi Thị Nguyệt	0932003666	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	f	\N	\N	2026-09-23 07:42:45.858	2026-09-23 07:44:09.953	2026-09-23 07:42:45.858	2026-09-23 07:44:09.953	QR-39-671398	MC	Khối kinh doanh
-118	39	134	A tuấn	0901759436	\N	Khách mời tham dự	Trang chủ Web	44	Vũ Thị Thủy	Đã check-in	f	\N	\N	2026-09-23 07:46:02.359	2026-09-23 07:54:39.509	2026-09-23 07:46:02.359	2026-09-23 07:54:39.509	QR-39-693351	MC	Khối kinh doanh
-119	39	135	Đinh Thị Thơm	0397863708	\N	Khách mời tham dự	Trang chủ Web	\N	Đỗ Thuý Hằng	Đã check-in	f	\N	\N	2026-09-23 08:01:06.831	2026-09-23 08:01:23.312	2026-09-23 08:01:06.831	2026-09-23 08:01:23.312	QR-39-274159	MC	Khối kinh doanh
-120	39	136	Đỗ thuý Hằng	0912519172	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	f	\N	\N	2026-09-23 08:01:13.561	2026-09-23 08:01:24.08	2026-09-23 08:01:13.561	2026-09-23 08:01:24.08	QR-39-299409	MC	Khối kinh doanh
 126	40	141	Đặng văn Hưng	0982307243	\N	Khách mời tham dự	Trang chủ Web	140	Diệp Thị Hằng	Đã hủy	f	\N	\N	2026-09-24 09:32:53.248	\N	2026-09-24 09:32:53.248	2026-09-26 01:46:45.739	QR-40-741635	MC	Khối kinh doanh
 127	40	41	Nguyễn Hùng Vĩ	0326894993	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã hủy	f	\N	\N	2026-09-24 10:53:20.874	\N	2026-09-24 10:53:20.874	2026-09-26 01:46:47.107	QR-40-931789	MC	Khối kinh doanh
 128	40	48	Phạm Minh Tuấn	0768635148	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-24 13:49:54.518	2026-09-26 02:09:58.761	2026-09-24 13:49:54.518	2026-09-26 02:09:58.761	QR-40-163708	MC	Khối kinh doanh
-129	40	72	Nguyễn Tiến Dũng	0943472943	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-25 08:24:38.353	2026-09-26 02:16:58.146	2026-09-25 08:24:38.353	2026-09-26 02:16:58.146	QR-40-700988	MC	Khối kinh doanh
-130	40	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-25 12:26:03.379	2026-09-26 02:10:07.846	2026-09-25 12:26:03.379	2026-09-26 02:10:07.846	QR-40-701987	MC	Khối kinh doanh
+101	39	118	Hồ Xuân thu( diệp Huế)	0988388012	\N	Khách vãng lai	Trang chủ Web	\N	Diệp Thị Huế	Đã check-in	t	\N	\N	2026-09-23 06:58:00.731	2026-09-23 07:04:24.117	2026-09-23 06:58:00.731	2026-10-15 04:19:50.555	QR-39-787103	MC	Khối kinh doanh
+110	39	126	Lê Thị Bích Ngần	0984298738	\N	Khách mời tham dự	Trang chủ Web	\N	Hải Quý	Đã check-in	t	\N	\N	2026-09-23 07:21:22.454	2026-09-23 07:22:14.23	2026-09-23 07:21:22.454	2026-10-15 04:08:00.453	QR-39-382816	MC	Ban nguồn vốn
+117	39	133	Bùi Thị Nguyệt	0932003666	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-09-23 07:42:45.858	2026-09-23 07:44:09.953	2026-09-23 07:42:45.858	2026-10-15 04:04:09.701	QR-39-671398	MC	Khối kinh doanh
+116	39	132	Hoàng Văn Định	0913968752	\N	Khách mời tham dự	Trang chủ Web	\N	Cô Linh	Đã check-in	t	\N	\N	2026-09-23 07:34:16.595	2026-09-23 07:38:17.635	2026-09-23 07:34:16.595	2026-10-15 04:04:12.074	QR-39-654684	MC	Khối kinh doanh
+115	39	131	Triệu Thị Yến	0352287668	\N	Khách mời tham dự	Trang chủ Web	\N	Chị Khôi	Đã check-in	t	\N	\N	2026-09-23 07:29:42.694	2026-09-23 07:30:04.764	2026-09-23 07:29:42.694	2026-10-15 04:04:13.116	QR-39-450058	MC	Khối kinh doanh
+98	39	42	Lê thị chanh	0385213858	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã check-in	t	\N	\N	2026-09-23 06:51:46.03	2026-09-23 07:04:21.536	2026-09-23 06:51:46.03	2026-10-15 04:19:44.63	QR-39-401074	MC	Khối kinh doanh
+114	39	130	Hà trọng Dũng	0913367713	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-23 07:29:38.974	2026-09-23 07:30:03.986	2026-09-23 07:29:38.974	2026-10-15 04:08:11.703	QR-39-557927	MC	Ban nguồn vốn
+113	39	129	Bùi đăng lâm	0328001998	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn hải quý	Đã check-in	t	\N	\N	2026-09-23 07:26:36.294	2026-09-23 07:26:50.222	2026-09-23 07:26:36.294	2026-10-15 04:08:08.238	QR-39-624816	MC	Ban nguồn vốn
+107	39	123	Hoàng thị bích	0904708586	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-23 07:14:17.523	2026-09-23 07:15:07.88	2026-09-23 07:14:17.523	2026-10-15 04:04:43.77	QR-39-823266	MC	Khối kinh doanh
+108	39	124	Giang Thanh Ngọc	0376317831	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-09-23 07:14:45.614	2026-09-23 07:15:08.597	2026-09-23 07:14:45.614	2026-10-15 04:04:38.665	QR-39-718889	MC	Khối kinh doanh
+109	39	125	Nguyễn Thị Bảy	0912882722	\N	Khách mời tham dự	Trang chủ Web	\N	Hải Quý	Đã check-in	t	\N	\N	2026-09-23 07:20:49.732	2026-09-23 07:22:13.651	2026-09-23 07:20:49.732	2026-10-15 04:04:32.839	QR-39-109204	MC	Ban nguồn vốn
+119	39	135	Đinh Thị Thơm	0397863708	\N	Khách mời tham dự	Trang chủ Web	\N	Đỗ Thuý Hằng	Đã check-in	t	\N	\N	2026-09-23 08:01:06.831	2026-09-23 08:01:23.312	2026-09-23 08:01:06.831	2026-10-15 04:07:51.733	QR-39-274159	MC	Ban nguồn vốn
+106	39	122	Phạm Văn thịnh (a thủ )	09771133668	\N	Khách vãng lai	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	t	\N	\N	2026-09-23 07:06:28.979	2026-09-23 07:07:42.595	2026-09-23 07:06:28.979	2026-10-15 04:04:48.217	QR-39-408652	MC	Ban nguồn vốn
+96	39	48	Phạm Minh Tuấn	0768635148	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-23 06:47:55.496	2026-09-23 07:04:18.984	2026-09-23 06:47:55.496	2026-10-15 04:19:40.478	QR-39-240979	MC	Khối kinh doanh
+95	39	115	Đỗ thị phương (thủ)	0362593296	\N	Khách vãng lai	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	t	\N	\N	2026-09-23 06:46:54.922	2026-09-23 07:04:18.303	2026-09-23 06:46:54.922	2026-10-15 04:19:38.619	QR-39-258912	MC	Ban nguồn vốn
+89	39	109	Hoàng Thị Chích	0384081272	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-09-22 11:09:43.708	2026-09-23 07:04:11.773	2026-09-22 11:09:43.708	2026-10-15 04:19:24.003	QR-39-107767	MC	Khối kinh doanh
+91	39	111	Đặng Thế Long	0972847275	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-09-23 06:25:36.05	2026-09-23 07:04:13.899	2026-09-23 06:25:36.05	2026-10-15 04:19:30.191	QR-39-170536	MC	Khối kinh doanh
+92	39	112	A Phong	0934635468	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-09-23 06:25:45.6	2026-09-23 07:04:15.392	2026-09-23 06:25:45.6	2026-10-15 04:19:31.954	QR-39-588450	MC	Khối kinh doanh
+93	39	113	Nguyễn Văn Bình	0385029771	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-09-23 06:42:48.113	2026-09-23 07:04:16.208	2026-09-23 06:42:48.113	2026-10-15 04:19:34.446	QR-39-431412	MC	Khối kinh doanh
+94	39	114	Nguyễn kim Oanh (thủ)	0964675506	\N	Khách vãng lai	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	t	\N	\N	2026-09-23 06:46:14.215	2026-09-23 07:04:17.706	2026-09-23 06:46:14.215	2026-10-15 04:19:36.326	QR-39-862373	MC	Ban nguồn vốn
+97	39	44	Vũ Thị Thuý	0945172578	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-23 06:49:05.536	2026-09-23 07:04:19.601	2026-09-23 06:49:05.536	2026-10-15 04:19:42.816	QR-39-919928	MC	Ban nguồn vốn
+99	39	116	Vũ thị Tuất (thịnh)	0935667676	\N	Khách vãng lai	Trang chủ Web	\N	Thịnh BNV	Đã check-in	t	\N	\N	2026-09-23 06:54:24.617	2026-09-23 07:04:22.773	2026-09-23 06:54:24.617	2026-10-15 04:19:46.574	QR-39-493421	MC	Ban nguồn vốn
+102	39	119	Ngô Thanh Bình ( Quang Trung)	0987922275	\N	Khách vãng lai	Trang chủ Web	\N	Ngô Quang Trung	Đã check-in	t	\N	\N	2026-09-23 06:58:55.132	2026-09-23 07:04:25.552	2026-09-23 06:58:55.132	2026-10-15 04:19:51.756	QR-39-129251	MC	Khối kinh doanh
+103	39	120	Lê Văn tiến	0394799052	\N	Khách mời tham dự	Trang chủ Web	118	Hồ Xuân thu( diệp Huế)	Đã check-in	t	\N	\N	2026-09-23 06:59:04.027	2026-09-23 07:04:26.152	2026-09-23 06:59:04.027	2026-10-15 04:19:53.175	QR-39-642895	MC	Khối kinh doanh
+105	39	121	Ngô Quang Trung	0913527524	\N	Khách mời tham dự	Trang chủ Web	\N	0979345229	Đã check-in	t	\N	0979345229 - Dương Hồng Phương	2026-09-23 07:01:31.314	2026-09-23 07:04:27.42	2026-09-23 07:01:31.314	2026-10-15 04:19:55.714	QR-39-883220	MC	Khối kinh doanh
+104	39	90	Nguyễn Đức Vĩnh	0984398568	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	\N	2026-09-23 07:01:14.332	2026-09-23 07:04:26.786	2026-09-23 07:01:14.332	2026-10-15 04:19:57.61	QR-39-665976	MC	Khối kinh doanh
+118	39	134	A tuấn	0901759436	\N	Khách mời tham dự	Trang chủ Web	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-09-23 07:46:02.359	2026-09-23 07:54:39.509	2026-09-23 07:46:02.359	2026-10-15 04:20:30.236	QR-39-693351	MC	Khối kinh doanh
 131	40	142	Nguyễn Thị Dung	0973383487	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-09-25 12:27:34.684	2026-09-26 02:15:12.98	2026-09-25 12:27:34.684	2026-09-26 02:15:12.98	QR-40-417475	MC	Khối kinh doanh
 132	40	109	Hoàng thị chích	0384081272	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã hủy	f	\N	\N	2026-09-25 12:53:43.814	\N	2026-09-25 12:53:43.814	2026-09-26 02:21:02.301	QR-40-656357	MC	Khối kinh doanh
 133	40	143	Hoàng Cường	0345792111	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã hủy	f	\N	\N	2026-09-25 12:54:34.856	\N	2026-09-25 12:54:34.856	2026-09-25 13:19:37.434	QR-40-226799	MC	Khối kinh doanh
 134	40	144	Nguyễn Văn A	0986981919	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã hủy	f	\N	\N	2026-09-25 12:59:03.989	\N	2026-09-25 12:59:03.989	2026-09-25 13:19:33.27	QR-40-131508	MC	Khối kinh doanh
 135	40	145	Trần Thị Hà	0373360136	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	Prosell	2026-09-25 13:50:37.544	2026-09-25 14:46:57.271	2026-09-25 13:50:37.544	2026-09-25 14:46:57.271	QR-40-645182	MC	Khối kinh doanh
-136	40	146	Nguyễn Thị Nhạn	0982882523	\N	Khách mời tham dự	Trang chủ Web	\N	Trần Mai Lương	Đã check-in	t	\N	\N	2026-09-26 01:44:38.138	2026-09-26 02:03:16.829	2026-09-26 01:44:38.138	2026-09-26 02:03:16.829	QR-40-994417	MC	Khối kinh doanh
 137	40	147	Nguyễn Văn Điền	0985544078	\N	Khách mời tham dự	Trang chủ Web	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-09-26 01:45:14.485	2026-09-26 02:03:21.634	2026-09-26 01:45:14.485	2026-09-26 02:03:21.634	QR-40-988731	MC	Khối kinh doanh
 138	40	148	Lương Vũ Tiến	0974200697	\N	Khách mời tham dự	Trang chủ Web	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-09-26 01:46:06.509	2026-09-26 02:03:23.782	2026-09-26 01:46:06.509	2026-09-26 02:03:23.782	QR-40-495484	MC	Khối kinh doanh
-139	40	65	Nguyễn Trà My	0344514394	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	Lễ tân	2026-09-26 01:49:08.378	2026-09-26 02:02:53.621	2026-09-26 01:49:08.378	2026-09-26 02:02:53.621	QR-40-318020	MC	Khối kinh doanh
-140	40	92	Nguyễn Thuý Hằng	0975656429	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 01:56:59.503	2026-09-26 02:02:49.72	2026-09-26 01:56:59.503	2026-09-26 02:02:49.72	QR-40-199569	MC	Khối kinh doanh
 141	40	149	Nguyễn Văn Trung	0978581968	\N	Khách mời tham dự	Trang chủ Web	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-09-26 02:01:27.78	2026-09-26 02:18:02.619	2026-09-26 02:01:27.78	2026-09-26 02:18:02.619	QR-40-778351	MC	Khối kinh doanh
 142	40	150	Đào Thị Hoà	0981398785	\N	Khách mời tham dự	Trang chủ Web	118	Hồ Xuân thu( diệp Huế)	Đã check-in	t	\N	\N	2026-09-26 02:02:53.282	2026-09-26 02:07:11.678	2026-09-26 02:02:53.282	2026-09-26 02:07:11.678	QR-40-349755	MC	Khối kinh doanh
 143	40	151	Bùi Văn Tấn	0866852565	\N	Khách mời tham dự	Trang chủ Web	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-09-26 02:04:02.438	2026-09-26 02:07:13.618	2026-09-26 02:04:02.438	2026-09-26 02:07:48.953	QR-40-666794	MC	Khối kinh doanh
-144	40	152	NGUYỄN NGỌC THỦ	0966382168	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 02:09:21.16	2026-09-26 02:20:42.461	2026-09-26 02:09:21.16	2026-09-26 02:20:42.461	QR-40-972706	MC	Khối kinh doanh
-145	40	153	Nguyễn Văn Thạch	0986623904	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:10:20.569	2026-09-26 02:20:35.178	2026-09-26 02:10:20.569	2026-09-26 02:20:35.178	QR-40-420234	MC	Khối kinh doanh
+890	77	\N	PHAN THỊ LAM	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:47:07.154	\N	2026-10-12 08:47:07.154	2026-10-12 08:47:07.154	KH827147	MC	Ban nguồn vốn
 146	40	154	Trần Thị Thanh Hương	0876766327	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-26 02:15:55.785	2026-09-26 02:28:59.251	2026-09-26 02:15:55.785	2026-09-26 02:28:59.251	QR-40-643999	MC	Khối kinh doanh
 147	40	155	Trần thị minh thu	0856108703	\N	Khách mời tham dự	Trang chủ Web	154	Trần Thị Thanh Hương	Đã hủy	f	\N	\N	2026-09-26 02:16:15.71	2026-09-26 02:28:55.762	2026-09-26 02:16:15.71	2026-09-26 02:59:43.346	QR-40-206157	MC	Khối kinh doanh
 148	40	156	Nguyễn Thị Cẩm	0987821384	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Thị Hà	Đã check-in	t	\N	\N	2026-09-26 02:16:50.795	2026-09-26 02:28:53.629	2026-09-26 02:16:50.795	2026-09-26 02:58:08.759	QR-40-342109	MC	Khối kinh doanh
@@ -1931,51 +2075,52 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 154	40	81	Hoàng văn Nhật	0915026767	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-26 02:26:24.311	2026-09-26 02:28:28.223	2026-09-26 02:26:24.311	2026-09-26 02:28:28.223	QR-40-839759	MC	Khối kinh doanh
 155	40	161	Phạm Vinh Quang	0913073619	\N	Khách mời tham dự	Trang chủ Web	107	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-09-26 02:28:29.667	2026-09-26 02:30:47.191	2026-09-26 02:28:29.667	2026-09-26 02:30:47.191	QR-40-263573	MC	Khối kinh doanh
 156	40	162	Phạm thị Thúy Lan	0912137909	\N	Khách mời tham dự	Trang chủ Web	161	Phạm Vinh Quang	Đã check-in	t	\N	\N	2026-09-26 02:28:53.886	2026-09-26 02:30:45.551	2026-09-26 02:28:53.886	2026-09-26 02:30:45.551	QR-40-910940	MC	Khối kinh doanh
-158	40	164	Dương giáp công	0326685768	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:36:30.425	2026-09-26 02:36:38.015	2026-09-26 02:36:30.425	2026-09-26 02:36:38.015	QR-40-419875	MC	Khối kinh doanh
-159	40	165	Phạm Văn thịnh	0977113668	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:37:25.759	2026-09-26 02:38:14.53	2026-09-26 02:37:25.759	2026-09-26 02:38:14.53	QR-40-541545	MC	Khối kinh doanh
-160	40	166	Hoàng Văn Bảy	0385688414	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:37:34.619	2026-09-26 02:38:11.945	2026-09-26 02:37:34.619	2026-09-26 02:38:11.945	QR-40-313605	MC	Khối kinh doanh
-161	40	167	Kiều Thị Hồng Tâm	0918140192	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 02:44:00.274	2026-09-26 02:46:44.111	2026-09-26 02:44:00.274	2026-09-26 02:46:44.111	QR-40-686517	MC	Khối kinh doanh
-162	40	168	Nguyễn Thị Sáu	0976231413	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:52:45.09	2026-09-26 03:02:57.519	2026-09-26 02:52:45.09	2026-09-26 03:02:57.519	QR-40-640901	MC	Khối kinh doanh
-163	40	169	Bùi Hồng ánh	0763511380	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:53:15.774	2026-09-26 03:02:55.732	2026-09-26 02:53:15.774	2026-09-26 03:02:55.732	QR-40-229117	MC	Khối kinh doanh
-164	40	170	Đào Thị Mai	0982511796	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 02:54:27.943	2026-09-26 03:02:54.063	2026-09-26 02:54:27.943	2026-09-26 03:02:54.063	QR-40-240910	MC	Khối kinh doanh
-165	40	171	Nguyễn thị Lan	0985798176	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:55:23.685	2026-09-26 03:02:51.426	2026-09-26 02:55:23.685	2026-09-26 03:02:51.426	QR-40-560804	MC	Khối kinh doanh
+160	40	166	Hoàng Văn Bảy	0385688414	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:37:34.619	2026-09-26 02:38:11.945	2026-09-26 02:37:34.619	2026-10-15 03:12:00.125	QR-40-313605	MC	Ban nguồn vốn
+158	40	164	Dương giáp công	0326685768	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:36:30.425	2026-09-26 02:36:38.015	2026-09-26 02:36:30.425	2026-10-15 03:12:02.707	QR-40-419875	MC	Ban nguồn vốn
+164	40	170	Đào Thị Mai	0982511796	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 02:54:27.943	2026-09-26 03:02:54.063	2026-09-26 02:54:27.943	2026-10-15 03:18:24.506	QR-40-240910	MC	Ban nguồn vốn
+162	40	168	Nguyễn Thị Sáu	0976231413	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:52:45.09	2026-09-26 03:02:57.519	2026-09-26 02:52:45.09	2026-10-15 03:18:27.518	QR-40-640901	MC	Ban nguồn vốn
+163	40	169	Bùi Hồng ánh	0763511380	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:53:15.774	2026-09-26 03:02:55.732	2026-09-26 02:53:15.774	2026-10-15 03:18:30.083	QR-40-229117	MC	Ban nguồn vốn
+161	40	167	Kiều Thị Hồng Tâm	0918140192	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 02:44:00.274	2026-09-26 02:46:44.111	2026-09-26 02:44:00.274	2026-10-15 03:18:33.15	QR-40-686517	MC	Ban nguồn vốn
+140	40	92	Nguyễn Thuý Hằng	0975656429	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 01:56:59.503	2026-09-26 02:02:49.72	2026-09-26 01:56:59.503	2026-10-15 03:18:46.696	QR-40-199569	MC	Ban nguồn vốn
+144	40	152	NGUYỄN NGỌC THỦ	0966382168	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-26 02:09:21.16	2026-09-26 02:20:42.461	2026-09-26 02:09:21.16	2026-10-15 03:19:02.003	QR-40-972706	MC	Ban nguồn vốn
+145	40	153	Nguyễn Văn Thạch	0986623904	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:10:20.569	2026-09-26 02:20:35.178	2026-09-26 02:10:20.569	2026-10-15 04:25:08.573	QR-40-420234	MC	Ban nguồn vốn
+139	40	65	Nguyễn Trà My	0344514394	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	Lễ tân	2026-09-26 01:49:08.378	2026-09-26 02:02:53.621	2026-09-26 01:49:08.378	2026-10-15 04:25:14.554	QR-40-318020	MC	Ban nguồn vốn
+130	40	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-25 12:26:03.379	2026-09-26 02:10:07.846	2026-09-25 12:26:03.379	2026-10-15 04:25:22.304	QR-40-701987	MC	Ban nguồn vốn
+136	40	146	Nguyễn Thị Nhạn	0982882523	\N	Khách mời tham dự	Trang chủ Web	\N	Trần Mai Lương	Đã check-in	t	\N	\N	2026-09-26 01:44:38.138	2026-09-26 02:03:16.829	2026-09-26 01:44:38.138	2026-10-15 04:31:22.116	QR-40-994417	MC	Ban nguồn vốn
+129	40	72	Nguyễn Tiến Dũng	0943472943	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-09-25 08:24:38.353	2026-09-26 02:16:58.146	2026-09-25 08:24:38.353	2026-10-15 04:36:41.228	QR-40-700988	MC	Ban nguồn vốn
 166	40	172	Đào Thị Dung	0904406706	\N	Khách mời tham dự	Trang chủ Web	170	Đào Thị Mai	Đã check-in	t	\N	\N	2026-09-26 02:55:31.716	2026-09-26 03:02:47.896	2026-09-26 02:55:31.716	2026-09-26 03:02:47.896	QR-40-317922	MC	Khối kinh doanh
 167	40	173	Nguyễn Thị Phượng	0963286653	\N	Khách mời tham dự	Trang chủ Web	170	Đào Thị Mai	Đã check-in	t	\N	\N	2026-09-26 02:56:15.311	2026-09-26 03:02:46.168	2026-09-26 02:56:15.311	2026-09-26 03:02:46.168	QR-40-644713	MC	Khối kinh doanh
-168	40	174	Nguyễn thị Xuân loan	0962375605	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Thị Hà	Đã check-in	t	\N	\N	2026-09-26 03:03:58.347	2026-09-26 03:06:53.081	2026-09-26 03:03:58.347	2026-09-26 03:06:53.081	QR-40-809453	MC	Khối kinh doanh
-169	40	175	Nguyễn thị Ngọc	0376566725	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:05:35.885	2026-09-26 03:06:53.968	2026-09-26 03:05:35.885	2026-09-26 03:06:53.968	QR-40-391758	MC	Khối kinh doanh
-170	40	176	Nguyễn thị thi	0379336768	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:07:55.878	2026-09-26 03:13:44.48	2026-09-26 03:07:55.878	2026-09-26 03:13:44.48	QR-40-533002	MC	Khối kinh doanh
-171	40	177	HÀ MINH SƠN	0985867676	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-26 03:09:42.03	2026-09-26 03:13:43.057	2026-09-26 03:09:42.03	2026-09-26 03:13:43.057	QR-40-624942	MC	Khối kinh doanh
-172	40	178	Trương Ngọc Hạnh	0867073589	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-26 03:09:48.081	2026-09-26 03:13:41.346	2026-09-26 03:09:48.081	2026-09-26 03:13:41.346	QR-40-686560	MC	Khối kinh doanh
-173	40	179	Hà Thị Minh Hường	0934944568	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:11:00.312	2026-09-26 03:12:30.389	2026-09-26 03:11:00.312	2026-09-26 03:12:30.389	QR-40-655960	MC	Khối kinh doanh
-174	40	180	Phạm Lan Anh	0853414319	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:11:39.178	2026-09-26 03:12:31.093	2026-09-26 03:11:39.178	2026-09-26 03:12:31.093	QR-40-916638	MC	Khối kinh doanh
 175	40	181	Đào Thị Dung	0901106706	\N	Khách mời tham dự	Trang chủ Web	170	Đào Thị Mai	Đã check-in	t	\N	\N	2026-09-26 03:12:05.905	2026-09-26 03:12:31.621	2026-09-26 03:12:05.905	2026-09-26 03:12:31.621	QR-40-930410	MC	Khối kinh doanh
-176	40	182	Phan Quốc Văn	0867971675	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:12:17.079	2026-09-26 03:12:32.068	2026-09-26 03:12:17.079	2026-09-26 03:12:32.068	QR-40-854436	MC	Khối kinh doanh
 177	40	183	Nguyễn Thị Dung	0965372066	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-09-26 03:13:36.227	2026-09-26 03:15:01.16	2026-09-26 03:13:36.227	2026-09-26 03:15:01.16	QR-40-913468	MC	Khối kinh doanh
 178	40	184	Phạm Tuấn Nga	0969951349	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-09-26 03:14:03.385	2026-09-26 03:15:02.069	2026-09-26 03:14:03.385	2026-09-26 03:15:02.069	QR-40-217176	MC	Khối kinh doanh
 179	40	133	Bùi thị nguyệt	0932003666	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-26 03:17:05.474	2026-09-26 03:21:40.467	2026-09-26 03:17:05.474	2026-09-26 03:21:40.467	QR-40-722524	MC	Khối kinh doanh
-180	40	185	Nguyễn Văn nghĩa	0833931919	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	\N	2026-09-26 03:18:25.117	2026-09-26 03:21:41.513	2026-09-26 03:18:25.117	2026-09-26 03:21:41.513	QR-40-618211	MC	Khối kinh doanh
-181	40	186	Hoàng Văn Thoại	0986577191	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 03:21:14.591	2026-09-26 03:21:42.336	2026-09-26 03:21:14.591	2026-09-26 03:21:42.336	QR-40-152959	MC	Khối kinh doanh
-182	40	117	Hoàng Thị Luyện	0972831568	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 03:21:57.116	2026-09-26 03:26:39.66	2026-09-26 03:21:57.116	2026-09-26 03:26:39.66	QR-40-359886	MC	Khối kinh doanh
-183	40	116	Vũ Thị Tuất	0935667676	\N	Khách mời tham dự	Trang chủ Web	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	t	\N	\N	2026-09-26 03:22:33.091	2026-09-26 03:26:38.118	2026-09-26 03:22:33.091	2026-09-26 03:26:38.118	QR-40-828309	MC	Khối kinh doanh
-184	40	187	Phạm Thanh Tùng	0913262869	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-26 03:22:35.049	2026-09-26 03:26:37.422	2026-09-26 03:22:35.049	2026-09-26 03:26:37.422	QR-40-841913	MC	Khối kinh doanh
-185	40	188	Nguyễn Thị Thu	0334618677	\N	Khách mời tham dự	Trang chủ Web	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-09-26 03:24:15.21	2026-09-26 03:26:36.046	2026-09-26 03:24:15.21	2026-09-26 03:26:36.046	QR-40-136947	MC	Khối kinh doanh
-186	40	189	Nguyễn Minh Khuê	0396764462	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-26 03:24:50.33	2026-09-26 03:26:35.68	2026-09-26 03:24:50.33	2026-09-26 03:26:35.68	QR-40-132448	MC	Khối kinh doanh
-187	40	190	Lê Văn hòa	0345918265	\N	Khách mời tham dự	Trang chủ Web	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-09-26 03:25:14.278	2026-09-26 03:26:36.183	2026-09-26 03:25:14.278	2026-09-26 03:26:36.183	QR-40-995442	MC	Khối kinh doanh
-188	40	191	Nguyễn Thị Hường	0786359686	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:26:08.963	2026-09-26 03:26:36.842	2026-09-26 03:26:08.963	2026-09-26 03:26:36.842	QR-40-392685	MC	Khối kinh doanh
-189	40	192	Nguyễn Văn Nam	0934489228	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:28:36.491	2026-09-26 03:52:29.722	2026-09-26 03:28:36.491	2026-09-26 03:52:29.722	QR-40-421463	MC	Khối kinh doanh
-190	40	193	Nguyễn Thị Kim Oanh	0947248634	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:29:06.222	2026-09-26 03:52:30.52	2026-09-26 03:29:06.222	2026-09-26 03:52:30.52	QR-40-314692	MC	Khối kinh doanh
-191	40	194	Đỗ Thị Chỉ	0866917296	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:29:07.024	2026-09-26 03:52:31.401	2026-09-26 03:29:07.024	2026-09-26 03:52:31.401	QR-40-624668	MC	Khối kinh doanh
-192	40	76	Trần Thị Hồng	0942238855	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:29:49.616	2026-09-26 03:52:32.145	2026-09-26 03:29:49.616	2026-09-26 03:52:32.145	QR-40-824090	MC	Khối kinh doanh
-193	40	195	Đồng Thị Oanh	0834227499	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:30:06.185	2026-09-26 03:52:33.967	2026-09-26 03:30:06.185	2026-09-26 03:52:33.967	QR-40-815781	MC	Khối kinh doanh
-194	40	75	Phạm Thị Nguyệt	0979012294	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:30:20.892	2026-09-26 03:52:34.535	2026-09-26 03:30:20.892	2026-09-26 03:52:34.535	QR-40-551480	MC	Khối kinh doanh
-195	40	196	Nguyễn Hải Quý	0988732586	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	Tham dự tiệc trà	2026-09-26 03:30:37.28	2026-09-26 03:52:35.416	2026-09-26 03:30:37.28	2026-09-26 03:52:35.416	QR-40-505531	MC	Khối kinh doanh
-196	40	78	Nguyễn Văn Quyết	0941848473	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:30:40.887	2026-09-26 03:52:36.881	2026-09-26 03:30:40.887	2026-09-26 03:52:36.881	QR-40-377445	MC	Khối kinh doanh
-197	40	197	Nguyễn Thị Tâm	0785139499	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:31:20.926	2026-09-26 03:52:37.489	2026-09-26 03:31:20.926	2026-09-26 03:52:37.489	QR-40-813283	MC	Khối kinh doanh
-198	40	198	Đoàn Thị Tuyết Minh	0866628865	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:32:04.444	2026-09-26 03:52:41.412	2026-09-26 03:32:04.444	2026-09-26 03:52:41.412	QR-40-296237	MC	Khối kinh doanh
-199	40	199	Đỗ Thị Lanh	0947874832	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:32:42.692	2026-09-26 03:52:42.195	2026-09-26 03:32:42.692	2026-09-26 03:52:42.195	QR-40-407175	MC	Khối kinh doanh
-200	40	74	Vũ Ngọc Bảo	0966289668	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-26 03:33:09.987	2026-09-26 03:52:43.275	2026-09-26 03:33:09.987	2026-09-26 03:52:43.275	QR-40-415461	MC	Khối kinh doanh
-201	40	200	Lê Thị Huyền Trang	0943227213	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-26 03:34:46.387	2026-09-26 03:52:45.275	2026-09-26 03:34:46.387	2026-09-26 03:52:45.275	QR-40-699277	MC	Khối kinh doanh
-202	40	201	Cao Minh Chỉnh	0589916688	\N	Khách mời tham dự	Trang chủ Web	200	Lê Thị Huyền Trang	Đã check-in	t	\N	\N	2026-09-26 03:35:44.696	2026-09-26 03:52:46.308	2026-09-26 03:35:44.696	2026-09-26 03:52:46.308	QR-40-502907	MC	Khối kinh doanh
+182	40	117	Hoàng Thị Luyện	0972831568	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 03:21:57.116	2026-09-26 03:26:39.66	2026-09-26 03:21:57.116	2026-10-15 03:11:34.067	QR-40-359886	MC	Ban nguồn vốn
+169	40	175	Nguyễn thị Ngọc	0376566725	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:05:35.885	2026-09-26 03:06:53.968	2026-09-26 03:05:35.885	2026-10-15 03:17:29.66	QR-40-391758	MC	Ban nguồn vốn
+170	40	176	Nguyễn thị thi	0379336768	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:07:55.878	2026-09-26 03:13:44.48	2026-09-26 03:07:55.878	2026-10-15 03:17:32.139	QR-40-533002	MC	Ban nguồn vốn
+188	40	191	Nguyễn Thị Hường	0786359686	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:26:08.963	2026-09-26 03:26:36.842	2026-09-26 03:26:08.963	2026-10-15 03:18:05.649	QR-40-392685	MC	Ban nguồn vốn
+165	40	171	Nguyễn thị Lan	0985798176	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 02:55:23.685	2026-09-26 03:02:51.426	2026-09-26 02:55:23.685	2026-10-15 03:18:36.296	QR-40-560804	MC	Ban nguồn vốn
+199	40	199	Đỗ Thị Lanh	0947874832	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:32:42.692	2026-09-26 03:52:42.195	2026-09-26 03:32:42.692	2026-10-15 04:23:06.126	QR-40-407175	MC	Ban nguồn vốn
+197	40	197	Nguyễn Thị Tâm	0785139499	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:31:20.926	2026-09-26 03:52:37.489	2026-09-26 03:31:20.926	2026-10-15 04:23:11.07	QR-40-813283	MC	Ban nguồn vốn
+198	40	198	Đoàn Thị Tuyết Minh	0866628865	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:32:04.444	2026-09-26 03:52:41.412	2026-09-26 03:32:04.444	2026-10-15 04:23:17.207	QR-40-296237	MC	Ban nguồn vốn
+196	40	78	Nguyễn Văn Quyết	0941848473	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:30:40.887	2026-09-26 03:52:36.881	2026-09-26 03:30:40.887	2026-10-15 04:23:45.534	QR-40-377445	MC	Ban nguồn vốn
+195	40	196	Nguyễn Hải Quý	0988732586	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	Tham dự tiệc trà	2026-09-26 03:30:37.28	2026-09-26 03:52:35.416	2026-09-26 03:30:37.28	2026-10-15 04:23:48.656	QR-40-505531	MC	Ban nguồn vốn
+194	40	75	Phạm Thị Nguyệt	0979012294	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:30:20.892	2026-09-26 03:52:34.535	2026-09-26 03:30:20.892	2026-10-15 04:23:59.857	QR-40-551480	MC	Ban nguồn vốn
+193	40	195	Đồng Thị Oanh	0834227499	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:30:06.185	2026-09-26 03:52:33.967	2026-09-26 03:30:06.185	2026-10-15 04:24:02.459	QR-40-815781	MC	Ban nguồn vốn
+192	40	76	Trần Thị Hồng	0942238855	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:29:49.616	2026-09-26 03:52:32.145	2026-09-26 03:29:49.616	2026-10-15 04:24:04.945	QR-40-824090	MC	Ban nguồn vốn
+191	40	194	Đỗ Thị Chỉ	0866917296	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:29:07.024	2026-09-26 03:52:31.401	2026-09-26 03:29:07.024	2026-10-15 04:24:07.346	QR-40-624668	MC	Ban nguồn vốn
+190	40	193	Nguyễn Thị Kim Oanh	0947248634	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:29:06.222	2026-09-26 03:52:30.52	2026-09-26 03:29:06.222	2026-10-15 04:24:11.955	QR-40-314692	MC	Ban nguồn vốn
+189	40	192	Nguyễn Văn Nam	0934489228	\N	Khách mời tham dự	Trang chủ Web	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-09-26 03:28:36.491	2026-09-26 03:52:29.722	2026-09-26 03:28:36.491	2026-10-15 04:24:14.207	QR-40-421463	MC	Ban nguồn vốn
+187	40	190	Lê Văn hòa	0345918265	\N	Khách mời tham dự	Trang chủ Web	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-09-26 03:25:14.278	2026-09-26 03:26:36.183	2026-09-26 03:25:14.278	2026-10-15 04:24:17.737	QR-40-995442	MC	Ban nguồn vốn
+186	40	189	Nguyễn Minh Khuê	0396764462	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-26 03:24:50.33	2026-09-26 03:26:35.68	2026-09-26 03:24:50.33	2026-10-15 04:24:26.813	QR-40-132448	MC	Ban nguồn vốn
+185	40	188	Nguyễn Thị Thu	0334618677	\N	Khách mời tham dự	Trang chủ Web	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-09-26 03:24:15.21	2026-09-26 03:26:36.046	2026-09-26 03:24:15.21	2026-10-15 04:24:29.512	QR-40-136947	MC	Ban nguồn vốn
+184	40	187	Phạm Thanh Tùng	0913262869	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-09-26 03:22:35.049	2026-09-26 03:26:37.422	2026-09-26 03:22:35.049	2026-10-15 04:24:31.88	QR-40-841913	MC	Ban nguồn vốn
+183	40	116	Vũ Thị Tuất	0935667676	\N	Khách mời tham dự	Trang chủ Web	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	t	\N	\N	2026-09-26 03:22:33.091	2026-09-26 03:26:38.118	2026-09-26 03:22:33.091	2026-10-15 04:24:34.583	QR-40-828309	MC	Ban nguồn vốn
+180	40	185	Nguyễn Văn nghĩa	0833931919	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã check-in	t	\N	\N	2026-09-26 03:18:25.117	2026-09-26 03:21:41.513	2026-09-26 03:18:25.117	2026-10-15 04:24:37.574	QR-40-618211	MC	Ban nguồn vốn
+176	40	182	Phan Quốc Văn	0867971675	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:12:17.079	2026-09-26 03:12:32.068	2026-09-26 03:12:17.079	2026-10-15 04:24:44.69	QR-40-854436	MC	Ban nguồn vốn
+174	40	180	Phạm Lan Anh	0853414319	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:11:39.178	2026-09-26 03:12:31.093	2026-09-26 03:11:39.178	2026-10-15 04:24:47.905	QR-40-916638	MC	Ban nguồn vốn
+172	40	178	Trương Ngọc Hạnh	0867073589	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-26 03:09:48.081	2026-09-26 03:13:41.346	2026-09-26 03:09:48.081	2026-10-15 04:24:50.706	QR-40-686560	MC	Ban nguồn vốn
+171	40	177	HÀ MINH SƠN	0985867676	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-26 03:09:42.03	2026-09-26 03:13:43.057	2026-09-26 03:09:42.03	2026-10-15 04:24:53.827	QR-40-624942	MC	Ban nguồn vốn
+168	40	174	Nguyễn thị Xuân loan	0962375605	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Thị Hà	Đã check-in	t	\N	\N	2026-09-26 03:03:58.347	2026-09-26 03:06:53.081	2026-09-26 03:03:58.347	2026-10-15 04:24:59.498	QR-40-809453	MC	Ban nguồn vốn
 211	41	\N	Nguyen thi Biển	0979345229	\N	Khách vãng lai	Trang chủ Web	\N	Khách vãng lai	Đã hủy	f	\N	\N	2026-09-28 03:34:49.434	\N	2026-09-28 03:34:49.434	2026-09-28 08:18:04.698	QR-41-478928	MC	Khối kinh doanh
 208	41	42	Lê thị chanh	0385213858	\N	\N	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã hủy	f	\N	\N	2026-09-28 03:32:27.084	\N	2026-09-28 03:32:27.084	2026-09-30 02:48:58.659	QR-41-101772	MC	Khối kinh doanh
 206	41	41	Nguyễn Hùng Vĩ	0326894993	\N	\N	Trang chủ Web	45	Chu Thị Lương	Đã hủy	f	\N	\N	2026-09-28 03:31:20.695	\N	2026-09-28 03:31:20.695	2026-09-30 02:49:04.108	QR-41-395141	MC	Khối kinh doanh
@@ -1990,9 +2135,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 214	41	206	Chij Hōi	0984466535	\N	Khách mời tham dự	Trang chủ Web	204	Đào Thị Hòa (Diệp Huế)	Đã hủy	f	\N	\N	2026-09-28 03:47:13.892	\N	2026-09-28 03:47:13.892	2026-09-30 03:28:08.098	QR-41-893330	MC	Khối kinh doanh
 213	41	67	Phạm thị Tuyết	0936446922	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-28 03:45:52.668	2026-09-30 03:28:11.791	2026-09-28 03:45:52.668	2026-09-30 03:28:11.791	QR-41-874867	MC	Khối kinh doanh
 212	41	204	Đào Thị Hòa (Diệp Huế)	0949492688	\N	\N	Trang chủ Web	\N	Khách vãng lai	Đã hủy	f	\N	\N	2026-09-28 03:39:29.854	\N	2026-09-28 03:39:29.854	2026-09-30 03:28:15.302	QR-41-529111	MC	Khối kinh doanh
-210	41	202	Nguyễn Thị Hoa	0796135248	\N	\N	Trang chủ Web	\N	Khách vãng lai	Đã hủy	f	\N	\N	2026-09-28 03:34:25.422	\N	2026-09-28 03:34:25.422	2026-09-30 03:28:18.425	QR-41-240850	MC	Khối kinh doanh
 209	41	109	Hoàng thị chích	0384081272	\N	\N	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã hủy	f	\N	\N	2026-09-28 03:32:49.901	\N	2026-09-28 03:32:49.901	2026-09-30 03:28:22.362	QR-41-445149	MC	Khối kinh doanh
-203	40	44	Vũ Thị Thúy	0945172578	\N	Khách vãng lai	Trang chủ Web	\N	Sale	Đã check-in	t	\N	\N	2026-09-26 03:52:58.268	2026-09-26 08:47:22.118	2026-09-26 03:52:58.268	2026-09-30 08:03:56.75	QR-40-185815	MC	Khối kinh doanh
 227	40	\N	Hoàng thị chích	0388112890	\N	Khách mời tham dự	Trang chủ Web	\N	Phạm Thị Hồng	Đã đăng ký	t	\N	\N	2026-09-28 08:23:32.281	\N	2026-09-28 08:23:32.281	2026-09-28 08:23:32.281	QR-40-418245	MC	Khối kinh doanh
 235	41	118	Hỗ xuân Thu	0988388012	\N	\N	Trang chủ Web	\N	Diiep thị Huế	Đã check-in	t	\N	\N	2026-09-29 06:30:01.334	2026-09-30 01:59:55.584	2026-09-29 06:30:01.334	2026-09-30 01:59:55.584	QR-41-441618	MC	Khối kinh doanh
 236	41	224	Nguyễn Văn Bình	0397031046	\N	\N	Trang chủ Web	\N	Diiep thị Huế	Đã check-in	t	\N	\N	2026-09-29 06:32:06.295	2026-09-30 02:00:04.542	2026-09-29 06:32:06.295	2026-09-30 02:00:04.542	QR-41-425262	MC	Khối kinh doanh
@@ -2010,23 +2153,19 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 294	41	258	Lê Thị Hồng Duyến	0336894986	\N	Khách mời tham dự	Trang chủ Web	\N	Minh(Quý)	Đã check-in	t	\N	\N	2026-09-30 03:06:47.719	2026-09-30 03:22:28.36	2026-09-30 03:06:47.719	2026-09-30 03:22:28.36	QR-41-545063	MC	Ban nguồn vốn
 295	41	74	Vũ Bảo Ngọc	0966289668	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-30 03:06:57.027	2026-09-30 03:22:31.165	2026-09-30 03:06:57.027	2026-09-30 03:22:31.165	QR-41-897424	MC	Ban nguồn vốn
 296	41	129	Đặng Lâm	0328001998	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-30 03:07:26.095	2026-09-30 03:22:32.755	2026-09-30 03:07:26.095	2026-09-30 03:22:32.755	QR-41-716353	MC	Ban nguồn vốn
+201	40	200	Lê Thị Huyền Trang	0943227213	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-26 03:34:46.387	2026-09-26 03:52:45.275	2026-09-26 03:34:46.387	2026-10-15 04:23:03.775	QR-40-699277	MC	Ban nguồn vốn
+200	40	74	Vũ Ngọc Bảo	0966289668	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-26 03:33:09.987	2026-09-26 03:52:43.275	2026-09-26 03:33:09.987	2026-10-15 04:23:08.562	QR-40-415461	MC	Ban nguồn vốn
+202	40	201	Cao Minh Chỉnh	0589916688	\N	Khách mời tham dự	Trang chủ Web	200	Lê Thị Huyền Trang	Đã check-in	t	\N	\N	2026-09-26 03:35:44.696	2026-09-26 03:52:46.308	2026-09-26 03:35:44.696	2026-10-15 04:23:41.758	QR-40-502907	MC	Ban nguồn vốn
+210	41	202	Nguyễn Thị Hoa	0796135248	\N	\N	Trang chủ Web	\N	Khách vãng lai	Đã hủy	f	\N	\N	2026-09-28 03:34:25.422	\N	2026-09-28 03:34:25.422	2026-10-15 04:52:34.683	QR-41-240850	MC	Ban nguồn vốn
 297	41	259	Nguyễn Thị Kim Oanh	08676599351	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-09-30 03:08:01.293	2026-09-30 03:22:35.328	2026-09-30 03:08:01.293	2026-09-30 03:22:35.328	QR-41-456055	MC	Ban nguồn vốn
 298	41	260	Tần Dâu Dao	0945913368	\N	Khách mời tham dự	Trang chủ Web	\N	Quyết(quý)	Đã check-in	t	\N	\N	2026-09-30 03:08:29.64	2026-09-30 03:22:37.003	2026-09-30 03:08:29.64	2026-09-30 03:22:37.003	QR-41-296206	MC	Ban nguồn vốn
 300	41	176	Nguyễn Thị Thi	0379336768	\N	Khách mời tham dự	Trang chủ Web	167	Kiều Thị Hồng Tâm	Đã check-in	t	\N	\N	2026-09-30 03:16:28.526	2026-09-30 03:22:40.439	2026-09-30 03:16:28.526	2026-09-30 03:22:42.287	QR-41-108376	MC	Ban nguồn vốn
 232	41	220	Nguyễn Thị Tú	0378665516	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã hủy	f	\N	\N	2026-09-28 08:51:14.947	\N	2026-09-28 08:51:14.947	2026-09-30 03:27:12.794	QR-41-363547	MC	Khối kinh doanh
 231	41	219	Nghiêm anh tuấn	0982374972	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã hủy	f	\N	\N	2026-09-28 08:50:17.002	\N	2026-09-28 08:50:17.002	2026-09-30 03:27:19.892	QR-41-166109	MC	Khối kinh doanh
-366	42	311	Bùi Đăng Lâm	0847234509	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:23:30.316	2026-10-03 03:24:29.601	2026-10-03 03:23:30.316	2026-10-03 03:24:29.601	QR-42-364819	MC	Khối kinh doanh
-365	42	310	Nguyễn Ngọc Thụy	0948657304	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:22:57.34	2026-10-03 03:24:30.311	2026-10-03 03:22:57.34	2026-10-03 03:24:30.311	QR-42-590343	MC	Khối kinh doanh
 364	42	309	Chu Hồng Diệp	0987620374	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-03 03:19:21.504	2026-10-03 03:24:30.86	2026-10-03 03:19:21.504	2026-10-03 03:24:30.86	QR-42-477952	MC	Khối kinh doanh
-363	42	308	Nguyễn Ánh Hướng	00993652411	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:19:13.84	2026-10-03 03:24:32.199	2026-10-03 03:19:13.84	2026-10-03 03:24:32.199	QR-42-284611	MC	Khối kinh doanh
 362	42	307	Trần Thu Hà	0915936861	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-03 03:18:52.023	2026-10-03 03:24:32.896	2026-10-03 03:18:52.023	2026-10-03 03:24:32.896	QR-42-961103	MC	Khối kinh doanh
-361	42	306	Nguyễn Thị Xuân	0326944844	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:18:29.424	2026-10-03 03:24:33.461	2026-10-03 03:18:29.424	2026-10-03 03:24:33.461	QR-42-111644	MC	Khối kinh doanh
 360	42	305	Dương Thị Phượng	0387450975	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-03 03:18:14.454	2026-10-03 03:24:34.516	2026-10-03 03:18:14.454	2026-10-03 03:24:34.516	QR-42-317451	MC	Khối kinh doanh
-359	42	304	Nguyễn Thị Bảy	0864302210	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:17:36.59	2026-10-03 03:24:35.015	2026-10-03 03:17:36.59	2026-10-03 03:24:35.015	QR-42-597339	MC	Khối kinh doanh
 408	64	345	Quàng Văn Lả	0382112976	\N	Khách mời tham dự	Trang chủ Web	\N	Quàng Thị Đoàn ( Chích)	Đã check-in	t	\N	\N	2026-10-06 03:36:07.684	2026-10-06 03:39:32.529	2026-10-06 03:36:07.684	2026-10-06 03:39:32.529	QR-64-412107	MC	Khối kinh doanh
-357	42	198	Đàm Thị Tuyết Minh	0866628865	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:16:58.696	2026-10-03 03:24:36.874	2026-10-03 03:16:58.696	2026-10-03 03:24:36.874	QR-42-697589	MC	Khối kinh doanh
-377	42	321	Nguyễn Thị Tư	0975833673	\N	Khách mời tham dự	Trang chủ Web	313	Nguyễn Thị Hằng	Đã check-in	t	\N	\N	2026-10-03 03:35:09.425	2026-10-03 04:34:10.026	2026-10-03 03:35:09.425	2026-10-03 04:34:10.026	QR-42-201181	MC	Khối kinh doanh
-378	42	322	Lê Hồng Liên	0384473988	\N	Khách mời tham dự	Trang chủ Web	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	f	\N	\N	2026-10-03 03:36:23.046	2026-10-03 04:34:10.454	2026-10-03 03:36:23.046	2026-10-03 04:34:10.454	QR-42-931270	MC	Khối kinh doanh
 358	42	303	Trịnh Công Thắng	0788238116	\N	Khách mời tham dự	Trang chủ Web	51	Lương Hồng Hải	Đã check-in	f	\N	\N	2026-10-03 03:17:17.728	2026-10-03 03:24:35.715	2026-10-03 03:17:17.728	2026-10-03 04:34:32.361	QR-42-143130	MC	Khối kinh doanh
 455	65	367	Nguyễn Ngọc Sâm	0983740964	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-07 02:52:09.342	2026-10-07 02:55:14.259	2026-10-07 02:52:09.342	2026-10-07 02:55:55.567	QR-65-839698	MC	Ban nguồn vốn
 442	65	68	Lưu Thanh Hải	0775935866	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-07 02:21:42.831	2026-10-07 02:46:16.574	2026-10-07 02:21:42.831	2026-10-07 02:46:16.574	QR-65-692503	MC	Khối kinh doanh
@@ -2042,13 +2181,16 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 454	65	186	Hoàng Văn Thoại	0986577191	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-07 02:51:47.489	2026-10-07 02:55:15.511	2026-10-07 02:51:47.489	2026-10-07 02:55:50.413	QR-65-727039	MC	Ban nguồn vốn
 463	65	372	Nguyễn Thu Thảo	0936218669	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-07 03:01:10.265	2026-10-07 03:09:22.999	2026-10-07 03:01:10.265	2026-10-07 03:09:22.999	QR-65-811636	MC	Khối kinh doanh
 465	65	374	Nguyễn Thị Hoa	0946233288	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-07 03:04:51.015	2026-10-07 03:09:46.435	2026-10-07 03:04:51.015	2026-10-07 03:09:46.435	QR-65-727615	MC	Khối kinh doanh
-479	65	125	Nguyễn Thị Bảy	0912882722	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:14:20.71	2026-10-07 03:47:31.668	2026-10-07 03:14:20.71	2026-10-07 03:47:31.668	QR-65-927946	MC	Khối kinh doanh
-478	65	384	Phạm Thị Hồng Linh	0329233328	\N	Khách mời tham dự	Trang chủ Web	279	Hoàng Thị Luyện	Đã check-in	t	\N	\N	2026-10-07 03:14:15.895	2026-10-07 03:47:37.224	2026-10-07 03:14:15.895	2026-10-07 03:47:37.224	QR-65-308060	MC	Khối kinh doanh
-540	67	\N	Nguyễn Văn Xuân	\N	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:50:01.565	\N	2026-10-09 09:50:01.565	2026-10-09 09:50:10.185	KH401558	MC	Ban nguồn vốn
-477	65	383	Bùi Bích liên	0393842148	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:13:48.704	2026-10-07 03:47:39.012	2026-10-07 03:13:48.704	2026-10-07 03:47:39.012	QR-65-388878	MC	Khối kinh doanh
-476	65	382	Nguyễn Thị Thu Hương	0982894388	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-07 03:13:44.378	2026-10-07 03:47:40.986	2026-10-07 03:13:44.378	2026-10-07 03:47:40.986	QR-65-832670	MC	Khối kinh doanh
-475	65	381	Nguyễn Thị Thịnh	0976651925	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-07 03:13:20.462	2026-10-07 03:47:42.554	2026-10-07 03:13:20.462	2026-10-07 03:47:42.554	QR-65-837826	MC	Khối kinh doanh
-474	65	74	Vũ Ngọc Bảo	0966289668	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:13:16.372	2026-10-07 03:47:43.546	2026-10-07 03:13:16.372	2026-10-07 03:47:43.546	QR-65-743137	MC	Khối kinh doanh
+539	67	\N	Ngô Văn Định	\N	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:49:39.021	\N	2026-10-09 09:49:39.021	2026-10-09 09:49:46.171	KH379015	MC	Ban nguồn vốn
+377	42	321	Nguyễn Thị Tư	0975833673	\N	Khách mời tham dự	Trang chủ Web	313	Nguyễn Thị Hằng	Đã check-in	t	\N	\N	2026-10-03 03:35:09.425	2026-10-03 04:34:10.026	2026-10-03 03:35:09.425	2026-10-15 06:36:42.345	QR-42-201181	MC	Ban nguồn vốn
+366	42	311	Bùi Đăng Lâm	0847234509	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:23:30.316	2026-10-03 03:24:29.601	2026-10-03 03:23:30.316	2026-10-15 06:37:32.856	QR-42-364819	MC	Ban nguồn vốn
+365	42	310	Nguyễn Ngọc Thụy	0948657304	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:22:57.34	2026-10-03 03:24:30.311	2026-10-03 03:22:57.34	2026-10-15 06:37:35.079	QR-42-590343	MC	Ban nguồn vốn
+363	42	308	Nguyễn Ánh Hướng	00993652411	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:19:13.84	2026-10-03 03:24:32.199	2026-10-03 03:19:13.84	2026-10-15 06:37:41.991	QR-42-284611	MC	Ban nguồn vốn
+361	42	306	Nguyễn Thị Xuân	0326944844	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:18:29.424	2026-10-03 03:24:33.461	2026-10-03 03:18:29.424	2026-10-15 06:37:47.999	QR-42-111644	MC	Ban nguồn vốn
+359	42	304	Nguyễn Thị Bảy	0864302210	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:17:36.59	2026-10-03 03:24:35.015	2026-10-03 03:17:36.59	2026-10-15 06:37:59.478	QR-42-597339	MC	Ban nguồn vốn
+357	42	198	Đàm Thị Tuyết Minh	0866628865	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:16:58.696	2026-10-03 03:24:36.874	2026-10-03 03:16:58.696	2026-10-15 06:38:05.146	QR-42-697589	MC	Ban nguồn vốn
+479	65	125	Nguyễn Thị Bảy	0912882722	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:14:20.71	2026-10-07 03:47:31.668	2026-10-07 03:14:20.71	2026-10-15 08:19:42.685	QR-65-927946	MC	Ban nguồn vốn
+478	65	384	Phạm Thị Hồng Linh	0329233328	\N	Khách mời tham dự	Trang chủ Web	279	Hoàng Thị Luyện	Đã check-in	t	\N	\N	2026-10-07 03:14:15.895	2026-10-07 03:47:37.224	2026-10-07 03:14:15.895	2026-10-15 08:19:44.141	QR-65-308060	MC	Ban nguồn vốn
 473	65	380	Nguyễn Thị Hoàng Yến	0974085558	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-07 03:12:55.617	2026-10-07 03:47:46.338	2026-10-07 03:12:55.617	2026-10-07 03:47:46.338	QR-65-401938	MC	Khối kinh doanh
 472	65	379	Cao Thị duyên	0942438366	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:12:46.345	2026-10-07 03:47:48.594	2026-10-07 03:12:46.345	2026-10-07 03:47:48.594	QR-65-917473	MC	Khối kinh doanh
 470	65	378	Đỗ Thị Tú	0916016918	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:12:17.305	2026-10-07 03:48:04.107	2026-10-07 03:12:17.305	2026-10-07 03:48:04.107	QR-65-609209	MC	Khối kinh doanh
@@ -2069,21 +2211,26 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 489	65	393	Nguyễn Thị Ngọc	0947536338	\N	Khách mời tham dự	Trang chủ Web	249	Bùi Hồng Ánh	Đã check-in	t	\N	\N	2026-10-07 03:38:31.388	2026-10-07 03:45:41.286	2026-10-07 03:38:31.388	2026-10-07 03:45:41.286	QR-65-996084	MC	Khối kinh doanh
 488	65	392	Vũ Hùng Vĩ	0984967553	\N	Khách mời tham dự	Trang chủ Web	\N	Phạm Tuấn	Đã check-in	t	\N	\N	2026-10-07 03:34:45.089	2026-10-07 03:46:21.123	2026-10-07 03:34:45.089	2026-10-07 03:46:21.123	QR-65-861247	MC	Khối kinh doanh
 487	65	391	Nguyễn Vũ Hưng	0345466260	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-07 03:33:51.377	2026-10-07 03:46:37.871	2026-10-07 03:33:51.377	2026-10-07 03:46:37.871	QR-65-936231	MC	Khối kinh doanh
-482	65	96	Nguyễn Thị Hướng	0916763233	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:21:57.919	2026-10-07 03:47:25.749	2026-10-07 03:21:57.919	2026-10-07 03:47:25.749	QR-65-361218	MC	Khối kinh doanh
-481	65	386	Nguyễn Thành Long	0965724926	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:21:33.473	2026-10-07 03:47:27.004	2026-10-07 03:21:33.473	2026-10-07 03:47:27.004	QR-65-795576	MC	Khối kinh doanh
-480	65	385	Nguyễn Thị Thi	8379336768	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-07 03:14:42.017	2026-10-07 03:47:27.709	2026-10-07 03:14:42.017	2026-10-07 03:47:27.709	QR-65-622190	MC	Khối kinh doanh
 471	65	319	Kiều Tâm	0918140195	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-07 03:12:17.545	2026-10-07 03:47:58.043	2026-10-07 03:12:17.545	2026-10-07 03:47:58.043	QR-65-245731	MC	Khối kinh doanh
-483	65	387	Trần Thị Mai Lương	0983729588	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-07 03:27:14.968	2026-10-07 03:50:13.861	2026-10-07 03:27:14.968	2026-10-07 03:50:13.861	QR-65-704803	MC	Khối kinh doanh
 484	65	388	Nguyễn Thị Xuân	0332231429	\N	Khách mời tham dự	Trang chủ Web	278	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-07 03:29:51.936	2026-10-07 03:50:14.35	2026-10-07 03:29:51.936	2026-10-07 03:50:14.35	QR-65-804315	MC	Khối kinh doanh
 485	65	389	Nguyễn Thị Nga	0914722831	\N	Khách mời tham dự	Trang chủ Web	278	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-07 03:30:33.251	2026-10-07 03:50:15.479	2026-10-07 03:30:33.251	2026-10-07 03:50:15.479	QR-65-662108	MC	Khối kinh doanh
 486	65	390	Đàm Thị Liên	0764959314	\N	Khách mời tham dự	Trang chủ Web	279	Hoàng Thị Luyện	Đã check-in	t	\N	\N	2026-10-07 03:31:24.147	2026-10-07 03:50:19.034	2026-10-07 03:31:24.147	2026-10-07 03:50:19.034	QR-65-290377	MC	Khối kinh doanh
 496	65	412	Khách Đăng Ký BNV	0966294968	\N	\N	Trang chủ Web	\N	\N	Đã đăng ký	t	\N	\N	2026-10-09 09:00:30.199	\N	2026-10-09 09:00:30.199	2026-10-09 09:00:30.199	QR-65-146834	MC	Ban nguồn vốn
 497	65	413	Khách Đăng Ký Khối Doanh	0955792444	\N	\N	Trang chủ Web	\N	\N	Đã đăng ký	t	\N	\N	2026-10-09 09:00:30.232	\N	2026-10-09 09:00:30.232	2026-10-09 09:00:30.232	QR-65-820452	MC	Khối kinh doanh
-494	41	417	Đảo Quang Trung	0962839461	\N	Khách mời tham dự	Trang chủ Web	42	Lê Thị Chanh	Đã đăng ký	t	\N	\N	2026-10-09 03:19:31.642	\N	2026-10-09 03:19:31.642	2026-10-09 03:19:31.642	QR-41-873205	MC	Khối kinh doanh
-507	67	\N	Nguyễn Thị Hợi	0399159360	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 08:53:43.147	\N	2026-10-09 08:53:43.147	2026-10-09 08:55:03.079	KH023141	MC	Khối kinh doanh
+483	65	387	Trần Thị Mai Lương	0983729588	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-07 03:27:14.968	2026-10-07 03:50:13.861	2026-10-07 03:27:14.968	2026-10-15 08:19:21.898	QR-65-704803	MC	Ban nguồn vốn
+482	65	96	Nguyễn Thị Hướng	0916763233	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:21:57.919	2026-10-07 03:47:25.749	2026-10-07 03:21:57.919	2026-10-15 08:19:37.453	QR-65-361218	MC	Ban nguồn vốn
+481	65	386	Nguyễn Thành Long	0965724926	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:21:33.473	2026-10-07 03:47:27.004	2026-10-07 03:21:33.473	2026-10-15 08:19:38.828	QR-65-795576	MC	Ban nguồn vốn
+480	65	385	Nguyễn Thị Thi	8379336768	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-07 03:14:42.017	2026-10-07 03:47:27.709	2026-10-07 03:14:42.017	2026-10-15 08:19:40.473	QR-65-622190	MC	Ban nguồn vốn
+477	65	383	Bùi Bích liên	0393842148	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:13:48.704	2026-10-07 03:47:39.012	2026-10-07 03:13:48.704	2026-10-15 08:19:47.762	QR-65-388878	MC	Ban nguồn vốn
+476	65	382	Nguyễn Thị Thu Hương	0982894388	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-07 03:13:44.378	2026-10-07 03:47:40.986	2026-10-07 03:13:44.378	2026-10-15 08:19:50.704	QR-65-832670	MC	Ban nguồn vốn
+475	65	381	Nguyễn Thị Thịnh	0976651925	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-07 03:13:20.462	2026-10-07 03:47:42.554	2026-10-07 03:13:20.462	2026-10-15 08:19:52.986	QR-65-837826	MC	Ban nguồn vốn
+474	65	74	Vũ Ngọc Bảo	0966289668	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-07 03:13:16.372	2026-10-07 03:47:43.546	2026-10-07 03:13:16.372	2026-10-15 08:19:57.278	QR-65-743137	MC	Ban nguồn vốn
+181	40	186	Hoàng Văn Thoại	0986577191	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 03:21:14.591	2026-09-26 03:21:42.336	2026-09-26 03:21:14.591	2026-10-15 03:11:31.373	QR-40-152959	MC	Ban nguồn vốn
+498	66	418	Mã Thanh Hưng	0931645134	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:50:28.205	2026-10-10 03:40:33.88	2026-10-09 06:50:28.205	2026-10-10 03:40:33.88	QR-66-958392	MC	Ban nguồn vốn
 508	67	\N	Phạm Thị Huệ	0931568672	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 08:54:20.825	\N	2026-10-09 08:54:20.825	2026-10-09 08:54:49.996	KH060818	MC	Khối kinh doanh
-509	67	\N	Nguyễn Xuân Trường	\N	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 09:18:39.56	\N	2026-10-09 09:18:39.56	2026-10-09 09:18:53.943	KH519544	MC	Khối kinh doanh
+507	67	\N	Nguyễn Thị Hợi	0399159360	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 08:53:43.147	\N	2026-10-09 08:53:43.147	2026-10-09 08:55:03.079	KH023141	MC	Khối kinh doanh
 510	67	\N	Nguyễn Xuân Trường	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-09 09:18:39.549	\N	2026-10-09 09:18:39.549	2026-10-09 09:18:39.549	KH519541	MC	Khối kinh doanh
+509	67	\N	Nguyễn Xuân Trường	\N	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 09:18:39.56	\N	2026-10-09 09:18:39.56	2026-10-09 09:18:53.943	KH519544	MC	Khối kinh doanh
 511	67	\N	Phạm Minh Tuyết	\N	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 09:19:20.109	\N	2026-10-09 09:19:20.109	2026-10-09 09:19:27.649	KH560104	MC	Khối kinh doanh
 512	67	\N	Nguyễn Thị Chiều	\N	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 09:20:01.162	\N	2026-10-09 09:20:01.162	2026-10-09 09:20:10.496	KH601157	MC	Khối kinh doanh
 513	67	\N	Phạm Minh Tuấn	\N	\N	\N	Lễ tân nhập	139	Nguyễn Thị Vân	Đã check-in	t	\N	\N	2026-10-09 09:20:54.287	\N	2026-10-09 09:20:54.287	2026-10-09 09:21:41.619	KH654281	MC	Khối kinh doanh
@@ -2091,15 +2238,14 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 515	67	\N	Lưu Thanh Hải	0775935866	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-09 09:28:11.759	\N	2026-10-09 09:28:11.759	2026-10-09 09:28:11.759	KH091752	MC	Khối kinh doanh
 516	67	\N	Lưu Thanh Hải	0775935866	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-09 09:28:11.757	\N	2026-10-09 09:28:11.757	2026-10-09 09:28:11.757	KH091752	MC	Khối kinh doanh
 517	67	\N	Lưu Thanh Hải	0775935866	\N	\N	Lễ tân nhập	214	Lê.Thị Nhung	Đã check-in	t	\N	\N	2026-10-09 09:28:11.781	\N	2026-10-09 09:28:11.781	2026-10-09 09:28:36.211	KH091775	MC	Khối kinh doanh
-518	67	\N	Lâm Mạnh Hiệp	0989322039	\N	\N	Lễ tân nhập	\N	Kiến Vàng	Đã check-in	t	\N	\N	2026-10-09 09:33:30.287	\N	2026-10-09 09:33:30.287	2026-10-09 09:34:49.428	KH410281	MC	Khối kinh doanh
 519	67	\N	Trịnh Thanh Nhàn	0975194966	\N	\N	Lễ tân nhập	\N	Kiến Vàng	Đã check-in	t	\N	\N	2026-10-09 09:34:22.906	\N	2026-10-09 09:34:22.906	2026-10-09 09:34:41.93	KH462899	MC	Khối kinh doanh
+518	67	\N	Lâm Mạnh Hiệp	0989322039	\N	\N	Lễ tân nhập	\N	Kiến Vàng	Đã check-in	t	\N	\N	2026-10-09 09:33:30.287	\N	2026-10-09 09:33:30.287	2026-10-09 09:34:49.428	KH410281	MC	Khối kinh doanh
 520	67	\N	Vũ Quốc Lâm	0912429401	\N	\N	Lễ tân nhập	\N	Kiến Vàng	Đã check-in	t	\N	\N	2026-10-09 09:35:32.606	\N	2026-10-09 09:35:32.606	2026-10-09 09:35:40.437	KH532600	MC	Khối kinh doanh
-521	67	\N	Phạm Minh Quang	\N	\N	\N	Lễ tân nhập	\N	Kiến Vàng	Đã check-in	t	\N	\N	2026-10-09 09:36:07.094	\N	2026-10-09 09:36:07.094	2026-10-09 09:37:58.533	KH567088	MC	Khối kinh doanh
 522	67	\N	Nguyễn Huyền Trang	0983308885	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-09 09:37:11.898	\N	2026-10-09 09:37:11.898	2026-10-09 09:37:51.135	KH631891	MC	Khối kinh doanh
+521	67	\N	Phạm Minh Quang	\N	\N	\N	Lễ tân nhập	\N	Kiến Vàng	Đã check-in	t	\N	\N	2026-10-09 09:36:07.094	\N	2026-10-09 09:36:07.094	2026-10-09 09:37:58.533	KH567088	MC	Khối kinh doanh
 523	67	\N	Phạm Thị Thúy Lan	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-09 09:38:55.701	\N	2026-10-09 09:38:55.701	2026-10-09 09:38:55.701	KH735695	MC	Khối kinh doanh
 524	67	\N	Quản Thị Đoàn	0988677522	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-09 09:40:21.855	\N	2026-10-09 09:40:21.855	2026-10-09 09:40:34.774	KH821849	MC	Khối kinh doanh
 525	67	\N	Bùi Trí Việt	0912004507	\N	\N	Lễ tân nhập	\N	Anh Trung	Đã check-in	t	\N	\N	2026-10-09 09:41:50.054	\N	2026-10-09 09:41:50.054	2026-10-09 09:42:04.65	KH910048	MC	Khối kinh doanh
-526	67	\N	Vũ Thúy Lợi	0853578966	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-09 09:43:16.401	\N	2026-10-09 09:43:16.401	2026-10-09 09:43:26.2	KH996395	MC	Khối kinh doanh
 527	67	\N	Nguyễn Phú Vụ	0865209758	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-09 09:44:03.067	\N	2026-10-09 09:44:03.067	2026-10-09 09:44:17.957	KH043061	MC	Khối kinh doanh
 528	67	\N	Lương Văn Quang	\N	\N	\N	Lễ tân nhập	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-09 09:44:34.722	\N	2026-10-09 09:44:34.722	2026-10-09 09:44:41.439	KH074717	MC	Khối kinh doanh
 529	67	\N	Thạch Văn Dũng	\N	\N	\N	Lễ tân nhập	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-09 09:44:51.32	2026-10-09 09:44:54.547	2026-10-09 09:44:51.32	2026-10-09 09:45:01.801	KH091315	MC	Khối kinh doanh
@@ -2112,7 +2258,15 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 536	67	\N	Nguyễn Thị Tuyết	\N	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:48:14.201	\N	2026-10-09 09:48:14.201	2026-10-09 09:48:30.519	KH294195	MC	Ban nguồn vốn
 537	67	\N	Cô Tứ	\N	\N	\N	Lễ tân nhập	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-09 09:48:43.86	\N	2026-10-09 09:48:43.86	2026-10-09 09:48:53.882	KH323853	MC	Ban nguồn vốn
 538	67	\N	Trần Thị Lan	\N	\N	\N	Lễ tân nhập	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-09 09:49:13.389	\N	2026-10-09 09:49:13.389	2026-10-09 09:49:23.097	KH353383	MC	Ban nguồn vốn
-539	67	\N	Ngô Văn Định	\N	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:49:39.021	\N	2026-10-09 09:49:39.021	2026-10-09 09:49:46.171	KH379015	MC	Ban nguồn vốn
+499	66	419	Lê Thị Thư	0822295386	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:52:36.425	2026-10-10 03:40:47.98	2026-10-09 06:52:36.425	2026-10-10 03:40:47.98	QR-66-548979	MC	Ban nguồn vốn
+502	66	52	Lê Văn Thời	0929639345	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:55:08.645	2026-10-10 03:43:13.153	2026-10-09 06:55:08.645	2026-10-10 03:43:13.153	QR-66-514818	MC	Ban nguồn vốn
+503	66	421	Hồ Đặng	+84385622390	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:55:56.081	2026-10-10 03:43:16.932	2026-10-09 06:55:56.081	2026-10-10 03:43:16.932	QR-66-108926	MC	Ban nguồn vốn
+500	66	263	Nguyễn Thị Chuyên	0969945022	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 06:53:31.486	\N	2026-10-09 06:53:31.486	2026-10-10 03:43:41.597	QR-66-949291	MC	Ban nguồn vốn
+501	66	420	Nguyễn Thị Loan	0969945333	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 06:54:09.87	\N	2026-10-09 06:54:09.87	2026-10-10 03:43:42.738	QR-66-153175	MC	Ban nguồn vốn
+505	66	423	Huyền My	0986302256	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:57:20.931	2026-10-10 03:44:04.356	2026-10-09 06:57:20.931	2026-10-10 03:44:04.356	QR-66-403765	MC	Ban nguồn vốn
+504	66	422	Hoàng Anh	+84981942599	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 06:56:40.982	\N	2026-10-09 06:56:40.982	2026-10-10 03:44:47.954	QR-66-527352	MC	Ban nguồn vốn
+506	66	424	Chu Thành Long	0338293946	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 08:05:17.913	2026-10-10 03:44:10.752	2026-10-09 08:05:17.913	2026-10-10 03:44:33.152	QR-66-813479	MC	Ban nguồn vốn
+540	67	\N	Nguyễn Văn Xuân	\N	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:50:01.565	\N	2026-10-09 09:50:01.565	2026-10-09 09:50:10.185	KH401558	MC	Ban nguồn vốn
 541	67	\N	Trần Quỳnh Anh	0981460907	\N	\N	Lễ tân nhập	136	Đỗ thuý Hằng	Đã check-in	t	\N	\N	2026-10-09 09:50:37.614	\N	2026-10-09 09:50:37.614	2026-10-09 09:50:53.7	KH437609	MC	Ban nguồn vốn
 542	67	\N	Phạm Kim Cúc	0368261986	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:51:25.72	\N	2026-10-09 09:51:25.72	2026-10-09 09:51:37.562	KH485712	MC	Ban nguồn vốn
 543	67	\N	Nguyễn Thị Lựu	0988584512	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-09 09:52:03.41	\N	2026-10-09 09:52:03.41	2026-10-09 09:52:10.924	KH523403	MC	Ban nguồn vốn
@@ -2120,64 +2274,709 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 545	67	\N	Đỗ Thúy Hằng	0912519172	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-09 09:53:08.659	\N	2026-10-09 09:53:08.659	2026-10-09 09:53:14.996	KH588653	MC	Ban nguồn vốn
 546	67	\N	Ngọc Thủ	\N	\N	\N	Lễ tân nhập	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-09 09:53:36.141	\N	2026-10-09 09:53:36.141	2026-10-09 09:54:30.824	KH616135	MC	Ban nguồn vốn
 547	67	\N	Hằng Rô	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-09 09:54:46.434	\N	2026-10-09 09:54:46.434	2026-10-09 09:54:46.434	KH686427	MC	Ban nguồn vốn
-495	66	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-09 06:48:05.434728	2026-10-10 03:40:31.339847	2026-10-09 06:48:05.434728	2026-10-10 03:40:31.339847	QR-66-374043	MC	Ban nguồn vốn
-498	66	418	Mã Thanh Hưng	0931645134	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:50:28.20529	2026-10-10 03:40:33.880484	2026-10-09 06:50:28.20529	2026-10-10 03:40:33.880484	QR-66-958392	MC	Ban nguồn vốn
-499	66	419	Lê Thị Thư	0822295386	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:52:36.425348	2026-10-10 03:40:47.98004	2026-10-09 06:52:36.425348	2026-10-10 03:40:47.98004	QR-66-548979	MC	Ban nguồn vốn
-500	66	263	Nguyễn Thị Chuyên	0969945022	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 06:53:31.486152	\N	2026-10-09 06:53:31.486152	2026-10-10 03:43:41.59751	QR-66-949291	MC	Ban nguồn vốn
-501	66	420	Nguyễn Thị Loan	0969945333	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 06:54:09.870057	\N	2026-10-09 06:54:09.870057	2026-10-10 03:43:42.738557	QR-66-153175	MC	Ban nguồn vốn
-502	66	52	Lê Văn Thời	0929639345	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:55:08.645223	2026-10-10 03:43:13.153434	2026-10-09 06:55:08.645223	2026-10-10 03:43:13.153434	QR-66-514818	MC	Ban nguồn vốn
-503	66	421	Hồ Đặng	+84385622390	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:55:56.081364	2026-10-10 03:43:16.932512	2026-10-09 06:55:56.081364	2026-10-10 03:43:16.932512	QR-66-108926	MC	Ban nguồn vốn
-504	66	422	Hoàng Anh	+84981942599	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 06:56:40.982152	\N	2026-10-09 06:56:40.982152	2026-10-10 03:44:47.954639	QR-66-527352	MC	Ban nguồn vốn
-505	66	423	Huyền My	0986302256	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-09 06:57:20.931089	2026-10-10 03:44:04.356251	2026-10-09 06:57:20.931089	2026-10-10 03:44:04.356251	QR-66-403765	MC	Ban nguồn vốn
-506	66	424	Chu Thành Long	0338293946	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã hủy	f	\N	\N	2026-10-09 08:05:17.913512	2026-10-10 03:44:10.752852	2026-10-09 08:05:17.913512	2026-10-10 03:44:33.152164	QR-66-813479	MC	Ban nguồn vốn
-548	66	229	Nguyễn tất Thắng	0913531265	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã check-in	t	\N	\N	2026-10-09 10:30:46.295434	2026-10-10 03:45:00.870398	2026-10-09 10:30:46.295434	2026-10-10 03:45:00.870398	QR-66-782697	MC	Khối kinh doanh
-549	66	425	Lại Văn chính	0977980573	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã hủy	f	\N	\N	2026-10-09 11:56:36.934498	\N	2026-10-09 11:56:36.934498	2026-10-10 03:45:12.317393	QR-66-259923	MC	Khối kinh doanh
-550	66	109	Hoàng Thị chich	0384081272	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã hủy	f	\N	\N	2026-10-09 12:07:35.222656	\N	2026-10-09 12:07:35.222656	2026-10-10 01:45:03.275237	QR-66-359595	MC	Khối kinh doanh
-551	66	426	Anh thiêu	0398987848	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-09 12:10:12.162404	2026-10-10 03:45:24.986224	2026-10-09 12:10:12.162404	2026-10-10 03:45:24.986224	QR-66-630664	MC	Khối kinh doanh
-552	66	427	Nguyễn Văn Ngọ	0994308509	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-09 12:18:19.0725	2026-10-10 03:45:29.83821	2026-10-09 12:18:19.0725	2026-10-10 03:45:29.83821	QR-66-581093	MC	Khối kinh doanh
-553	66	428	Nguyễn Văn Tiến	0916069992	\N	\N	Trang chủ Web	\N	Nguyễn Văn Ngọ (0994308509)	Đã check-in	t	\N	\N	2026-10-09 12:22:07.89242	2026-10-10 03:45:32.716403	2026-10-09 12:22:07.89242	2026-10-10 03:45:32.716403	QR-66-788066	MC	Khối kinh doanh
-554	66	429	Nguyễn Văn Kính	0982296434	\N	Khách mời tham dự	Trang chủ Web	428	Nguyễn Văn Tiến	Đã check-in	t	\N	\N	2026-10-09 12:25:26.752851	2026-10-10 03:45:34.662687	2026-10-09 12:25:26.752851	2026-10-10 03:45:34.662687	QR-66-544473	MC	Khối kinh doanh
-555	66	430	Nguyễn Văn Quế	0349420226	\N	\N	Trang chủ Web	428	Nguyễn Văn Tiến	Đã check-in	t	\N	\N	2026-10-09 12:26:31.646235	2026-10-10 03:45:37.854756	2026-10-09 12:26:31.646235	2026-10-10 03:45:37.854756	QR-66-184392	MC	Khối kinh doanh
-556	66	431	Trúc Phương	0388653289	\N	Khách mời tham dự	Trang chủ Web	\N	Lê Nhung	Đã hủy	f	\N	\N	2026-10-09 12:56:24.111474	\N	2026-10-09 12:56:24.111474	2026-10-10 03:45:52.485681	QR-66-246867	MC	Khối kinh doanh
-557	66	432	Trần Thị Mai	0388878598	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã hủy	f	\N	\N	2026-10-09 12:57:57.238668	\N	2026-10-09 12:57:57.238668	2026-10-10 03:46:07.384918	QR-66-154319	MC	Khối kinh doanh
-558	66	433	Nguyễn Thị Thảo	0919452168	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã hủy	f	\N	\N	2026-10-09 13:29:53.59884	\N	2026-10-09 13:29:53.59884	2026-10-10 03:46:17.138	QR-66-810886	MC	Khối kinh doanh
-559	66	434	Trần Đức Minh	0352313866	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã hủy	f	\N	\N	2026-10-09 13:32:17.116081	\N	2026-10-09 13:32:17.116081	2026-10-10 03:46:32.637791	QR-66-573557	MC	Khối kinh doanh
-560	66	435	Nguyễn Thị Bình	0379996973	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã hủy	f	\N	\N	2026-10-09 14:07:23.150896	\N	2026-10-09 14:07:23.150896	2026-10-10 03:49:17.228724	QR-66-737241	MC	Khối kinh doanh
-561	66	\N	Nguyễn Thị Thoa	0364761955	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-10 01:23:02.318695	2026-10-10 03:50:26.03202	2026-10-10 01:23:02.318695	2026-10-10 03:50:26.03202	KH382311	MC	Khối kinh doanh
-562	66	\N	Nguyễn Thị Sơn	0399472395	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-10 01:40:15.989757	2026-10-10 03:50:26.524116	2026-10-10 01:40:15.989757	2026-10-10 03:50:26.524116	KH415983	MC	Khối kinh doanh
-563	66	436	Nguyễn Tuấn Ninh	0363280765	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã đăng ký	t	\N	\N	2026-10-10 01:46:29.041251	\N	2026-10-10 01:46:29.041251	2026-10-10 01:46:29.041251	QR-66-813765	MC	Khối kinh doanh
-564	66	40	Cung Thu hà	0965759559	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-10 02:01:06.716354	2026-10-10 03:49:51.060589	2026-10-10 02:01:06.716354	2026-10-10 03:49:51.060589	QR-66-779756	MC	Khối kinh doanh
-565	66	44	Vũ Thị Thúy	0945172578	\N	Khách mời tham dự	Trang chủ Web	\N	Chú thị lương	Đã check-in	t	\N	\N	2026-10-10 02:08:56.249236	2026-10-10 03:49:47.563193	2026-10-10 02:08:56.249236	2026-10-10 03:49:47.563193	QR-66-405988	MC	Ban nguồn vốn
-566	66	51	Lương Hồng Hải	0919520885	\N	Khách mời tham dự	Trang chủ Web	268	Lê Thị Hương	Đã check-in	t	\N	\N	2026-10-10 02:15:02.667268	2026-10-10 03:50:03.389413	2026-10-10 02:15:02.667268	2026-10-10 03:50:03.389413	QR-66-602512	MC	Khối kinh doanh
-567	66	60	Vũ Thị Kim Thư	0854716372	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-10 02:38:38.413985	2026-10-10 03:50:08.272452	2026-10-10 02:38:38.413985	2026-10-10 03:50:08.272452	QR-66-263661	MC	Khối kinh doanh
-568	66	437	Đỗ Văn Trân	0904304716	\N	Khách mời tham dự	Trang chủ Web	51	Lương Hồng Hải	Đã check-in	t	\N	\N	2026-10-10 02:39:58.82947	2026-10-10 03:52:01.244222	2026-10-10 02:39:58.82947	2026-10-10 03:52:01.244222	QR-66-823953	MC	Khối kinh doanh
-569	66	288	Nguyễn Văn Tiến	0384566639	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-10 02:42:37.648969	2026-10-10 03:52:03.40642	2026-10-10 02:42:37.648969	2026-10-10 03:52:03.40642	QR-66-938561	MC	Khối kinh doanh
-570	66	287	Nguyễn Văn Ngọ	0915023899	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-10 02:45:27.946125	2026-10-10 03:52:08.602943	2026-10-10 02:45:27.946125	2026-10-10 03:52:08.602943	QR-66-716134	MC	Khối kinh doanh
-571	66	210	Nguyễn Thị Hương	0399868786	\N	Khách mời tham dự	Trang chủ Web	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-10 02:46:05.231563	2026-10-10 03:52:13.685043	2026-10-10 02:46:05.231563	2026-10-10 03:52:13.685043	QR-66-279530	MC	Khối kinh doanh
-572	66	438	Nguyễn Thị Giang	0364577296	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Thị Hương (0399868786)	Đã check-in	t	\N	\N	2026-10-10 02:46:50.059135	2026-10-10 03:52:16.0711	2026-10-10 02:46:50.059135	2026-10-10 03:52:16.0711	QR-66-527738	MC	Khối kinh doanh
-573	66	439	Vương Thị Minh	0913514959	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-10 02:49:36.547014	2026-10-10 03:52:55.225206	2026-10-10 02:49:36.547014	2026-10-10 03:52:55.225206	QR-66-167136	MC	Ban nguồn vốn
-574	66	440	Nguyễn Thị Hà Thuận	0989137422	\N	Khách mời tham dự	Trang chủ Web	439	Vương Thị Minh	Đã check-in	t	\N	\N	2026-10-10 02:51:21.675083	2026-10-10 03:52:48.380389	2026-10-10 02:51:21.675083	2026-10-10 03:53:23.327585	QR-66-222636	MC	Ban nguồn vốn
-575	66	441	Nguyễn Thị Bích Loan	0348861918	\N	Khách mời tham dự	Trang chủ Web	439	Vương Thị Minh	Đã check-in	t	\N	\N	2026-10-10 02:51:54.553121	2026-10-10 03:53:34.830927	2026-10-10 02:51:54.553121	2026-10-10 03:53:34.830927	QR-66-441037	MC	Ban nguồn vốn
-576	66	170	Đào Thị Mai	0982511796	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-10 02:53:14.963923	2026-10-10 03:53:48.237804	2026-10-10 02:53:14.963923	2026-10-10 03:53:48.237804	QR-66-768954	MC	Ban nguồn vốn
-577	66	442	Nguyễn Thị Loan	0965495161	\N	Khách mời tham dự	Trang chủ Web	170	Đào Thị Mai	Đã check-in	t	\N	\N	2026-10-10 02:58:21.410075	2026-10-10 03:42:48.022353	2026-10-10 02:58:21.410075	2026-10-10 03:42:48.022353	QR-66-138893	MC	Ban nguồn vốn
-578	66	443	Lê Thị Kim Nhung	0917786857	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-10 03:00:40.587764	2026-10-10 03:53:56.033593	2026-10-10 03:00:40.587764	2026-10-10 03:53:56.033593	QR-66-150772	MC	Ban nguồn vốn
-579	66	444	Quay Văn Định	0867795133	\N	Khách mời tham dự	Trang chủ Web	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-10 03:01:17.205169	2026-10-10 03:54:01.264733	2026-10-10 03:01:17.205169	2026-10-10 03:54:01.264733	QR-66-822869	MC	Ban nguồn vốn
-580	66	68	Lưu Thanh Hải	0775935866	\N	Khách mời tham dự	Trang chủ Web	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-10 03:02:06.129953	2026-10-10 03:54:06.020444	2026-10-10 03:02:06.129953	2026-10-10 03:54:06.020444	QR-66-164642	MC	Ban nguồn vốn
-581	66	116	Vũ Thị Tuất	0935667676	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-10 03:09:33.623378	2026-10-10 03:54:09.60891	2026-10-10 03:09:33.623378	2026-10-10 03:54:09.60891	QR-66-771941	MC	Ban nguồn vốn
-582	66	375	Trần Thị Thanh Hương	0329685009	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-10 03:10:17.592494	2026-10-10 03:54:13.400357	2026-10-10 03:10:17.592494	2026-10-10 03:54:13.400357	QR-66-777160	MC	Khối kinh doanh
-583	66	445	Lê Đôn Thiều	0398937848	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-10 03:10:48.127115	2026-10-10 03:54:15.976094	2026-10-10 03:10:48.127115	2026-10-10 03:54:15.976094	QR-66-793736	MC	Khối kinh doanh
-584	66	152	Ngọc Thủ	0966382168	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã đăng ký	t	\N	\N	2026-10-10 03:16:11.80009	\N	2026-10-10 03:16:11.80009	2026-10-10 03:16:11.80009	QR-66-759215	MC	Khối kinh doanh
-585	66	200	Lê Thị Huyền Trang	0943227213	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:18:29.549222	\N	2026-10-10 03:18:29.549222	2026-10-10 03:18:29.549222	QR-66-578478	MC	Khối kinh doanh
-586	66	196	Nguyễn Hải Quý	0988732586	\N	Khách mời tham dự	Trang chủ Web	\N	Tổng quý	Đã đăng ký	t	\N	\N	2026-10-10 03:19:19.219487	\N	2026-10-10 03:19:19.219487	2026-10-10 03:19:19.219487	QR-66-517142	MC	Khối kinh doanh
-587	66	261	Nguyễn Văn Quyết	0328906789	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:19:48.618589	\N	2026-10-10 03:19:48.618589	2026-10-10 03:19:48.618589	QR-66-900895	MC	Khối kinh doanh
-588	66	296	Nguyễn Thị Kim Oanh	0987581195	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:20:19.774209	\N	2026-10-10 03:20:19.774209	2026-10-10 03:20:19.774209	QR-66-872365	MC	Khối kinh doanh
-589	66	446	Lê Thị Hương	0912019977	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:21:19.182675	\N	2026-10-10 03:21:19.182675	2026-10-10 03:21:19.182675	QR-66-843460	MC	Khối kinh doanh
-590	66	447	Cao Minh Chính	0887426981	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:22:19.614008	\N	2026-10-10 03:22:19.614008	2026-10-10 03:22:19.614008	QR-66-325623	MC	Khối kinh doanh
-591	66	448	Đỗ Quyên	0982717285	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:23:41.356524	\N	2026-10-10 03:23:41.356524	2026-10-10 03:23:41.356524	QR-66-623371	MC	Khối kinh doanh
-592	66	449	Bùi Đăng Lâm	0888685610	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:30:28.747052	\N	2026-10-10 03:30:28.747052	2026-10-10 03:30:28.747052	QR-66-525134	MC	Khối kinh doanh
-593	66	450	Đoàn Thị Tuyết Minh	0912666889	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:30:58.399678	\N	2026-10-10 03:30:58.399678	2026-10-10 03:30:58.399678	QR-66-258390	MC	Khối kinh doanh
-594	66	451	Bùi Thế Anh	0966298886	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:32:12.847675	\N	2026-10-10 03:32:12.847675	2026-10-10 03:32:12.847675	QR-66-398105	MC	Khối kinh doanh
-595	66	452	Đỗ Nam	0347221883	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã đăng ký	t	\N	\N	2026-10-10 03:32:37.391904	\N	2026-10-10 03:32:37.391904	2026-10-10 03:32:37.391904	QR-66-998555	MC	Khối kinh doanh
+159	40	165	Phạm Văn thịnh	0977113668	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:37:25.759	2026-09-26 02:38:14.53	2026-09-26 02:37:25.759	2026-10-15 03:11:57.814	QR-40-541545	MC	Ban nguồn vốn
+557	66	432	Trần Thị Mai	0388878598	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã hủy	f	\N	\N	2026-10-09 12:57:57.238	\N	2026-10-09 12:57:57.238	2026-10-10 03:46:07.384	QR-66-154319	MC	Khối kinh doanh
+550	66	109	Hoàng Thị chich	0384081272	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã hủy	f	\N	\N	2026-10-09 12:07:35.222	\N	2026-10-09 12:07:35.222	2026-10-10 01:45:03.275	QR-66-359595	MC	Khối kinh doanh
+563	66	436	Nguyễn Tuấn Ninh	0363280765	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã đăng ký	t	\N	\N	2026-10-10 01:46:29.041	\N	2026-10-10 01:46:29.041	2026-10-10 01:46:29.041	QR-66-813765	MC	Khối kinh doanh
+549	66	425	Lại Văn chính	0977980573	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã hủy	f	\N	\N	2026-10-09 11:56:36.934	\N	2026-10-09 11:56:36.934	2026-10-10 03:45:12.317	QR-66-259923	MC	Khối kinh doanh
+551	66	426	Anh thiêu	0398987848	\N	Khách mời tham dự	Trang chủ Web	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-09 12:10:12.162	2026-10-10 03:45:24.986	2026-10-09 12:10:12.162	2026-10-10 03:45:24.986	QR-66-630664	MC	Khối kinh doanh
+552	66	427	Nguyễn Văn Ngọ	0994308509	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-09 12:18:19.072	2026-10-10 03:45:29.838	2026-10-09 12:18:19.072	2026-10-10 03:45:29.838	QR-66-581093	MC	Khối kinh doanh
+553	66	428	Nguyễn Văn Tiến	0916069992	\N	\N	Trang chủ Web	\N	Nguyễn Văn Ngọ (0994308509)	Đã check-in	t	\N	\N	2026-10-09 12:22:07.892	2026-10-10 03:45:32.716	2026-10-09 12:22:07.892	2026-10-10 03:45:32.716	QR-66-788066	MC	Khối kinh doanh
+554	66	429	Nguyễn Văn Kính	0982296434	\N	Khách mời tham dự	Trang chủ Web	428	Nguyễn Văn Tiến	Đã check-in	t	\N	\N	2026-10-09 12:25:26.752	2026-10-10 03:45:34.662	2026-10-09 12:25:26.752	2026-10-10 03:45:34.662	QR-66-544473	MC	Khối kinh doanh
+555	66	430	Nguyễn Văn Quế	0349420226	\N	\N	Trang chủ Web	428	Nguyễn Văn Tiến	Đã check-in	t	\N	\N	2026-10-09 12:26:31.646	2026-10-10 03:45:37.854	2026-10-09 12:26:31.646	2026-10-10 03:45:37.854	QR-66-184392	MC	Khối kinh doanh
+556	66	431	Trúc Phương	0388653289	\N	Khách mời tham dự	Trang chủ Web	\N	Lê Nhung	Đã hủy	f	\N	\N	2026-10-09 12:56:24.111	\N	2026-10-09 12:56:24.111	2026-10-10 03:45:52.485	QR-66-246867	MC	Khối kinh doanh
+558	66	433	Nguyễn Thị Thảo	0919452168	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã hủy	f	\N	\N	2026-10-09 13:29:53.598	\N	2026-10-09 13:29:53.598	2026-10-10 03:46:17.138	QR-66-810886	MC	Khối kinh doanh
+559	66	434	Trần Đức Minh	0352313866	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã hủy	f	\N	\N	2026-10-09 13:32:17.116	\N	2026-10-09 13:32:17.116	2026-10-10 03:46:32.637	QR-66-573557	MC	Khối kinh doanh
+560	66	435	Nguyễn Thị Bình	0379996973	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã hủy	f	\N	\N	2026-10-09 14:07:23.15	\N	2026-10-09 14:07:23.15	2026-10-10 03:49:17.228	QR-66-737241	MC	Khối kinh doanh
+565	66	44	Vũ Thị Thúy	0945172578	\N	Khách mời tham dự	Trang chủ Web	\N	Chú thị lương	Đã check-in	t	\N	\N	2026-10-10 02:08:56.249	2026-10-10 03:49:47.563	2026-10-10 02:08:56.249	2026-10-10 03:49:47.563	QR-66-405988	MC	Ban nguồn vốn
+564	66	40	Cung Thu hà	0965759559	\N	Khách mời tham dự	Trang chủ Web	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-10 02:01:06.716	2026-10-10 03:49:51.06	2026-10-10 02:01:06.716	2026-10-10 03:49:51.06	QR-66-779756	MC	Khối kinh doanh
+567	66	60	Vũ Thị Kim Thư	0854716372	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-10 02:38:38.413	2026-10-10 03:50:08.272	2026-10-10 02:38:38.413	2026-10-10 03:50:08.272	QR-66-263661	MC	Khối kinh doanh
+561	66	\N	Nguyễn Thị Thoa	0364761955	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-10 01:23:02.318	2026-10-10 03:50:26.032	2026-10-10 01:23:02.318	2026-10-10 03:50:26.032	KH382311	MC	Khối kinh doanh
+562	66	\N	Nguyễn Thị Sơn	0399472395	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-10 01:40:15.989	2026-10-10 03:50:26.524	2026-10-10 01:40:15.989	2026-10-10 03:50:26.524	KH415983	MC	Khối kinh doanh
+568	66	437	Đỗ Văn Trân	0904304716	\N	Khách mời tham dự	Trang chủ Web	51	Lương Hồng Hải	Đã check-in	t	\N	\N	2026-10-10 02:39:58.829	2026-10-10 03:52:01.244	2026-10-10 02:39:58.829	2026-10-10 03:52:01.244	QR-66-823953	MC	Khối kinh doanh
+569	66	288	Nguyễn Văn Tiến	0384566639	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-10 02:42:37.648	2026-10-10 03:52:03.406	2026-10-10 02:42:37.648	2026-10-10 03:52:03.406	QR-66-938561	MC	Khối kinh doanh
+570	66	287	Nguyễn Văn Ngọ	0915023899	\N	Khách mời tham dự	Trang chủ Web	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-10 02:45:27.946	2026-10-10 03:52:08.602	2026-10-10 02:45:27.946	2026-10-10 03:52:08.602	QR-66-716134	MC	Khối kinh doanh
+571	66	210	Nguyễn Thị Hương	0399868786	\N	Khách mời tham dự	Trang chủ Web	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-10 02:46:05.231	2026-10-10 03:52:13.685	2026-10-10 02:46:05.231	2026-10-10 03:52:13.685	QR-66-279530	MC	Khối kinh doanh
+572	66	438	Nguyễn Thị Giang	0364577296	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Thị Hương (0399868786)	Đã check-in	t	\N	\N	2026-10-10 02:46:50.059	2026-10-10 03:52:16.071	2026-10-10 02:46:50.059	2026-10-10 03:52:16.071	QR-66-527738	MC	Khối kinh doanh
+574	66	440	Nguyễn Thị Hà Thuận	0989137422	\N	Khách mời tham dự	Trang chủ Web	439	Vương Thị Minh	Đã check-in	t	\N	\N	2026-10-10 02:51:21.675	2026-10-10 03:52:48.38	2026-10-10 02:51:21.675	2026-10-10 03:53:23.327	QR-66-222636	MC	Ban nguồn vốn
+573	66	439	Vương Thị Minh	0913514959	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-10 02:49:36.547	2026-10-10 03:52:55.225	2026-10-10 02:49:36.547	2026-10-10 03:52:55.225	QR-66-167136	MC	Ban nguồn vốn
+575	66	441	Nguyễn Thị Bích Loan	0348861918	\N	Khách mời tham dự	Trang chủ Web	439	Vương Thị Minh	Đã check-in	t	\N	\N	2026-10-10 02:51:54.553	2026-10-10 03:53:34.83	2026-10-10 02:51:54.553	2026-10-10 03:53:34.83	QR-66-441037	MC	Ban nguồn vốn
+576	66	170	Đào Thị Mai	0982511796	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-10 02:53:14.963	2026-10-10 03:53:48.237	2026-10-10 02:53:14.963	2026-10-10 03:53:48.237	QR-66-768954	MC	Ban nguồn vốn
+582	66	375	Trần Thị Thanh Hương	0329685009	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-10 03:10:17.592	2026-10-10 03:54:13.4	2026-10-10 03:10:17.592	2026-10-10 03:54:13.4	QR-66-777160	MC	Khối kinh doanh
+495	66	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-09 06:48:05.434	2026-10-10 03:40:31.339	2026-10-09 06:48:05.434	2026-10-10 03:40:31.339	QR-66-374043	MC	Ban nguồn vốn
+583	66	445	Lê Đôn Thiều	0398937848	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-10 03:10:48.127	2026-10-10 03:54:15.976	2026-10-10 03:10:48.127	2026-10-12 03:45:10.839	QR-66-793736	MC	Khối kinh doanh
+577	66	442	Nguyễn Thị Loan	0965495161	\N	Khách mời tham dự	Trang chủ Web	170	Đào Thị Mai	Đã check-in	t	\N	\N	2026-10-10 02:58:21.41	2026-10-10 03:42:48.022	2026-10-10 02:58:21.41	2026-10-10 03:42:48.022	QR-66-138893	MC	Ban nguồn vốn
+548	66	229	Nguyễn tất Thắng	0913531265	\N	Khách mời tham dự	Trang chủ Web	\N	Phượng Ngọc Thu (N_+84969881698)	Đã check-in	t	\N	\N	2026-10-09 10:30:46.295	2026-10-10 03:45:00.87	2026-10-09 10:30:46.295	2026-10-10 03:45:00.87	QR-66-782697	MC	Khối kinh doanh
+566	66	51	Lương Hồng Hải	0919520885	\N	Khách mời tham dự	Trang chủ Web	268	Lê Thị Hương	Đã check-in	t	\N	\N	2026-10-10 02:15:02.667	2026-10-10 03:50:03.389	2026-10-10 02:15:02.667	2026-10-10 03:50:03.389	QR-66-602512	MC	Khối kinh doanh
+578	66	443	Lê Thị Kim Nhung	0917786857	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-10 03:00:40.587	2026-10-10 03:53:56.033	2026-10-10 03:00:40.587	2026-10-10 03:53:56.033	QR-66-150772	MC	Ban nguồn vốn
+597	67	\N	Nguyễn Thị Bảy	0866628865	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:11:14.367	\N	2026-10-12 04:11:14.367	2026-10-12 04:11:23.63	KH274360	MC	Ban nguồn vốn
+579	66	444	Quay Văn Định	0867795133	\N	Khách mời tham dự	Trang chủ Web	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-10 03:01:17.205	2026-10-10 03:54:01.264	2026-10-10 03:01:17.205	2026-10-10 03:54:01.264	QR-66-822869	MC	Ban nguồn vốn
+580	66	68	Lưu Thanh Hải	0775935866	\N	Khách mời tham dự	Trang chủ Web	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-10 03:02:06.129	2026-10-10 03:54:06.02	2026-10-10 03:02:06.129	2026-10-10 03:54:06.02	QR-66-164642	MC	Ban nguồn vốn
+598	67	\N	Nguyễn Thị Loan	0964043718	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:12:00.534	\N	2026-10-12 04:12:00.534	2026-10-12 04:12:06.191	KH320528	MC	Ban nguồn vốn
+581	66	116	Vũ Thị Tuất	0935667676	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-10 03:09:33.623	2026-10-10 03:54:09.608	2026-10-10 03:09:33.623	2026-10-10 03:54:09.608	QR-66-771941	MC	Ban nguồn vốn
+599	67	\N	Vũ Bảo	0966289668	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:13:13.192	\N	2026-10-12 04:13:13.192	2026-10-12 04:13:19.693	KH393186	MC	Ban nguồn vốn
+589	66	446	Lê Thị Hương	0912019977	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:21:19.182	2026-10-10 08:38:19.92	2026-10-10 03:21:19.182	2026-10-12 03:17:31.256	QR-66-843460	MC	Ban nguồn vốn
+588	66	296	Nguyễn Thị Kim Oanh	0987581195	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:20:19.774	2026-10-10 08:38:18.93	2026-10-10 03:20:19.774	2026-10-12 03:17:33.099	QR-66-872365	MC	Ban nguồn vốn
+587	66	261	Nguyễn Văn Quyết	0328906789	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:19:48.618	2026-10-10 08:38:17.233	2026-10-10 03:19:48.618	2026-10-12 03:17:35.014	QR-66-900895	MC	Ban nguồn vốn
+586	66	196	Nguyễn Hải Quý	0988732586	\N	Khách mời tham dự	Trang chủ Web	\N	Tổng quý	Đã check-in	t	\N	\N	2026-10-10 03:19:19.219	2026-10-10 08:38:16.505	2026-10-10 03:19:19.219	2026-10-12 03:17:37.533	QR-66-517142	MC	Ban nguồn vốn
+585	66	200	Lê Thị Huyền Trang	0943227213	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:18:29.549	2026-10-10 08:38:15.274	2026-10-10 03:18:29.549	2026-10-12 03:17:39.953	QR-66-578478	MC	Ban nguồn vốn
+584	66	152	Ngọc Thủ	0966382168	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-10 03:16:11.8	2026-10-10 08:38:14.454	2026-10-10 03:16:11.8	2026-10-12 03:17:50.091	QR-66-759215	MC	Ban nguồn vốn
+596	66	453	Chi Hường li vi	0968021339	\N	Khách mời tham dự	Trang chủ Web	\N	Dương Hồng Phương (N_0979345229)	Đã đăng ký	t	\N	\N	2026-10-11 09:00:28.905	\N	2026-10-11 09:00:28.905	2026-10-11 09:00:28.905	QR-66-369828	MC	Khối kinh doanh
+595	66	452	Đỗ Nam	0347221883	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:32:37.391	2026-10-10 08:38:27.844	2026-10-10 03:32:37.391	2026-10-12 03:17:16.195	QR-66-998555	MC	Ban nguồn vốn
+594	66	451	Bùi Thế Anh	0966298886	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:32:12.847	2026-10-10 08:38:26.317	2026-10-10 03:32:12.847	2026-10-12 03:17:21.102	QR-66-398105	MC	Ban nguồn vốn
+593	66	450	Đoàn Thị Tuyết Minh	0912666889	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:30:58.399	2026-10-10 08:38:25.541	2026-10-10 03:30:58.399	2026-10-12 03:17:23.353	QR-66-258390	MC	Ban nguồn vốn
+592	66	449	Bùi Đăng Lâm	0888685610	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:30:28.747	2026-10-10 08:38:24.588	2026-10-10 03:30:28.747	2026-10-12 03:17:25.834	QR-66-525134	MC	Ban nguồn vốn
+591	66	448	Đỗ Quyên	0982717285	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:23:41.356	2026-10-10 08:38:23.61	2026-10-10 03:23:41.356	2026-10-12 03:17:28.147	QR-66-623371	MC	Ban nguồn vốn
+590	66	447	Cao Minh Chính	0887426981	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-10 03:22:19.614	2026-10-10 08:38:21.731	2026-10-10 03:22:19.614	2026-10-12 03:17:29.683	QR-66-325623	MC	Ban nguồn vốn
+600	67	\N	Tuyết Minh	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:13:34.04	\N	2026-10-12 04:13:34.04	2026-10-12 04:13:39.564	KH414034	MC	Ban nguồn vốn
+602	67	\N	Lương Hồng Phong	0967695768	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:14:36.907	\N	2026-10-12 04:14:36.907	2026-10-12 04:14:42.307	KH476900	MC	Ban nguồn vốn
+601	67	\N	Chị Duyến	0336894986	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:14:02.64	\N	2026-10-12 04:14:02.64	2026-10-12 04:14:11.837	KH442635	MC	Ban nguồn vốn
+603	67	\N	Ngô Thị Hằng	0816231188	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:15:08.711	\N	2026-10-12 04:15:08.711	2026-10-12 04:15:16.048	KH508704	MC	Ban nguồn vốn
+604	67	\N	Nguyễn Văn Sỹ	0974589721	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:15:40.052	\N	2026-10-12 04:15:40.052	2026-10-12 04:15:45.521	KH540047	MC	Ban nguồn vốn
+605	67	\N	Nguyễn Thu Phương	0328172749	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:16:11.147	\N	2026-10-12 04:16:11.147	2026-10-12 04:16:17.252	KH571141	MC	Ban nguồn vốn
+606	67	\N	Lâm	0328001998	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:16:37.147	\N	2026-10-12 04:16:37.147	2026-10-12 04:16:42.474	KH597139	MC	Ban nguồn vốn
+607	67	\N	Trang	0943227213	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:17:07.429	\N	2026-10-12 04:17:07.429	2026-10-12 04:17:13.616	KH627424	MC	Ban nguồn vốn
+608	67	\N	Quý	0988732586	\N	\N	Lễ tân nhập	\N	Tổng Quý	Đã check-in	t	\N	\N	2026-10-12 04:17:33.791	\N	2026-10-12 04:17:33.791	2026-10-12 04:17:52.183	KH653785	MC	Ban nguồn vốn
+609	67	\N	Quyên	0874684398	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:18:30.863	\N	2026-10-12 04:18:30.863	2026-10-12 04:18:37.286	KH710856	MC	Ban nguồn vốn
+610	67	\N	Thủy	0972719120	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:18:57.708	\N	2026-10-12 04:18:57.708	2026-10-12 04:19:03.597	KH737702	MC	Ban nguồn vốn
+611	67	\N	Thắng	0828801313	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:19:25.819	\N	2026-10-12 04:19:25.819	2026-10-12 04:19:31.927	KH765811	MC	Ban nguồn vốn
+612	67	\N	Dân	0899346555	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:19:48.338	\N	2026-10-12 04:19:48.338	2026-10-12 04:19:56.269	KH788330	MC	Ban nguồn vốn
+613	67	\N	Hương	0943782684	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:20:20.131	\N	2026-10-12 04:20:20.131	2026-10-12 04:20:26.904	KH820124	MC	Ban nguồn vốn
+614	67	\N	Nguyễn Thị Lan	0383462388	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:20:50.885	\N	2026-10-12 04:20:50.885	2026-10-12 04:20:56.606	KH850880	MC	Ban nguồn vốn
+615	67	\N	Nguyễn Thị Mẫn	0382017847	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:21:16.897	\N	2026-10-12 04:21:16.897	2026-10-12 04:21:21.866	KH876890	MC	Ban nguồn vốn
+616	67	\N	Nguyễn Tiến Nghị	0328125045	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 04:21:42.091	\N	2026-10-12 04:21:42.091	2026-10-12 04:21:47.631	KH902083	MC	Ban nguồn vốn
+617	64	\N	Phạm Thị Thanh Phương	0374923668	\N	\N	Lễ tân nhập	323	Trần Thị Ban	Đã check-in	t	\N	\N	2026-10-12 04:23:43.198	\N	2026-10-12 04:23:43.198	2026-10-12 04:23:50.104	KH023192	MC	Khối kinh doanh
+618	68	\N	Nguyễn Việt	0912179769	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 04:37:28.337	\N	2026-10-12 04:37:28.337	2026-10-12 04:37:28.337	KH848332	MC	Ban nguồn vốn
+619	68	\N	Nguyễn Việt	0912179769	\N	\N	Lễ tân nhập	198	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:37:28.338	\N	2026-10-12 04:37:28.338	2026-10-12 04:38:55.921	KH848333	MC	Ban nguồn vốn
+620	68	\N	Hoàng Văn Hải	0919769898	\N	\N	Lễ tân nhập	198	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:39:22.959	\N	2026-10-12 04:39:22.959	2026-10-12 04:39:32.207	KH962953	MC	Ban nguồn vốn
+631	68	\N	Ngô Thành	0946892643	\N	\N	Lễ tân nhập	136	Đỗ thuý Hằng	Đã check-in	t	\N	\N	2026-10-12 04:49:35.438	\N	2026-10-12 04:49:35.438	2026-10-12 04:49:49.97	KH575432	MC	Ban nguồn vốn
+622	68	\N	Nguyễn Thị Chiều	0978399906	\N	\N	Lễ tân nhập	67	phạm thị Tuyết(vỹ)	Đã check-in	t	\N	\N	2026-10-12 04:40:51.271	\N	2026-10-12 04:40:51.271	2026-10-12 04:40:59.429	KH051266	MC	Khối kinh doanh
+621	68	\N	Nguyễn Xuân Trường	0913248739	\N	\N	Lễ tân nhập	67	phạm thị Tuyết(vỹ)	Đã check-in	t	\N	\N	2026-10-12 04:39:59.4	\N	2026-10-12 04:39:59.4	2026-10-12 04:41:09.947	KH999395	MC	Khối kinh doanh
+623	68	\N	Nguyễn Thị Khuê	0388851779	\N	\N	Lễ tân nhập	\N	Anh Nhật	Đã check-in	t	\N	\N	2026-10-12 04:41:37.754	\N	2026-10-12 04:41:37.754	2026-10-12 04:42:06.943	KH097748	MC	Khối kinh doanh
+624	68	\N	Nguyễn Thị Ánh	0368684468	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 04:43:01.075	\N	2026-10-12 04:43:01.075	2026-10-12 04:43:08.282	KH181070	MC	Ban nguồn vốn
+625	68	\N	Nguyễn Thị Hà	0336253958	\N	\N	Lễ tân nhập	\N	Hương Ông	Đã check-in	t	\N	\N	2026-10-12 04:43:44.276	\N	2026-10-12 04:43:44.276	2026-10-12 04:44:03.794	KH224270	MC	Khối kinh doanh
+632	68	\N	Nguyễn Thị Đào	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 04:50:52.135	\N	2026-10-12 04:50:52.135	2026-10-12 04:50:52.135	KH652129	MC	Ban nguồn vốn
+626	68	\N	Vũ Thị	0326921828	\N	\N	Lễ tân nhập	\N	Hương Ông	Đã check-in	t	\N	\N	2026-10-12 04:44:26.123	2026-10-12 04:45:21.156	2026-10-12 04:44:26.123	2026-10-12 04:45:21.156	KH266118	MC	Khối kinh doanh
+627	68	\N	Nguyễn Văn Nghĩa	0833931919	\N	\N	Lễ tân nhập	400	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-12 04:45:55.379	\N	2026-10-12 04:45:55.379	2026-10-12 04:46:03.223	KH355373	MC	Khối kinh doanh
+628	68	\N	Trần Thị Lan	0986332816	\N	\N	Lễ tân nhập	400	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-12 04:46:23.584	\N	2026-10-12 04:46:23.584	2026-10-12 04:46:28.578	KH383578	MC	Khối kinh doanh
+629	68	\N	Phạm Thị Nguyệt	0979012294	\N	\N	Lễ tân nhập	198	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:46:50.045	\N	2026-10-12 04:46:50.045	2026-10-12 04:46:58.276	KH410040	MC	Ban nguồn vốn
+630	68	\N	Nguyễn Thị Vọng	086628865	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:47:18.916	\N	2026-10-12 04:47:18.916	2026-10-12 04:47:25.607	KH438910	MC	Ban nguồn vốn
+633	68	\N	Nguyễn Thị Đào	\N	\N	\N	Lễ tân nhập	\N	NDT	Đã check-in	t	\N	\N	2026-10-12 04:50:52.326	\N	2026-10-12 04:50:52.326	2026-10-12 04:51:13.444	KH652321	MC	Ban nguồn vốn
+634	68	\N	Phạm Minh Tuấn	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-12 04:51:37.369	\N	2026-10-12 04:51:37.369	2026-10-12 04:51:56.581	KH697364	MC	Khối kinh doanh
+635	68	\N	Nguyễn Thị Kim Phượng	0384880688	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 04:52:22.898	\N	2026-10-12 04:52:22.898	2026-10-12 04:52:28.426	KH742890	MC	Ban nguồn vốn
+636	68	\N	Phạm Minh Quang	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-12 04:54:03.348	\N	2026-10-12 04:54:03.348	2026-10-12 04:54:09.465	KH843342	MC	Khối kinh doanh
+637	68	\N	Đặng Trường Giang	037668131	\N	\N	Lễ tân nhập	91	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-12 04:54:50.523	\N	2026-10-12 04:54:50.523	2026-10-12 04:54:59.36	KH890514	MC	Ban nguồn vốn
+638	68	\N	Nguyễn Văn Tuyên	0961287865	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-12 04:55:24.198	\N	2026-10-12 04:55:24.198	2026-10-12 04:55:29.344	KH924191	MC	Ban nguồn vốn
+639	68	\N	Lê Thị Thanh Xuân	0363235954	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:56:29.915	\N	2026-10-12 04:56:29.915	2026-10-12 04:56:36.995	KH989907	MC	Ban nguồn vốn
+640	68	\N	Đỗ Thị Chỉnh	0866917296	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:57:05.56	\N	2026-10-12 04:57:05.56	2026-10-12 04:57:12.372	KH025554	MC	Ban nguồn vốn
+641	68	\N	Nguyễn Thị Bảy	0912882722	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 04:57:40.338	\N	2026-10-12 04:57:40.338	2026-10-12 04:57:46.16	KH060333	MC	Ban nguồn vốn
+642	68	\N	Phạm Thị Thái	0973165251	\N	\N	Lễ tân nhập	\N	Cô Vân	Đã check-in	t	\N	\N	2026-10-12 04:58:16.363	\N	2026-10-12 04:58:16.363	2026-10-12 04:58:32.952	KH096354	MC	Khối kinh doanh
+643	68	\N	Phạm Minh Tuấn	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-12 04:59:24.344	\N	2026-10-12 04:59:24.344	2026-10-12 04:59:29.925	KH164338	MC	Khối kinh doanh
+644	68	\N	Nguyễn Văn Ngọ	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-12 05:00:02.202	\N	2026-10-12 05:00:02.202	2026-10-12 05:00:07.615	KH202194	MC	Khối kinh doanh
+645	68	\N	Lưu Thanh Hải	0775935866	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 05:00:42.584	\N	2026-10-12 05:00:42.584	2026-10-12 06:46:45.803	KH242576	MC	Khối kinh doanh
+646	68	\N	Trần Thị Hương	0828349768	\N	\N	Lễ tân nhập	214	Lê.Thị Nhung	Đã check-in	t	\N	\N	2026-10-12 06:49:51.489	\N	2026-10-12 06:49:51.489	2026-10-12 06:50:03.555	KH791483	MC	Khối kinh doanh
+647	68	\N	Phạm Thị Huệ	0931568672	\N	\N	Lễ tân nhập	214	Lê.Thị Nhung	Đã check-in	t	\N	\N	2026-10-12 06:50:23.726	\N	2026-10-12 06:50:23.726	2026-10-12 06:50:31.689	KH823720	MC	Khối kinh doanh
+648	68	\N	Lương Hồng Hải	0919520885	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:51:09.892	\N	2026-10-12 06:51:09.892	2026-10-12 06:51:09.892	KH869886	MC	Khối kinh doanh
+649	68	\N	Đỗ Văn Lực	0963952023	\N	\N	Lễ tân nhập	398	Lương Hồng Hải	Đã check-in	t	\N	\N	2026-10-12 06:51:41.202	\N	2026-10-12 06:51:41.202	2026-10-12 06:51:47.334	KH901196	MC	Khối kinh doanh
+650	68	\N	Cung Thu Hà	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:52:02.366	\N	2026-10-12 06:52:02.366	2026-10-12 06:52:02.366	KH922361	MC	Khối kinh doanh
+651	68	\N	Nguyễn Hùng Vĩ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:52:28.618	\N	2026-10-12 06:52:28.618	2026-10-12 06:52:28.618	KH948611	MC	Khối kinh doanh
+652	68	\N	Đàm Mạnh Tùy	0986266852	\N	\N	Lễ tân nhập	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-12 06:52:48.717	\N	2026-10-12 06:52:48.717	2026-10-12 06:53:01.13	KH968710	MC	Khối kinh doanh
+653	68	\N	Trần Thanh Hương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:53:15.881	\N	2026-10-12 06:53:15.881	2026-10-12 06:53:15.881	KH995875	MC	Khối kinh doanh
+654	68	\N	Lương Thị Luyến	0762721499	\N	\N	Lễ tân nhập	275	Nguyễn Thị Hoa	Đã check-in	t	\N	\N	2026-10-12 06:53:31.264	\N	2026-10-12 06:53:31.264	2026-10-12 06:53:38.061	KH011259	MC	Khối kinh doanh
+655	68	\N	Vũ Thị Đường	\N	\N	\N	Lễ tân nhập	\N	NDT	Đã check-in	t	\N	\N	2026-10-12 06:54:34.432	\N	2026-10-12 06:54:34.432	2026-10-12 06:54:40.633	KH074427	MC	Ban nguồn vốn
+656	68	\N	Trần Thị Mai Lương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:55:02.46	\N	2026-10-12 06:55:02.46	2026-10-12 06:55:02.46	KH102452	MC	Ban nguồn vốn
+657	68	\N	Trần Thị Mai Lương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:55:02.674	\N	2026-10-12 06:55:02.674	2026-10-12 06:55:02.674	KH102666	MC	Ban nguồn vốn
+658	68	\N	Đỗ Hà	0982721029	\N	\N	Lễ tân nhập	\N	Chu Hằng	Đã check-in	t	\N	\N	2026-10-12 06:55:27.38	\N	2026-10-12 06:55:27.38	2026-10-12 06:56:15.626	KH127374	MC	Ban nguồn vốn
+659	68	\N	Nguyễn Thị Tứ	0975833673	\N	\N	Lễ tân nhập	\N	NDT	Đã check-in	t	\N	\N	2026-10-12 06:56:49.965	\N	2026-10-12 06:56:49.965	2026-10-12 06:56:58.024	KH209960	MC	Ban nguồn vốn
+660	68	\N	Phạm Văn Pha	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:57:13.125	\N	2026-10-12 06:57:13.125	2026-10-12 06:57:13.125	KH233119	MC	Ban nguồn vốn
+661	68	\N	Lê Thanh Vi	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:57:28.63	\N	2026-10-12 06:57:28.63	2026-10-12 06:57:28.63	KH248625	MC	Ban nguồn vốn
+662	68	\N	Nguyễn Thị Vui	0983653258	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 06:57:50.038	\N	2026-10-12 06:57:50.038	2026-10-12 06:58:12.298	KH270031	MC	Ban nguồn vốn
+663	68	\N	Nguyễn Quang Dưỡng	0983431257	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 06:58:37.143	\N	2026-10-12 06:58:37.143	2026-10-12 06:58:43.165	KH317137	MC	Ban nguồn vốn
+664	68	\N	Đặng Thị Minh Hồng	0983948168	\N	\N	Lễ tân nhập	\N	NDT	Đã check-in	t	\N	\N	2026-10-12 06:59:05.917	\N	2026-10-12 06:59:05.917	2026-10-12 06:59:11.692	KH345912	MC	Ban nguồn vốn
+665	68	\N	Cụ Yến	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:59:24.446	\N	2026-10-12 06:59:24.446	2026-10-12 06:59:24.446	KH364440	MC	Ban nguồn vốn
+666	68	\N	Phạm Thanh Tùng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 06:59:39.991	\N	2026-10-12 06:59:39.991	2026-10-12 06:59:39.991	KH379984	MC	Ban nguồn vốn
+667	68	\N	Nguyễn Đức Giang	038766813	\N	\N	Lễ tân nhập	187	Phạm Thanh Tùng	Đã check-in	t	\N	\N	2026-10-12 07:00:07.633	\N	2026-10-12 07:00:07.633	2026-10-12 07:00:55.545	KH407626	MC	Ban nguồn vốn
+668	68	\N	Cao Thị Hương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:01:08.474	\N	2026-10-12 07:01:08.474	2026-10-12 07:01:08.474	KH468468	MC	Ban nguồn vốn
+669	68	\N	Nguyễn Thị Thanh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:01:21.933	\N	2026-10-12 07:01:21.933	2026-10-12 07:01:21.933	KH481927	MC	Ban nguồn vốn
+670	68	\N	Lê Thị Nhung	0398733976	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:01:41.359	\N	2026-10-12 07:01:41.359	2026-10-12 07:01:46.263	KH501354	MC	Ban nguồn vốn
+671	68	\N	Khương Thị Minh	0399932118	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:02:43.853	\N	2026-10-12 07:02:43.853	2026-10-12 07:02:48.819	KH563848	MC	Ban nguồn vốn
+672	68	\N	Đặng Thái Quý	0904868788	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:03:06.684	\N	2026-10-12 07:03:06.684	2026-10-12 07:03:12.214	KH586678	MC	Ban nguồn vốn
+673	68	\N	Nguyễn Đức Dân	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:03:44.646	\N	2026-10-12 07:03:44.646	2026-10-12 07:03:50.758	KH624640	MC	Ban nguồn vốn
+674	68	\N	Nguyễn Thanh Tùng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:04:10.4	\N	2026-10-12 07:04:10.4	2026-10-12 07:04:10.4	KH650395	MC	Ban nguồn vốn
+675	68	\N	Nguyễn Ngọc Thủ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:06:00.486	\N	2026-10-12 07:06:00.486	2026-10-12 07:06:00.486	KH760481	MC	Ban nguồn vốn
+676	68	\N	Cao Hồng	\N	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:06:43.46	\N	2026-10-12 07:06:43.46	2026-10-12 07:06:51.217	KH803455	MC	Ban nguồn vốn
+677	68	\N	Nguyễn Thúy Hằng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:07:07.656	\N	2026-10-12 07:07:07.656	2026-10-12 07:07:07.656	KH827651	MC	Ban nguồn vốn
+678	69	\N	Dương Thị Hương	0968103126	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-12 07:08:03.358	\N	2026-10-12 07:08:03.358	2026-10-12 07:08:09.263	KH883352	MC	Ban nguồn vốn
+679	69	\N	Phạm Huy Tâm	0987297809	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-12 07:08:24.095	\N	2026-10-12 07:08:24.095	2026-10-12 07:08:29.389	KH904089	MC	Ban nguồn vốn
+680	69	\N	Nguyễn Duy Hiệp	0986289794	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-12 07:08:43.493	\N	2026-10-12 07:08:43.493	2026-10-12 07:08:49.086	KH923487	MC	Ban nguồn vốn
+681	69	\N	Vũ Thị Gấm	0852653398	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-12 07:09:26.733	\N	2026-10-12 07:09:26.733	2026-10-12 07:09:32.606	KH966727	MC	Ban nguồn vốn
+682	69	\N	Trần Thị Ngoan	0393427402	\N	\N	Lễ tân nhập	\N	C hòa	Đã check-in	t	\N	\N	2026-10-12 07:09:49.194	\N	2026-10-12 07:09:49.194	2026-10-12 07:10:29.353	KH989189	MC	Khối kinh doanh
+683	69	\N	Chu Thị  Huyền	0984037498	\N	\N	Lễ tân nhập	\N	C Hòa	Đã check-in	t	\N	\N	2026-10-12 07:10:45.55	\N	2026-10-12 07:10:45.55	2026-10-12 07:10:50.414	KH045545	MC	Khối kinh doanh
+684	69	\N	Đoàn Văn Hồng	0358438586	\N	\N	Lễ tân nhập	\N	C Hòa	Đã check-in	t	\N	\N	2026-10-12 07:11:06.133	\N	2026-10-12 07:11:06.133	2026-10-12 07:11:16.134	KH066128	MC	Khối kinh doanh
+685	69	\N	Nguyễn Xuân Trường	0913248739	\N	\N	Lễ tân nhập	67	phạm thị Tuyết(vỹ)	Đã check-in	t	\N	\N	2026-10-12 07:11:35.566	\N	2026-10-12 07:11:35.566	2026-10-12 07:11:42.708	KH095560	MC	Khối kinh doanh
+686	69	\N	Nguyễn Thị Chiều	0978399906	\N	\N	Lễ tân nhập	67	phạm thị Tuyết(vỹ)	Đã check-in	t	\N	\N	2026-10-12 07:12:01.311	\N	2026-10-12 07:12:01.311	2026-10-12 07:12:13.949	KH121304	MC	Khối kinh doanh
+687	69	\N	Trần Thị Mai Lương	0332231429	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:12:36.682	\N	2026-10-12 07:12:36.682	2026-10-12 07:12:36.682	KH156676	MC	Ban nguồn vốn
+688	69	\N	Nguyễn Văn Ngọ	0915023899	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:13:00.984	\N	2026-10-12 07:13:00.984	2026-10-12 07:13:00.984	KH180978	MC	Khối kinh doanh
+689	69	\N	Phạm Minh Tuấn	076835148	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:13:30.983	\N	2026-10-12 07:13:30.983	2026-10-12 07:13:30.983	KH210977	MC	Khối kinh doanh
+690	69	\N	Vũ Hùng Vỹ	0974964555	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:13:45.523	\N	2026-10-12 07:13:45.523	2026-10-12 07:13:45.523	KH225518	MC	Khối kinh doanh
+691	69	\N	Nguyễn Tân Phương	0978182325	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 07:14:06.623	\N	2026-10-12 07:14:06.623	2026-10-12 07:14:14.385	KH246617	MC	Ban nguồn vốn
+692	69	\N	Nguyễn Thị Hạnh	09744370638	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 07:14:32.998	\N	2026-10-12 07:14:32.998	2026-10-12 07:14:52.47	KH272992	MC	Ban nguồn vốn
+693	69	\N	Phạm Văn Pha	0973765167	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 07:15:15.946	\N	2026-10-12 07:15:15.946	2026-10-12 07:15:27.67	KH315940	MC	Ban nguồn vốn
+694	69	\N	Nguyễn Thị Kỷ	0378006615	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 07:15:48.691	\N	2026-10-12 07:15:48.691	2026-10-12 07:15:54.559	KH348686	MC	Ban nguồn vốn
+695	69	\N	Trần Thị Lan	0369100874	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 07:16:15.527	\N	2026-10-12 07:16:15.527	2026-10-12 07:16:22.936	KH375521	MC	Ban nguồn vốn
+696	69	\N	Nguyễn Thị Bích	0374004663	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 07:16:40.68	\N	2026-10-12 07:16:40.68	2026-10-12 07:16:47.777	KH400675	MC	Ban nguồn vốn
+697	69	\N	Đinh Thị Thơm	0762321926	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:17:11.941	\N	2026-10-12 07:17:11.941	2026-10-12 07:17:11.941	KH431935	MC	Ban nguồn vốn
+698	69	\N	Trịnh Mạnh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:17:32.755	\N	2026-10-12 07:17:32.755	2026-10-12 07:17:32.755	KH452749	MC	Ban nguồn vốn
+699	69	\N	Nguyễn Thị Bảy	0866628865	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:17:57.625	\N	2026-10-12 07:17:57.625	2026-10-12 07:17:57.625	KH477620	MC	Ban nguồn vốn
+700	69	\N	Trần Thị Ngát	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:18:24.339	\N	2026-10-12 07:18:24.339	2026-10-12 07:18:24.339	KH504333	MC	Ban nguồn vốn
+701	69	\N	Nguyễn Văn Nghĩa	0833931919	\N	\N	Lễ tân nhập	389	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-12 07:18:40.92	\N	2026-10-12 07:18:40.92	2026-10-12 07:18:48.147	KH520914	MC	Khối kinh doanh
+702	69	\N	Dương Thị Huệ	0587734269	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:19:10.382	\N	2026-10-12 07:19:10.382	2026-10-12 07:19:18.556	KH550377	MC	Khối kinh doanh
+703	69	\N	Nguyễn Thị Bích	0912250982	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:19:34.475	\N	2026-10-12 07:19:34.475	2026-10-12 07:19:41.472	KH574467	MC	Khối kinh doanh
+704	69	\N	Vương Kim Chung	0911944449	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:19:58.167	\N	2026-10-12 07:19:58.167	2026-10-12 07:20:04.846	KH598161	MC	Khối kinh doanh
+705	69	\N	Trần Minh Thắng	0912361557	\N	\N	Lễ tân nhập	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-12 07:20:26.826	\N	2026-10-12 07:20:26.826	2026-10-12 07:20:31.212	KH626820	MC	Khối kinh doanh
+706	69	\N	Phạm Thanh Tùng	0913262869	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 07:21:21.005	\N	2026-10-12 07:21:21.005	2026-10-12 07:21:26.511	KH681000	MC	Ban nguồn vốn
+707	69	\N	Phạm Vinh Quang	0913073619	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:21:43.819	\N	2026-10-12 07:21:43.819	2026-10-12 07:21:43.819	KH703814	MC	Khối kinh doanh
+708	69	\N	Nguyễn Thị Thiện	0962790303	\N	\N	Lễ tân nhập	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-10-12 07:22:05.45	\N	2026-10-12 07:22:05.45	2026-10-12 07:22:11.026	KH725444	MC	Ban nguồn vốn
+709	69	\N	Nguyễn Thị Huyền	0979000693	\N	\N	Lễ tân nhập	\N	A  Nhật	Đã check-in	t	\N	\N	2026-10-12 07:22:43.485	\N	2026-10-12 07:22:43.485	2026-10-12 07:23:02.524	KH763479	MC	Khối kinh doanh
+710	69	\N	Nguyễn Việt	0912179769	\N	\N	Lễ tân nhập	304	Nguyễn Thị Bảy	Đã check-in	t	\N	\N	2026-10-12 07:23:18.142	\N	2026-10-12 07:23:18.142	2026-10-12 07:23:25.247	KH798137	MC	Ban nguồn vốn
+711	70	\N	Vũ Thị Khởi	0349131186	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 07:24:58.497	\N	2026-10-12 07:24:58.497	2026-10-12 07:25:05.441	KH898492	MC	Ban nguồn vốn
+712	70	\N	Lưu Thị Phương	0334446916	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 07:25:26.854	\N	2026-10-12 07:25:26.854	2026-10-12 07:25:32.67	KH926849	MC	Ban nguồn vốn
+713	70	\N	Trần Thị Bình	0919439863	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 07:25:59.518	\N	2026-10-12 07:25:59.518	2026-10-12 07:26:04.903	KH959513	MC	Ban nguồn vốn
+714	70	\N	Nguyễn Thanh Hiền	0913594100	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:26:31.963	\N	2026-10-12 07:26:31.963	2026-10-12 07:26:36.769	KH991958	MC	Ban nguồn vốn
+715	70	\N	Đinh Thị Xuân Thanh	0983552303	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 07:26:52.888	\N	2026-10-12 07:26:52.888	2026-10-12 07:26:57.995	KH012882	MC	Ban nguồn vốn
+716	70	\N	Hà Thị Xuân	0983390251	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-12 07:27:19.75	\N	2026-10-12 07:27:19.75	2026-10-12 07:27:25.546	KH039742	MC	Khối kinh doanh
+717	70	\N	Phan Hải Yến	0384493131	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 07:27:46.645	\N	2026-10-12 07:27:46.645	2026-10-12 07:27:52.571	KH066640	MC	Ban nguồn vốn
+718	70	\N	Phạm Minh Tâm	0979267266	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 07:28:11.382	\N	2026-10-12 07:28:11.382	2026-10-12 07:28:16.367	KH091376	MC	Ban nguồn vốn
+719	70	\N	Lương Thu Huyền	0367513149	\N	\N	Lễ tân nhập	131	Triệu Thị Yến	Đã check-in	t	\N	\N	2026-10-12 07:28:33.432	\N	2026-10-12 07:28:33.432	2026-10-12 07:28:41.475	KH113426	MC	Ban nguồn vốn
+720	70	\N	Trần Văn Sơn	0838092455	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-12 07:28:58.438	\N	2026-10-12 07:28:58.438	2026-10-12 07:29:03.572	KH138433	MC	Ban nguồn vốn
+721	70	\N	Đinh Quyên	0916728811	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 07:29:28.436	\N	2026-10-12 07:29:28.436	2026-10-12 07:30:10.46	KH168430	MC	Ban nguồn vốn
+722	70	\N	Nguyễn Thị Hà	0393532131	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 07:30:28.791	\N	2026-10-12 07:30:28.791	2026-10-12 07:30:38.142	KH228786	MC	Ban nguồn vốn
+723	70	\N	Lê Lệ Xuân	0969356889	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:30:52.884	\N	2026-10-12 07:30:52.884	2026-10-12 07:30:57.754	KH252878	MC	Khối kinh doanh
+724	70	\N	Hoàng Thị Hồng Lĩnh	0911855138	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 07:31:16.783	\N	2026-10-12 07:31:16.783	2026-10-12 07:31:22.482	KH276777	MC	Ban nguồn vốn
+725	70	\N	Hoàng Hải Yến	\N	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 07:31:44.208	\N	2026-10-12 07:31:44.208	2026-10-12 07:31:50.216	KH304203	MC	Ban nguồn vốn
+726	71	\N	Vũ Bích Hạnh	0989664211	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:32:36.305	\N	2026-10-12 07:32:36.305	2026-10-12 07:32:36.305	KH356300	MC	Ban nguồn vốn
+727	71	\N	Phạm mạnh Thông	0976118520	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:32:53.78	\N	2026-10-12 07:32:53.78	2026-10-12 07:32:53.78	KH373774	MC	Ban nguồn vốn
+728	71	\N	Nguyễn Tiến Sửu	0332871359	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:33:10.919	\N	2026-10-12 07:33:10.919	2026-10-12 07:33:10.919	KH390913	MC	Ban nguồn vốn
+729	71	\N	Trần Thị Hồng vân	0962240952	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:33:34.718	\N	2026-10-12 07:33:34.718	2026-10-12 07:33:40.207	KH414712	MC	Khối kinh doanh
+730	71	\N	Lê Thị Mỹ	0904620663	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:33:56.586	\N	2026-10-12 07:33:56.586	2026-10-12 07:33:56.586	KH436581	MC	Khối kinh doanh
+731	71	\N	Nguyễn Thị Triều	0978399906	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:34:10.764	\N	2026-10-12 07:34:10.764	2026-10-12 07:34:17.842	KH450759	MC	Khối kinh doanh
+732	71	\N	Phạm Thị tuyết	0936446922	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:34:31.367	\N	2026-10-12 07:34:31.367	2026-10-12 07:34:36.805	KH471361	MC	Khối kinh doanh
+733	71	\N	Nguyễn Xuân Trường	0913248739	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:34:52.248	\N	2026-10-12 07:34:52.248	2026-10-12 07:34:57.952	KH492240	MC	Khối kinh doanh
+734	71	\N	Trần Đình Tuế	0332029186	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:35:16.519	\N	2026-10-12 07:35:16.519	2026-10-12 07:35:16.519	KH516512	MC	Ban nguồn vốn
+735	71	\N	Phạm Đình Yên	0979771960	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:35:34.47	\N	2026-10-12 07:35:34.47	2026-10-12 07:35:34.47	KH534462	MC	Ban nguồn vốn
+736	71	\N	Đỗ Thục Oanh	0979507600	\N	\N	Lễ tân nhập	161	Phạm Vinh Quang	Đã check-in	t	\N	\N	2026-10-12 07:35:51.332	\N	2026-10-12 07:35:51.332	2026-10-12 07:35:59.646	KH551325	MC	Khối kinh doanh
+737	71	\N	Phan Thị Huệ	0936402746	\N	\N	Lễ tân nhập	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-12 07:36:15.662	\N	2026-10-12 07:36:15.662	2026-10-12 07:36:23.441	KH575655	MC	Khối kinh doanh
+738	71	\N	Nguyễn Thị Thu Thủy	0386432799	\N	\N	Lễ tân nhập	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-12 07:36:38.827	\N	2026-10-12 07:36:38.827	2026-10-12 07:36:44.82	KH598820	MC	Khối kinh doanh
+739	71	\N	Nguyễn Hồng Việt	0902157521	\N	\N	Lễ tân nhập	161	Phạm Vinh Quang	Đã check-in	t	\N	\N	2026-10-12 07:37:03.061	\N	2026-10-12 07:37:03.061	2026-10-12 07:37:11.297	KH623055	MC	Khối kinh doanh
+740	71	\N	Vũ Trọng Nhật	0976050668	\N	\N	Lễ tân nhập	161	Phạm Vinh Quang	Đã check-in	t	\N	\N	2026-10-12 07:37:24.859	\N	2026-10-12 07:37:24.859	2026-10-12 07:37:30.09	KH644853	MC	Khối kinh doanh
+741	71	\N	Trần Quang Vũ	0982182658	\N	\N	Lễ tân nhập	161	Phạm Vinh Quang	Đã check-in	t	\N	\N	2026-10-12 07:37:44.843	\N	2026-10-12 07:37:44.843	2026-10-12 07:37:49.788	KH664838	MC	Khối kinh doanh
+1203	86	\N	Lưu Thanh Hải	0775935866	\N	\N	Lễ tân nhập	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-17 02:16:06.89	\N	2026-10-17 02:16:06.89	2026-10-17 02:16:50.785	KH366884	MC	Ban nguồn vốn
+742	71	\N	Hà Quang Dũng	0913367713	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:38:07.4	\N	2026-10-12 07:38:07.4	2026-10-12 07:38:12.166	KH687386	MC	Ban nguồn vốn
+743	71	\N	Nguyễn Thị Phương	0384173056	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:38:30.567	\N	2026-10-12 07:38:30.567	2026-10-12 07:38:30.567	KH710559	MC	Ban nguồn vốn
+744	71	\N	Phan Văn Huy	0983132598	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:38:45.068	\N	2026-10-12 07:38:45.068	2026-10-12 07:38:45.068	KH725060	MC	Ban nguồn vốn
+745	71	\N	Đỗ Thúy hằng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:39:05.454	\N	2026-10-12 07:39:05.454	2026-10-12 07:39:05.454	KH745447	MC	Ban nguồn vốn
+746	71	\N	Đỗ Thúy hằng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:39:05.652	\N	2026-10-12 07:39:05.652	2026-10-12 07:39:05.652	KH745645	MC	Ban nguồn vốn
+747	71	\N	Nguyễn Thị Minh Thu	825723486	\N	\N	Lễ tân nhập	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-12 07:39:26.739	\N	2026-10-12 07:39:26.739	2026-10-12 07:39:40.539	KH766732	MC	Khối kinh doanh
+748	71	\N	Nguyễn thanh Thủy	0977668289	\N	\N	Lễ tân nhập	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-12 07:39:59.389	\N	2026-10-12 07:39:59.389	2026-10-12 07:40:11.814	KH799381	MC	Khối kinh doanh
+749	71	\N	Lê Đức Thọ	0857136774	\N	\N	Lễ tân nhập	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-12 07:40:29.756	\N	2026-10-12 07:40:29.756	2026-10-12 07:40:35.654	KH829748	MC	Khối kinh doanh
+750	71	\N	Phạm Thanh Tùng	\N	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:40:48.983	\N	2026-10-12 07:40:48.983	2026-10-12 07:40:55.412	KH848976	MC	Ban nguồn vốn
+751	71	\N	Trương Văn Phúc	0987762324	\N	\N	Lễ tân nhập	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-10-12 07:41:15.532	\N	2026-10-12 07:41:15.532	2026-10-12 07:41:28.921	KH875526	MC	Ban nguồn vốn
+752	71	\N	Phạm Thị Thúy Lan	0912379909	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:41:46.336	\N	2026-10-12 07:41:46.336	2026-10-12 07:41:52.414	KH906329	MC	Khối kinh doanh
+157	40	163	Phạm Thu Hương	0349572568	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-09-26 02:36:06.705	2026-09-26 02:36:40.876	2026-09-26 02:36:06.705	2026-10-15 03:12:06.447	QR-40-858117	MC	Ban nguồn vốn
+173	40	179	Hà Thị Minh Hường	0934944568	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-09-26 03:11:00.312	2026-09-26 03:12:30.389	2026-09-26 03:11:00.312	2026-10-15 03:19:22.453	QR-40-655960	MC	Ban nguồn vốn
+203	40	44	Vũ Thị Thúy	0945172578	\N	Khách vãng lai	Trang chủ Web	\N	Sale	Đã check-in	t	\N	\N	2026-09-26 03:52:58.268	2026-09-26 08:47:22.118	2026-09-26 03:52:58.268	2026-10-15 03:19:33.536	QR-40-185815	MC	Ban nguồn vốn
+1204	86	\N	Vũ Thị Hòa	0328068588	\N	\N	Lễ tân nhập	183	Nguyễn Thị Dung	Đã check-in	t	\N	\N	2026-10-17 02:17:37.765	\N	2026-10-17 02:17:37.765	2026-10-17 02:17:42.826	KH457758	MC	Khối kinh doanh
+1205	86	\N	Đàm Thị Liên	0764959314	\N	\N	Lễ tân nhập	377	Hoàng Thị Luyện	Đã check-in	t	\N	\N	2026-10-17 02:18:45.725	\N	2026-10-17 02:18:45.725	2026-10-17 02:18:52.626	KH525718	MC	Ban nguồn vốn
+1233	86	\N	Lê Thị Hà	0333088873	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 02:59:13.234	\N	2026-10-17 02:59:13.234	2026-10-17 02:59:22.875	KH953228	MC	Ban nguồn vốn
+1234	86	\N	Lê Thị Hồng	0911831963	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:00:54.609	\N	2026-10-17 03:00:54.609	2026-10-17 03:01:08.271	KH054601	MC	Ban nguồn vốn
+1235	86	\N	Phạm Minh Tuấn	0768635148	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-17 03:01:41.628	\N	2026-10-17 03:01:41.628	2026-10-17 03:01:41.628	KH101621	MC	Khối kinh doanh
+753	71	\N	Nguyễn văn Ngọ	0915023869	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:42:06.79	\N	2026-10-12 07:42:06.79	2026-10-12 07:42:13.065	KH926783	MC	Khối kinh doanh
+754	71	\N	Đào thị Hòa	\N	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:42:25.129	\N	2026-10-12 07:42:25.129	2026-10-12 07:42:31.083	KH945124	MC	Khối kinh doanh
+755	71	\N	Phạm vinh Quang	\N	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:42:42.879	\N	2026-10-12 07:42:42.879	2026-10-12 07:42:54.325	KH962873	MC	Khối kinh doanh
+756	71	\N	Lê thị Noãn	0986718441	\N	\N	Lễ tân nhập	81	Hoàng văn Nhật	Đã check-in	t	\N	\N	2026-10-12 07:43:12.113	\N	2026-10-12 07:43:12.113	2026-10-12 07:43:22.221	KH992107	MC	Khối kinh doanh
+757	71	\N	Hoàng Văn Nhật	\N	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:43:31.96	\N	2026-10-12 07:43:31.96	2026-10-12 07:43:37.589	KH011953	MC	Khối kinh doanh
+758	71	\N	Đào Kế Đoàn	\N	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:43:54.233	\N	2026-10-12 07:43:54.233	2026-10-12 07:44:04.37	KH034228	MC	Khối kinh doanh
+759	71	\N	Phạm Thị Hằng	0982755879	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:44:26.418	\N	2026-10-12 07:44:26.418	2026-10-12 07:44:31.28	KH066410	MC	Ban nguồn vốn
+760	71	\N	Nguyễn Thị loan	0385107692	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:44:47.6	\N	2026-10-12 07:44:47.6	2026-10-12 07:44:52.584	KH087586	MC	Ban nguồn vốn
+761	71	\N	Nguyễn hải Hà	0943191999	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:45:08.528	\N	2026-10-12 07:45:08.528	2026-10-12 07:45:14.223	KH108521	MC	Ban nguồn vốn
+22	38	46	Vy Văn Hiền ( A Thủ)	0915312849	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Ngọc Thủ	Đã check-in	t	\N	\N	2026-09-19 01:43:00.556	2026-09-19 01:45:38.522	2026-09-19 01:43:00.556	2026-10-15 03:59:21.685	QR-38-700334	MC	Ban nguồn vốn
+762	71	\N	Hoàng Thị thiện	0912458034	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:45:30.246	\N	2026-10-12 07:45:30.246	2026-10-12 07:45:35.059	KH130239	MC	Ban nguồn vốn
+763	71	\N	Nguyễn Thị Tuyến	095259668	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:45:56.547	\N	2026-10-12 07:45:56.547	2026-10-12 07:46:01.646	KH156540	MC	Ban nguồn vốn
+764	71	\N	Đoàn Thị Tuyết Minh	0866628865	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:46:19.739	\N	2026-10-12 07:46:19.739	2026-10-12 07:46:43.857	KH179732	MC	Ban nguồn vốn
+765	71	\N	Vũ Ngọc Bảo	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:46:56.069	\N	2026-10-12 07:46:56.069	2026-10-12 07:46:56.069	KH216061	MC	Ban nguồn vốn
+766	71	\N	Vũ Ngọc Bảo	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:46:56.479	\N	2026-10-12 07:46:56.479	2026-10-12 07:47:01.079	KH216474	MC	Ban nguồn vốn
+767	71	\N	Ngô Thị hằng	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:47:11.085	\N	2026-10-12 07:47:11.085	2026-10-12 07:47:16.519	KH231079	MC	Ban nguồn vốn
+768	71	\N	Bùi Quyết Thắng	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:47:28.451	\N	2026-10-12 07:47:28.451	2026-10-12 07:47:33.294	KH248444	MC	Ban nguồn vốn
+769	71	\N	Nguyễn Thị Huệ	0348653168	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 07:47:50.968	\N	2026-10-12 07:47:50.968	2026-10-12 07:47:56.712	KH270961	MC	Ban nguồn vốn
+770	71	\N	Lương Thanh Hương	0977598289	\N	\N	Lễ tân nhập	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-12 07:48:17.702	\N	2026-10-12 07:48:17.702	2026-10-12 07:48:24.677	KH297695	MC	Ban nguồn vốn
+771	71	\N	Nguyễn Thị Quỳnh Trang	0983308885	\N	\N	Lễ tân nhập	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-12 07:48:39.118	\N	2026-10-12 07:48:39.118	2026-10-12 07:48:43.931	KH319112	MC	Ban nguồn vốn
+772	71	\N	Trịnh Xuân Cường	0827345786	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:49:02.764	\N	2026-10-12 07:49:02.764	2026-10-12 07:49:07.942	KH342757	MC	Ban nguồn vốn
+773	71	\N	Nguyễn Văn Dũng	\N	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-12 07:49:24.51	\N	2026-10-12 07:49:24.51	2026-10-12 07:49:29.818	KH364502	MC	Ban nguồn vốn
+774	71	\N	Nguyễn Văn Hợp	0915235811	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 07:49:45.673	\N	2026-10-12 07:49:45.673	2026-10-12 07:49:51.344	KH385666	MC	Khối kinh doanh
+775	71	\N	Lê đình Dũng	0982623073	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 07:50:07.487	\N	2026-10-12 07:50:07.487	2026-10-12 07:50:12.481	KH407480	MC	Khối kinh doanh
+776	71	\N	Lê Bích Thủy	0399286296	\N	\N	Lễ tân nhập	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-12 07:50:27.199	\N	2026-10-12 07:50:27.199	2026-10-12 07:50:34.444	KH427192	MC	Khối kinh doanh
+777	71	\N	Đào Thị Xuân	0975595263	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 07:50:50.48	\N	2026-10-12 07:50:50.48	2026-10-12 07:50:59.756	KH450473	MC	Khối kinh doanh
+778	71	\N	Phạm Xuân Sỹ	0343394061	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:51:15.937	\N	2026-10-12 07:51:15.937	2026-10-12 07:51:26.101	KH475931	MC	Khối kinh doanh
+779	71	\N	Ngô Văn Long	0903256008	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:51:47.103	\N	2026-10-12 07:51:47.103	2026-10-12 07:51:52.988	KH507096	MC	Khối kinh doanh
+780	71	\N	Đỗ Thị Du	\N	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-12 07:52:05.579	\N	2026-10-12 07:52:05.579	2026-10-12 07:52:10.011	KH525572	MC	Ban nguồn vốn
+781	71	\N	Vũ Thành công	0343876788	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 07:52:24.439	\N	2026-10-12 07:52:24.439	2026-10-12 07:52:29.922	KH544433	MC	Khối kinh doanh
+782	71	\N	Trần Thị Thanh Hương	\N	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:52:56.828	\N	2026-10-12 07:52:56.828	2026-10-12 07:53:02.586	KH576820	MC	Khối kinh doanh
+783	71	\N	Nguyễn Tố Trinh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:53:14.774	\N	2026-10-12 07:53:14.774	2026-10-12 07:53:14.774	KH594767	MC	Ban nguồn vốn
+784	71	\N	Nguyễn Tố Trinh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:53:15.021	\N	2026-10-12 07:53:15.021	2026-10-12 07:53:15.021	KH595014	MC	Ban nguồn vốn
+785	71	\N	Nguyễn Thúy Hằng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 07:53:35.902	\N	2026-10-12 07:53:35.902	2026-10-12 07:53:35.902	KH615895	MC	Ban nguồn vốn
+787	72	\N	Trần Thị Hà	0343359584	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-12 07:54:57.339	\N	2026-10-12 07:54:57.339	2026-10-12 07:55:06.861	KH697332	MC	Khối kinh doanh
+788	72	\N	Trần thu hương	0833049747	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 07:56:11.705	\N	2026-10-12 07:56:11.705	2026-10-12 08:28:48.234	KH771698	MC	Khối kinh doanh
+786	72	\N	Bùi Thị xuyên	3623506285	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 07:54:32.914	\N	2026-10-12 07:54:32.914	2026-10-12 08:28:51.119	KH672907	MC	Khối kinh doanh
+792	72	\N	Đặng Thị Thanh Bình	094 2497032	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:01:14.957	\N	2026-10-12 08:01:14.957	2026-10-12 08:01:27.261	KH074950	MC	Ban nguồn vốn
+793	72	\N	Lê Văn Tây	961796528	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:02:11.533	\N	2026-10-12 08:02:11.533	2026-10-12 08:02:19.599	KH131526	MC	Ban nguồn vốn
+794	72	\N	Đỗ Thị Minh Sơn	943460668	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:03:19.102	\N	2026-10-12 08:03:19.102	2026-10-12 08:03:25.755	KH199095	MC	Ban nguồn vốn
+795	72	\N	Nguyễn Văn Thanh Vũ	968866172	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:03:42.083	\N	2026-10-12 08:03:42.083	2026-10-12 08:03:50.088	KH222076	MC	Ban nguồn vốn
+790	72	\N	Nguyễn Thị Loan	833049722	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 08:00:13.035	\N	2026-10-12 08:00:13.035	2026-10-12 08:28:45.381	KH013028	MC	Khối kinh doanh
+796	72	\N	Vũ Thị Niên	973777390	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:04:05.65	\N	2026-10-12 08:04:05.65	2026-10-12 08:04:11.759	KH245643	MC	Ban nguồn vốn
+805	73	\N	Lê Thị Thanh Huyền	0886265813	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 08:08:41.464	\N	2026-10-12 08:08:41.464	2026-10-15 02:55:36.616	KH521457	MC	Khối kinh doanh
+797	72	\N	Đoàn Xuân Tiến	899929161	\N	\N	Lễ tân nhập	198	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:04:27.787	\N	2026-10-12 08:04:27.787	2026-10-12 08:04:40.637	KH267780	MC	Ban nguồn vốn
+804	73	\N	Nguyễn Công Hoa	0977619911	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-12 08:08:01.036	\N	2026-10-12 08:08:01.036	2026-10-15 02:55:38.73	KH481029	MC	Khối kinh doanh
+803	73	\N	Trần Thị Khánh Hằng	0394437698	\N	\N	Lễ tân nhập	205	Trần Thị Hồng Vân	Đã check-in	t	\N	\N	2026-10-12 08:07:36.65	\N	2026-10-12 08:07:36.65	2026-10-15 02:55:40.738	KH456644	MC	Khối kinh doanh
+800	72	\N	Bùi Văn Tuấn	0963216166	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:05:55.74	\N	2026-10-12 08:05:55.74	2026-10-12 08:05:55.74	KH355733	MC	Ban nguồn vốn
+814	73	\N	Ngô Thị Kim Dung	0767572949	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-12 08:12:19.308	\N	2026-10-12 08:12:19.308	2026-10-15 02:55:50.228	KH739302	MC	Khối kinh doanh
+802	72	\N	Hồ Thị Liên	0766085756	\N	\N	Lễ tân nhập	\N	Nguyễn Tố Trinh	Đã check-in	t	\N	\N	2026-10-12 08:06:37.497	\N	2026-10-12 08:06:37.497	2026-10-12 08:06:51.983	KH397491	MC	Ban nguồn vốn
+940	79	\N	Phạm Văn Pha	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:30.237	\N	2026-10-12 09:03:30.237	2026-10-12 09:03:30.237	KH810231	MC	Ban nguồn vốn
+813	73	\N	Bùi Văn Tuấn	0963216166	\N	\N	Lễ tân nhập	81	Hoàng văn Nhật	Đã check-in	t	\N	\N	2026-10-12 08:11:52.24	\N	2026-10-12 08:11:52.24	2026-10-15 02:55:52.307	KH712234	MC	Khối kinh doanh
+811	73	\N	Ngô Hiền Lương	0975651566	\N	\N	Lễ tân nhập	205	Trần Thị Hồng Vân	Đã check-in	t	\N	\N	2026-10-12 08:10:50.098	\N	2026-10-12 08:10:50.098	2026-10-15 02:56:46.941	KH650091	MC	Khối kinh doanh
+19	38	45	Chu Thị Lương	0368684468	\N	Khách mời tham dự	Trang chủ Web	\N	Giảng sư	Đã check-in	t	\N	\N	2026-09-19 01:34:26.713	2026-09-19 01:45:44.242	2026-09-19 01:34:26.713	2026-10-15 04:02:00.981	QR-38-107145	MC	Ban nguồn vốn
+798	72	\N	Bùi Thị Ngọc	0977940883	\N	\N	Lễ tân nhập	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-10-12 08:04:58.917	\N	2026-10-12 08:04:58.917	2026-10-15 08:13:58.781	KH298910	MC	Khối kinh doanh
+806	73	\N	Nguyễn Văn Tuấn	0969169999	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 08:09:02.967	\N	2026-10-12 08:09:02.967	2026-10-12 08:09:08.094	KH542960	MC	Ban nguồn vốn
+807	73	\N	Phan Hải Yến	0973201633	\N	\N	Lễ tân nhập	\N	\N	Đã đăng ký	t	\N	\N	2026-10-12 08:09:26.245	\N	2026-10-12 08:09:26.245	2026-10-12 08:09:26.245	KH566240	MC	Ban nguồn vốn
+808	73	\N	Trần Thị An	\N	\N	\N	Lễ tân nhập	74	Vũ Ngoc Bảo	Đã check-in	t	\N	\N	2026-10-12 08:09:54.28	\N	2026-10-12 08:09:54.28	2026-10-12 08:10:02.228	KH594272	MC	Ban nguồn vốn
+809	73	\N	Đoàn Xuân Tiến	0899929161	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:10:20.188	\N	2026-10-12 08:10:20.188	2026-10-12 08:10:20.188	KH620181	MC	Ban nguồn vốn
+810	73	\N	Hoàng Mai Phương	0915763791	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:10:34.71	\N	2026-10-12 08:10:34.71	2026-10-12 08:10:34.71	KH634703	MC	Ban nguồn vốn
+812	73	\N	Nguyễn Thị Lan	0904215299	\N	\N	Lễ tân nhập	\N	Phan Hải Yến	Đã check-in	t	\N	\N	2026-10-12 08:11:14.557	\N	2026-10-12 08:11:14.557	2026-10-12 08:11:35.179	KH674552	MC	Ban nguồn vốn
+815	73	\N	Nguyễn Thị Chuyên	0969945022	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:12:41.419	\N	2026-10-12 08:12:41.419	2026-10-12 08:12:51.384	KH761414	MC	Ban nguồn vốn
+816	73	\N	Nguyễn Xuân Thành	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:13:01.087	\N	2026-10-12 08:13:01.087	2026-10-12 08:13:01.087	KH781082	MC	Ban nguồn vốn
+817	74	\N	Hoàng Mạnh Hùng	0904224185	\N	\N	Lễ tân nhập	205	Trần Thị Hồng Vân	Đã check-in	t	\N	\N	2026-10-12 08:13:36.605	\N	2026-10-12 08:13:36.605	2026-10-12 08:13:43.084	KH816600	MC	Ban nguồn vốn
+818	74	\N	Dương Le Thanh	0919838653	\N	\N	Lễ tân nhập	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-12 08:14:07.11	\N	2026-10-12 08:14:07.11	2026-10-12 08:14:13.99	KH847105	MC	Ban nguồn vốn
+819	74	\N	Hoàng Thị Thanh	0337969836	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 08:14:33.098	\N	2026-10-12 08:14:33.098	2026-10-12 08:14:42.37	KH873093	MC	Ban nguồn vốn
+820	74	\N	Bùi Thị Yến	0915107564	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 08:14:56.185	\N	2026-10-12 08:14:56.185	2026-10-12 08:15:01.228	KH896180	MC	Ban nguồn vốn
+821	74	\N	Trần Khắc Hạnh	0332239165	\N	\N	Lễ tân nhập	91	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-12 08:15:15.423	\N	2026-10-12 08:15:15.423	2026-10-12 08:15:23.536	KH915418	MC	Khối kinh doanh
+822	74	\N	Anh Giáp	0375443955	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 08:15:41.019	\N	2026-10-12 08:15:41.019	2026-10-12 08:15:45.866	KH941014	MC	Ban nguồn vốn
+823	74	\N	Vi Thị Minh Bình	0918763126	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 08:16:01.652	\N	2026-10-12 08:16:01.652	2026-10-12 08:16:06.901	KH961646	MC	Ban nguồn vốn
+824	74	\N	Nguyễn Thị Hòa	0828140681	\N	\N	Lễ tân nhập	81	Hoàng văn Nhật	Đã check-in	t	\N	\N	2026-10-12 08:16:22.24	\N	2026-10-12 08:16:22.24	2026-10-12 08:16:27.502	KH982234	MC	Ban nguồn vốn
+825	74	\N	Hoa Sinh	0827292025	\N	\N	Lễ tân nhập	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-12 08:16:42.248	\N	2026-10-12 08:16:42.248	2026-10-12 08:16:47.173	KH002242	MC	Ban nguồn vốn
+826	74	\N	Nguyễn Lê Hoàng Quyên	0866184676	\N	\N	Lễ tân nhập	81	Hoàng văn Nhật	Đã check-in	t	\N	\N	2026-10-12 08:17:02.599	\N	2026-10-12 08:17:02.599	2026-10-12 08:17:07.416	KH022593	MC	Ban nguồn vốn
+827	74	\N	Nguyễn Thị Lan	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:17:19.378	\N	2026-10-12 08:17:19.378	2026-10-12 08:17:19.378	KH039372	MC	Ban nguồn vốn
+828	74	\N	Nguyễn Thị Lan	\N	\N	\N	Lễ tân nhập	\N	Phan Thị Yến	Đã check-in	t	\N	\N	2026-10-12 08:17:19.731	\N	2026-10-12 08:17:19.731	2026-10-12 08:17:33.572	KH039726	MC	Ban nguồn vốn
+829	74	\N	Hoàng Văn Nhật	\N	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:17:45.483	\N	2026-10-12 08:17:45.483	2026-10-12 08:17:50.36	KH065478	MC	Ban nguồn vốn
+830	74	\N	Cung Thu Hà	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:18:10.291	\N	2026-10-12 08:18:10.291	2026-10-12 08:18:10.291	KH090284	MC	Ban nguồn vốn
+831	74	\N	Trần Thị Hồng Vân	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:18:21.56	\N	2026-10-12 08:18:21.56	2026-10-12 08:18:21.56	KH101555	MC	Ban nguồn vốn
+832	74	\N	Phượng Ngọc Thu	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:18:35.102	\N	2026-10-12 08:18:35.102	2026-10-12 08:18:35.102	KH115097	MC	Khối kinh doanh
+833	74	\N	Đinh thúy Nga	\N	\N	\N	Lễ tân nhập	\N	Trần Thị Ngọc Vân	Đã check-in	t	\N	\N	2026-10-12 08:18:49.588	\N	2026-10-12 08:18:49.588	2026-10-12 08:19:09.048	KH129581	MC	Ban nguồn vốn
+835	74	\N	Phan Thị Yến	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:19:47.761	\N	2026-10-12 08:19:47.761	2026-10-12 08:19:47.761	KH187754	MC	Ban nguồn vốn
+836	74	\N	Ngô Thị Kiều Anh	0966647458	\N	\N	Lễ tân nhập	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-10-12 08:20:07.855	\N	2026-10-12 08:20:07.855	2026-10-12 08:20:13.462	KH207847	MC	Ban nguồn vốn
+837	74	\N	Nguyễn Thế Kiệt	0972125894	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-12 08:20:36.845	\N	2026-10-12 08:20:36.845	2026-10-12 08:20:44.035	KH236838	MC	Ban nguồn vốn
+838	74	\N	Ngô Tiến Thịnh	0389891672	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-12 08:20:59.874	\N	2026-10-12 08:20:59.874	2026-10-12 08:21:06.889	KH259867	MC	Ban nguồn vốn
+839	74	\N	Cao Minh Chỉnh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:22:01.347	\N	2026-10-12 08:22:01.347	2026-10-12 08:22:01.347	KH321341	MC	Ban nguồn vốn
+799	72	\N	Trần Thị Đức	0916119996	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 08:05:24.004	\N	2026-10-12 08:05:24.004	2026-10-12 08:28:38.807	KH323998	MC	Khối kinh doanh
+840	75	\N	Nguyễn Thị Nhạn	0982882523	\N	\N	Lễ tân nhập	\N	Cô Vượng	Đã check-in	t	\N	\N	2026-10-12 08:22:41.854	\N	2026-10-12 08:22:41.854	2026-10-12 08:22:48.279	KH361846	MC	Ban nguồn vốn
+862	76	\N	Nguyễn Viết Vượng	0932275759	\N	\N	Lễ tân nhập	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-10-12 08:34:57.431	\N	2026-10-12 08:34:57.431	2026-10-15 08:17:17.33	KH097425	MC	Khối kinh doanh
+841	75	\N	Nguyễn Văn Lợi	0373866290	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-12 08:23:08.392	\N	2026-10-12 08:23:08.392	2026-10-12 08:23:13.636	KH388384	MC	Ban nguồn vốn
+860	76	\N	Trần Kim Dung	0903286806	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 08:34:14.844	\N	2026-10-12 08:34:14.844	2026-10-15 08:17:29.435	KH054837	MC	Khối kinh doanh
+842	75	\N	Trịnh Thị Thu Hà	0966931330	\N	\N	Lễ tân nhập	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-12 08:23:33.282	\N	2026-10-12 08:23:33.282	2026-10-12 08:23:41.077	KH413275	MC	Ban nguồn vốn
+859	76	\N	Trần Thị Xuyến	0366584204	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 08:33:43.276	\N	2026-10-12 08:33:43.276	2026-10-15 08:17:31.333	KH023269	MC	Khối kinh doanh
+843	75	\N	Đào An	0972171162	\N	\N	Lễ tân nhập	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-12 08:23:58.38	\N	2026-10-12 08:23:58.38	2026-10-12 08:24:09.728	KH438371	MC	Ban nguồn vốn
+853	76	\N	Trần Sơn	0838092455	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-12 08:30:59.294	\N	2026-10-12 08:30:59.294	2026-10-15 08:17:38.174	KH859288	MC	Khối kinh doanh
+844	75	\N	Hà Hồng	0832895998	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 08:24:27.551	\N	2026-10-12 08:24:27.551	2026-10-12 08:24:42.023	KH467545	MC	Ban nguồn vốn
+1062	84	\N	CHÍCH BÔNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:06.365	\N	2026-10-13 04:17:06.365	2026-10-13 04:17:06.365	KH026358	MC	Khối kinh doanh
+1206	86	\N	Hoàng Công Nam	0947289003	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-17 02:24:23.218	\N	2026-10-17 02:24:23.218	2026-10-17 02:24:31.521	KH863212	MC	Khối kinh doanh
+845	75	\N	Hoàng Văn Chinh	0963508656	\N	\N	Lễ tân nhập	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-10-12 08:25:02.306	\N	2026-10-12 08:25:02.306	2026-10-12 08:25:07.123	KH502299	MC	Ban nguồn vốn
+789	72	\N	Vũ Thị Yến	0396460484	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 07:59:29	\N	2026-10-12 07:59:29	2026-10-12 08:28:46.553	KH968993	MC	Khối kinh doanh
+854	76	\N	Nguyễn Thị Hoa	0972147632	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-12 08:31:27.891	\N	2026-10-12 08:31:27.891	2026-10-12 08:31:31.827	KH887884	MC	Ban nguồn vốn
+855	76	\N	Nguyễn Lệ Anh	0389758595	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-12 08:31:55.024	\N	2026-10-12 08:31:55.024	2026-10-12 08:31:59.274	KH915016	MC	Ban nguồn vốn
+856	76	\N	Đặng Thị Nguyệt	0976581185	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-12 08:32:29.681	\N	2026-10-12 08:32:29.681	2026-10-12 08:32:34.006	KH949674	MC	Ban nguồn vốn
+857	76	\N	Lê Chiến	0375482460	\N	\N	Lễ tân nhập	\N	Anh Hà	Đã check-in	t	\N	\N	2026-10-12 08:32:50.538	\N	2026-10-12 08:32:50.538	2026-10-12 08:32:56.455	KH970531	MC	Ban nguồn vốn
+858	76	\N	Phạm cảnh	0962026075	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 08:33:16.559	\N	2026-10-12 08:33:16.559	2026-10-12 08:33:27.369	KH996552	MC	Khối kinh doanh
+861	76	\N	Nguyễn Thị Thúy Vân	0921919698	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 08:34:36.827	\N	2026-10-12 08:34:36.827	2026-10-12 08:34:42.545	KH076820	MC	Khối kinh doanh
+863	76	\N	Mai Thị Sinh	0919772204	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:35:18.858	\N	2026-10-12 08:35:18.858	2026-10-12 08:35:18.858	KH118851	MC	Ban nguồn vốn
+864	76	\N	Trần Minh Quất	\N	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 08:35:39.547	\N	2026-10-12 08:35:39.547	2026-10-12 08:35:46.031	KH139540	MC	Ban nguồn vốn
+865	76	\N	Phạm Thị Vân Anh	0975283311	\N	\N	Lễ tân nhập	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-12 08:36:05.011	\N	2026-10-12 08:36:05.011	2026-10-12 08:36:15.942	KH165003	MC	Ban nguồn vốn
+866	76	\N	Nguyễn Thế Hải	0983783899	\N	\N	Lễ tân nhập	\N	Yến	Đã check-in	t	\N	\N	2026-10-12 08:36:32.406	\N	2026-10-12 08:36:32.406	2026-10-12 08:36:38.257	KH192400	MC	Ban nguồn vốn
+867	76	\N	Lê Thị Xuyến	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:37:03.602	\N	2026-10-12 08:37:03.602	2026-10-12 08:37:03.602	KH223594	MC	Ban nguồn vốn
+868	76	\N	PHẠM THỊ PHÚC	0867719426	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-12 08:37:17.599	\N	2026-10-12 08:37:17.599	2026-10-12 08:37:24.132	KH237594	MC	Ban nguồn vốn
+869	76	\N	Nguyễn Thị Ngọc Phượng	0983932105	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:37:41.397	\N	2026-10-12 08:37:41.397	2026-10-12 08:37:41.397	KH261389	MC	Ban nguồn vốn
+870	76	\N	Nguyễn Giang Trang	0338739986	\N	\N	Lễ tân nhập	401	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-10-12 08:37:56.512	\N	2026-10-12 08:37:56.512	2026-10-12 08:38:04.332	KH276504	MC	Khối kinh doanh
+871	76	\N	Hoàng Thị Hồng Lĩnh	0911855138	\N	\N	Lễ tân nhập	\N	Thụ	Đã check-in	t	\N	\N	2026-10-12 08:38:25.214	\N	2026-10-12 08:38:25.214	2026-10-12 08:38:31.456	KH305206	MC	Ban nguồn vốn
+872	77	\N	Khánh Nhàn	097 6408928	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-12 08:39:13.281	\N	2026-10-12 08:39:13.281	2026-10-12 08:39:22.189	KH353273	MC	Khối kinh doanh
+873	77	\N	Nguyễn Văn Thể	0353888648	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 08:39:35.361	\N	2026-10-12 08:39:35.361	2026-10-12 08:39:41.366	KH375354	MC	Khối kinh doanh
+874	77	\N	Bàn Thị Bông	0963944382	\N	\N	Lễ tân nhập	48	Phạm Minh Tuấn	Đã check-in	t	\N	\N	2026-10-12 08:39:54.954	\N	2026-10-12 08:39:54.954	2026-10-12 08:40:05.881	KH394947	MC	Khối kinh doanh
+875	77	\N	Hoàng Văn Chung.	0912150406	\N	\N	Lễ tân nhập	\N	Nguyễn Văn Hà	Đã check-in	t	\N	\N	2026-10-12 08:40:23.694	\N	2026-10-12 08:40:23.694	2026-10-12 08:40:40.717	KH423688	MC	Khối kinh doanh
+876	77	\N	Nguyễn Thị Huê	0866628865	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:40:56.613	\N	2026-10-12 08:40:56.613	2026-10-12 08:41:06.757	KH456605	MC	Khối kinh doanh
+877	77	\N	Lê duyên Duy	\N	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:41:27.402	\N	2026-10-12 08:41:27.402	2026-10-12 08:41:33.151	KH487396	MC	Khối kinh doanh
+878	77	\N	Lò Thị hằng	0329771776	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:41:53.3	\N	2026-10-12 08:41:53.3	2026-10-12 08:41:53.3	KH513293	MC	Ban nguồn vốn
+879	77	\N	Lường thị Vinh	0358210977	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:42:07.553	\N	2026-10-12 08:42:07.553	2026-10-12 08:42:07.553	KH527546	MC	Ban nguồn vốn
+880	77	\N	Nguyễn THị Tú	0378665516	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 08:42:29.465	\N	2026-10-12 08:42:29.465	2026-10-12 08:42:34.401	KH549458	MC	Khối kinh doanh
+881	77	\N	nguyễn Thị Đào	0376342395	\N	\N	Lễ tân nhập	332	Phạm Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:42:57.941	\N	2026-10-12 08:42:57.941	2026-10-12 08:43:06.644	KH577934	MC	Ban nguồn vốn
+882	77	\N	Cung khắc Tân	0968895715	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-12 08:43:29.922	\N	2026-10-12 08:43:29.922	2026-10-12 08:43:45.661	KH609915	MC	Khối kinh doanh
+883	77	\N	trang hồng thắng	034620734	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:44:05.397	\N	2026-10-12 08:44:05.397	2026-10-12 08:44:21.532	KH645390	MC	Ban nguồn vốn
+884	77	\N	Đào Thị Thu HƯơng	0984957625	\N	\N	Lễ tân nhập	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-12 08:44:41.495	\N	2026-10-12 08:44:41.495	2026-10-12 08:44:46.483	KH681489	MC	Khối kinh doanh
+885	77	\N	phạm Thị tuyết	0936446922	\N	\N	Lễ tân nhập	90	Nguyễn Đức Vĩnh	Đã check-in	t	\N	\N	2026-10-12 08:45:00.739	\N	2026-10-12 08:45:00.739	2026-10-12 08:45:06.062	KH700732	MC	Khối kinh doanh
+886	77	\N	Vũ thị NGa	0333088873	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:45:20.527	\N	2026-10-12 08:45:20.527	2026-10-12 08:45:35.764	KH720520	MC	Ban nguồn vốn
+887	77	\N	Nguyễn Thế HẢi	0983783899	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 08:45:58.538	\N	2026-10-12 08:45:58.538	2026-10-12 08:46:05.083	KH758531	MC	Ban nguồn vốn
+846	75	\N	Nguyễn thị Hương	0979591285	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:25:36.458	\N	2026-10-12 08:25:36.458	2026-10-12 08:25:36.458	KH536450	MC	Ban nguồn vốn
+847	75	\N	Hứa Văn Quang	0838359439	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:26:11.586	\N	2026-10-12 08:26:11.586	2026-10-12 08:26:11.586	KH571579	MC	Ban nguồn vốn
+848	75	\N	Nguyễn Thị Trinh	0977365135	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:26:28.562	\N	2026-10-12 08:26:28.562	2026-10-12 08:26:28.562	KH588556	MC	Ban nguồn vốn
+850	75	\N	Đỗ Thị Yến	0387187554	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 08:27:00.211	\N	2026-10-12 08:27:00.211	2026-10-12 08:27:12.939	KH620204	MC	Khối kinh doanh
+849	75	\N	An Ngọc Quân	0975268226	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 08:26:43.988	\N	2026-10-12 08:26:43.988	2026-10-12 08:27:26.873	KH603981	MC	Ban nguồn vốn
+851	75	\N	Nguyễn Thị Ánh	0945334371	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:27:43.267	\N	2026-10-12 08:27:43.267	2026-10-12 08:27:51.25	KH663260	MC	Ban nguồn vốn
+852	75	\N	Lê Thị Hà	0333088873	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:28:06.865	\N	2026-10-12 08:28:06.865	2026-10-12 08:28:06.865	KH686858	MC	Ban nguồn vốn
+834	74	\N	Vũ Thúy Quỳnh	0982738426	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 08:19:31.153	\N	2026-10-12 08:19:31.153	2026-10-12 08:28:20.57	KH171147	MC	Khối kinh doanh
+888	77	\N	Dương Thị Thanh	0962683595	\N	\N	Lễ tân nhập	80	Cao t lan huong ( trinh )	Đã check-in	t	\N	\N	2026-10-12 08:46:23.696	\N	2026-10-12 08:46:23.696	2026-10-12 08:46:35.613	KH783691	MC	Ban nguồn vốn
+889	77	\N	Nguyễn Thị Kỷ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:46:56.379	\N	2026-10-12 08:46:56.379	2026-10-12 08:46:56.379	KH816369	MC	Ban nguồn vốn
+891	77	\N	Nguyễn Văn Thành	08666288665	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:47:26.878	\N	2026-10-12 08:47:26.878	2026-10-12 08:47:37.423	KH846871	MC	Ban nguồn vốn
+892	77	\N	Phùng Thị Điệp	\N	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:47:58.755	\N	2026-10-12 08:47:58.755	2026-10-12 08:48:08.443	KH878748	MC	Ban nguồn vốn
+893	77	\N	Phan thị Nguyệt	0966382168	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 08:48:25.293	\N	2026-10-12 08:48:25.293	2026-10-12 08:48:30.163	KH905287	MC	Ban nguồn vốn
+894	78	\N	Hoàng Mai	\N	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-12 08:49:07.724	\N	2026-10-12 08:49:07.724	2026-10-12 08:49:16.778	KH947719	MC	Ban nguồn vốn
+895	79	\N	Nguyễn Thị Mai	0983019043	\N	\N	Lễ tân nhập	\N	Phạm Thị Đan Hương	Đã check-in	t	\N	\N	2026-10-12 08:49:59.598	\N	2026-10-12 08:49:59.598	2026-10-12 08:50:25.748	KH999592	MC	Ban nguồn vốn
+896	79	\N	Lương Thanh Cương	\N	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:50:35.402	\N	2026-10-12 08:50:35.402	2026-10-12 08:50:39.952	KH035394	MC	Ban nguồn vốn
+897	79	\N	Dương Thị Lường	0988788325	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:50:59.125	\N	2026-10-12 08:50:59.125	2026-10-12 08:50:59.125	KH059098	MC	Ban nguồn vốn
+898	79	\N	Nguyễn Thị Nhạn	0952088523	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:51:18.366	\N	2026-10-12 08:51:18.366	2026-10-12 08:51:18.366	KH078359	MC	Ban nguồn vốn
+899	79	\N	Nguyễn Thị Thoa	0947317316	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:51:38.791	\N	2026-10-12 08:51:38.791	2026-10-12 08:51:49.75	KH098783	MC	Ban nguồn vốn
+900	79	\N	Lương Dũng Tiến	0974200697	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:52:09.079	\N	2026-10-12 08:52:09.079	2026-10-12 08:52:09.079	KH129073	MC	Ban nguồn vốn
+901	79	\N	Hương Quỳnh	0912120666	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:52:26.534	\N	2026-10-12 08:52:26.534	2026-10-12 08:52:26.534	KH146528	MC	Ban nguồn vốn
+902	79	\N	Nguyễn Hưu Đức	0972882528	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:52:43.549	\N	2026-10-12 08:52:43.549	2026-10-12 08:52:57.671	KH163542	MC	Ban nguồn vốn
+903	79	\N	Nguyễn Thị Xuân Hương	0983684466	\N	\N	Lễ tân nhập	\N	Ng Hưu Đức	Đã check-in	t	\N	\N	2026-10-12 08:53:14.487	\N	2026-10-12 08:53:14.487	2026-10-12 08:53:33.55	KH194480	MC	Ban nguồn vốn
+904	79	\N	Lê lan	0834196712	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 08:53:50.31	\N	2026-10-12 08:53:50.31	2026-10-12 08:53:55.635	KH230305	MC	Ban nguồn vốn
+906	79	\N	Hoàng Văn Nhật	\N	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:54:23.029	\N	2026-10-12 08:54:23.029	2026-10-12 08:54:28.365	KH263024	MC	Ban nguồn vốn
+905	79	\N	Đào Thị Hòa	\N	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:54:07.801	\N	2026-10-12 08:54:07.801	2026-10-12 08:54:32.727	KH247793	MC	Ban nguồn vốn
+907	79	\N	Tạ Thị phúc	0334186376	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-12 08:54:48.375	\N	2026-10-12 08:54:48.375	2026-10-12 08:54:54.133	KH288370	MC	Khối kinh doanh
+908	79	\N	Nguyễn Hùng Vĩ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:55:03.507	\N	2026-10-12 08:55:03.507	2026-10-12 08:55:03.507	KH303502	MC	Khối kinh doanh
+909	79	\N	phạm Minh Tuấn	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:55:21.217	\N	2026-10-12 08:55:21.217	2026-10-12 08:55:21.217	KH321210	MC	Khối kinh doanh
+910	79	\N	Nguyễn Văn Ngọ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:55:33.988	\N	2026-10-12 08:55:33.988	2026-10-12 08:55:33.988	KH333983	MC	Ban nguồn vốn
+911	79	\N	Nguyễn Thị Hoa	0327589837	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:55:51.628	\N	2026-10-12 08:55:51.628	2026-10-12 08:55:51.628	KH351621	MC	Ban nguồn vốn
+912	79	\N	Lê Thị Hà	\N	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-12 08:56:06.287	\N	2026-10-12 08:56:06.287	2026-10-12 08:56:11.518	KH366280	MC	Ban nguồn vốn
+913	79	\N	Lương Xuân Miến	0965666475	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:56:32.374	\N	2026-10-12 08:56:32.374	2026-10-12 08:56:38.767	KH392367	MC	Ban nguồn vốn
+914	79	\N	Đỗ Thị Nga	0344687313	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-12 08:56:55.966	\N	2026-10-12 08:56:55.966	2026-10-12 08:57:02.657	KH415959	MC	Ban nguồn vốn
+915	79	\N	Phạm Minh Phong	0985898934	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 08:57:20.096	\N	2026-10-12 08:57:20.096	2026-10-12 08:57:26.715	KH440089	MC	Ban nguồn vốn
+916	79	\N	Lê Thanh Vi	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:57:40.032	\N	2026-10-12 08:57:40.032	2026-10-12 08:57:40.032	KH460025	MC	Ban nguồn vốn
+917	79	\N	Nguyễn Thị Hằng	0387831965	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:57:57.151	\N	2026-10-12 08:57:57.151	2026-10-12 08:57:57.151	KH477144	MC	Ban nguồn vốn
+918	79	\N	Nguyễn Hà Phương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:58:07.705	\N	2026-10-12 08:58:07.705	2026-10-12 08:58:07.705	KH487698	MC	Ban nguồn vốn
+919	79	\N	Vương Văn Hiệp	0365871219	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:58:22.693	\N	2026-10-12 08:58:22.693	2026-10-12 08:58:22.693	KH502686	MC	Ban nguồn vốn
+920	79	\N	Lê Phương Duy	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:58:34.283	\N	2026-10-12 08:58:34.283	2026-10-12 08:58:34.283	KH514272	MC	Ban nguồn vốn
+921	79	\N	Vi Thị Đình	0918763126	\N	\N	Lễ tân nhập	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-12 08:58:48.537	\N	2026-10-12 08:58:48.537	2026-10-12 08:58:54.219	KH528529	MC	Ban nguồn vốn
+922	79	\N	Hoàng Thị Hà	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:59:05.143	\N	2026-10-12 08:59:05.143	2026-10-12 08:59:05.143	KH545137	MC	Ban nguồn vốn
+923	79	\N	Trịnh Đức TRung	0982076979	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:59:17.972	\N	2026-10-12 08:59:17.972	2026-10-12 08:59:17.972	KH557965	MC	Ban nguồn vốn
+924	79	\N	Đào Minh Huệ	0912342977	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:59:31.764	\N	2026-10-12 08:59:31.764	2026-10-12 08:59:31.764	KH571756	MC	Ban nguồn vốn
+925	79	\N	Đỗ Thúy Hằng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:59:49.967	\N	2026-10-12 08:59:49.967	2026-10-12 08:59:49.967	KH589961	MC	Ban nguồn vốn
+926	79	\N	Đoàn Thị Tuyết Minh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:00:00.296	\N	2026-10-12 09:00:00.296	2026-10-12 09:00:00.296	KH600289	MC	Ban nguồn vốn
+927	79	\N	Vũ Ngọc Bảo	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:00:09.93	\N	2026-10-12 09:00:09.93	2026-10-12 09:00:09.93	KH609923	MC	Ban nguồn vốn
+928	79	\N	Đỗ Thị Lanh	0393397595	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:00:24.439	\N	2026-10-12 09:00:24.439	2026-10-12 09:00:24.439	KH624432	MC	Ban nguồn vốn
+929	79	\N	Nguyễn Văn Hiệp	0365871319	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:00:38.737	\N	2026-10-12 09:00:38.737	2026-10-12 09:00:38.737	KH638729	MC	Ban nguồn vốn
+930	79	\N	Trần khắc hạnh	0332239165	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:00:51.317	\N	2026-10-12 09:00:51.317	2026-10-12 09:00:51.317	KH651308	MC	Ban nguồn vốn
+931	79	\N	Nguyễn Thị Thúy Liên	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:01:02.372	\N	2026-10-12 09:01:02.372	2026-10-12 09:01:02.372	KH662366	MC	Ban nguồn vốn
+932	79	\N	Lê Thị Huề	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:01:14.692	\N	2026-10-12 09:01:14.692	2026-10-12 09:01:14.692	KH674684	MC	Ban nguồn vốn
+934	79	\N	Nguyễn Văn Cảnh	0866628865	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:01:46.652	\N	2026-10-12 09:01:46.652	2026-10-12 09:01:46.652	KH706647	MC	Ban nguồn vốn
+935	79	\N	Nguyễn Thị Kim Anh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:01:56.584	\N	2026-10-12 09:01:56.584	2026-10-12 09:01:56.584	KH716579	MC	Ban nguồn vốn
+936	79	\N	Dương Thị Thanh	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:02:06.277	\N	2026-10-12 09:02:06.277	2026-10-12 09:02:06.277	KH726272	MC	Ban nguồn vốn
+937	79	\N	Nguyễn Thị Tâm	\N	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 09:02:18.511	\N	2026-10-12 09:02:18.511	2026-10-12 09:02:26.431	KH738506	MC	Ban nguồn vốn
+938	79	\N	Tạ Thị pha	\N	\N	\N	Lễ tân nhập	\N	Dương Thị Thanh	Đã check-in	t	\N	\N	2026-10-12 09:02:51.65	\N	2026-10-12 09:02:51.65	2026-10-12 09:02:59.431	KH771644	MC	Ban nguồn vốn
+939	79	\N	Nguyễn Văn Giáp	0984767962	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:16.754	\N	2026-10-12 09:03:16.754	2026-10-12 09:03:16.754	KH796735	MC	Ban nguồn vốn
+941	79	\N	Nguyễn Văn Trịnh	0905040579	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:49.152	\N	2026-10-12 09:03:49.152	2026-10-12 09:03:49.152	KH829145	MC	Ban nguồn vốn
+942	79	\N	Trần Ánh	0983661163	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:04:05.78	\N	2026-10-12 09:04:05.78	2026-10-12 09:04:05.78	KH845772	MC	Ban nguồn vốn
+943	79	\N	Trần Mai Lương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:04:16.601	\N	2026-10-12 09:04:16.601	2026-10-12 09:04:16.601	KH856596	MC	Ban nguồn vốn
+944	79	\N	Phạm Thanh Tùng	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:04:35.593	\N	2026-10-12 09:04:35.593	2026-10-12 09:04:35.593	KH875586	MC	Ban nguồn vốn
+945	79	\N	Nguyễn Xuân bắc	0335040525	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:04:53.613	\N	2026-10-12 09:04:53.613	2026-10-12 09:04:53.613	KH893606	MC	Ban nguồn vốn
+123	39	139	Nguyễn Thị Vân	0974059609	\N	Khách mời tham dự	Trang chủ Web	\N	Cô Thu	Đã check-in	t	\N	\N	2026-09-23 08:02:55.198	2026-09-23 08:03:32.303	2026-09-23 08:02:55.198	2026-10-15 04:03:44.325	QR-39-994741	MC	Khối kinh doanh
+122	39	138	Lê Thị Xuân Mai	0988560303	\N	Khách mời tham dự	Trang chủ Web	\N	Cô Thu	Đã check-in	t	\N	\N	2026-09-23 08:02:15.056	2026-09-23 08:03:31.408	2026-09-23 08:02:15.056	2026-10-15 04:03:46.739	QR-39-835017	MC	Khối kinh doanh
+120	39	136	Đỗ thuý Hằng	0912519172	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-23 08:01:13.561	2026-09-23 08:01:24.08	2026-09-23 08:01:13.561	2026-10-15 04:04:00.294	QR-39-299409	MC	Ban nguồn vốn
+121	39	137	Nguyễn thị kim loan	0963239211	\N	Khách mời tham dự	Trang chủ Web	136	Đỗ thuý Hằng	Đã check-in	t	\N	\N	2026-09-23 08:01:32.48	2026-09-23 08:03:30.695	2026-09-23 08:01:32.48	2026-10-15 04:07:39.084	QR-39-255150	MC	Ban nguồn vốn
+100	39	117	Hoàng Thị Luyện ( A thịnh)	0972831568	\N	Khách vãng lai	Trang chủ Web	\N	Thịnh BNV	Đã check-in	t	\N	\N	2026-09-23 06:54:31.432	2026-09-23 07:04:23.472	2026-09-23 06:54:31.432	2026-10-15 04:19:48.083	QR-39-356411	MC	Ban nguồn vốn
+1207	86	\N	Đào Diệu Thúy	0966666751	\N	\N	Lễ tân nhập	157	Lưu Thanh Hải	Đã check-in	t	\N	\N	2026-10-17 02:25:55.696	\N	2026-10-17 02:25:55.696	2026-10-17 02:26:20.003	KH955690	MC	Ban nguồn vốn
+1209	86	\N	Nguyễn Thị Ngọc Dung	0978623232	\N	\N	Lễ tân nhập	121	Ngô Quang Trung	Đã check-in	t	\N	\N	2026-10-17 02:28:46.898	\N	2026-10-17 02:28:46.898	2026-10-17 02:28:57.39	KH126893	MC	Khối kinh doanh
+1208	86	\N	Phùng Văn Dũng	0911521919	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	f	\N	\N	2026-10-17 02:27:49.402	2026-10-17 02:32:40.422	2026-10-17 02:27:49.402	2026-10-17 02:32:42.465	KH069394	MC	Ban nguồn vốn
+933	79	\N	Trần Thị Anh Hương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:01:31.214	\N	2026-10-12 09:01:31.214	2026-10-12 09:01:31.214	KH691165	MC	Ban nguồn vốn
+947	79	\N	Nguyễn Thị Huê	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:05:38.002	\N	2026-10-12 09:05:38.002	2026-10-12 09:05:38.002	KH937995	MC	Ban nguồn vốn
+946	79	\N	Ngô Doãn Dũng	0913525741	\N	\N	Lễ tân nhập	\N	Cao Thắng	Đã check-in	t	\N	\N	2026-10-12 09:05:13.286	\N	2026-10-12 09:05:13.286	2026-10-12 09:05:57.607	KH913279	MC	Ban nguồn vốn
+948	79	\N	Nguyễn Thúy Hằng	0975656429	\N	\N	Lễ tân nhập	\N	Liên	Đã check-in	t	\N	\N	2026-10-12 09:06:21.749	\N	2026-10-12 09:06:21.749	2026-10-12 09:06:26.396	KH981742	MC	Ban nguồn vốn
+949	79	\N	Đăng Thị Lai	0332635586	\N	\N	Lễ tân nhập	263	Nguyễn Thị Chuyên	Đã check-in	t	\N	\N	2026-10-12 09:06:45.538	\N	2026-10-12 09:06:45.538	2026-10-12 09:06:51.245	KH005531	MC	Ban nguồn vốn
+950	79	\N	Nguyễn Thị Chuyên	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:07:04.725	\N	2026-10-12 09:07:04.725	2026-10-12 09:07:04.725	KH024717	MC	Ban nguồn vốn
+951	79	\N	Nguyễn Thị Khuê	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-12 09:07:18.744	\N	2026-10-12 09:07:18.744	2026-10-12 09:07:24.058	KH038737	MC	Ban nguồn vốn
+952	66	454	Nguyen minh Phú	0913546266	\N	Khách mời tham dự	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-12 13:12:10.453	\N	2026-10-12 13:12:10.453	2026-10-12 13:12:10.453	QR-66-678666	MC	Khối kinh doanh
+953	80	\N	Nguyễn Trà Giang	0384518828	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:13:17.935	\N	2026-10-13 03:13:17.935	2026-10-13 03:13:24.271	KH197928	MC	Khối kinh doanh
+954	80	\N	Lê thi hương	0898142976	\N	\N	Lễ tân nhập	118	Hồ Xuân thu( diệp Huế)	Đã check-in	t	\N	\N	2026-10-13 03:13:39.558	\N	2026-10-13 03:13:39.558	2026-10-13 03:13:46.831	KH219552	MC	Ban nguồn vốn
+955	80	\N	Đỗ Thị Nga	0973225683	\N	\N	Lễ tân nhập	217	Phượng Ngọc Thu	Đã check-in	t	\N	\N	2026-10-13 03:14:53.89	\N	2026-10-13 03:14:53.89	2026-10-13 03:15:06.176	KH293879	MC	Khối kinh doanh
+956	80	\N	Nguyễn Hữu Điệp	09753222090	\N	\N	Lễ tân nhập	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-10-13 03:15:21.31	\N	2026-10-13 03:15:21.31	2026-10-13 03:15:26.923	KH321303	MC	Ban nguồn vốn
+957	80	\N	Hoàng Hữu phe	0348472279	\N	\N	Lễ tân nhập	145	Nguyễn Thị Hà	Đã check-in	t	\N	\N	2026-10-13 03:15:43.108	\N	2026-10-13 03:15:43.108	2026-10-13 03:15:54.415	KH343100	MC	Ban nguồn vốn
+958	80	\N	Nguyễn Văn Bình	0397031046	\N	\N	Lễ tân nhập	118	Hồ Xuân thu( diệp Huế)	Đã check-in	t	\N	\N	2026-10-13 03:16:08.877	\N	2026-10-13 03:16:08.877	2026-10-13 03:16:16.255	KH368871	MC	Ban nguồn vốn
+959	80	\N	Phạm Hải Yến	0384493131	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 03:16:31.072	\N	2026-10-13 03:16:31.072	2026-10-13 03:16:39.682	KH391064	MC	Ban nguồn vốn
+960	80	\N	Phạm Minh Tâm	0947302118	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 03:16:55.495	\N	2026-10-13 03:16:55.495	2026-10-13 03:17:00.032	KH415488	MC	Ban nguồn vốn
+961	80	\N	Nguyễn Chính	0977365135	\N	\N	Lễ tân nhập	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-10-13 03:17:15.458	\N	2026-10-13 03:17:15.458	2026-10-13 03:17:20.761	KH435451	MC	Ban nguồn vốn
+962	80	\N	Phạm Thanh Hương	0988555776	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 03:18:06.762	\N	2026-10-13 03:18:06.762	2026-10-13 03:18:11.47	KH486754	MC	Ban nguồn vốn
+963	80	\N	Đỗ Thanh Xuân	0372133945	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 03:18:26.854	\N	2026-10-13 03:18:26.854	2026-10-13 03:18:31.418	KH506846	MC	Ban nguồn vốn
+964	80	\N	Nguyễn Văn Long	0913219444	\N	\N	Lễ tân nhập	263	Nguyễn Thị Chuyên	Đã check-in	t	\N	\N	2026-10-13 03:18:47.048	\N	2026-10-13 03:18:47.048	2026-10-13 03:18:51.767	KH527042	MC	Ban nguồn vốn
+965	80	\N	Lại Quốc Khánh	0903215635	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:19:09.988	\N	2026-10-13 03:19:09.988	2026-10-13 03:19:16.835	KH549980	MC	Khối kinh doanh
+966	80	\N	Bùi Thanh Tâm	0332655782	\N	\N	Lễ tân nhập	364	Nguyễn Thị Liên	Đã check-in	t	\N	\N	2026-10-13 03:19:31.29	\N	2026-10-13 03:19:31.29	2026-10-13 03:19:40.991	KH571284	MC	Ban nguồn vốn
+967	80	\N	Phạm Đình Việt	0974833164	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:21:03.756	\N	2026-10-13 03:21:03.756	2026-10-13 03:21:20.448	KH663748	MC	Khối kinh doanh
+968	80	\N	Đỗ Thị Yến	0387187554	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 03:21:32.581	\N	2026-10-13 03:21:32.581	2026-10-13 03:21:42.562	KH692575	MC	Khối kinh doanh
+969	80	\N	Nguyễn Thị Hoa	0977513918	\N	\N	Lễ tân nhập	92	Nguyễn thúy hang	Đã check-in	t	\N	\N	2026-10-13 03:21:56.934	\N	2026-10-13 03:21:56.934	2026-10-13 03:22:04.741	KH716928	MC	Ban nguồn vốn
+970	80	\N	Nguyễn Thị Nga	0985084318	\N	\N	Lễ tân nhập	230	Trần Phương Giang	Đã check-in	t	\N	\N	2026-10-13 03:22:20.396	\N	2026-10-13 03:22:20.396	2026-10-13 03:22:27.47	KH740389	MC	Ban nguồn vốn
+971	80	\N	Nguyễn Thị Hà	0827523139	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-13 03:22:47.643	\N	2026-10-13 03:22:47.643	2026-10-13 03:22:51.587	KH767635	MC	Ban nguồn vốn
+972	81	\N	Trần Thị Hằng	988108069	\N	\N	Lễ tân nhập	282	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-13 03:24:59.529	\N	2026-10-13 03:24:59.529	2026-10-13 03:25:08.288	KH899522	MC	Ban nguồn vốn
+973	81	\N	Trịnh Xuân Hải	0335854525	\N	\N	Lễ tân nhập	282	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-13 03:25:22.914	\N	2026-10-13 03:25:22.914	2026-10-13 03:25:28.527	KH922907	MC	Ban nguồn vốn
+974	81	\N	Nguyễn Huy	348778893	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:25:41.55	\N	2026-10-13 03:25:41.55	2026-10-13 03:25:47.324	KH941543	MC	Khối kinh doanh
+975	81	\N	Cô Thoa	0904360412	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:26:01.653	\N	2026-10-13 03:26:01.653	2026-10-13 03:26:09.886	KH961646	MC	Khối kinh doanh
+976	81	\N	Vũ Minh Huệ	977883579	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:26:24.976	\N	2026-10-13 03:26:24.976	2026-10-13 03:26:30.488	KH984970	MC	Khối kinh doanh
+977	81	\N	Lê văn Lợi	0942792391	\N	\N	Lễ tân nhập	\N	Nguyễn Huyền Trang	Đã check-in	t	\N	\N	2026-10-13 03:26:47.24	\N	2026-10-13 03:26:47.24	2026-10-13 03:27:29.348	KH007233	MC	Ban nguồn vốn
+978	81	\N	Hỏa Văn Nghiêm	977223810	\N	\N	Lễ tân nhập	\N	Nguyễn Huyền Trang	Đã check-in	t	\N	\N	2026-10-13 03:35:36.172	\N	2026-10-13 03:35:36.172	2026-10-13 03:35:50.313	KH536167	MC	Ban nguồn vốn
+979	81	\N	Nguyễn Thị Bích	0365228493	\N	\N	Lễ tân nhập	\N	Nguyễn Huyền Trang	Đã check-in	t	\N	\N	2026-10-13 03:36:08.991	\N	2026-10-13 03:36:08.991	2026-10-13 03:36:21.724	KH568986	MC	Ban nguồn vốn
+980	81	\N	Lê Thị Khánh	0977702025	\N	\N	Lễ tân nhập	\N	Nguyễn Huyền Trang	Đã check-in	t	\N	\N	2026-10-13 03:42:51.67	\N	2026-10-13 03:42:51.67	2026-10-13 03:43:04.142	KH971663	MC	Ban nguồn vốn
+981	81	\N	Hoàng Hồng Sơn	093168931	\N	\N	Lễ tân nhập	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-13 03:43:21.389	\N	2026-10-13 03:43:21.389	2026-10-13 03:43:28.225	KH001383	MC	Ban nguồn vốn
+982	81	\N	Nguyễn văn Hoài	0849862687	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 03:43:44.489	\N	2026-10-13 03:43:44.489	2026-10-13 03:43:49.328	KH024483	MC	Ban nguồn vốn
+983	81	\N	Ngô Thúy Hằng	0969945022	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 03:44:07.101	\N	2026-10-13 03:44:07.101	2026-10-13 03:44:12.634	KH047094	MC	Ban nguồn vốn
+984	81	\N	Nguyễn Văn Chiến	\N	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:44:26.019	\N	2026-10-13 03:44:26.019	2026-10-13 03:44:35.335	KH066011	MC	Khối kinh doanh
+985	81	\N	Nguyễn Văn Thịnh	0987433728	\N	\N	Lễ tân nhập	449	Bùi Đăng Lâm	Đã check-in	t	\N	\N	2026-10-13 03:44:49.983	\N	2026-10-13 03:44:49.983	2026-10-13 03:44:57.242	KH089973	MC	Ban nguồn vốn
+986	81	\N	BÙi Đăng Lâm	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 03:45:09.456	\N	2026-10-13 03:45:09.456	2026-10-13 03:45:09.456	KH109449	MC	Ban nguồn vốn
+987	81	\N	Nguyễn Thị Xuân Hương	0983684466	\N	\N	Lễ tân nhập	244	Nguyễn Hữu Đức	Đã check-in	t	\N	\N	2026-10-13 03:45:29.097	\N	2026-10-13 03:45:29.097	2026-10-13 03:45:35.704	KH129090	MC	Ban nguồn vốn
+988	81	\N	Trần Thị Lệ	0984339962	\N	\N	Lễ tân nhập	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-13 03:45:51.122	\N	2026-10-13 03:45:51.122	2026-10-13 03:45:58.779	KH151115	MC	Ban nguồn vốn
+989	81	\N	Nguyễn Thị Hương	0979831332	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-13 03:46:15.48	\N	2026-10-13 03:46:15.48	2026-10-13 03:46:20.157	KH175475	MC	Khối kinh doanh
+990	81	\N	Đỗ Văn Cước	\N	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-13 03:46:34.467	\N	2026-10-13 03:46:34.467	2026-10-13 03:46:39.741	KH194460	MC	Ban nguồn vốn
+991	81	\N	Nguyễn Thị Phượng	0795436888	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 03:46:57.362	\N	2026-10-13 03:46:57.362	2026-10-13 03:47:02.14	KH217355	MC	Ban nguồn vốn
+992	81	\N	Quỳnh Phương Nam	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 03:47:39.919	\N	2026-10-13 03:47:39.919	2026-10-13 03:47:44.72	KH259912	MC	Ban nguồn vốn
+993	81	\N	Bùi Tường Linh	0357377118	\N	\N	Lễ tân nhập	82	Nguyễn Phú Vụng( A Hoàng)	Đã check-in	t	\N	\N	2026-10-13 03:48:03.233	\N	2026-10-13 03:48:03.233	2026-10-13 03:48:10.35	KH283226	MC	Ban nguồn vốn
+994	81	\N	Nguyễn Văn Khoát	0867571966	\N	\N	Lễ tân nhập	82	Nguyễn Phú Vụng( A Hoàng)	Đã check-in	t	\N	\N	2026-10-13 03:48:27.623	\N	2026-10-13 03:48:27.623	2026-10-13 03:48:32.814	KH307617	MC	Ban nguồn vốn
+995	81	\N	Phạm Thị Thu Tâm	0968652180	\N	\N	Lễ tân nhập	387	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-13 03:48:50.029	\N	2026-10-13 03:48:50.029	2026-10-13 03:48:57.795	KH330021	MC	Ban nguồn vốn
+996	81	\N	Lê Viết Minh	38225583	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-13 03:49:13.843	\N	2026-10-13 03:49:13.843	2026-10-13 03:49:19.908	KH353838	MC	Ban nguồn vốn
+997	81	\N	Lương Xuân Sinh	0918711165	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-13 03:49:33.257	\N	2026-10-13 03:49:33.257	2026-10-13 03:49:38.471	KH373250	MC	Ban nguồn vốn
+998	81	\N	Trần Thị Thoa	0365665361	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-13 03:50:02.784	\N	2026-10-13 03:50:02.784	2026-10-13 03:50:08.836	KH402777	MC	Ban nguồn vốn
+999	81	\N	anh Huyến sơn tây	0983213160	\N	\N	Lễ tân nhập	\N	Trí Dân	Đã check-in	t	\N	\N	2026-10-13 03:50:24.758	\N	2026-10-13 03:50:24.758	2026-10-13 03:50:40.735	KH424751	MC	Ban nguồn vốn
+1000	81	\N	Lê Minh Hồng	0326443236	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:50:58.005	\N	2026-10-13 03:50:58.005	2026-10-13 03:51:08.754	KH457999	MC	Khối kinh doanh
+1001	81	\N	Lê Thị Phương Thu	;0983886428	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 03:51:24.271	\N	2026-10-13 03:51:24.271	2026-10-13 03:51:33.482	KH484264	MC	Ban nguồn vốn
+1002	81	\N	Kiều Tiến Đạt	0937140999	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 03:54:39.6	\N	2026-10-13 03:54:39.6	2026-10-13 03:54:44.237	KH679593	MC	Ban nguồn vốn
+1003	81	\N	Mỹ Hạnh	0906238998	\N	\N	Lễ tân nhập	432	Trần Thị Mai	Đã check-in	t	\N	\N	2026-10-13 03:56:02.606	\N	2026-10-13 03:56:02.606	2026-10-13 03:56:08.486	KH762599	MC	Ban nguồn vốn
+1004	81	\N	Hoàng Văn canh	0312954092	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-13 03:56:25.457	\N	2026-10-13 03:56:25.457	2026-10-13 03:56:30.356	KH785451	MC	Ban nguồn vốn
+1007	82	\N	NGUYỄN ĐỨC HUY	0348778893	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:57:52.335	\N	2026-10-13 03:57:52.335	2026-10-13 03:57:57.718	KH872328	MC	Khối kinh doanh
+1005	82	\N	NGUYỄN THỊ TOÀN	0986915575	\N	\N	Lễ tân nhập	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-13 03:57:07.503	\N	2026-10-13 03:57:07.503	2026-10-13 03:57:18.777	KH827496	MC	Ban nguồn vốn
+1006	82	\N	NGUYỄN THỊ LOAN	0912415469	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-13 03:57:33.055	\N	2026-10-13 03:57:33.055	2026-10-13 03:57:38.091	KH853048	MC	Ban nguồn vốn
+1008	82	\N	LÊ THỊ THẢO	0904360412	\N	\N	Lễ tân nhập	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 03:58:10.78	\N	2026-10-13 03:58:10.78	2026-10-13 03:58:18.099	KH890773	MC	Khối kinh doanh
+1009	82	\N	NGUYỄN KHÁNH THUẬN	033490225	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-13 03:58:33.471	\N	2026-10-13 03:58:33.471	2026-10-13 03:58:40.771	KH913464	MC	Ban nguồn vốn
+1010	82	\N	TRẦN THU HƯƠNG	0329316443	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-13 03:58:59.033	\N	2026-10-13 03:58:59.033	2026-10-13 03:59:04.079	KH939028	MC	Ban nguồn vốn
+1011	82	\N	NGUYỄN THỊ THU HÀ	0942640310	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 03:59:18.871	\N	2026-10-13 03:59:18.871	2026-10-13 03:59:29.051	KH958864	MC	Khối kinh doanh
+1012	82	\N	PHẠM THỊ CHIẾN	0338863235	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 04:00:20.833	\N	2026-10-13 04:00:20.833	2026-10-13 04:00:25.957	KH020827	MC	Khối kinh doanh
+1013	82	\N	LÊ VĂN HẢI	0903213785	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-13 04:00:40.679	\N	2026-10-13 04:00:40.679	2026-10-13 04:00:45.022	KH040673	MC	Ban nguồn vốn
+1014	82	\N	NGUYỄN ĐẶNG TIẾN	0384566634	\N	\N	Lễ tân nhập	\N	NDT	Đã check-in	t	\N	\N	2026-10-13 04:00:57.975	\N	2026-10-13 04:00:57.975	2026-10-13 04:01:05.927	KH057969	MC	Ban nguồn vốn
+1015	82	\N	NGUYỄN VĂN NGHĨA	0833931919	\N	\N	Lễ tân nhập	400	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-13 04:01:20.682	\N	2026-10-13 04:01:20.682	2026-10-13 04:01:30.909	KH080674	MC	Ban nguồn vốn
+1016	82	\N	TRỊNH QUỐC TUẤN	0966588977	\N	\N	Lễ tân nhập	400	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-13 04:01:44.839	\N	2026-10-13 04:01:44.839	2026-10-13 04:01:48.959	KH104832	MC	Ban nguồn vốn
+1017	82	\N	NGUYỄN THỊ HÀ	0336253458	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-13 04:02:05.549	\N	2026-10-13 04:02:05.549	2026-10-13 04:02:20.717	KH125542	MC	Ban nguồn vốn
+1018	82	\N	NGUYỄN KHẮC TÂN	0968895715	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-13 04:02:34.399	\N	2026-10-13 04:02:34.399	2026-10-13 04:02:44.014	KH154392	MC	Ban nguồn vốn
+1019	82	\N	NGUYỄN THỊ LAN	0386588314	\N	\N	Lễ tân nhập	\N	Thanh Nguyễn	Đã check-in	t	\N	\N	2026-10-13 04:02:58.436	\N	2026-10-13 04:02:58.436	2026-10-13 04:03:13.391	KH178429	MC	Ban nguồn vốn
+1020	82	\N	HOÀNG VĂN CANH	0342954092	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-13 04:03:29.072	\N	2026-10-13 04:03:29.072	2026-10-13 04:03:33.85	KH209066	MC	Ban nguồn vốn
+1021	82	\N	PHẠM VĂN HÙNG	0344364789	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-13 04:03:45.59	\N	2026-10-13 04:03:45.59	2026-10-13 04:03:51.223	KH225584	MC	Ban nguồn vốn
+1022	84	\N	ĐỖ XUÂN CƯỚC	0979831332	\N	\N	Lễ tân nhập	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-13 04:04:26.865	\N	2026-10-13 04:04:26.865	2026-10-13 04:04:31.636	KH266858	MC	Ban nguồn vốn
+1023	84	\N	NGUYỄN THỊ BÍCH	0912250982	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 04:04:45.331	\N	2026-10-13 04:04:45.331	2026-10-13 04:04:52.334	KH285324	MC	Khối kinh doanh
+1024	84	\N	ĐĂNG ĐÌNH CHIẾN	0917842129	\N	\N	Lễ tân nhập	401	Vũ Hùng Vỹ	Đã check-in	t	\N	\N	2026-10-13 04:05:08.617	\N	2026-10-13 04:05:08.617	2026-10-13 04:05:17.716	KH308611	MC	Khối kinh doanh
+1025	84	\N	TRẦN VĂN LONG	0346126969	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 04:05:30.62	\N	2026-10-13 04:05:30.62	2026-10-13 04:05:37.999	KH330613	MC	Khối kinh doanh
+1026	84	\N	VƯƠNG KIM CHUNG	0919944449	\N	\N	Lễ tân nhập	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-13 04:05:52.012	\N	2026-10-13 04:05:52.012	2026-10-13 04:05:58.663	KH352007	MC	Khối kinh doanh
+1027	84	\N	PHẠM THỊ THUẬN	0866628865	\N	\N	Lễ tân nhập	363	Nguyễn Thị Hồng Minh	Đã check-in	t	\N	\N	2026-10-13 04:06:15.306	\N	2026-10-13 04:06:15.306	2026-10-13 04:06:21.705	KH375299	MC	Ban nguồn vốn
+1028	84	\N	NGUYỄN THỊ BẢY	0912882722	\N	\N	Lễ tân nhập	363	Nguyễn Thị Hồng Minh	Đã check-in	t	\N	\N	2026-10-13 04:06:36.216	\N	2026-10-13 04:06:36.216	2026-10-13 04:06:42.672	KH396208	MC	Ban nguồn vốn
+1029	84	\N	TRẦN MỸ LỆ	0903446481	\N	\N	Lễ tân nhập	\N	Nguyễn Anh Phương	Đã check-in	t	\N	\N	2026-10-13 04:07:02.533	\N	2026-10-13 04:07:02.533	2026-10-13 04:07:18.409	KH422526	MC	Khối kinh doanh
+90	39	110	Ngô Huyền Dịu	0353729533	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-09-23 06:24:07.477	2026-09-23 07:04:13.028	2026-09-23 06:24:07.477	2026-10-15 04:19:26.048	QR-39-817579	MC	Khối kinh doanh
+1030	84	\N	ĐỖ THANH XUÂN	0372133945	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 04:07:34.365	\N	2026-10-13 04:07:34.365	2026-10-13 04:07:39.047	KH454358	MC	Ban nguồn vốn
+1031	84	\N	ĐỖ THỊ HẢI	0965213486	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 04:07:52.841	\N	2026-10-13 04:07:52.841	2026-10-13 04:07:57.988	KH472834	MC	Ban nguồn vốn
+1032	84	\N	NGUYỄN VINH QUANG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:08:15.314	\N	2026-10-13 04:08:15.314	2026-10-13 04:08:15.314	KH495306	MC	Ban nguồn vốn
+1033	84	\N	PHẠM THÚY LAN	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:08:25.355	\N	2026-10-13 04:08:25.355	2026-10-13 04:08:25.355	KH505347	MC	Ban nguồn vốn
+1034	84	\N	NGUYỄN THỊ THANH	0911049542	\N	\N	Lễ tân nhập	170	Đào Thị Mai	Đã check-in	t	\N	\N	2026-10-13 04:08:45.451	\N	2026-10-13 04:08:45.451	2026-10-13 04:08:51.986	KH525444	MC	Ban nguồn vốn
+1035	84	\N	DƯƠNG THỊ THANH	0962683595	\N	\N	Lễ tân nhập	\N	Cao Thị Lan Hương	Đã check-in	t	\N	\N	2026-10-13 04:09:08.14	\N	2026-10-13 04:09:08.14	2026-10-13 04:09:31.292	KH548133	MC	Ban nguồn vốn
+1036	84	\N	HOÀNG VĂN HẢI	0819769898	\N	\N	Lễ tân nhập	363	Nguyễn Thị Hồng Minh	Đã check-in	t	\N	\N	2026-10-13 04:09:44.85	\N	2026-10-13 04:09:44.85	2026-10-13 04:09:53.208	KH584844	MC	Ban nguồn vốn
+1037	84	\N	ĐỖ THÚY HẰNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:10:02.353	\N	2026-10-13 04:10:02.353	2026-10-13 04:10:02.353	KH602347	MC	Ban nguồn vốn
+1038	84	\N	NGUYỄN THỊ HẰNG	086776875	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 04:10:16.459	\N	2026-10-13 04:10:16.459	2026-10-13 04:10:21.353	KH616454	MC	Khối kinh doanh
+1039	84	\N	ĐINH THỊ HƯƠNG	0358566273	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-13 04:10:36.135	\N	2026-10-13 04:10:36.135	2026-10-13 04:10:44.004	KH636128	MC	Ban nguồn vốn
+1040	84	\N	TUẤN	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:10:57.292	2026-10-13 04:10:59.833	2026-10-13 04:10:57.292	2026-10-13 04:10:59.833	KH657285	MC	Ban nguồn vốn
+1041	84	\N	NGỌ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:11:10.201	\N	2026-10-13 04:11:10.201	2026-10-13 04:11:10.201	KH670193	MC	Ban nguồn vốn
+1042	84	\N	BẢO	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:11:22.112	\N	2026-10-13 04:11:22.112	2026-10-13 04:11:26.525	KH682105	MC	Ban nguồn vốn
+1043	84	\N	NGUYỄN HẢI QUÝ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:11:35.748	\N	2026-10-13 04:11:35.748	2026-10-13 04:11:35.748	KH695741	MC	Ban nguồn vốn
+1044	84	\N	NGUYỄN ĐỨC DÂN	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:11:43.774	\N	2026-10-13 04:11:43.774	2026-10-13 04:11:48.77	KH703767	MC	Ban nguồn vốn
+1045	84	\N	CAO MINH CHÍNH	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:12:04.547	\N	2026-10-13 04:12:04.547	2026-10-13 04:12:09.881	KH724540	MC	Ban nguồn vốn
+1046	84	\N	NGUYỄN THỊ XUYÊN	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:12:17.812	\N	2026-10-13 04:12:17.812	2026-10-13 04:12:23.02	KH737806	MC	Ban nguồn vốn
+1047	84	\N	NGUYỄN THỊ CHUYÊN	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:12:32.241	\N	2026-10-13 04:12:32.241	2026-10-13 04:12:36.74	KH752235	MC	Ban nguồn vốn
+1048	84	\N	LÊ THỊ BÍCH	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:12:47.468	\N	2026-10-13 04:12:47.468	2026-10-13 04:12:47.468	KH767461	MC	Ban nguồn vốn
+1049	84	\N	LÊ THỊ BÍCH	\N	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:12:47.681	\N	2026-10-13 04:12:47.681	2026-10-13 04:12:53.116	KH767673	MC	Ban nguồn vốn
+1050	84	\N	ĐẶNG TRƯỜNG GIANG	0387668113	\N	\N	Lễ tân nhập	\N	Lê Phương Thu	Đã check-in	t	\N	\N	2026-10-13 04:13:13.671	\N	2026-10-13 04:13:13.671	2026-10-13 04:13:39.946	KH793665	MC	Ban nguồn vốn
+1051	84	\N	NGUYỄN VĂN BẮC	0375567614	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-13 04:14:01.108	\N	2026-10-13 04:14:01.108	2026-10-13 04:14:05.752	KH841102	MC	Ban nguồn vốn
+1052	84	\N	NGUYỄN THỊ NGA	0982420567	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-13 04:14:19.584	\N	2026-10-13 04:14:19.584	2026-10-13 04:14:26.254	KH859578	MC	Ban nguồn vốn
+1053	84	\N	NGUYỄN THU TRANG	0983308885	\N	\N	Lễ tân nhập	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-13 04:14:40.236	\N	2026-10-13 04:14:40.236	2026-10-13 04:14:45.442	KH880230	MC	Ban nguồn vốn
+1054	84	\N	HOÀNG VĂN NHẬT	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-13 04:15:03.066	\N	2026-10-13 04:15:03.066	2026-10-13 04:15:09.094	KH903060	MC	Ban nguồn vốn
+1055	84	\N	VŨ HÙNG VĨ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:01.865	\N	2026-10-13 04:16:01.865	2026-10-13 04:16:01.865	KH961859	MC	Khối kinh doanh
+1056	84	\N	VŨ HÙNG VĨ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:02.123	\N	2026-10-13 04:16:02.123	2026-10-13 04:16:02.123	KH962117	MC	Khối kinh doanh
+1057	84	\N	HỒNG MINH	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:11.4	\N	2026-10-13 04:16:11.4	2026-10-13 04:16:11.4	KH971394	MC	Ban nguồn vốn
+1058	84	\N	NGUYỄN ANH PHƯƠNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:22.688	\N	2026-10-13 04:16:22.688	2026-10-13 04:16:22.688	KH982681	MC	Ban nguồn vốn
+1059	84	\N	NGỌC THỦ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:31.135	\N	2026-10-13 04:16:31.135	2026-10-13 04:16:31.135	KH991128	MC	Ban nguồn vốn
+1060	84	\N	ĐÀO THỊ MAI	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:45.424	\N	2026-10-13 04:16:45.424	2026-10-13 04:16:45.424	KH005416	MC	Ban nguồn vốn
+1061	84	\N	CAO THỊ LAN HƯƠNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:54.459	\N	2026-10-13 04:16:54.459	2026-10-13 04:16:54.459	KH014452	MC	Ban nguồn vốn
+1063	84	\N	LÊ THỊ THANH HUYỀN	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:15.509	\N	2026-10-13 04:17:15.509	2026-10-13 04:17:15.509	KH035502	MC	Ban nguồn vốn
+1064	84	\N	LÊ PHƯƠNG THU	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:25.53	\N	2026-10-13 04:17:25.53	2026-10-13 04:17:25.53	KH045523	MC	Ban nguồn vốn
+1065	84	\N	NGUYỄN THỊ HƯƠNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:34.778	\N	2026-10-13 04:17:34.778	2026-10-13 04:17:34.778	KH054771	MC	Ban nguồn vốn
+1066	84	\N	CUNG THU HÀ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:51.822	\N	2026-10-13 04:17:51.822	2026-10-13 04:17:51.822	KH071816	MC	Ban nguồn vốn
+1067	83	\N	PHẠM MINH TUẤN	09768635148	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-13 04:18:26.016	\N	2026-10-13 04:18:26.016	2026-10-13 04:18:31.526	KH106009	MC	Khối kinh doanh
+1068	83	\N	TRẦN THỊ HỒNG VÂN	0962240952	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-13 04:18:44.859	\N	2026-10-13 04:18:44.859	2026-10-13 04:18:49.738	KH124852	MC	Khối kinh doanh
+1069	83	\N	PHẠM THỊ HUYỀN	0972315188	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 04:19:04.175	\N	2026-10-13 04:19:04.175	2026-10-13 04:19:09.301	KH144168	MC	Khối kinh doanh
+1070	83	\N	VŨ HÙNG QUÂN	0976475619	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 04:19:21.434	\N	2026-10-13 04:19:21.434	2026-10-13 04:19:26.06	KH161429	MC	Khối kinh doanh
+1071	83	\N	CHÍCH BÔNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:19:34.789	\N	2026-10-13 04:19:34.789	2026-10-13 04:19:34.789	KH174784	MC	Khối kinh doanh
+1072	83	\N	VŨ HÙNG VĨ	0984967555	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:19:50.571	\N	2026-10-13 04:19:50.571	2026-10-13 04:19:50.571	KH190564	MC	Khối kinh doanh
+1073	83	\N	NGUYỄN VĂN HÀ	0946667088	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:20:03.747	\N	2026-10-13 04:20:03.747	2026-10-13 04:20:03.747	KH203742	MC	Khối kinh doanh
+1074	83	\N	HOÀNG VĂN TRUNG	0912150406	\N	\N	Lễ tân nhập	407	Nguyễn Văn Hà	Đã check-in	t	\N	\N	2026-10-13 04:20:22.018	\N	2026-10-13 04:20:22.018	2026-10-13 04:20:33.28	KH222012	MC	Khối kinh doanh
+1075	83	\N	CUNG THU HÀ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:20:47.777	\N	2026-10-13 04:20:47.777	2026-10-13 04:20:47.777	KH247770	MC	Khối kinh doanh
+494	41	417	Đảo Quang Trung	0962839461	\N	Khách mời tham dự	Trang chủ Web	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-10-09 03:19:31.642	2026-10-15 05:03:34.47	2026-10-09 03:19:31.642	2026-10-15 05:03:34.47	QR-41-873205	MC	Khối kinh doanh
+1076	83	\N	NGUYỄN THỊ HOA SINH	0822370198	\N	\N	Lễ tân nhập	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-13 04:21:05.669	\N	2026-10-13 04:21:05.669	2026-10-13 04:21:10.426	KH265663	MC	Khối kinh doanh
+1077	83	\N	NGUYỄN THỊ HÀ	0373360136	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:21:24.926	\N	2026-10-13 04:21:24.926	2026-10-13 04:21:24.926	KH284920	MC	Khối kinh doanh
+1090	41	456	Đăng thị ngọc	0961195756	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 07:59:33.464	2026-10-15 05:03:38.398	2026-10-13 07:59:33.464	2026-10-15 05:03:38.398	QR-41-481726	MC	Khối kinh doanh
+1078	83	\N	NGUYỄN THỊ ĐÔ	0393849868	\N	\N	Lễ tân nhập	145	Nguyễn Thị Hà	Đã check-in	t	\N	\N	2026-10-13 04:21:41.954	\N	2026-10-13 04:21:41.954	2026-10-13 04:21:57.605	KH301949	MC	Khối kinh doanh
+1079	83	\N	NGUYỄN THỊ BẢY	0912882722	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:22:14.09	\N	2026-10-13 04:22:14.09	2026-10-13 04:22:14.09	KH334084	MC	Ban nguồn vốn
+1080	83	\N	ĐÔ THỊ CHỈ	0866917296	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:22:26.315	\N	2026-10-13 04:22:26.315	2026-10-13 04:22:26.315	KH346308	MC	Ban nguồn vốn
+1081	83	\N	ĐÀO THI MỸ	0866628865	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:22:39.84	\N	2026-10-13 04:22:39.84	2026-10-13 04:22:39.84	KH359833	MC	Ban nguồn vốn
+1094	41	459	Nguyễn Thị trang	07871850224	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 11:50:29.877	2026-10-15 05:03:40.141	2026-10-13 11:50:29.877	2026-10-15 05:03:40.141	QR-41-474200	MC	Khối kinh doanh
+1082	83	\N	ĐOÀN THỊ TUYẾT MINH	0836628865	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:22:53.235	\N	2026-10-13 04:22:53.235	2026-10-13 04:23:09.114	KH373228	MC	Ban nguồn vốn
+1095	41	460	Nguyễn Thị Thanh	0369729704	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 11:53:30.148	2026-10-15 05:03:42.827	2026-10-13 11:53:30.148	2026-10-15 05:03:42.827	QR-41-433292	MC	Khối kinh doanh
+1083	83	\N	VŨ NGỌC BẢO	0966289668	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:23:24.581	\N	2026-10-13 04:23:24.581	2026-10-13 04:23:30.25	KH404574	MC	Ban nguồn vốn
+1098	41	154	P	0876766327	\N	Khách mời tham dự	Trang chủ Web	154	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-14 00:44:18.355	2026-10-15 05:03:46.733	2026-10-14 00:44:18.355	2026-10-15 05:03:46.733	QR-41-381535	MC	Khối kinh doanh
+1084	83	\N	NGUYỄN TIỀN SỬU	0332871354	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:23:42.958	\N	2026-10-13 04:23:42.958	2026-10-13 04:23:55.982	KH422950	MC	Ban nguồn vốn
+1085	83	\N	LÊ THỊ HÀ	0333088873	\N	\N	Lễ tân nhập	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-13 04:24:08.418	\N	2026-10-13 04:24:08.418	2026-10-13 04:24:16.539	KH448411	MC	Ban nguồn vốn
+1086	83	\N	NGUYỄN HẢI QUÝ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:24:26.04	\N	2026-10-13 04:24:26.04	2026-10-13 04:24:26.04	KH466033	MC	Ban nguồn vốn
+1087	83	\N	LÊ THỊ HUYỀN TRANG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:24:35.154	\N	2026-10-13 04:24:35.154	2026-10-13 04:24:35.154	KH475147	MC	Ban nguồn vốn
+1088	83	\N	CAO MINH CHỈNH	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:24:43.35	\N	2026-10-13 04:24:43.35	2026-10-13 04:24:43.35	KH483343	MC	Ban nguồn vốn
+1092	85	87	Lê Thị Thanh Huyền	0886265813	\N	Khách mời tham dự	Trang chủ Web	\N	0983009962phan thị thanh thuỷ	Đã đăng ký	t	\N	\N	2026-10-13 10:05:53.176	\N	2026-10-13 10:05:53.176	2026-10-13 10:05:53.176	QR-85-887951	MC	Khối kinh doanh
+1097	66	461	Hòang quang Huy	0352832736	\N	Khách mời tham dự	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-13 15:08:30.762	\N	2026-10-13 15:08:30.762	2026-10-13 15:08:30.762	QR-66-407179	MC	Khối kinh doanh
+1099	65	462	Đỗ Thị Nhiệm	0985016368	\N	Khách mời tham dự	Trang chủ Web	\N	Tràn Thị Thanh Hương	Đã đăng ký	t	\N	\N	2026-10-14 00:48:35.642	\N	2026-10-14 00:48:35.642	2026-10-14 00:48:35.642	QR-65-941671	MC	Khối kinh doanh
+1100	85	\N	Hoàng Thị Bích	0904708586	\N	\N	Lễ tân nhập	\N	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-14 01:25:41.768	2026-10-14 02:25:42.028	2026-10-14 01:25:41.768	2026-10-14 02:25:42.028	KH141760	MC	Khối kinh doanh
+1102	65	463	Nguyễn Thị Yến	0347871795	\N	Khách mời tham dự	Trang chủ Web	155	Trần thị minh thu	Đã đăng ký	t	\N	\N	2026-10-14 01:48:25.937	\N	2026-10-14 01:48:25.937	2026-10-14 01:48:25.937	QR-65-161282	MC	Khối kinh doanh
+1103	65	155	Trần thị Minh Thu	0856108703	\N	Khách mời tham dự	Trang chủ Web	\N	Trần thị thanh huong	Đã đăng ký	t	\N	\N	2026-10-14 01:51:23.628	\N	2026-10-14 01:51:23.628	2026-10-14 01:51:23.628	QR-65-851120	MC	Khối kinh doanh
+1091	85	15	Vũ Thị Cúc	0889225989	\N	\N	Trang chủ Web	\N	Nguyễn Thị Hương Thảo	Đã hủy	f	\N	\N	2026-10-13 08:08:54.458	\N	2026-10-13 08:08:54.458	2026-10-14 01:51:38.767	QR-85-989621	MC	Khối kinh doanh
+1105	85	47	Đào Thị Lan	0976067881	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-14 01:54:15.775	2026-10-14 02:25:10.318	2026-10-14 01:54:15.775	2026-10-14 02:25:10.318	QR-85-258059	MC	Khối kinh doanh
+1106	85	155	Trần thị Minh Thu	0856108703	\N	Khách mời tham dự	Trang chủ Web	\N	Trần thị thanh huong	Đã check-in	t	\N	\N	2026-10-14 02:17:16.52	2026-10-14 02:25:18.247	2026-10-14 02:17:16.52	2026-10-14 02:25:18.247	QR-85-776467	MC	Khối kinh doanh
+1101	85	\N	Nguyễn Thị Linh	0983157585	\N	\N	Lễ tân nhập	\N	Hoàng Thị Bích	Đã check-in	t	\N	\N	2026-10-14 01:31:04.501	2026-10-14 02:25:26.27	2026-10-14 01:31:04.501	2026-10-14 02:25:26.27	KH464493	MC	Khối kinh doanh
+1104	85	158	Ngô Ứng Hoà	0913213060	\N	Khách mời tham dự	Trang chủ Web	403	Đào Thị Hòa	Đã check-in	t	\N	\N	2026-10-14 01:53:48.88	2026-10-14 02:25:13.128	2026-10-14 01:53:48.88	2026-10-14 02:27:05.827	QR-85-471320	MC	Khối kinh doanh
+1107	85	464	Trần Bích Uyên	0977956825	\N	Khách mời tham dự	Trang chủ Web	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-10-14 02:30:19.964	2026-10-14 02:30:58.133	2026-10-14 02:30:19.964	2026-10-14 02:30:58.133	QR-85-120613	MC	Khối kinh doanh
+1111	85	466	Nguyễn Thị Yến	0967765626	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	t	\N	\N	2026-10-14 02:36:06.76	2026-10-14 02:37:17.969	2026-10-14 02:36:06.76	2026-10-14 02:37:17.969	QR-85-362169	MC	Ban nguồn vốn
+1109	85	150	Đào Thị Hoà	0981398785	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-14 02:32:40.093	2026-10-14 02:37:19.469	2026-10-14 02:32:40.093	2026-10-14 02:37:19.469	QR-85-545459	MC	Khối kinh doanh
+1108	85	154	Trần Thị Thanh Hương	0876766327	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-14 02:31:46.728	2026-10-14 02:37:20.049	2026-10-14 02:31:46.728	2026-10-14 02:37:20.049	QR-85-126832	MC	Khối kinh doanh
+1096	85	\N	Nguyễn Thị Tâm	0987527608	\N	\N	Đăng ký hộ	15	Vũ Thị Cúc (0889225989)	Đã check-in	t	\N	Đăng ký hộ bởi Vũ Thị Cúc (0889225989)	2026-10-13 14:05:17.242	2026-10-14 03:03:57.327	2026-10-13 14:05:17.242	2026-10-14 03:03:57.327	KH317237	MC	Khối kinh doanh
+1114	85	462	Đỗ Thị Nhiệm	0985016368	\N	Khách mời tham dự	Trang chủ Web	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-14 02:51:03.39	2026-10-14 02:53:14.894	2026-10-14 02:51:03.39	2026-10-14 02:53:14.894	QR-85-840624	MC	Khối kinh doanh
+1120	85	146	Nguyễn Thị Nhạn	0982882523	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-14 03:00:41.177	2026-10-14 03:05:52.337	2026-10-14 03:00:41.177	2026-10-14 03:05:52.337	QR-85-839121	MC	Ban nguồn vốn
+1110	85	465	Nguyễn Mai Thiện	0986813114	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-14 02:33:50.643	2026-10-14 02:37:18.609	2026-10-14 02:33:50.643	2026-10-14 02:37:18.609	QR-85-483947	MC	Khối kinh doanh
+1112	85	467	Trần Văn Lâm	0983406098	\N	Khách mời tham dự	Trang chủ Web	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-14 02:37:55.024	2026-10-14 02:45:15.756	2026-10-14 02:37:55.024	2026-10-14 02:45:15.756	QR-85-573207	MC	Khối kinh doanh
+1089	41	455	Qoan` thị lan	0983276323	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-13 07:56:55.101	2026-10-15 05:03:35.831	2026-10-13 07:56:55.101	2026-10-15 05:03:35.831	QR-41-746439	MC	Khối kinh doanh
+1136	85	483	Ngô Thị Kim Thư	0834830927	\N	Khách mời tham dự	Trang chủ Web	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-14 03:17:29.56	2026-10-14 03:31:19.839	2026-10-14 03:17:29.56	2026-10-14 03:31:19.839	QR-85-572318	MC	Khối kinh doanh
+1135	85	51	Lương Hồng Hải	0919520885	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-14 03:16:36.328	2026-10-14 03:31:22.125	2026-10-14 03:16:36.328	2026-10-14 03:31:22.125	QR-85-262993	MC	Khối kinh doanh
+1210	86	\N	Nguyễn Thu Hương	0986849666	\N	\N	Lễ tân nhập	121	Ngô Quang Trung	Đã check-in	t	\N	\N	2026-10-17 02:31:11.03	\N	2026-10-17 02:31:11.03	2026-10-17 02:31:35.44	KH271023	MC	Khối kinh doanh
+1093	85	458	phan thị thanh thuỷ	0983009962	\N	Khách mời tham dự	Trang chủ Web	\N	0886265813Lê thị thanh huyền	Đã check-in	t	\N	\N	2026-10-13 10:08:52.195	2026-10-14 02:52:54.57	2026-10-13 10:08:52.195	2026-10-14 02:52:54.57	QR-85-561403	MC	Khối kinh doanh
+1115	85	469	Trương Thục Định	0356100791	\N	Khách mời tham dự	Trang chủ Web	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-14 02:51:38.111	2026-10-14 02:53:16.721	2026-10-14 02:51:38.111	2026-10-14 02:53:16.721	QR-85-175562	MC	Khối kinh doanh
+378	42	322	Lê Hồng Liên	0384473988	\N	Khách mời tham dự	Trang chủ Web	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	f	\N	\N	2026-10-03 03:36:23.046	2026-10-03 04:34:10.454	2026-10-03 03:36:23.046	2026-10-15 06:36:37.323	QR-42-931270	MC	Ban nguồn vốn
+1118	85	185	Nguyễn Văn Nghĩa	0833931919	\N	Khách mời tham dự	Trang chủ Web	389	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-14 02:54:30.731	2026-10-14 02:55:21.146	2026-10-14 02:54:30.731	2026-10-14 02:55:21.146	QR-85-864426	MC	Khối kinh doanh
+1119	85	472	Nguyễn Văn Tạ	0968827786	\N	Khách mời tham dự	Trang chủ Web	185	Nguyễn Văn nghĩa	Đã check-in	t	\N	\N	2026-10-14 02:55:05.791	2026-10-14 02:55:25.729	2026-10-14 02:55:05.791	2026-10-14 02:55:25.729	QR-85-267822	MC	Khối kinh doanh
+370	42	316	Nguyễn Tuấn Hồng	0399812392	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:27:44.597	2026-10-03 04:34:04.342	2026-10-03 03:27:44.597	2026-10-15 06:37:15.899	QR-42-461371	MC	Ban nguồn vốn
+1116	85	470	Nguyễn Thị Yến	034781795	\N	Khách mời tham dự	Trang chủ Web	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-14 02:52:06.547	2026-10-14 02:53:18.383	2026-10-14 02:52:06.547	2026-10-14 02:55:59.066	QR-85-232820	MC	Khối kinh doanh
+1123	85	240	Trần Ngọc Lan	0348616616	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-14 03:07:21.448	2026-10-14 03:08:25.379	2026-10-14 03:07:21.448	2026-10-14 03:08:25.379	QR-85-973658	MC	Ban nguồn vốn
+1124	85	475	Vũ Văn Kiên	0967773184	\N	Khách mời tham dự	Trang chủ Web	45	Chu Thị Lương	Đã check-in	t	\N	\N	2026-10-14 03:07:45.688	2026-10-14 03:08:25.972	2026-10-14 03:07:45.688	2026-10-14 03:08:25.972	QR-85-966725	MC	Ban nguồn vốn
+1117	85	471	Nguyễn Quang Ánh	0332706584	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy (N_+84945172578)	Đã check-in	t	\N	\N	2026-10-14 02:52:14.308	2026-10-14 03:09:25.784	2026-10-14 02:52:14.308	2026-10-14 03:09:25.784	QR-85-888424	MC	Ban nguồn vốn
+367	42	313	Nguyễn Thị Hằng	0958003134	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:26:54.033	2026-10-03 04:34:00.995	2026-10-03 03:26:54.033	2026-10-15 06:37:29.874	QR-42-833576	MC	Ban nguồn vốn
+354	42	301	Nguyễn Hải Quý	0974684398	\N	Khách mời tham dự	Trang chủ Web	196	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-03 03:15:10.391	2026-10-03 03:24:39.352	2026-10-03 03:15:10.391	2026-10-15 06:38:50.502	QR-42-866078	MC	Ban nguồn vốn
+801	72	\N	Nguyễn Thị Hương	0945377870	\N	\N	Lễ tân nhập	248	Lưu Đức Ngọ	Đã check-in	t	\N	\N	2026-10-12 08:06:12.138	\N	2026-10-12 08:06:12.138	2026-10-15 08:13:52.857	KH372131	MC	Khối kinh doanh
+791	72	\N	Phạm Thị Vân	914626383	\N	\N	Lễ tân nhập	243	Phạm Vinh Quang	Đã check-in	t	\N	\N	2026-10-12 08:00:33.248	\N	2026-10-12 08:00:33.248	2026-10-15 08:15:12.442	KH033242	MC	Khối kinh doanh
+1175	41	487	Đô đắc chiều	0392899842	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã đăng ký	t	\N	\N	2026-10-16 12:33:35.651	\N	2026-10-16 12:33:35.651	2026-10-16 12:33:35.651	QR-41-966150	MC	Khối kinh doanh
+1176	85	488	Tran le phat dat	0947289003	\N	Khách mời tham dự	Trang chủ Web	\N	0886265813 le thi thanh huyen	Đã đăng ký	t	\N	\N	2026-10-16 15:10:50.054	\N	2026-10-16 15:10:50.054	2026-10-16 15:10:50.054	QR-85-641378	MC	Khối kinh doanh
+1179	86	155	Trần thị Minh Thu	0856108703	\N	\N	Trang chủ Web	\N	Trần thị thanh huong	Đã check-in	t	\N	\N	2026-10-17 01:33:18.442	2026-10-17 01:33:18.434	2026-10-17 01:33:18.442	2026-10-17 01:33:18.442	QR-86-307663	MC	Khối kinh doanh
+1180	86	154	Trần thị thanh huong	0876766327	\N	\N	Trang chủ Web	154	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-17 01:36:21.384	2026-10-17 01:36:21.376	2026-10-17 01:36:21.384	2026-10-17 01:36:21.384	QR-86-249623	MC	Khối kinh doanh
+1173	86	465	Nguyễn Mai Thiện	0986813114	\N	Khách mời tham dự	Trang chủ Web	\N	0974 478 595	Đã check-in	t	\N	\N	2026-10-16 05:02:51.128	2026-10-17 01:37:43.132	2026-10-16 05:02:51.128	2026-10-17 01:37:43.132	QR-86-535239	MC	Khối kinh doanh
+1192	86	\N	Ng Thị Duống	0367862598	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:57:10.092	2026-10-17 01:59:45.701	2026-10-17 01:57:10.092	2026-10-17 01:59:45.701	KH230085	MC	Khối kinh doanh
+1190	86	\N	Lê Thị Đơ	0342023883	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:56:13.657	2026-10-17 01:59:47.091	2026-10-17 01:56:13.657	2026-10-17 01:59:47.091	KH173650	MC	Khối kinh doanh
+1183	86	\N	Đào Thị Tươi	\N	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:50:18.532	2026-10-17 01:59:48.993	2026-10-17 01:50:18.532	2026-10-17 01:59:48.993	KH818525	MC	Khối kinh doanh
+1177	86	471	Nguyễn Quang Ánh	0332706584	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy (N_+84945172578)	Đã check-in	t	\N	\N	2026-10-16 23:58:19.333	2026-10-17 01:59:53.654	2026-10-16 23:58:19.333	2026-10-17 01:59:53.654	QR-86-335704	MC	Ban nguồn vốn
+1174	86	485	Nguyễn Thị Hồng	0974478595	\N	Khách mời tham dự	Trang chủ Web	465	Nguyễn Mai Thiện	Đã check-in	t	\N	\N	2026-10-16 05:04:11.257	2026-10-17 01:59:55.46	2026-10-16 05:04:11.257	2026-10-17 01:59:55.46	QR-86-477146	MC	Khối kinh doanh
+1193	86	498	Đặng Diệp Hà	0901771966	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:57:31.909	2026-10-17 02:00:12.378	2026-10-17 01:57:31.909	2026-10-17 02:00:12.378	QR-86-621853	MC	Khối kinh doanh
+1195	86	133	Bùi Thị Nguyệt	0932003666	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:57:54.395	2026-10-17 02:00:15.345	2026-10-17 01:57:54.395	2026-10-17 02:00:15.345	QR-86-523602	MC	Khối kinh doanh
+1189	86	496	Hoàng Văn Thoại	0986577981	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-17 01:55:36.774	2026-10-17 02:00:20.693	2026-10-17 01:55:36.774	2026-10-17 02:00:20.693	QR-86-245866	MC	Khối kinh doanh
+1188	86	486	Hoàng thị huề	0966116573	\N	Khách mời tham dự	Trang chủ Web	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-17 01:54:41.696	2026-10-17 02:00:22.58	2026-10-17 01:54:41.696	2026-10-17 02:00:22.58	QR-86-339089	MC	Khối kinh doanh
+1182	86	491	Nguyễn Thị Vui	0377009738	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-17 01:49:57.295	2026-10-17 02:00:37.714	2026-10-17 01:49:57.295	2026-10-17 02:00:37.714	QR-86-979455	MC	Khối kinh doanh
+1184	86	492	Phạm Thị Minh	0336879363	\N	Khách mời tham dự	Trang chủ Web	491	Nguyễn Thị Vui	Đã check-in	t	\N	\N	2026-10-17 01:50:31.417	2026-10-17 02:00:41.028	2026-10-17 01:50:31.417	2026-10-17 02:00:41.028	QR-86-219786	MC	Khối kinh doanh
+1185	86	493	Hứa Xuân Từ	0387077698	\N	Khách mời tham dự	Trang chủ Web	491	Nguyễn Thị Vui	Đã check-in	t	\N	\N	2026-10-17 01:51:49.988	2026-10-17 02:00:46.228	2026-10-17 01:51:49.988	2026-10-17 02:00:46.228	QR-86-687195	MC	Khối kinh doanh
+1186	86	494	Vũ Thị Phiêm	0862548959	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-17 01:52:54.699	2026-10-17 02:00:54.013	2026-10-17 01:52:54.699	2026-10-17 02:00:54.013	QR-86-849071	MC	Khối kinh doanh
+1187	86	495	Đỗ Duy Trưởng	0988834544	\N	Khách mời tham dự	Trang chủ Web	278	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-17 01:54:29.009	2026-10-17 02:00:57.952	2026-10-17 01:54:29.009	2026-10-17 02:00:57.952	QR-86-394052	MC	Khối kinh doanh
+1191	86	497	Nguyễn Thị Mai	0961185655	\N	Khách mời tham dự	Trang chủ Web	475	Vũ Văn Kiên	Đã check-in	t	\N	\N	2026-10-17 01:56:34.414	2026-10-17 02:00:10.309	2026-10-17 01:56:34.414	2026-10-17 02:08:03.478	QR-86-400211	MC	Ban nguồn vốn
+1113	85	468	Nguyễn Trí Đạo	0913043791	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-14 02:49:57.544	2026-10-14 02:53:13.922	2026-10-14 02:49:57.544	2026-10-14 03:01:12.485	QR-85-488613	MC	Khối kinh doanh
+1128	85	477	Nguyễn Thị Liễu	0967143276	\N	Khách mời tham dự	Trang chủ Web	381	Nguyễn Th��� Thịnh	Đã check-in	t	\N	\N	2026-10-14 03:10:45.569	2026-10-14 03:13:15.201	2026-10-14 03:10:45.569	2026-10-14 10:51:43.415	QR-85-915049	MC	Ban nguồn vốn
+1121	85	473	Vũ Công Nghệ	0335892388	\N	Khách mời tham dự	Trang chủ Web	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-14 03:05:35.344	2026-10-14 03:05:51.687	2026-10-14 03:05:35.344	2026-10-14 03:05:51.687	QR-85-737357	MC	Ban nguồn vốn
+1122	85	474	Lê Văn Cương	0979701466	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-14 03:06:36.197	2026-10-14 03:08:24.586	2026-10-14 03:06:36.197	2026-10-14 03:08:24.586	QR-85-258102	MC	Khối kinh doanh
+1125	85	319	Kiều Tâm	0918140195	\N	Khách mời tham dự	Trang chủ Web	\N	CTV	Đã check-in	t	\N	\N	2026-10-14 03:08:07.541	2026-10-14 03:08:26.503	2026-10-14 03:08:07.541	2026-10-14 03:08:26.503	QR-85-510760	MC	Ban nguồn vốn
+1129	85	478	Hoàng Nga	0904383332	\N	Khách mời tham dự	Trang chủ Web	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-14 03:11:40.034	2026-10-14 03:13:16.227	2026-10-14 03:11:40.034	2026-10-14 10:51:46.759	QR-85-413093	MC	Ban nguồn vốn
+1127	85	476	Hoàng Thị Mai Lý	0382127573	\N	Khách mời tham dự	Trang chủ Web	\N	NĐT	Đã check-in	t	\N	\N	2026-10-14 03:09:47.399	2026-10-14 03:13:13.354	2026-10-14 03:09:47.399	2026-10-14 03:13:13.354	QR-85-544704	MC	Ban nguồn vốn
+1181	86	490	Phạm Thị Khánh Vân	0987033405	\N	\N	Trang chủ Web	\N	Trần thị minh thu (0856108703)	Đã check-in	t	\N	\N	2026-10-17 01:38:24.124	2026-10-17 01:38:24.118	2026-10-17 01:38:24.124	2026-10-17 01:38:24.124	QR-86-604713	MC	Khối kinh doanh
+1130	85	479	Ngô Thị Diệu	0362113768	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-14 03:12:25.842	2026-10-14 03:13:16.754	2026-10-14 03:12:25.842	2026-10-14 10:51:49.426	QR-85-844392	MC	Ban nguồn vốn
+1126	85	381	Nguyễn Thị Thịnh	0976651925	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-14 03:09:01.583	2026-10-14 03:13:14.725	2026-10-14 03:09:01.583	2026-10-14 10:51:52.664	QR-85-872502	MC	Ban nguồn vốn
+1131	85	480	Nguyễn Thị Yến	0967765625	\N	Khách mời tham dự	Trang chủ Web	49	Lê Thị Hà	Đã check-in	f	\N	\N	2026-10-14 03:13:07.354	2026-10-14 03:13:17.716	2026-10-14 03:13:07.354	2026-10-14 03:13:17.716	QR-85-161416	MC	Ban nguồn vốn
+1142	85	\N	Lê Thị Hương	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:37:48.477	\N	2026-10-14 03:37:48.477	2026-10-14 03:37:53.446	KH068469	MC	Ban nguồn vốn
+1133	85	482	Nguyễn Công Hùng	0984223191	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-14 03:14:52.598	2026-10-14 03:15:35.981	2026-10-14 03:14:52.598	2026-10-14 03:15:35.981	QR-85-499483	MC	Khối kinh doanh
+1134	85	117	Hoàng Thị Luyện	0972831568	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-14 03:15:25.7	2026-10-14 03:15:36.432	2026-10-14 03:15:25.7	2026-10-14 03:15:36.432	QR-85-268676	MC	Khối kinh doanh
+1132	85	481	Vương Thị Kim Chung	0396837919	\N	Khách mời tham dự	Trang chủ Web	319	Kiều Tâm	Đã check-in	t	\N	\N	2026-10-14 03:13:47.628	2026-10-14 03:15:35.607	2026-10-14 03:13:47.628	2026-10-14 03:32:54.51	QR-85-944128	MC	Ban nguồn vốn
+1143	85	\N	Nguyễn Thị Thủy	0989256916	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:38:16.421	\N	2026-10-14 03:38:16.421	2026-10-14 03:38:21.334	KH096413	MC	Ban nguồn vốn
+1144	85	\N	Nguyễn Thị Thu	0399876582	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:38:55.189	\N	2026-10-14 03:38:55.189	2026-10-14 03:38:59.882	KH135184	MC	Ban nguồn vốn
+1141	85	296	Nguyễn Thị Kim Oanh	0987581195	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:36:35.686	2026-10-14 04:31:11.307	2026-10-14 03:36:35.686	2026-10-14 04:31:11.307	QR-85-636244	MC	Khối kinh doanh
+1140	85	261	Nguyễn Văn Quyết	0328906789	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:36:05.07	2026-10-14 04:31:11.759	2026-10-14 03:36:05.07	2026-10-14 04:31:11.759	QR-85-608629	MC	Khối kinh doanh
+1139	85	263	Nguyễn Thị Chuyên	0969945022	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:35:35.899	2026-10-14 04:31:13.163	2026-10-14 03:35:35.899	2026-10-14 04:31:13.163	QR-85-770078	MC	Khối kinh doanh
+1138	85	484	Trần Văn Thọ	09822295386	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:34:57.41	2026-10-14 04:31:13.586	2026-10-14 03:34:57.41	2026-10-14 04:31:13.586	QR-85-269189	MC	Khối kinh doanh
+1137	85	49	Lê Thị Hà	0333088873	\N	Khách mời tham dự	Trang chủ Web	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 03:33:06.796	2026-10-14 04:31:14.179	2026-10-14 03:33:06.796	2026-10-14 04:31:14.179	QR-85-226377	MC	Khối kinh doanh
+1145	85	\N	Lương Hồng Phong	0967695768	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:31:41.26	\N	2026-10-14 04:31:41.26	2026-10-14 04:31:46.291	KH301253	MC	Ban nguồn vốn
+1146	85	\N	Trần Thị Mạc	0364658692	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:32:06.996	\N	2026-10-14 04:32:06.996	2026-10-14 04:32:11.634	KH326989	MC	Ban nguồn vốn
+1147	85	\N	Nguyễn Thị Liễu	0365658697	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:32:39.928	\N	2026-10-14 04:32:39.928	2026-10-14 04:32:44.223	KH359921	MC	Ban nguồn vốn
+1148	85	\N	Ngô Thị Hằng	0399800192	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:33:04.542	\N	2026-10-14 04:33:04.542	2026-10-14 04:33:09.461	KH384535	MC	Ban nguồn vốn
+1149	85	\N	Bùi Quyết Thắng	0816231188	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:33:30.97	\N	2026-10-14 04:33:30.97	2026-10-14 04:33:35.832	KH410965	MC	Ban nguồn vốn
+1150	85	\N	Đỗ Thị Lanh	0941848473	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:33:58.441	\N	2026-10-14 04:33:58.441	2026-10-14 04:34:03.556	KH438433	MC	Ban nguồn vốn
+1151	85	\N	Nguyễn Thị Thoa	0336066635	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:34:25.781	\N	2026-10-14 04:34:25.781	2026-10-14 04:34:31.553	KH465776	MC	Ban nguồn vốn
+1152	85	\N	Nguyễn Huy Trương	0937833568	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:34:59.17	\N	2026-10-14 04:34:59.17	2026-10-14 04:35:03.416	KH499163	MC	Ban nguồn vốn
+1153	85	\N	Nguyễn Thị Sinh	0865987612	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:35:23.91	\N	2026-10-14 04:35:23.91	2026-10-14 04:35:28.796	KH523905	MC	Ban nguồn vốn
+1154	85	\N	Nguyễn Duy Hướng	0989766028	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:36:05.301	\N	2026-10-14 04:36:05.301	2026-10-14 04:36:09.463	KH565294	MC	Ban nguồn vốn
+1155	85	\N	Phạm Thị Mai	0367140629	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:37:40.371	\N	2026-10-14 04:37:40.371	2026-10-14 04:37:47.756	KH660364	MC	Ban nguồn vốn
+1156	85	\N	Vũ Ngọc Bảo	0966289668	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:38:16.739	\N	2026-10-14 04:38:16.739	2026-10-14 04:38:21.505	KH696732	MC	Ban nguồn vốn
+1157	85	\N	Đoàn Thị Tuyết Minh	0866628865	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:38:44.126	\N	2026-10-14 04:38:44.126	2026-10-14 04:38:48.348	KH724119	MC	Ban nguồn vốn
+1158	85	\N	Đỗ Thị Chỉ	0866917296	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:39:05.528	\N	2026-10-14 04:39:05.528	2026-10-14 04:39:10.002	KH745521	MC	Ban nguồn vốn
+1159	85	\N	Đỗ Thị Thùa	0988369917	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:39:42.588	\N	2026-10-14 04:39:42.588	2026-10-14 04:40:05.588	KH782582	MC	Ban nguồn vốn
+1160	85	\N	Nguyễn Ánh Hướng	0941848572	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:40:25.873	\N	2026-10-14 04:40:25.873	2026-10-14 04:40:33.95	KH825868	MC	Ban nguồn vốn
+1161	85	\N	Nguyễn Thành Long	0947874832	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:40:56.519	\N	2026-10-14 04:40:56.519	2026-10-14 04:41:10.419	KH856513	MC	Ban nguồn vốn
+1162	85	\N	Phạm Thị Hà	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:50:22.322	\N	2026-10-14 04:50:22.322	2026-10-14 04:50:27.336	KH422317	MC	Ban nguồn vốn
+1163	85	\N	Phạm Thị Hồng	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:57:37.72	\N	2026-10-14 04:57:37.72	2026-10-14 04:57:47.017	KH857714	MC	Ban nguồn vốn
+1164	85	\N	Ngô Việt Hoàng	0838113285	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:58:07.971	\N	2026-10-14 04:58:07.971	2026-10-14 04:58:12.325	KH887964	MC	Ban nguồn vốn
+1165	85	\N	Nguyễn Vân Hiền	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:58:46.383	\N	2026-10-14 04:58:46.383	2026-10-14 04:58:51.04	KH926375	MC	Ban nguồn vốn
+1166	85	\N	Nguyễn Thị Hằng	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 04:59:31.671	\N	2026-10-14 04:59:31.671	2026-10-14 04:59:36.401	KH971664	MC	Ban nguồn vốn
+1167	85	\N	Cao Minh Chỉnh	058991688	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 05:00:04.369	\N	2026-10-14 05:00:04.369	2026-10-14 05:00:11.878	KH004363	MC	Ban nguồn vốn
+1216	86	\N	Phạm Thị Thư	0774218977	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-17 02:36:58.306	\N	2026-10-17 02:36:58.306	2026-10-17 02:37:03.463	KH618300	MC	Ban nguồn vốn
+1168	85	\N	Nguyễn Hải Quý	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 05:00:36.272	\N	2026-10-14 05:00:36.272	2026-10-14 05:00:42.308	KH036267	MC	Ban nguồn vốn
+1169	85	\N	Nga	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 05:00:48.855	\N	2026-10-14 05:00:48.855	2026-10-14 05:00:53.281	KH048849	MC	Ban nguồn vốn
+1197	86	\N	Tạ Thị Xuân	0982082497	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:58:40.615	2026-10-17 01:59:40.872	2026-10-17 01:58:40.615	2026-10-17 01:59:40.872	KH320610	MC	Khối kinh doanh
+1170	85	\N	Dung	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 05:01:03.311	\N	2026-10-14 05:01:03.311	2026-10-14 05:01:08.215	KH063305	MC	Ban nguồn vốn
+1194	86	\N	Doãn Thị Tiêm	0976734043	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:57:54.318	2026-10-17 01:59:43.68	2026-10-17 01:57:54.318	2026-10-17 01:59:43.68	KH274313	MC	Khối kinh doanh
+1171	85	\N	Thu	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 05:01:16.061	\N	2026-10-14 05:01:16.061	2026-10-14 05:01:20.689	KH076055	MC	Ban nguồn vốn
+1178	86	489	Phí thị Hương	0947943138	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy (N_+84945172578)	Đã check-in	t	\N	\N	2026-10-17 00:01:27.457	2026-10-17 01:59:50.705	2026-10-17 00:01:27.457	2026-10-17 01:59:50.705	QR-86-748468	MC	Ban nguồn vốn
+1196	86	499	Lê Hằng	0914571331	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:58:19.109	2026-10-17 02:00:16.647	2026-10-17 01:58:19.109	2026-10-17 02:00:16.647	QR-86-571561	MC	Khối kinh doanh
+1217	86	\N	Vũ Văn Chóng	0978502865	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-17 02:37:22.138	\N	2026-10-17 02:37:22.138	2026-10-17 02:37:26.727	KH642131	MC	Ban nguồn vốn
+1198	86	359	Nguyễn Đức Huy	0348778893	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:58:58.834	2026-10-17 02:01:32.621	2026-10-17 01:58:58.834	2026-10-17 02:01:32.621	QR-86-230328	MC	Khối kinh doanh
+1200	86	297	Lê Thị Thảo	0904360412	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:59:26.17	2026-10-17 02:01:37.989	2026-10-17 01:59:26.17	2026-10-17 02:01:37.989	QR-86-563969	MC	Khối kinh doanh
+1199	86	\N	Ng Thị  Tuyết	0367865298	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:59:23.886	2026-10-17 01:59:39.133	2026-10-17 01:59:23.886	2026-10-17 02:07:34.797	KH363879	MC	Khối kinh doanh
+1211	86	\N	Nguyễn Quang Ánh	0933270584	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-17 02:34:42.028	\N	2026-10-17 02:34:42.028	2026-10-17 02:34:48.347	KH482023	MC	Ban nguồn vốn
+1172	85	\N	Thanh	\N	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-14 05:01:28.288	2026-10-14 10:03:50.502	2026-10-14 05:01:28.288	2026-10-14 10:03:50.502	KH088282	MC	Ban nguồn vốn
+1212	86	\N	Nguyễn Thị Nhạn	0982882523	\N	\N	Lễ tân nhập	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-17 02:35:05.4	\N	2026-10-17 02:35:05.4	2026-10-17 02:35:16.369	KH505395	MC	Ban nguồn vốn
+1213	86	\N	Nguyễn Văn Hiền	0827675868	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-17 02:35:34.571	\N	2026-10-17 02:35:34.571	2026-10-17 02:35:39.493	KH534563	MC	Ban nguồn vốn
+1214	86	\N	Hoàng Minh Trí	0388451567	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-17 02:36:06.727	\N	2026-10-17 02:36:06.727	2026-10-17 02:36:11.156	KH566721	MC	Ban nguồn vốn
+1215	86	\N	Vũ Ngọc Thuần	0865675868	\N	\N	Lễ tân nhập	146	Nguyễn Thị Nhạn	Đã check-in	t	\N	\N	2026-10-17 02:36:33.836	\N	2026-10-17 02:36:33.836	2026-10-17 02:36:41.398	KH593829	MC	Ban nguồn vốn
+1218	86	\N	Lê Thị Kim Nhung	0817766857	\N	\N	Lễ tân nhập	165	Phạm Văn thịnh	Đã check-in	t	\N	\N	2026-10-17 02:37:44.834	\N	2026-10-17 02:37:44.834	2026-10-17 02:37:50.274	KH664828	MC	Ban nguồn vốn
+1219	86	\N	Trần Giáp	0988252757	\N	\N	Lễ tân nhập	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-17 02:38:10.034	\N	2026-10-17 02:38:10.034	2026-10-17 02:38:21.007	KH690026	MC	Ban nguồn vốn
+1220	86	\N	Nguyễn Thị Xuân	0862791746	\N	\N	Lễ tân nhập	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-17 02:38:49.697	\N	2026-10-17 02:38:49.697	2026-10-17 02:38:55.694	KH729690	MC	Ban nguồn vốn
+1221	86	\N	Nguyễn Đăng	0988854633	\N	\N	Lễ tân nhập	443	Lê Thị Kim Nhung	Đã check-in	t	\N	\N	2026-10-17 02:39:15.318	\N	2026-10-17 02:39:15.318	2026-10-17 02:39:21.702	KH755313	MC	Ban nguồn vốn
+1222	86	\N	Vũ Thị Tuất	0935667676	\N	\N	Lễ tân nhập	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	t	\N	\N	2026-10-17 02:39:38.348	\N	2026-10-17 02:39:38.348	2026-10-17 02:39:46.452	KH778341	MC	Ban nguồn vốn
+1223	86	\N	Lê Thanh Tâm	0904647856	\N	\N	Lễ tân nhập	185	Nguyễn Văn nghĩa	Đã check-in	t	\N	\N	2026-10-17 02:40:49.519	\N	2026-10-17 02:40:49.519	2026-10-17 02:40:54.569	KH849512	MC	Khối kinh doanh
+1224	86	\N	Nguyễn Văn Nghĩa	0833931919	\N	\N	Lễ tân nhập	400	Nguyễn Thị Nga	Đã check-in	t	\N	\N	2026-10-17 02:41:12.412	\N	2026-10-17 02:41:12.412	2026-10-17 02:41:24.907	KH872404	MC	Khối kinh doanh
+1225	86	\N	Nguyễn Thị Ngọc Dung	0878623232	\N	\N	Lễ tân nhập	\N	\N	Đã hủy	f	\N	\N	2026-10-17 02:41:51.276	\N	2026-10-17 02:41:51.276	2026-10-17 02:42:01.246	KH911270	MC	Khối kinh doanh
+1226	86	\N	Ngô Quang Trung	0913527524	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 02:42:56.597	\N	2026-10-17 02:42:56.597	2026-10-17 02:43:07.98	KH976590	MC	Khối kinh doanh
+1228	86	\N	Nguyễn Thị Hương	0399868786	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 02:44:49.147	\N	2026-10-17 02:44:49.147	2026-10-17 02:44:54.938	KH089140	MC	Khối kinh doanh
+1227	86	\N	Hoàng Văn Đỏ	0904713987	\N	\N	Lễ tân nhập	210	Nguyễn Thị Hương	Đã check-in	t	\N	\N	2026-10-17 02:44:04.91	\N	2026-10-17 02:44:04.91	2026-10-17 02:45:15.973	KH044903	MC	Khối kinh doanh
+1229	86	\N	Hoàng Văn Nhật	0915026767	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 02:45:49.95	\N	2026-10-17 02:45:49.95	2026-10-17 02:45:59.092	KH149943	MC	Khối kinh doanh
+1230	86	\N	Hoàng Kim Hà	0342992267	\N	\N	Lễ tân nhập	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-17 02:46:13.412	\N	2026-10-17 02:46:13.412	2026-10-17 02:46:25.802	KH173404	MC	Khối kinh doanh
+1231	86	\N	Trần Thị Thanh Hương	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 02:47:07.367	\N	2026-10-17 02:47:07.367	2026-10-17 02:47:15.8	KH227362	MC	Khối kinh doanh
+1232	86	\N	Hoàng Thị Chích	0384081272	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 02:47:46.276	\N	2026-10-17 02:47:46.276	2026-10-17 02:47:53.748	KH266269	MC	Khối kinh doanh
 \.
 
 
@@ -2194,32 +2993,34 @@ COPY public.event_schedules (id, event_id, "time", title, speaker, description, 
 --
 
 COPY public.events (id, code, name, short_description, detail_description, event_date, start_time, end_time, location, event_format, fee, registration_deadline, expected_guests, event_type, manager_id, creator_id, status, approval_status, approved_by, approved_at, approval_notes, mc_fee, speaker_fee, support_fee, closer_fee, tea_break_fee, notes, created_at, updated_at, content, image_url) FROM stdin;
-38	EVT20260038	TIỆC TRÀ 18/09/2026	Tiệc trà giao lưu kết nối doanh nghiệp và đối tác	Chương trình tiệc trà kết nối đối tác, mở rộng cơ hội hợp tác và phát triển kinh doanh bền vững.	2026-09-18	08:30:00	11:30:00	Công ty CP Tập đoàn Nghiêng Complex ML6-23 Vinhomes Green Bay đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-10-02 04:32:05.724	\N	0.00	0.00	0.00	0.00	0.00		2026-09-18 13:02:31.952	2026-10-02 04:32:05.71	Chương trình tiệc trà kết nối đối tác, mở rộng cơ hội hợp tác và phát triển kinh doanh bền vững.	/events/hero-banner.jpg
-39	\N	TIỆC TRÀ 22/09/2026	\N		2026-09-22	14:00:00	16:30:00	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-25 07:17:15.597	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-22 10:52:18.252	2026-10-02 04:32:17.674		/events/event-1.jpg
-40	\N	TIỆC TRÀ 26-9-2026	\N	\N	2026-09-26	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	81	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-28 01:32:57.82	\N	200000.00	300000.00	300000.00	200000.00	50000.00	\N	2026-09-24 08:21:26.575	2026-09-28 01:33:13.803	\N	/events/event-1.jpg
-41	\N	TIỆC TRÀ 30-9-2026	\N		2026-09-30	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	89	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-28 09:20:00.24	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-28 02:22:58.792	2026-10-01 02:31:22.768		/events/event-4.jpg
 42	\N	TIỆC TRÀ 03/10/2026	\N		2026-10-03	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	76	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-06 02:41:31.585	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-01 02:29:47.817	2026-10-06 02:41:31.585		/events/event-1.jpg
-64	\N	TIỆC TRÀ SƠN LA 04/10/2026	\N		2026-10-04	\N	\N	Khách sạn Sơn La	\N	0.00	\N	24	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-05 03:37:00.759	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-03 08:41:37.392	2026-10-05 03:37:00.759		/events/event-1.jpg
-65	\N	TIỆC TRÀ 07/10/2026	\N	\N	2026-10-07	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	94	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 03:47:18.32178	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-06 02:42:25.324	2026-10-09 04:14:20.661774	\N	/events/event-1.jpg
-66	\N	TIỆC TRÀ 10-10-2026	\N	\N	2026-10-10	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	58	\N	\N	15	Sắp diễn ra	Chờ duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 03:53:59.41868	2026-10-09 03:53:59.41868	\N	/events/event-1.jpg
-67	\N	TIỆC TRÀ 29/08/2026	\N	\N	2026-08-29	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	41	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 03:58:52.937754	2026-10-09 03:58:52.937754	\N	/events/event-1.jpg
-68	\N	TIỆC TRÀ 12/08/2026	\N	\N	2026-08-12	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:02:05.459992	2026-10-09 04:02:05.459992	\N	/events/event-1.jpg
-69	\N	TIỆC TRÀ 08/08/2026	\N	\N	2026-08-08	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:02:51.12553	2026-10-09 04:02:51.12553	\N	/events/event-1.jpg
-70	\N	TIỆC TRÀ 05/08/2026	\N	\N	2026-08-05	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:03:55.86163	2026-10-09 04:03:55.86163	\N	/events/event-1.jpg
-71	\N	TIỆC TRÀ 01/08/2026	\N	\N	2026-08-01	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:04:29.762597	2026-10-09 04:04:29.762597	\N	/events/event-1.jpg
-72	\N	TIỆC TRÀ 20/06/2026	\N	\N	2026-06-20	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:06:23.696365	2026-10-09 04:06:23.696365	\N	/events/event-1.jpg
-73	\N	TIỆC TRÀ 17/06/2026	\N	\N	2026-06-17	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:06:56.05814	2026-10-09 04:06:56.05814	\N	/events/event-1.jpg
-74	\N	TIỆC TRÀ 24/06/2026	\N	\N	2026-06-24	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:07:34.480437	2026-10-09 04:07:34.480437	\N	/events/event-1.jpg
-75	\N	TIỆC TRÀ 27/06/2026	\N	\N	2026-06-27	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:08.123368	2026-10-09 04:08:08.123368	\N	/events/event-1.jpg
-76	\N	TIỆC TRÀ 01/07/2026	\N	\N	2026-07-01	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:16:02.807638	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:16.751767	2026-10-09 04:16:02.807638	\N	/events/event-1.jpg
-77	\N	TIỆC TRÀ 04/07/2026	\N	\N	2026-07-04	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:59.135422	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:54.602331	2026-10-09 04:15:59.135422	\N	/events/event-1.jpg
-78	\N	TIỆC TRÀ 08/07/2026	\N	\N	2026-07-08	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:56.764284	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:09:29.07687	2026-10-09 04:15:56.764284	\N	/events/event-1.jpg
-79	\N	TIỆC TRÀ 11/07/2026	\N	\N	2026-07-11	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:54.22199	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:10:59.916584	2026-10-09 04:15:54.22199	\N	/events/event-1.jpg
-80	\N	TIỆC TRÀ 15/07/2026	\N	\N	2026-07-15	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:50.860376	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:11:31.445954	2026-10-09 04:15:50.860376	\N	/events/event-1.jpg
-81	\N	TIỆC TRÀ 18/07/2026	\N	\N	2026-07-18	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:40.561383	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:12:07.134134	2026-10-09 04:15:40.561383	\N	/events/event-1.jpg
-82	\N	TIỆC TRÀ 22/07/2026	\N	\N	2026-07-22	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:45.949904	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:12:32.008732	2026-10-09 04:15:45.949904	\N	/events/event-1.jpg
-83	\N	TIỆC TRÀ 29/07/2026	\N		2026-07-29	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:27.771851	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-09 04:13:03.737997	2026-10-09 04:15:27.771851		/events/event-1.jpg
-84	\N	TIỆC TRÀ 25/07/2026	\N	\N	2026-07-25	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:33.278559	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:13:34.87624	2026-10-09 04:15:33.278559	\N	/events/event-1.jpg
+40	\N	TIỆC TRÀ 26-9-2026	\N	\N	2026-09-26	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	81	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-28 01:32:57.82	\N	200000.00	300000.00	300000.00	200000.00	50000.00	\N	2026-09-24 08:21:26.575	2026-09-28 01:33:13.803	\N	/events/event-1.jpg
+65	\N	TIỆC TRÀ 07/10/2026	\N	\N	2026-10-07	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	95	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 03:47:18.321	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-06 02:42:25.324	2026-10-09 04:14:20.661	\N	/events/event-1.jpg
+66	\N	TIỆC TRÀ 10-10-2026	\N	\N	2026-10-10	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	61	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-10 08:36:24.214	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 03:53:59.418	2026-10-10 08:36:30.717	\N	/events/event-1.jpg
+38	EVT20260038	TIỆC TRÀ 19/09/2026	Tiệc trà giao lưu kết nối doanh nghiệp và đối tác	Chương trình tiệc trà kết nối đối tác, mở rộng cơ hội hợp tác và phát triển kinh doanh bền vững.	2026-09-19	08:30:00	11:30:00	Công ty CP Tập đoàn Nghiêng Complex ML6-23 Vinhomes Green Bay đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-10-02 04:32:05.724	\N	0.00	0.00	0.00	0.00	0.00		2026-09-18 13:02:31.952	2026-10-15 02:34:55.942	Chương trình tiệc trà kết nối đối tác, mở rộng cơ hội hợp tác và phát triển kinh doanh bền vững.	/events/hero-banner.jpg
+82	\N	TIỆC TRÀ 22/07/2026	\N	\N	2026-07-22	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	17	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:45.949	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:12:32.008	2026-10-09 04:15:45.949	\N	/events/event-1.jpg
+81	\N	TIỆC TRÀ 18/07/2026	\N	\N	2026-07-18	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	33	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:40.561	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:12:07.134	2026-10-09 04:15:40.561	\N	/events/event-1.jpg
+41	\N	TIỆC TRÀ 30-9-2026	\N		2026-09-30	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	95	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-28 09:20:00.24	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-28 02:22:58.792	2026-10-01 02:31:22.768		/events/event-4.jpg
+79	\N	TIỆC TRÀ 11/07/2026	\N	\N	2026-07-11	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	57	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:54.221	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:10:59.916	2026-10-09 04:15:54.221	\N	/events/event-1.jpg
+77	\N	TIỆC TRÀ 04/07/2026	\N	\N	2026-07-04	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	22	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:59.135	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:54.602	2026-10-09 04:15:59.135	\N	/events/event-1.jpg
+78	\N	TIỆC TRÀ 08/07/2026	\N	\N	2026-07-08	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	1	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:56.764	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:09:29.076	2026-10-09 04:15:56.764	\N	/events/event-1.jpg
+80	\N	TIỆC TRÀ 15/07/2026	\N	\N	2026-07-15	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	19	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:50.86	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:11:31.445	2026-10-09 04:15:50.86	\N	/events/event-1.jpg
+83	\N	TIỆC TRÀ 29/07/2026	\N		2026-07-29	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	22	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:27.771	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-09 04:13:03.737	2026-10-09 04:15:27.771		/events/event-1.jpg
+64	\N	TIỆC TRÀ SƠN LA 04/10/2026	\N		2026-10-04	\N	\N	Khách sạn Sơn La	\N	0.00	\N	25	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-05 03:37:00.759	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-03 08:41:37.392	2026-10-05 03:37:00.759		/events/event-1.jpg
+69	\N	TIỆC TRÀ 08/08/2026	\N	\N	2026-08-08	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	33	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:02:51.125	2026-10-09 04:02:51.125	\N	/events/event-1.jpg
+68	\N	TIỆC TRÀ 12/08/2026	\N	\N	2026-08-12	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	60	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:02:05.459	2026-10-09 04:02:05.459	\N	/events/event-1.jpg
+70	\N	TIỆC TRÀ 05/08/2026	\N	\N	2026-08-05	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	15	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:03:55.861	2026-10-09 04:03:55.861	\N	/events/event-1.jpg
+72	\N	TIỆC TRÀ 20/06/2026	\N	\N	2026-06-20	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	17	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:06:23.696	2026-10-09 04:06:23.696	\N	/events/event-1.jpg
+71	\N	TIỆC TRÀ 01/08/2026	\N	\N	2026-08-01	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	60	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:04:29.762	2026-10-09 04:04:29.762	\N	/events/event-1.jpg
+74	\N	TIỆC TRÀ 24/06/2026	\N	\N	2026-06-24	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	23	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:07:34.48	2026-10-09 04:07:34.48	\N	/events/event-1.jpg
+73	\N	TIỆC TRÀ 17/06/2026	\N	\N	2026-06-17	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	14	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:06:56.058	2026-10-09 04:06:56.058	\N	/events/event-1.jpg
+75	\N	TIỆC TRÀ 27/06/2026	\N	\N	2026-06-27	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	13	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:08.123	2026-10-09 04:08:08.123	\N	/events/event-1.jpg
+76	\N	TIỆC TRÀ 01/07/2026	\N	\N	2026-07-01	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	19	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:16:02.807	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:16.751	2026-10-09 04:16:02.807	\N	/events/event-1.jpg
+39	\N	TIỆC TRÀ 23/09/2026	\N		2026-09-23	14:00:00	16:30:00	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-25 07:17:15.597	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-22 10:52:18.252	2026-10-15 02:36:21.169		/events/event-1.jpg
+84	\N	TIỆC TRÀ 26/07/2026	\N		2026-07-26	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:33.278	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-09 04:13:34.876	2026-10-15 02:36:40.217		/events/event-1.jpg
+85	\N	TIỆC TRÀ 14/10/2026	\N	\N	2026-10-14	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	76	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-16 13:17:35.076	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-13 02:43:25.871	2026-10-16 13:17:38.332	\N	/events/event-1.jpg
+86	\N	TIỆC TRÀ 17/10/2026	\N	\N	2026-10-17	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	61	\N	\N	15	Sắp diễn ra	Đã duyệt	15	2026-10-16 13:17:27.345	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-16 02:31:39.089	2026-10-16 13:17:27.345	\N	/events/event-1.jpg
+67	\N	TIỆC TRÀ 29/08/2026	\N	\N	2026-08-29	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	61	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 03:58:52.937	2026-10-09 03:58:52.937	\N	/events/event-1.jpg
 \.
 
 
@@ -2228,33 +3029,12 @@ COPY public.events (id, code, name, short_description, detail_description, event
 --
 
 COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_row, period_code, period_label, record_type, contract_ref, contract_date, customer_name, contract_value, beneficiary_name, beneficiary_phone, bank_account, bank_name, commission_rate, fund_source, allocated_amount, paid_amount, remaining_amount, created_at, updated_at) FROM stdin;
-5	2026-09-MONTH:monthly:23:5:0969881698	Trang tính7	23	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng Leader team 70%	1278900.00	0.00	1278900.00	2026-10-07 14:53:33.794	2026-10-07 15:46:09.756
-6	2026-09-MONTH:monthly:24:1:0329685009	Trang tính7	24	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	32400000.00	0.00	32400000.00	2026-10-07 14:53:33.794	2026-10-07 15:46:09.756
-7	2026-09-MONTH:monthly:24:2:0329685009	Trang tính7	24	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	2500000.00	0.00	2500000.00	2026-10-07 14:53:33.795	2026-10-07 15:46:09.757
-8	2026-09-MONTH:monthly:25:1:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	1800000.00	0.00	1800000.00	2026-10-07 14:53:33.795	2026-10-07 15:46:09.757
-9	2026-09-MONTH:monthly:25:2:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	550000.00	0.00	550000.00	2026-10-07 14:53:33.795	2026-10-07 15:46:09.757
-10	2026-09-MONTH:monthly:25:3:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	150000.00	0.00	150000.00	2026-10-07 14:53:33.796	2026-10-07 15:46:09.757
-11	2026-09-MONTH:monthly:25:4:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	1000000.00	0.00	1000000.00	2026-10-07 14:53:33.796	2026-10-07 15:46:09.758
-12	2026-09-MONTH:monthly:25:5:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.797	2026-10-07 15:46:09.758
-13	2026-09-MONTH:monthly:25:6:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Leader team 70%	18814717.00	0.00	18814717.00	2026-10-07 14:53:33.797	2026-10-07 15:46:09.758
-14	2026-09-MONTH:monthly:26:1:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	1500000.00	0.00	1500000.00	2026-10-07 14:53:33.797	2026-10-07 15:46:09.758
-15	2026-09-MONTH:monthly:26:2:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Quỹ Đào tạo Chuyên môn & Kỹ năng 0,3%	1220000.00	0.00	1220000.00	2026-10-07 14:53:33.798	2026-10-07 15:46:09.759
-16	2026-09-MONTH:monthly:26:3:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.798	2026-10-07 15:46:09.759
 17	2026-09-MONTH:monthly:26:4:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Leader team 70%	2385250.00	0.00	2385250.00	2026-10-07 14:53:33.798	2026-10-07 15:46:09.759
-18	2026-09-MONTH:monthly:26:5:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Quỹ vận hành 2,2%	20420000.00	0.00	20420000.00	2026-10-07 14:53:33.799	2026-10-07 15:46:09.76
-19	2026-09-MONTH:monthly:27:1:0399868786	Trang tính7	27	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	1800000.00	0.00	1800000.00	2026-10-07 14:53:33.799	2026-10-07 15:46:09.76
-20	2026-09-MONTH:monthly:27:2:0399868786	Trang tính7	27	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	100000.00	0.00	100000.00	2026-10-07 14:53:33.8	2026-10-07 15:46:09.76
-21	2026-09-MONTH:monthly:28:1:0912137909	Trang tính7	28	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phạm Thùy Lan	0912137909	12810000684060	BIDV	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	900000.00	0.00	900000.00	2026-10-07 14:53:33.8	2026-10-07 15:46:09.76
-22	2026-09-MONTH:monthly:29:1:000006	Trang tính7	29	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hương Thảo	000006	0965749223	Vpbank	0.0000	Hoa hồng Quỹ vận hành 2,2%	8508333.00	0.00	8508333.00	2026-10-07 14:53:33.801	2026-10-07 15:46:09.761
-23	2026-09-MONTH:monthly:30:1:000007	Trang tính7	30	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Đinh Văn Bắc	000007	19033903936017	Techcombank	0.0000	Hoa hồng Quỹ Đào tạo Chuyên môn & Kỹ năng 0,3%	500000.00	0.00	500000.00	2026-10-07 14:53:33.801	2026-10-07 15:46:09.761
+4	2026-09-MONTH:monthly:23:4:0969881698	Trang tính7	23	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.793	2026-10-07 15:46:09.756
 24	2026-09-MONTH:monthly:30:2:000007	Trang tính7	30	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Đinh Văn Bắc	000007	19033903936017	Techcombank	0.0000	Hoa hồng Quỹ vận hành 2,2%	8508333.00	0.00	8508333.00	2026-10-07 14:53:33.801	2026-10-07 15:46:09.761
-25	2026-09-MONTH:monthly:31:1:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	5400000.00	0.00	5400000.00	2026-10-07 14:53:33.802	2026-10-07 15:46:09.761
-26	2026-09-MONTH:monthly:31:2:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	200000.00	0.00	200000.00	2026-10-07 14:53:33.802	2026-10-07 15:46:09.762
-27	2026-09-MONTH:monthly:31:3:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	400000.00	0.00	400000.00	2026-10-07 14:53:33.803	2026-10-07 15:46:09.762
 28	2026-09-MONTH:monthly:31:4:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.803	2026-10-07 15:46:09.762
 2	2026-09-MONTH:monthly:23:2:0969881698	Trang tính7	23	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	225000.00	0.00	225000.00	2026-10-07 14:53:33.792	2026-10-07 15:46:09.755
 3	2026-09-MONTH:monthly:23:3:0969881698	Trang tính7	23	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	100000.00	0.00	100000.00	2026-10-07 14:53:33.793	2026-10-07 15:46:09.756
-4	2026-09-MONTH:monthly:23:4:0969881698	Trang tính7	23	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.793	2026-10-07 15:46:09.756
 33	2026-09-MONTH:monthly:32:4:0915095848	Trang tính7	32	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.806	2026-10-07 15:46:09.764
 34	2026-09-MONTH:monthly:32:5:0915095848	Trang tính7	32	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng Leader team 70%	1708583.00	0.00	1708583.00	2026-10-07 14:53:33.806	2026-10-07 15:46:09.764
 35	2026-09-MONTH:monthly:33:1:0343781580	Trang tính7	33	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Đăng An	0343781580	183093983	VP Bank	0.0000	Hoa hồng BP hỗ trợ CN 0,2%	3403333.00	0.00	3403333.00	2026-10-07 14:53:33.807	2026-10-07 15:46:09.764
@@ -2275,7 +3055,9 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 50	2026-09-MONTH:monthly:40:1:0979345229	Trang tính7	40	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Dương Hồng Phương	0979345229	979345229	Vietinbank	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	600000.00	0.00	600000.00	2026-10-07 14:53:33.812	2026-10-07 15:46:09.769
 51	2026-09-MONTH:monthly:40:2:0979345229	Trang tính7	40	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Dương Hồng Phương	0979345229	979345229	Vietinbank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	50000.00	0.00	50000.00	2026-10-07 14:53:33.812	2026-10-07 15:46:09.77
 52	2026-09-MONTH:monthly:40:3:0979345229	Trang tính7	40	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Dương Hồng Phương	0979345229	979345229	Vietinbank	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.812	2026-10-07 15:46:09.77
+62	2026-09-MONTH:monthly:44:4:0384081272	Trang tính7	44	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Thị Chích	0384081272	0384081272		0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.815	2026-10-07 15:46:09.773
 53	2026-09-MONTH:monthly:40:4:0979345229	Trang tính7	40	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Dương Hồng Phương	0979345229	979345229	Vietinbank	0.0000	Hoa hồng Leader team 70%	40600.00	0.00	40600.00	2026-10-07 14:53:33.813	2026-10-07 15:46:09.77
+58	2026-09-MONTH:monthly:43:3:0984398568	Trang tính7	43	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Đức Vĩnh	0984398568	0384081272		0.0000	Hoa hồng Leader team 70%	1431150.00	0.00	1431150.00	2026-10-07 14:53:33.814	2026-10-07 15:46:09.772
 54	2026-09-MONTH:monthly:41:1:0373360136	Trang tính7	41	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hà	0373360136	3363360138	Techcombank	0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	5000000.00	0.00	5000000.00	2026-10-07 14:53:33.813	2026-10-07 15:46:09.77
 55	2026-09-MONTH:monthly:42:1:0915026767	Trang tính7	42	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Văn Nhật	0915026767	0915026767		0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	30000000.00	0.00	30000000.00	2026-10-07 14:53:33.813	2026-10-07 15:46:09.771
 56	2026-09-MONTH:monthly:43:1:0984398568	Trang tính7	43	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Đức Vĩnh	0984398568	0384081272		0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	1000000.00	0.00	1000000.00	2026-10-07 14:53:33.814	2026-10-07 15:46:09.771
@@ -2283,7 +3065,6 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 31	2026-09-MONTH:monthly:32:2:0915095848	Trang tính7	32	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	300000.00	0.00	300000.00	2026-10-07 14:53:33.805	2026-10-07 15:46:09.763
 32	2026-09-MONTH:monthly:32:3:0915095848	Trang tính7	32	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	1483333.00	0.00	1483333.00	2026-10-07 14:53:33.805	2026-10-07 15:46:09.764
 61	2026-09-MONTH:monthly:44:3:0384081272	Trang tính7	44	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Thị Chích	0384081272	0384081272		0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	200000.00	0.00	200000.00	2026-10-07 14:53:33.815	2026-10-07 15:46:09.773
-62	2026-09-MONTH:monthly:44:4:0384081272	Trang tính7	44	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Thị Chích	0384081272	0384081272		0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.815	2026-10-07 15:46:09.773
 63	2026-09-MONTH:monthly:44:5:0384081272	Trang tính7	44	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Thị Chích	0384081272	0384081272		0.0000	Hoa hồng Leader team 70%	477050.00	0.00	477050.00	2026-10-07 14:53:33.816	2026-10-07 15:46:09.773
 64	2026-09-W3:29:3:phượng_ngọc_thu	DN thanh toán HH tuần 3 T9	29	2026-09-W3	Tuần 3 · 15–18/09	contract	1	2026-09-15	Trần T Thanh Hương	40000000.00	Phượng Ngọc Thu				0.2030	Hoa hồng hợp đồng	81200.00	0.00	81200.00	2026-10-07 14:53:34.137	2026-10-07 15:46:09.999
 65	2026-09-W3:29:4:trần_t_thanh_hương	DN thanh toán HH tuần 3 T9	29	2026-09-W3	Tuần 3 · 15–18/09	contract	1	2026-09-15	Trần T Thanh Hương	40000000.00	Trần T Thanh Hương			Agribank	6.0000	Hoa hồng hợp đồng	2400000.00	0.00	2400000.00	2026-10-07 14:53:34.138	2026-10-07 15:46:10
@@ -2306,7 +3087,6 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 82	2026-09-W3:30:15:phạm_minh_tuấn	DN thanh toán HH tuần 3 T9	30	2026-09-W3	Tuần 3 · 15–18/09	contract	2	2026-09-17	Nguyễn Thị Nga	20000000.00	Phạm Minh Tuấn			Vietcombank	0.6090	Hoa hồng hợp đồng	121800.00	0.00	121800.00	2026-10-07 14:53:34.144	2026-10-07 15:46:10.009
 83	2026-09-W3:30:16:vũ_hùng_vỹ	DN thanh toán HH tuần 3 T9	30	2026-09-W3	Tuần 3 · 15–18/09	contract	2	2026-09-17	Nguyễn Thị Nga	20000000.00	Vũ Hùng Vỹ			Vietinbank	0.2030	Hoa hồng hợp đồng	40600.00	0.00	40600.00	2026-10-07 14:53:34.144	2026-10-07 15:46:10.009
 85	2026-09-W3:30:18:tổng_hoa_hồng_chia	DN thanh toán HH tuần 3 T9	30	2026-09-W3	Tuần 3 · 15–18/09	contract	2	2026-09-17	Nguyễn Thị Nga	20000000.00	Tổng hoa hồng chia				11.9300	Hoa hồng hợp đồng	2386000.00	0.00	2386000.00	2026-10-07 14:53:34.145	2026-10-07 15:46:10.009
-58	2026-09-MONTH:monthly:43:3:0984398568	Trang tính7	43	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Đức Vĩnh	0984398568	0384081272		0.0000	Hoa hồng Leader team 70%	1431150.00	0.00	1431150.00	2026-10-07 14:53:33.814	2026-10-07 15:46:09.772
 59	2026-09-MONTH:monthly:44:1:0384081272	Trang tính7	44	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Thị Chích	0384081272	0384081272		0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	6000000.00	0.00	6000000.00	2026-10-07 14:53:33.815	2026-10-07 15:46:09.773
 60	2026-09-MONTH:monthly:44:2:0384081272	Trang tính7	44	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Hoàng Thị Chích	0384081272	0384081272		0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	500000.00	0.00	500000.00	2026-10-07 14:53:33.815	2026-10-07 15:46:09.773
 90	2026-09-W3:31:9:0965749223	DN thanh toán HH tuần 3 T9	31	2026-09-W3	Tuần 3 · 15–18/09	contract	3	2026-09-18	Phạm Thùy Lan	15000000.00	Nguyễn Thị Hương Thảo	0965749223		Vpbank	0.5000	Hoa hồng hợp đồng	75000.00	0.00	75000.00	2026-10-07 14:53:34.146	2026-10-07 15:46:10.012
@@ -2335,7 +3115,6 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 113	2026-09-W4:32:8:0965749223	DNTT HH tuần 4 T9	32	2026-09-W4	Tuần 4 · 19–23/09	contract	29	2026-09-22	GIANG THANH NGỌC	30000000.00	Nguyễn Thị Hương Thảo	0965749223	0965749223	Vpbank	0.2000	Hoa hồng hợp đồng	60000.00	0.00	60000.00	2026-10-07 14:53:34.162	2026-10-07 15:46:10.03
 114	2026-09-W4:32:12:0343781580	DNTT HH tuần 4 T9	32	2026-09-W4	Tuần 4 · 19–23/09	contract	29	2026-09-22	GIANG THANH NGỌC	30000000.00	Nguyễn Đăng An	0343781580	183093983	VP Bank	1.0000	Hoa hồng hợp đồng	300000.00	0.00	300000.00	2026-10-07 14:53:34.163	2026-10-07 15:46:10.031
 87	2026-09-W3:31:5:nguyễn_hùng_vĩ	DN thanh toán HH tuần 3 T9	31	2026-09-W3	Tuần 3 · 15–18/09	contract	3	2026-09-18	Phạm Thùy Lan	15000000.00	Nguyễn Hùng Vĩ			31978686868  Techcombank	1.0150	Hoa hồng hợp đồng	152250.00	0.00	152250.00	2026-10-07 14:53:34.145	2026-10-07 15:46:10.011
-88	2026-09-W3:31:6:vũ_thị_cúc	DN thanh toán HH tuần 3 T9	31	2026-09-W3	Tuần 3 · 15–18/09	contract	3	2026-09-18	Phạm Thùy Lan	15000000.00	Vũ Thị Cúc			Techcombank	1.2000	Hoa hồng hợp đồng	180000.00	0.00	180000.00	2026-10-07 14:53:34.146	2026-10-07 15:46:10.011
 89	2026-09-W3:31:8:phạm_thùy_lan	DN thanh toán HH tuần 3 T9	31	2026-09-W3	Tuần 3 · 15–18/09	contract	3	2026-09-18	Phạm Thùy Lan	15000000.00	Phạm Thùy Lan			BIDV	6.0000	Hoa hồng hợp đồng	900000.00	0.00	900000.00	2026-10-07 14:53:34.146	2026-10-07 15:46:10.012
 119	2026-09-W4:33:4:0326894993	DNTT HH tuần 4 T9	33	2026-09-W4	Tuần 4 · 19–23/09	contract	30	2026-09-23	LÊ VĂN TIẾN	20000000.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	1.2000	Hoa hồng hợp đồng	240000.00	0.00	240000.00	2026-10-07 14:53:34.165	2026-10-07 15:46:10.033
 120	2026-09-W4:33:5:0889225989	DNTT HH tuần 4 T9	33	2026-09-W4	Tuần 4 · 19–23/09	contract	30	2026-09-23	LÊ VĂN TIẾN	20000000.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.5000	Hoa hồng hợp đồng	100000.00	0.00	100000.00	2026-10-07 14:53:34.165	2026-10-07 15:46:10.033
@@ -2507,31 +3286,18 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 1098	2026-09-W5:33:15:0384081272	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Nguyễn Đức Vĩnh	0384081272	0384081272		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.062	2026-10-07 15:46:10.062
 1099	2026-09-W5:33:16:0349791507	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Nguyễn Minh Châu	0349791507	8869085418	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.062	2026-10-07 15:46:10.062
 1100	2026-09-W5:33:17:0379863712	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Trần Thị Ban	0379863712	4110689671	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.063	2026-10-07 15:46:10.063
-1101	2026-09-W5:33:18:0988677522	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Quàng Thị Đoàn	0988677522	4110032363	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.063	2026-10-07 15:46:10.063
-1102	2026-09-W5:33:19:0384081273	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Hoàng Thị Chích	0384081273	0384081273		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.063	2026-10-07 15:46:10.063
-1106	2026-09-W5:34:2:0969881698	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.064	2026-10-07 15:46:10.064
-1107	2026-09-W5:34:3:0329685009	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.065	2026-10-07 15:46:10.065
-1110	2026-09-W5:34:6:0399868786	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.065	2026-10-07 15:46:10.065
 1113	2026-09-W5:34:9:0965759559	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.066	2026-10-07 15:46:10.066
 1114	2026-09-W5:34:10:0915095848	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.066	2026-10-07 15:46:10.066
+22	2026-09-MONTH:monthly:29:1:000006	Trang tính7	29	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hương Thảo	000006	0965749223	Vpbank	0.0000	Hoa hồng Quỹ vận hành 2,2%	8508333.00	0.00	8508333.00	2026-10-07 14:53:33.801	2026-10-07 15:46:09.761
+23	2026-09-MONTH:monthly:30:1:000007	Trang tính7	30	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Đinh Văn Bắc	000007	19033903936017	Techcombank	0.0000	Hoa hồng Quỹ Đào tạo Chuyên môn & Kỹ năng 0,3%	500000.00	0.00	500000.00	2026-10-07 14:53:33.801	2026-10-07 15:46:09.761
+25	2026-09-MONTH:monthly:31:1:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	5400000.00	0.00	5400000.00	2026-10-07 14:53:33.802	2026-10-07 15:46:09.761
+26	2026-09-MONTH:monthly:31:2:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	200000.00	0.00	200000.00	2026-10-07 14:53:33.802	2026-10-07 15:46:09.762
+27	2026-09-MONTH:monthly:31:3:0965759559	Trang tính7	31	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	400000.00	0.00	400000.00	2026-10-07 14:53:33.803	2026-10-07 15:46:09.762
 1116	2026-09-W5:34:12:0768635148	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Phạm Minh Tuấn	0768635148	11004198385	Vietcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.067	2026-10-07 15:46:10.067
 1117	2026-09-W5:34:13:0984065555	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Vũ Hùng Vỹ	0984065555	109613685568	Vietinbank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.067	2026-10-07 15:46:10.067
-1119	2026-09-W5:34:15:0384081272	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Nguyễn Đức Vĩnh	0384081272	0384081272		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
-1120	2026-09-W5:34:16:0349791507	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Nguyễn Minh Châu	0349791507	8869085418	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
-1121	2026-09-W5:34:17:0379863712	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Trần Thị Ban	0379863712	4110689671	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
-1122	2026-09-W5:34:18:0988677522	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Quàng Thị Đoàn	0988677522	4110032363	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
 1123	2026-09-W5:34:19:0384081273	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Hoàng Thị Chích	0384081273	0384081273		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.069	2026-10-07 15:46:10.069
 1127	2026-09-W5:35:2:0969881698	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.07	2026-10-07 15:46:10.07
 1128	2026-09-W5:35:3:0329685009	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.07	2026-10-07 15:46:10.07
-1129	2026-09-W5:35:4:0326894993	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.07	2026-10-07 15:46:10.07
-1131	2026-09-W5:35:6:0399868786	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.07	2026-10-07 15:46:10.07
-1134	2026-09-W5:35:9:0965759559	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.072	2026-10-07 15:46:10.072
-1135	2026-09-W5:35:10:0915095848	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.072	2026-10-07 15:46:10.072
-1137	2026-09-W5:35:12:0768635148	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Phạm Minh Tuấn	0768635148	11004198385	Vietcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.073	2026-10-07 15:46:10.073
-1138	2026-09-W5:35:13:0984065555	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Vũ Hùng Vỹ	0984065555	109613685568	Vietinbank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.073	2026-10-07 15:46:10.073
-1139	2026-09-W5:35:14:0979345229	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Dương Hồng Phương	0979345229	979345229	Vietinbank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.074	2026-10-07 15:46:10.074
-1144	2026-09-W5:35:19:0384081273	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Hoàng Thị Chích	0384081273	0384081273		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.076	2026-10-07 15:46:10.076
-1152	2026-09-W5:36:6:0399868786	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.078	2026-10-07 15:46:10.078
 1156	2026-09-W5:36:10:0915095848	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.079	2026-10-07 15:46:10.079
 1158	2026-09-W5:36:12:0768635148	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Phạm Minh Tuấn	0768635148	11004198385	Vietcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.079	2026-10-07 15:46:10.079
 1159	2026-09-W5:36:13:0984065555	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Vũ Hùng Vỹ	0984065555	109613685568	Vietinbank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.079	2026-10-07 15:46:10.079
@@ -2541,6 +3307,41 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 1163	2026-09-W5:36:17:0379863712	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Trần Thị Ban	0379863712	4110689671	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.08	2026-10-07 15:46:10.08
 1164	2026-09-W5:36:18:0988677522	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Quàng Thị Đoàn	0988677522	4110032363	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.081	2026-10-07 15:46:10.081
 1165	2026-09-W5:36:19:0384081273	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Hoàng Thị Chích	0384081273	0384081273		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.081	2026-10-07 15:46:10.081
+9	2026-09-MONTH:monthly:25:2:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Tri ấn kết nối sale trực tiếp 1%	550000.00	0.00	550000.00	2026-10-07 14:53:33.795	2026-10-07 15:46:09.757
+10	2026-09-MONTH:monthly:25:3:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	150000.00	0.00	150000.00	2026-10-07 14:53:33.796	2026-10-07 15:46:09.757
+11	2026-09-MONTH:monthly:25:4:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	1000000.00	0.00	1000000.00	2026-10-07 14:53:33.796	2026-10-07 15:46:09.758
+12	2026-09-MONTH:monthly:25:5:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.797	2026-10-07 15:46:09.758
+13	2026-09-MONTH:monthly:25:6:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Leader team 70%	18814717.00	0.00	18814717.00	2026-10-07 14:53:33.797	2026-10-07 15:46:09.758
+14	2026-09-MONTH:monthly:26:1:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Quỹ Sự kiện & Chốt hợp đồng 0,5%	1500000.00	0.00	1500000.00	2026-10-07 14:53:33.797	2026-10-07 15:46:09.758
+15	2026-09-MONTH:monthly:26:2:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Quỹ Đào tạo Chuyên môn & Kỹ năng 0,3%	1220000.00	0.00	1220000.00	2026-10-07 14:53:33.798	2026-10-07 15:46:09.759
+16	2026-09-MONTH:monthly:26:3:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Leader team 30%	1480450.00	0.00	1480450.00	2026-10-07 14:53:33.798	2026-10-07 15:46:09.759
+18	2026-09-MONTH:monthly:26:5:0889225989	Trang tính7	26	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Vũ Thị Cúc	0889225989	2589225989	Techcombank	0.0000	Hoa hồng Quỹ vận hành 2,2%	20420000.00	0.00	20420000.00	2026-10-07 14:53:33.799	2026-10-07 15:46:09.76
+19	2026-09-MONTH:monthly:27:1:0399868786	Trang tính7	27	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	1800000.00	0.00	1800000.00	2026-10-07 14:53:33.799	2026-10-07 15:46:09.76
+20	2026-09-MONTH:monthly:27:2:0399868786	Trang tính7	27	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	100000.00	0.00	100000.00	2026-10-07 14:53:33.8	2026-10-07 15:46:09.76
+21	2026-09-MONTH:monthly:28:1:0912137909	Trang tính7	28	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phạm Thùy Lan	0912137909	12810000684060	BIDV	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	900000.00	0.00	900000.00	2026-10-07 14:53:33.8	2026-10-07 15:46:09.76
+5	2026-09-MONTH:monthly:23:5:0969881698	Trang tính7	23	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng Leader team 70%	1278900.00	0.00	1278900.00	2026-10-07 14:53:33.794	2026-10-07 15:46:09.756
+6	2026-09-MONTH:monthly:24:1:0329685009	Trang tính7	24	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	32400000.00	0.00	32400000.00	2026-10-07 14:53:33.794	2026-10-07 15:46:09.756
+7	2026-09-MONTH:monthly:24:2:0329685009	Trang tính7	24	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng Tri ấn hỗ trợ sale 0,5%	2500000.00	0.00	2500000.00	2026-10-07 14:53:33.795	2026-10-07 15:46:09.757
+8	2026-09-MONTH:monthly:25:1:0326894993	Trang tính7	25	2026-09-MONTH	Tổng quan tháng 9/2026	monthly_summary	\N	\N	\N	0.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng Sale trực tiếp - Pro sale 6%	1800000.00	0.00	1800000.00	2026-10-07 14:53:33.795	2026-10-07 15:46:09.757
+88	2026-09-W3:31:6:vũ_thị_cúc	DN thanh toán HH tuần 3 T9	31	2026-09-W3	Tuần 3 · 15–18/09	contract	3	2026-09-18	Phạm Thùy Lan	15000000.00	Vũ Thị Cúc			Techcombank	1.2000	Hoa hồng hợp đồng	180000.00	0.00	180000.00	2026-10-07 14:53:34.146	2026-10-07 15:46:10.011
+1101	2026-09-W5:33:18:0988677522	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Quàng Thị Đoàn	0988677522	4110032363	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.063	2026-10-07 15:46:10.063
+1102	2026-09-W5:33:19:0384081273	DNTT tuần 5 T9	33	2026-09-W5	Tuần 5 · 26/09–03/10	contract	3	2026-09-27	PHAN THỊ KIM DUNG	266666667.00	Hoàng Thị Chích	0384081273	0384081273		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.063	2026-10-07 15:46:10.063
+1106	2026-09-W5:34:2:0969881698	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.064	2026-10-07 15:46:10.064
+1107	2026-09-W5:34:3:0329685009	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.065	2026-10-07 15:46:10.065
+1110	2026-09-W5:34:6:0399868786	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.065	2026-10-07 15:46:10.065
+1119	2026-09-W5:34:15:0384081272	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Nguyễn Đức Vĩnh	0384081272	0384081272		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
+1120	2026-09-W5:34:16:0349791507	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Nguyễn Minh Châu	0349791507	8869085418	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
+1121	2026-09-W5:34:17:0379863712	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Trần Thị Ban	0379863712	4110689671	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
+1122	2026-09-W5:34:18:0988677522	DNTT tuần 5 T9	34	2026-09-W5	Tuần 5 · 26/09–03/10	contract	4	2026-09-30	DƯƠNG HỒNG PHƯƠNG	10000000.00	Quàng Thị Đoàn	0988677522	4110032363	BIDV	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.068	2026-10-07 15:46:10.068
+1129	2026-09-W5:35:4:0326894993	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.07	2026-10-07 15:46:10.07
+1131	2026-09-W5:35:6:0399868786	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.07	2026-10-07 15:46:10.07
+1134	2026-09-W5:35:9:0965759559	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Cung Thu Hà	0965759559	19023295042029	Techcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.072	2026-10-07 15:46:10.072
+1135	2026-09-W5:35:10:0915095848	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Diệp Thị Huế	0915095848	22891177	ACB	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.072	2026-10-07 15:46:10.072
+1137	2026-09-W5:35:12:0768635148	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Phạm Minh Tuấn	0768635148	11004198385	Vietcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.073	2026-10-07 15:46:10.073
+1138	2026-09-W5:35:13:0984065555	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Vũ Hùng Vỹ	0984065555	109613685568	Vietinbank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.073	2026-10-07 15:46:10.073
+1139	2026-09-W5:35:14:0979345229	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Dương Hồng Phương	0979345229	979345229	Vietinbank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.074	2026-10-07 15:46:10.074
+1144	2026-09-W5:35:19:0384081273	DNTT tuần 5 T9	35	2026-09-W5	Tuần 5 · 26/09–03/10	contract	5	2026-10-02	NGUYỄN THỊ CÚC	135000000.00	Hoàng Thị Chích	0384081273	0384081273		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.076	2026-10-07 15:46:10.076
+1152	2026-09-W5:36:6:0399868786	DNTT tuần 5 T9	36	2026-09-W5	Tuần 5 · 26/09–03/10	contract	6	2026-10-02	HOÀNG TRẦN NGỌC DIỆU	500000000.00	Nguyễn Thị Hương	0399868786	5550000000555		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.078	2026-10-07 15:46:10.078
 1169	2026-09-W5:37:2:0969881698	DNTT tuần 5 T9	37	2026-09-W5	Tuần 5 · 26/09–03/10	contract	7	2026-10-02	ĐỖ MỘNG LONG	100000000.00	Phượng Ngọc Thu	0969881698	28275222		0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.082	2026-10-07 15:46:10.082
 1170	2026-09-W5:37:3:0329685009	DNTT tuần 5 T9	37	2026-09-W5	Tuần 5 · 26/09–03/10	contract	7	2026-10-02	ĐỖ MỘNG LONG	100000000.00	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.082	2026-10-07 15:46:10.082
 1171	2026-09-W5:37:4:0326894993	DNTT tuần 5 T9	37	2026-09-W5	Tuần 5 · 26/09–03/10	contract	7	2026-10-02	ĐỖ MỘNG LONG	100000000.00	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	0.0000	Hoa hồng hợp đồng	0.00	0.00	0.00	2026-10-07 15:46:10.082	2026-10-07 15:46:10.082
@@ -2598,97 +3399,97 @@ COPY public.fund_event_expenses (id, source_sheet, source_row, event_code, event
 --
 
 COPY public.fund_weekly_allocations (id, period_code, period_month, period_label, period_start, period_end, fund_key, fund_source, allocation_rate, requested_amount, source_sheet, allocated_amount, paid_amount, remaining_amount) FROM stdin;
-91	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	tribute_support	Tri ân hỗ trợ sale (0,5%)	0.00500	8508333.33	Trang tính7	8508333.33	8508333.33	0.00
 92	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	event_close	Quỹ Sự kiện & Chốt hợp đồng (0,5%)	0.00500	4600000.00	Trang tính7	8508333.33	4600000.00	3908333.33
-33	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DN thanh toán HH tuần 3 T9	600000.00	0.00	600000.00
-9	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	leader	Leader team - giám đốc Kd	0.02900	1522500.00	DN thanh toán HH tuần 3 T9	2175000.00	1522500.00	652500.00
-10	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	operations	Quỹ Vận hành	0.02200	1650000.00	DN thanh toán HH tuần 3 T9	1650000.00	1650000.00	0.00
-11	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	support_kt	BP hỗ trợ KT	0.00100	0.00	DN thanh toán HH tuần 3 T9	75000.00	0.00	75000.00
-2	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT HH tuần 4 T9	0.00	0.00	0.00
-1	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DN thanh toán HH tuần 3 T9	0.00	0.00	0.00
-14	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	tribute_support	Tri ân hỗ trợ sale	0.00500	2975000.00	DNTT HH tuần 4 T9	2975000.00	2975000.00	0.00
-15	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT HH tuần 4 T9	2975000.00	0.00	2975000.00
-16	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT HH tuần 4 T9	1190000.00	0.00	1190000.00
-12	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	support_cn	BP hỗ trợ CN	0.00200	150000.00	DN thanh toán HH tuần 3 T9	150000.00	150000.00	0.00
-90	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	tribute_connection	Tri ân kết nối sale trực tiếp (1%)	0.01000	17016666.67	Trang tính7	17016666.67	17016666.67	0.00
-7	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DN thanh toán HH tuần 3 T9	150000.00	0.00	150000.00
-8	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	travel	Chi phí Công tác phí	0.00300	0.00	DN thanh toán HH tuần 3 T9	225000.00	0.00	225000.00
-17	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	travel	Chi phí Công tác phí	0.00300	0.00	DNTT HH tuần 4 T9	1785000.00	0.00	1785000.00
-18	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	leader	Leader team - giám đốc Kd	0.02900	12078500.00	DNTT HH tuần 4 T9	17255000.00	12078500.00	5176500.00
-19	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	operations	Quỹ Vận hành	0.02200	13090000.00	DNTT HH tuần 4 T9	13090000.00	13090000.00	0.00
-23	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	tribute_support	Tri ân hỗ trợ sale	0.00500	5158333.00	DNTT tuần 5 T9	5158333.33	5158333.33	0.00
-3	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT tuần 5 T9	0.00	0.00	0.00
 24	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT tuần 5 T9	5158333.33	0.00	5158333.33
-25	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT tuần 5 T9	2063333.33	0.00	2063333.33
-38	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT tuần 5 T9	3095000.00	0.00	3095000.00
 39	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT tuần 5 T9	8253333.33	0.00	8253333.33
-5	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	tribute_support	Tri ân hỗ trợ sale	0.00500	375000.00	DN thanh toán HH tuần 3 T9	375000.00	375000.00	0.00
-35	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT HH tuần 4 T9	1785000.00	0.00	1785000.00
-36	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT HH tuần 4 T9	4760000.00	0.00	4760000.00
-26	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	travel	Chi phí Công tác phí	0.00300	0.00	DNTT tuần 5 T9	3095000.00	0.00	3095000.00
-28	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	operations	Quỹ Vận hành	0.02200	22696667.00	DNTT tuần 5 T9	22696666.67	22696666.67	0.00
+102	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	45000000.00	DNTT HH tuần 1 T10	45000000.00	44100000.00	900000.00
+104	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	tribute_support	Tri ân hỗ trợ sale	0.00500	3750000.00	DNTT HH tuần 1 T10	3750000.00	3675000.00	75000.00
+133	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	customer_care	Quỹ Chăm sóc khách hàng	0.00200	90000.00	Chính sách phân bổ 15%	90000.00	0.00	90000.00
+23	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	tribute_support	Tri ân hỗ trợ sale	0.00500	5158333.00	DNTT tuần 5 T9	5158333.33	0.00	5158333.33
+28	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	operations	Quỹ Vận hành	0.02200	22696667.00	DNTT tuần 5 T9	22696666.67	0.00	22696666.67
 29	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT tuần 5 T9	1031666.67	0.00	1031666.67
-32	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DN thanh toán HH tuần 3 T9	225000.00	0.00	225000.00
-31	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	750000.00	DN thanh toán HH tuần 3 T9	750000.00	750000.00	0.00
-6	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DN thanh toán HH tuần 3 T9	375000.00	0.00	375000.00
-20	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT HH tuần 4 T9	595000.00	0.00	595000.00
-89	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách) (6%)	0.06000	102100000.00	Trang tính7	102100000.00	102100000.00	0.00
-27	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	leader	Leader team - giám đốc Kd	0.02900	20942833.00	DNTT tuần 5 T9	29918333.33	20942833.33	8975500.00
-30	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	support_cn	BP hỗ trợ CN	0.00200	2063333.00	DNTT tuần 5 T9	2063333.33	2063333.33	0.00
-21	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	support_cn	BP hỗ trợ CN	0.00200	1190000.00	DNTT HH tuần 4 T9	1190000.00	1190000.00	0.00
-98	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	leader_30	Leader team - giám đốc Kd (2,9%)-30%	1.00000	14804500.00	Trang tính7	14804500.00	14804500.00	0.00
-103	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	7500000.00	DNTT HH tuần 1 T10	7500000	0	0
-116	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	7500000.00	DNTT HH tuần 1 T10	7500000	0	0
-129	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	450000.00	Chính sách phân bổ 15%	450000.00	0.00	450000.00
-104	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	tribute_support	Tri ân hỗ trợ sale	0.00500	3750000.00	DNTT HH tuần 1 T10	3750000	0	0
-117	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	tribute_support	Tri ân hỗ trợ sale	0.00500	3750000.00	DNTT HH tuần 1 T10	3750000	0	0
-130	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	tribute_support	Tri ân hỗ trợ sale	0.00500	225000.00	Chính sách phân bổ 15%	225000.00	0.00	225000.00
-106	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT HH tuần 1 T10	3750000	0	3750000
-119	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT HH tuần 1 T10	3750000	0	3750000
-132	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	225000.00	Chính sách phân bổ 15%	225000.00	0.00	225000.00
-93	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	customer_care	Quỹ Chăm sóc khách hàng (0,2%)	0.00200	0.00	Trang tính7	3403333.33	0.00	3403333.33
-107	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT HH tuần 1 T10	1500000	0	1500000
-120	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT HH tuần 1 T10	1500000	0	1500000
-94	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	training	Quỹ Đào tạo Chuyên môn & Kỹ năng (0,3%)	0.00300	2270000.00	Trang tính7	5105000.00	2270000.00	2835000.00
-108	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT HH tuần 1 T10	2250000	0	2250000
-121	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT HH tuần 1 T10	2250000	0	2250000
-134	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	135000.00	Chính sách phân bổ 15%	135000.00	0.00	135000.00
-95	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	incentive	Quỹ Thi đua & Chương trình thúc đẩy (0,8%)	0.00800	0.00	Trang tính7	13613333.33	0.00	13613333.33
-109	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT HH tuần 1 T10	6000000	0	6000000
-122	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT HH tuần 1 T10	6000000	0	6000000
-96	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	travel	Chi phí Công tác phí (0,3%)	0.00300	0.00	Trang tính7	5105000.00	0.00	5105000.00
-110	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	travel	Chi phí Công tác phí	0.00300	0.00	DNTT HH tuần 1 T10	2250000	0	2250000
-123	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	travel	Chi phí Công tác phí	0.00300	0.00	DNTT HH tuần 1 T10	2250000	0	2250000
-136	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	travel	Chi phí Công tác phí	0.00300	135000.00	Chính sách phân bổ 15%	135000.00	0.00	135000.00
-111	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	leader	Leader team - giám đốc Kd	0.02900	15225000.00	DNTT HH tuần 1 T10	21750000	0	6525000
-124	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	leader	Leader team - giám đốc Kd	0.02900	15225000.00	DNTT HH tuần 1 T10	21750000	0	6525000
-99	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	operations	Quỹ Vận hành (2,2%)	0.02200	37436666.67	Trang tính7	37436666.67	37436666.67	0.00
-112	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	operations	Quỹ Vận hành	0.02200	16500000.00	DNTT HH tuần 1 T10	16500000	0	0
-125	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	operations	Quỹ Vận hành	0.02200	16500000.00	DNTT HH tuần 1 T10	16500000	0	0
-137	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	operations	Quỹ Vận hành	0.02200	990000.00	Chính sách phân bổ 15%	990000.00	0.00	990000.00
-100	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	support_kt	Bộ phận hỗ trợ KT (0,1%)	0.00100	0.00	Trang tính7	1701666.67	0.00	1701666.67
-113	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT HH tuần 1 T10	750000	0	750000
-126	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT HH tuần 1 T10	750000	0	750000
-138	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	support_kt	BP hỗ trợ KT	0.00100	45000.00	Chính sách phân bổ 15%	45000.00	0.00	45000.00
-101	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	support_cn	Bộ phận hỗ trợ CN (0,2)	0.00200	3403333.33	Trang tính7	3403333.33	3403333.33	0.00
-114	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	support_cn	BP hỗ trợ CN	0.00200	1500000.00	DNTT HH tuần 1 T10	1500000	0	0
-127	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	support_cn	BP hỗ trợ CN	0.00200	1500000.00	DNTT HH tuần 1 T10	1500000	0	0
-105	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT HH tuần 1 T10	0	0	0
-118	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT HH tuần 1 T10	0	0	0
+30	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	support_cn	BP hỗ trợ CN	0.00200	2063333.00	DNTT tuần 5 T9	2063333.33	0.00	2063333.33
+91	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	tribute_support	Tri ân hỗ trợ sale (0,5%)	0.00500	8508333.33	Trang tính7	8508333.33	0.00	8508333.33
+90	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	tribute_connection	Tri ân kết nối sale trực tiếp (1%)	0.01000	17016666.67	Trang tính7	17016666.67	0.00	17016666.67
 131	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	tribute_referral	Tri ân giới thiệu	0.00000	0.00	Chính sách phân bổ 15%	0.00	0.00	0.00
 97	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	leader_70	Leader team - giám đốc Kd (2,9%)-70%	0.02000	34543833.33	Trang tính7	34543833.33	34543833.33	0.00
-102	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	45000000.00	DNTT HH tuần 1 T10	45000000	0	0
-115	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	45000000.00	DNTT HH tuần 1 T10	45000000	0	0
-128	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	2700000.00	Chính sách phân bổ 15%	2700000.00	0.00	2700000.00
-133	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	customer_care	Quỹ Chăm sóc khách hàng	0.00200	90000.00	Chính sách phân bổ 15%	90000.00	0.00	90000.00
+106	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT HH tuần 1 T10	3750000.00	0.00	3750000.00
+107	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT HH tuần 1 T10	1500000.00	0.00	1500000.00
+110	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	travel	Chi phí Công tác phí	0.00300	0.00	DNTT HH tuần 1 T10	2250000.00	0.00	2250000.00
+111	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	leader	Leader team - giám đốc Kd	0.02900	15225000.00	DNTT HH tuần 1 T10	21750000.00	14920500.00	6829500.00
+112	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	operations	Quỹ Vận hành	0.02200	16500000.00	DNTT HH tuần 1 T10	16500000.00	16170000.00	330000.00
+113	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT HH tuần 1 T10	750000.00	0.00	750000.00
+128	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	2700000.00	Chính sách phân bổ 15%	2700000.00	2700000.00	0.00
+130	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	tribute_support	Tri ân hỗ trợ sale	0.00500	225000.00	Chính sách phân bổ 15%	225000.00	225000.00	0.00
+132	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	225000.00	Chính sách phân bổ 15%	225000.00	0.00	225000.00
 135	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	360000.00	Chính sách phân bổ 15%	360000.00	0.00	360000.00
-140	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	leader	Leader team - giám đốc Kd	0.02900	1305000.00	Chính sách phân bổ 15%	1305000.00	0.00	1305000.00
-139	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	support_cn	BP hỗ trợ CN	0.00200	90000.00	Chính sách phân bổ 15%	90000.00	0.00	90000.00
-4	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	4500000.00	DN thanh toán HH tuần 3 T9	4500000.00	4500000.00	0.00
-13	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	35700000.00	DNTT HH tuần 4 T9	35700000.00	35700000.00	0.00
-34	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	5950000.00	DNTT HH tuần 4 T9	5950000.00	5950000.00	0.00
-22	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	61900000.00	DNTT tuần 5 T9	61900000.00	61900000.00	0.00
-37	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	10316667.00	DNTT tuần 5 T9	10316666.67	10316666.67	0.00
+136	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	travel	Chi phí Công tác phí	0.00300	135000.00	Chính sách phân bổ 15%	135000.00	0.00	135000.00
+115	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	45000000.00	DNTT HH tuần 1 T10	45000000.00	46800000.00	-1800000.00
+117	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	tribute_support	Tri ân hỗ trợ sale	0.00500	3750000.00	DNTT HH tuần 1 T10	3750000.00	3900000.00	-150000.00
+119	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT HH tuần 1 T10	3750000.00	0.00	3750000.00
+120	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT HH tuần 1 T10	1500000.00	0.00	1500000.00
+122	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT HH tuần 1 T10	6000000.00	0.00	6000000.00
+123	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	travel	Chi phí Công tác phí	0.00300	0.00	DNTT HH tuần 1 T10	2250000.00	0.00	2250000.00
+124	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	leader	Leader team - giám đốc Kd	0.02900	15225000.00	DNTT HH tuần 1 T10	21750000.00	15834000.00	5916000.00
+125	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	operations	Quỹ Vận hành	0.02200	16500000.00	DNTT HH tuần 1 T10	16500000.00	17160000.00	-660000.00
+126	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT HH tuần 1 T10	750000.00	0.00	750000.00
+4	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	4500000.00	DN thanh toán HH tuần 3 T9	4500000.00	0.00	4500000.00
+99	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	operations	Quỹ Vận hành (2,2%)	0.02200	37436666.67	Trang tính7	37436666.67	0.00	37436666.67
+100	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	support_kt	Bộ phận hỗ trợ KT (0,1%)	0.00100	0.00	Trang tính7	1701666.67	0.00	1701666.67
+93	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	customer_care	Quỹ Chăm sóc khách hàng (0,2%)	0.00200	0.00	Trang tính7	3403333.33	0.00	3403333.33
+96	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	travel	Chi phí Công tác phí (0,3%)	0.00300	0.00	Trang tính7	5105000.00	0.00	5105000.00
+6	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DN thanh toán HH tuần 3 T9	375000.00	0.00	375000.00
+7	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DN thanh toán HH tuần 3 T9	150000.00	0.00	150000.00
+8	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	travel	Chi phí Công tác phí	0.00300	0.00	DN thanh toán HH tuần 3 T9	225000.00	0.00	225000.00
+25	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT tuần 5 T9	2063333.33	0.00	2063333.33
+38	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT tuần 5 T9	3095000.00	0.00	3095000.00
+26	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	travel	Chi phí Công tác phí	0.00300	0.00	DNTT tuần 5 T9	3095000.00	0.00	3095000.00
+103	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	7500000.00	DNTT HH tuần 1 T10	7500000.00	7350000.00	150000.00
+108	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT HH tuần 1 T10	2250000.00	0.00	2250000.00
+114	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	support_cn	BP hỗ trợ CN	0.00200	1500000.00	DNTT HH tuần 1 T10	1500000.00	1470000.00	30000.00
+129	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	450000.00	Chính sách phân bổ 15%	450000.00	450000.00	0.00
+116	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	7500000.00	DNTT HH tuần 1 T10	7500000.00	7800000.00	-300000.00
+121	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT HH tuần 1 T10	2250000.00	0.00	2250000.00
+127	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	support_cn	BP hỗ trợ CN	0.00200	1500000.00	DNTT HH tuần 1 T10	1500000.00	1560000.00	-60000.00
+5	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	tribute_support	Tri ân hỗ trợ sale	0.00500	375000.00	DN thanh toán HH tuần 3 T9	375000.00	0.00	375000.00
+105	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT HH tuần 1 T10	0.00	0.00	0.00
+118	2026-10-MONTH	2026-10	Tháng 10/2026	2026-10-03	2026-10-31	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT HH tuần 1 T10	0.00	0.00	0.00
+9	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	leader	Leader team - giám đốc Kd	0.02900	1522500.00	DN thanh toán HH tuần 3 T9	2175000.00	0.00	2175000.00
+10	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	operations	Quỹ Vận hành	0.02200	1650000.00	DN thanh toán HH tuần 3 T9	1650000.00	0.00	1650000.00
+2	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT HH tuần 4 T9	0.00	0.00	0.00
+1	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DN thanh toán HH tuần 3 T9	0.00	0.00	0.00
+13	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	35700000.00	DNTT HH tuần 4 T9	35700000.00	0.00	35700000.00
+27	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	leader	Leader team - giám đốc Kd	0.02900	20942833.00	DNTT tuần 5 T9	29918333.33	0.00	29918333.33
+3	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	tribute_referral	Tri ân giới thiệu	0.00000	0.00	DNTT tuần 5 T9	0.00	0.00	0.00
+101	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	support_cn	Bộ phận hỗ trợ CN (0,2)	0.00200	3403333.33	Trang tính7	3403333.33	0.00	3403333.33
+89	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách) (6%)	0.06000	102100000.00	Trang tính7	102100000.00	0.00	102100000.00
+98	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	leader_30	Leader team - giám đốc Kd (2,9%)-30%	1.00000	14804500.00	Trang tính7	14804500.00	14804500.00	0.00
+94	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	training	Quỹ Đào tạo Chuyên môn & Kỹ năng (0,3%)	0.00300	2270000.00	Trang tính7	5105000.00	2270000.00	2835000.00
+34	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	5950000.00	DNTT HH tuần 4 T9	5950000.00	0.00	5950000.00
+14	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	tribute_support	Tri ân hỗ trợ sale	0.00500	2975000.00	DNTT HH tuần 4 T9	2975000.00	0.00	2975000.00
+18	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	leader	Leader team - giám đốc Kd	0.02900	12078500.00	DNTT HH tuần 4 T9	17255000.00	0.00	17255000.00
+32	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DN thanh toán HH tuần 3 T9	225000.00	0.00	225000.00
+33	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DN thanh toán HH tuần 3 T9	600000.00	0.00	600000.00
+19	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	operations	Quỹ Vận hành	0.02200	13090000.00	DNTT HH tuần 4 T9	13090000.00	0.00	13090000.00
+20	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	support_kt	BP hỗ trợ KT	0.00100	0.00	DNTT HH tuần 4 T9	595000.00	0.00	595000.00
+21	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	support_cn	BP hỗ trợ CN	0.00200	1190000.00	DNTT HH tuần 4 T9	1190000.00	0.00	1190000.00
+22	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	direct_sale	Sale trực tiếp - Pro sale (Nguồn khách)	0.06000	61900000.00	DNTT tuần 5 T9	61900000.00	0.00	61900000.00
+95	2026-09-MONTH	2026-09	Tổng quan tháng 9/2026	2026-09-01	2026-10-02	incentive	Quỹ Thi đua & Chương trình thúc đẩy (0,8%)	0.00800	0.00	Trang tính7	13613333.33	0.00	13613333.33
+15	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	event_close	Quỹ Sự kiện & Chốt hợp đồng	0.00500	0.00	DNTT HH tuần 4 T9	2975000.00	0.00	2975000.00
+16	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	customer_care	Quỹ Chăm sóc khách hàng	0.00200	0.00	DNTT HH tuần 4 T9	1190000.00	0.00	1190000.00
+35	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	0.00	DNTT HH tuần 4 T9	1785000.00	0.00	1785000.00
+36	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT HH tuần 4 T9	4760000.00	0.00	4760000.00
+17	2026-09-W4	2026-09	Tuần 4 · 19–23/09	2026-09-19	2026-09-23	travel	Chi phí Công tác phí	0.00300	0.00	DNTT HH tuần 4 T9	1785000.00	0.00	1785000.00
+109	2026-10-W1	2026-10	Tuần 1 · 03–09/10	2026-10-03	2026-10-09	incentive	Quỹ Thi đua & Chương trình thúc đẩy	0.00800	0.00	DNTT HH tuần 1 T10	6000000.00	0.00	6000000.00
+134	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	training	Quỹ Đào tạo Chuyên môn & Kỹ năng	0.00300	135000.00	Chính sách phân bổ 15%	135000.00	0.00	135000.00
+31	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	750000.00	DN thanh toán HH tuần 3 T9	750000.00	0.00	750000.00
+11	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	support_kt	BP hỗ trợ KT	0.00100	0.00	DN thanh toán HH tuần 3 T9	75000.00	0.00	75000.00
+12	2026-09-W3	2026-09	Tuần 3 · 15–18/09	2026-09-15	2026-09-18	support_cn	BP hỗ trợ CN	0.00200	150000.00	DN thanh toán HH tuần 3 T9	150000.00	0.00	150000.00
+140	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	leader	Leader team - giám đốc Kd	0.02900	1305000.00	Chính sách phân bổ 15%	1305000.00	913500.00	391500.00
+137	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	operations	Quỹ Vận hành	0.02200	990000.00	Chính sách phân bổ 15%	990000.00	990000.00	0.00
+138	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	support_kt	BP hỗ trợ KT	0.00100	45000.00	Chính sách phân bổ 15%	45000.00	0.00	45000.00
+139	2026-10-W2	2026-10	Tuần 2 · 10–16/10	2026-10-10	2026-10-16	support_cn	BP hỗ trợ CN	0.00200	90000.00	Chính sách phân bổ 15%	90000.00	90000.00	0.00
+37	2026-09-W5	2026-09	Tuần 5 · 26/09–03/10	2026-09-26	2026-10-02	tribute_connection	Tri ân kết nối sale trực tiếp	0.01000	10316667.00	DNTT tuần 5 T9	10316666.67	0.00	10316666.67
 \.
 
 
@@ -2697,7 +3498,20 @@ COPY public.fund_weekly_allocations (id, period_code, period_month, period_label
 --
 
 COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_phone, status, reward_points, created_at, updated_at) FROM stdin;
-74	15	Vân	9999999998@guest.local	9999999998	Thành công	10	2026-09-19 03:40:24.381	2026-09-19 03:40:24.381
+399	465	Nguyễn Thị Hồng	0974478595@guest.local	0974478595	Thành công	10	2026-10-16 05:04:11.294	2026-10-16 05:04:11.294
+400	109	Đô đắc chiều	0392899842@guest.local	0392899842	Thành công	10	2026-10-16 12:33:35.695	2026-10-16 12:33:35.695
+401	93	Nguyễn Thị Vui	0377009738@guest.local	0377009738	Thành công	10	2026-10-17 01:49:57.333	2026-10-17 01:49:57.333
+402	491	Phạm Thị Minh	0336879363@guest.local	0336879363	Thành công	10	2026-10-17 01:50:31.448	2026-10-17 01:50:31.448
+403	491	Hứa Xuân Từ	0387077698@guest.local	0387077698	Thành công	10	2026-10-17 01:51:50.017	2026-10-17 01:51:50.017
+404	152	Vũ Thị Phiêm	0862548959@guest.local	0862548959	Thành công	10	2026-10-17 01:52:54.722	2026-10-17 01:52:54.722
+405	278	Đỗ Duy Trưởng	0988834544@guest.local	0988834544	Thành công	10	2026-10-17 01:54:29.04	2026-10-17 01:54:29.04
+406	15	Hoàng thị huề	0966116573@guest.local	0966116573	Thành công	10	2026-10-17 01:54:41.727	2026-10-17 01:54:41.727
+407	152	Hoàng Văn Thoại	0986577981@guest.local	0986577981	Thành công	10	2026-10-17 01:55:36.795	2026-10-17 01:55:36.795
+408	45	Nguyễn Thị Mai	0961185655@guest.local	0961185655	Thành công	10	2026-10-17 01:56:34.442	2026-10-17 01:56:34.442
+409	73	Đặng Diệp Hà	0901771966@guest.local	0901771966	Thành công	10	2026-10-17 01:57:31.939	2026-10-17 01:57:31.939
+410	73	Bùi Thị Nguyệt	0932003666@guest.local	0932003666	Thành công	10	2026-10-17 01:57:54.418	2026-10-17 01:57:54.418
+378	155	Nguyễn Thị Yến	0347871795@guest.local	0347871795	Thành công	10	2026-10-14 01:48:26.038	2026-10-14 01:48:26.038
+379	150	Trần Bích Uyên	0977956825@guest.local	0977956825	Thành công	10	2026-10-14 02:30:19.992	2026-10-14 02:30:19.992
 11	15	Chu Thị Lương	0368684468@guest.local	0368684468	Thành công	10	2026-09-19 01:34:26.748	2026-09-19 01:34:26.748
 12	15	Vũ Thị Cúc	0889225989@guest.local	0889225989	Thành công	10	2026-09-19 01:34:28.286	2026-09-19 01:34:28.286
 13	15	Lê thị chanh	0385213858@guest.local	0385213858	Thành công	10	2026-09-19 01:34:37.129	2026-09-19 01:34:37.129
@@ -2710,79 +3524,9 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 21	15	Nguyễn Đức Côn	0971542688@guest.local	0971542688	Thành công	10	2026-09-19 02:01:50.453	2026-09-19 02:01:50.453
 24	15	Quản Thị Phòng	0386708895@guest.local	0386708895	Thành công	10	2026-09-19 02:04:38.468	2026-09-19 02:04:38.468
 25	15	Đỗ Văn hành	0985425466@guest.local	0985425466	Thành công	10	2026-09-19 02:04:49.879	2026-09-19 02:04:49.879
-26	15	Vũ van biên	0989944612@guest.local	0989944612	Thành công	10	2026-09-19 02:05:15.34	2026-09-19 02:05:15.34
-27	15	Vũ Thị Kim Thư( Hùng Vỹ)	0854716372@guest.local	0854716372	Thành công	10	2026-09-19 02:05:22.936	2026-09-19 02:05:22.936
-28	15	Lê Văn kiểm	0968085316@guest.local	0968085316	Thành công	10	2026-09-19 02:06:30.444	2026-09-19 02:06:30.444
-30	15	Nguyễn thế viễn	0988359108@guest.local	0988359108	Thành công	10	2026-09-19 02:07:14.771	2026-09-19 02:07:14.771
-31	15	Lê Văn Hải ( khách của Vũ Thuý)	0903213785@guest.local	0903213785	Thành công	10	2026-09-19 02:07:31.291	2026-09-19 02:07:31.291
-32	15	Nguyễn Trà My	0344514394@guest.local	0344514394	Thành công	10	2026-09-19 02:09:57.75	2026-09-19 02:09:57.75
-33	15	Đinh thị thảo	0356044186@guest.local	0356044186	Thành công	10	2026-09-19 02:14:29.439	2026-09-19 02:14:29.439
-20	49	Lê Văn Thời	0929639345@guest.local	0929639345	Thành công	10	2026-09-19 02:00:17.717	2026-09-19 02:00:17.717
-34	15	phạm thị Tuyết(vỹ)	0936446922@guest.local	0936446922	Thành công	10	2026-09-19 02:16:37.337	2026-09-19 02:16:37.337
-22	49	Nguyễn Hồ Phương	0779292959@guest.local	0779292959	Thành công	10	2026-09-19 02:02:45.876	2026-09-19 02:02:45.876
-23	45	Lê thanh vi	0913258659@guest.local	0913258659	Thành công	10	2026-09-19 02:04:15.334	2026-09-19 02:04:15.334
-35	15	Lưu Thanh Hải( Nhung)	0775935866@guest.local	0775935866	Thành công	10	2026-09-19 02:16:38.85	2026-09-19 02:16:38.85
-36	15	Bùi thị kim oanh(tuyết)	0834262681@guest.local	0834262681	Thành công	10	2026-09-19 02:17:29.235	2026-09-19 02:17:29.235
-37	15	Lê Thị Loan( Hà )	0904220531@guest.local	0904220531	Thành công	10	2026-09-19 02:22:07.056	2026-09-19 02:22:07.056
-39	15	Nguyễn Tiến Dũng	0943472943@guest.local	0943472943	Thành công	10	2026-09-19 02:22:36.177	2026-09-19 02:22:36.177
-40	15	Hồ Kim Thoa	0774244280@guest.local	0774244280	Thành công	10	2026-09-19 02:23:12.881	2026-09-19 02:23:12.881
-29	56	Phạm văn Pha	0973765167@guest.local	0973765167	Thành công	10	2026-09-19 02:06:39.945	2026-09-19 02:06:39.945
-41	15	Phạm thị nguyệt	0979012294@guest.local	0979012294	Thành công	10	2026-09-19 02:30:01.097	2026-09-19 02:30:01.097
-42	15	Trần thị hồng	0942238855@guest.local	0942238855	Thành công	10	2026-09-19 02:32:25.682	2026-09-19 02:32:25.682
-44	15	Đỗ thị lanh	0941848473@guest.local	0941848473	Thành công	10	2026-09-19 02:34:04.978	2026-09-19 02:34:04.978
-45	15	Nguyên thị ngọc bich	0346511369@guest.local	0346511369	Thành công	10	2026-09-19 02:37:56.92	2026-09-19 02:37:56.92
-46	15	Cao t lan huong ( trinh )	0763416898@guest.local	0763416898	Thành công	10	2026-09-19 02:39:44.347	2026-09-19 02:39:44.347
-47	15	Hoàng văn Nhật	0915026767@guest.local	0915026767	Thành công	10	2026-09-19 02:41:56.551	2026-09-19 02:41:56.551
-48	15	Nguyễn Phú Vụng( A Hoàng)	0865209758@guest.local	0865209758	Thành công	10	2026-09-19 02:44:12.85	2026-09-19 02:44:12.85
-49	15	Nguyễn Văn Hòa	0387549779@guest.local	0387549779	Thành công	10	2026-09-19 02:46:32.174	2026-09-19 02:46:32.174
-38	45	Nguyễn Thị ĐàoNguyeens Tuấn X	0335842475@guest.local	0335842475	Thành công	10	2026-09-19 02:22:09.497	2026-09-19 02:22:09.497
-51	15	Nguyễn thị Nga(Huyền)	0966389651@guest.local	0966389651	Thành công	10	2026-09-19 02:47:19.452	2026-09-19 02:47:19.452
-52	15	Lê Thị Bích Thủy	0394527088@guest.local	0394527088	Thành công	10	2026-09-19 02:50:39.358	2026-09-19 02:50:39.358
-53	15	Lê Thị Thanh Huyền	0886265813@guest.local	0886265813	Thành công	10	2026-09-19 02:51:59.337	2026-09-19 02:51:59.337
-54	15	Vũ Thị Thanh ( Thanh Hương)	0989905945@guest.local	0989905945	Thành công	10	2026-09-19 02:55:36.91	2026-09-19 02:55:36.91
-43	74	Đoàn Thị Tuyết Minh	+84866628865@guest.local	+84866628865	Thành công	10	2026-09-19 02:33:04.275	2026-09-19 02:33:04.275
-55	15	Tran thi thanh Huong	0904555254@guest.local	0904555254	Thành công	10	2026-09-19 02:55:48.127	2026-09-19 02:55:48.127
-56	15	Nguyễn Đức Vĩnh	0984398568@guest.local	0984398568	Thành công	10	2026-09-19 02:59:57.364	2026-09-19 02:59:57.364
-57	15	Phượng Ngọc Thu	+84969881698@guest.local	+84969881698	Thành công	10	2026-09-19 03:03:23.959	2026-09-19 03:03:23.959
-58	15	Vũ Thị Thúy	0945172578@guest.local	0945172578	Thành công	10	2026-09-19 03:03:31.245	2026-09-19 03:03:31.245
-59	15	Nguyễn thúy hang	0975656429@guest.local	0975656429	Thành công	10	2026-09-19 03:04:57.703	2026-09-19 03:04:57.703
-61	15	Nguyễn Xuân mâụ	0978665956@guest.local	0978665956	Thành công	10	2026-09-19 03:06:56.79	2026-09-19 03:06:56.79
-50	45	Nguyễn Quỳnh Thu	0354767135@guest.local	0354767135	Thành công	10	2026-09-19 02:46:35.862	2026-09-19 02:46:35.862
-63	15	duong thanh( cao hương)	0962683595@guest.local	0962683595	Thành công	10	2026-09-19 03:12:37.298	2026-09-19 03:12:37.298
-64	15	Nguyễn Thị Hướng	0916763233@guest.local	0916763233	Thành công	10	2026-09-19 03:13:59.425	2026-09-19 03:13:59.425
-65	15	Quách Thị Thanh Phương	0989170620@guest.local	0989170620	Thành công	10	2026-09-19 03:14:37.564	2026-09-19 03:14:37.564
-66	15	C Phương ( Hà )	0913538966@guest.local	0913538966	Thành công	10	2026-09-19 03:16:14.587	2026-09-19 03:16:14.587
-67	15	Cao quốc trường	0983835893@guest.local	0983835893	Thành công	10	2026-09-19 03:16:42.856	2026-09-19 03:16:42.856
-68	15	Nguyễn Văn Đạt	0983323746@guest.local	0983323746	Thành công	10	2026-09-19 03:16:48.02	2026-09-19 03:16:48.02
-69	15	Hoàng Hương	0849672866@guest.local	0849672866	Thành công	10	2026-09-19 03:19:42.914	2026-09-19 03:19:42.914
-70	15	Phạm Quang Hiếu ( Hương)	0855123268@guest.local	0855123268	Thành công	10	2026-09-19 03:20:00.696	2026-09-19 03:20:00.696
-71	15	Anh Thắng ( Hồng Hải)	0123456789@guest.local	0123456789	Thành công	10	2026-09-19 03:22:48.564	2026-09-19 03:22:48.564
-60	45	Vũ Thị Thúy	0945172578@guest.local	0945172578	Thành công	10	2026-09-19 03:06:50.446	2026-09-19 03:06:50.446
-72	15	Đoàn thị bạch yến	0983894308@guest.local	0983894308	Thành công	10	2026-09-19 03:25:42.295	2026-09-19 03:25:42.295
-62	89	Nguyễn Đắc Học	0915240094@guest.local	0915240094	Thành công	10	2026-09-19 03:09:00.536	2026-09-19 03:09:00.536
-73	15	Trần Thị Lan ( cụ Yến)	0966728597@guest.local	0966728597	Thành công	10	2026-09-19 03:25:45.569	2026-09-19 03:25:45.569
-75	15	Hoàng Sỹ Tuấn	0931527739@guest.local	0931527739	Thành công	10	2026-09-19 03:41:45.124	2026-09-19 03:41:45.124
-76	15	Vũ Hùng Vỹ	0984967555@guest.local	0984967555	Thành công	10	2026-09-19 03:41:53.75	2026-09-19 03:41:53.75
-84	15	Hoàng thị bích	0904708586@guest.local	0904708586	Thành công	10	2026-09-23 07:14:17.547	2026-09-23 07:14:17.547
-182	122	Hoàng Thị Luyện	0972831568@guest.local	0972831568	Thành công	10	2026-09-30 02:42:30.322	2026-09-30 02:42:30.322
-183	67	Nguyễn Thị Luận	0966762185@guest.local	0966762185	Thành công	10	2026-09-30 02:45:02.218	2026-09-30 02:45:02.218
-184	67	Lưu Đức Ngọ	0775935886@guest.local	0775935886	Thành công	10	2026-09-30 02:46:08.602	2026-09-30 02:46:08.602
-185	117	Bùi Hồng Ánh	0763511386@guest.local	0763511386	Thành công	10	2026-09-30 02:46:27.646	2026-09-30 02:46:27.646
-186	40	Hà Thu Thảo	0968265146@guest.local	0968265146	Thành công	10	2026-09-30 02:47:57.076	2026-09-30 02:47:57.076
-190	45	Nguyễn Duy Thanh	0981227266@guest.local	0981227266	Thành công	10	2026-09-30 02:54:49.913	2026-09-30 02:54:49.913
-194	196	Nguyễn Thị Tuyết Nhung	0987775516@guest.local	0987775516	Thành công	10	2026-09-30 03:04:55.214	2026-09-30 03:04:55.214
-195	196	Đoàn Thị Tuyết Minh	0866628865@guest.local	0866628865	Thành công	10	2026-09-30 03:05:21.44	2026-09-30 03:05:21.44
-196	196	Đặng Lâm	0328001998@guest.local	0328001998	Thành công	10	2026-09-30 03:07:26.126	2026-09-30 03:07:26.126
-197	196	Nguyễn Thị Kim Oanh	08676599351@guest.local	08676599351	Thành công	10	2026-09-30 03:08:01.32	2026-09-30 03:08:01.32
-199	167	Nguyễn Thị Thi	0379336768@guest.local	0379336768	Thành công	10	2026-09-30 03:16:28.556	2026-09-30 03:16:28.556
-213	45	Nguyễn Ngọc tiếp	0866671972@guest.local	0866671972	Thành công	10	2026-10-03 01:54:54.557	2026-10-03 01:54:54.557
-214	45	Phạm Văn Nam	0913289124@guest.local	0913289124	Thành công	10	2026-10-03 01:55:21.9	2026-10-03 01:55:21.9
-215	122	Phan Quốc Văn	0867971675@guest.local	0867971675	Thành công	10	2026-10-03 02:06:24.124	2026-10-03 02:06:24.124
-216	93	Nguyễn Thị Nhàn	0989358278@guest.local	0989358278	Thành công	10	2026-10-03 02:07:13.803	2026-10-03 02:07:13.803
-217	45	Nguyễn Việt Dũng	0788272867@guest.local	0788272867	Thành công	10	2026-10-03 02:09:53.329	2026-10-03 02:09:53.329
-218	93	Trần Thị Mai Lương	03332231429@guest.local	03332231429	Thành công	10	2026-10-03 02:13:39.849	2026-10-03 02:13:39.849
-219	122	Hoàng Thị Luyện	09728315568@guest.local	09728315568	Thành công	10	2026-10-03 02:18:16.009	2026-10-03 02:18:16.009
-220	40	Nguyễn Thị Dung	0856368502@guest.local	0856368502	Thành công	10	2026-10-03 02:19:20.489	2026-10-03 02:19:20.489
+374	109	Qoan` thị lan	0983276323@guest.local	0983276323	Thành công	10	2026-10-13 07:56:55.135	2026-10-13 07:56:55.135
+376	109	Nguyễn Thị trang	07871850224@guest.local	07871850224	Thành công	10	2026-10-13 11:50:29.916	2026-10-13 11:50:29.916
+377	109	Nguyễn Thị Thanh	0369729704@guest.local	0369729704	Thành công	10	2026-10-13 11:53:30.176	2026-10-13 11:53:30.176
 221	40	Nguyễn Đức Chiến	0972177711@guest.local	0972177711	Thành công	10	2026-10-03 02:21:02.491	2026-10-03 02:21:02.491
 222	278	Nguyễn Thị Nhạn	0982882533@guest.local	0982882533	Thành công	10	2026-10-03 02:26:01.349	2026-10-03 02:26:01.349
 223	282	Nguyễn Quang Lộc	0963220352@guest.local	0963220352	Thành công	10	2026-10-03 02:27:42.152	2026-10-03 02:27:42.152
@@ -2809,13 +3553,28 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 252	196	Nguyễn Ngọc Thụy	0948657304@guest.local	0948657304	Thành công	10	2026-10-03 03:22:57.372	2026-10-03 03:22:57.372
 253	196	Bùi Đăng Lâm	0847234509@guest.local	0847234509	Thành công	10	2026-10-03 03:23:30.348	2026-10-03 03:23:30.348
 254	301	Nguyễn Thị Hằng	0958003134@guest.local	0958003134	Thành công	10	2026-10-03 03:26:54.058	2026-10-03 03:26:54.058
-255	15	Nguyễn Thị Thoa	0364761955@guest.local	0364761955	Thành công	10	2026-10-03 03:27:02.063	2026-10-03 03:27:02.063
 256	301	Nguyễn Thanh Loan	0364658692@guest.local	0364658692	Thành công	10	2026-10-03 03:27:19.699	2026-10-03 03:27:19.699
 257	301	Nguyễn Tuấn Hồng	0399812392@guest.local	0399812392	Thành công	10	2026-10-03 03:27:44.625	2026-10-03 03:27:44.625
 258	56	Đỗ thị Lan	0988203165@guest.local	0988203165	Thành công	10	2026-10-03 03:30:28.038	2026-10-03 03:30:28.038
 259	56	Vũ Huy San	0836752083@guest.local	0836752083	Thành công	10	2026-10-03 03:31:36.402	2026-10-03 03:31:36.402
 260	41	Lưu Thanh Hải	0775935866@guest.local	0775935866	Thành công	10	2026-10-03 03:32:44.485	2026-10-03 03:32:44.485
 261	93	Kiều Tâm	0918140195@guest.local	0918140195	Thành công	10	2026-10-03 03:33:09.472	2026-10-03 03:33:09.472
+411	73	Lê Hằng	0914571331@guest.local	0914571331	Thành công	10	2026-10-17 01:58:19.132	2026-10-17 01:58:19.132
+412	73	Nguyễn Đức Huy	0348778893@guest.local	0348778893	Thành công	10	2026-10-17 01:58:58.86	2026-10-17 01:58:58.86
+413	73	Lê Thị Thảo	0904360412@guest.local	0904360412	Thành công	10	2026-10-17 01:59:26.2	2026-10-17 01:59:26.2
+380	40	Nguyễn Mai Thiện	0986813114@guest.local	0986813114	Thành công	10	2026-10-14 02:33:50.673	2026-10-14 02:33:50.673
+388	152	Lê Văn Cương	0979701466@guest.local	0979701466	Thành công	10	2026-10-14 03:06:36.226	2026-10-14 03:06:36.226
+375	109	Đăng thị ngọc	0961195756@guest.local	0961195756	Thành công	10	2026-10-13 07:59:33.492	2026-10-13 07:59:33.492
+26	15	Vũ van biên	0989944612@guest.local	0989944612	Thành công	10	2026-09-19 02:05:15.34	2026-09-19 02:05:15.34
+27	15	Vũ Thị Kim Thư( Hùng Vỹ)	0854716372@guest.local	0854716372	Thành công	10	2026-09-19 02:05:22.936	2026-09-19 02:05:22.936
+28	15	Lê Văn kiểm	0968085316@guest.local	0968085316	Thành công	10	2026-09-19 02:06:30.444	2026-09-19 02:06:30.444
+30	15	Nguyễn thế viễn	0988359108@guest.local	0988359108	Thành công	10	2026-09-19 02:07:14.771	2026-09-19 02:07:14.771
+31	15	Lê Văn Hải ( khách của Vũ Thuý)	0903213785@guest.local	0903213785	Thành công	10	2026-09-19 02:07:31.291	2026-09-19 02:07:31.291
+32	15	Nguyễn Trà My	0344514394@guest.local	0344514394	Thành công	10	2026-09-19 02:09:57.75	2026-09-19 02:09:57.75
+33	15	Đinh thị thảo	0356044186@guest.local	0356044186	Thành công	10	2026-09-19 02:14:29.439	2026-09-19 02:14:29.439
+20	49	Lê Văn Thời	0929639345@guest.local	0929639345	Thành công	10	2026-09-19 02:00:17.717	2026-09-19 02:00:17.717
+34	15	phạm thị Tuyết(vỹ)	0936446922@guest.local	0936446922	Thành công	10	2026-09-19 02:16:37.337	2026-09-19 02:16:37.337
+22	49	Nguyễn Hồ Phương	0779292959@guest.local	0779292959	Thành công	10	2026-09-19 02:02:45.876	2026-09-19 02:02:45.876
 262	313	Nguyễn Thị Tư	0975833673@guest.local	0975833673	Thành công	10	2026-10-03 03:35:09.453	2026-10-03 03:35:09.453
 263	117	Lê Hồng Liên	0384473988@guest.local	0384473988	Thành công	10	2026-10-03 03:36:23.073	2026-10-03 03:36:23.073
 264	109	Trần Thị Ban	0379863712@guest.local	0379863712	Thành công	10	2026-10-05 07:43:56.447	2026-10-05 07:43:56.447
@@ -2856,6 +3615,19 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 96	48	Trần Thị Hà	0373360136@guest.local	0373360136	Thành công	10	2026-09-25 13:50:37.579	2026-09-25 13:50:37.579
 97	146	Nguyễn Văn Điền	0985544078@guest.local	0985544078	Thành công	10	2026-09-26 01:45:14.517	2026-09-26 01:45:14.517
 98	146	Lương Vũ Tiến	0974200697@guest.local	0974200697	Thành công	10	2026-09-26 01:46:06.538	2026-09-26 01:46:06.538
+381	49	Nguyễn Thị Yến	0967765626@guest.local	0967765626	Thành công	10	2026-10-14 02:36:06.791	2026-10-14 02:36:06.791
+383	375	Đỗ Thị Nhiệm	0985016368@guest.local	0985016368	Thành công	10	2026-10-14 02:51:03.418	2026-10-14 02:51:03.418
+384	375	Trương Thục Định	0356100791@guest.local	0356100791	Thành công	10	2026-10-14 02:51:38.138	2026-10-14 02:51:38.138
+385	155	Nguyễn Thị Yến	034781795@guest.local	034781795	Thành công	10	2026-10-14 02:52:06.576	2026-10-14 02:52:06.576
+389	45	Vũ Văn Kiên	0967773184@guest.local	0967773184	Thành công	10	2026-10-14 03:07:45.717	2026-10-14 03:07:45.717
+23	45	Lê thanh vi	0913258659@guest.local	0913258659	Thành công	10	2026-09-19 02:04:15.334	2026-09-19 02:04:15.334
+35	15	Lưu Thanh Hải( Nhung)	0775935866@guest.local	0775935866	Thành công	10	2026-09-19 02:16:38.85	2026-09-19 02:16:38.85
+36	15	Bùi thị kim oanh(tuyết)	0834262681@guest.local	0834262681	Thành công	10	2026-09-19 02:17:29.235	2026-09-19 02:17:29.235
+37	15	Lê Thị Loan( Hà )	0904220531@guest.local	0904220531	Thành công	10	2026-09-19 02:22:07.056	2026-09-19 02:22:07.056
+39	15	Nguyễn Tiến Dũng	0943472943@guest.local	0943472943	Thành công	10	2026-09-19 02:22:36.177	2026-09-19 02:22:36.177
+40	15	Hồ Kim Thoa	0774244280@guest.local	0774244280	Thành công	10	2026-09-19 02:23:12.881	2026-09-19 02:23:12.881
+29	56	Phạm văn Pha	0973765167@guest.local	0973765167	Thành công	10	2026-09-19 02:06:39.945	2026-09-19 02:06:39.945
+255	15	Nguyễn Thị Thoa	0364761955@guest.local	0364761955	Thành công	10	2026-10-03 03:27:02.063	2026-10-03 03:27:02.063
 99	93	Nguyễn Thuý Hằng	0975656429@guest.local	0975656429	Thành công	10	2026-09-26 01:56:59.532	2026-09-26 01:56:59.532
 100	42	Nguyễn Văn Trung	0978581968@guest.local	0978581968	Thành công	10	2026-09-26 02:01:27.813	2026-09-26 02:01:27.813
 101	118	Đào Thị Hoà	0981398785@guest.local	0981398785	Thành công	10	2026-09-26 02:02:53.313	2026-09-26 02:02:53.313
@@ -2899,6 +3671,8 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 139	45	Phạm Thanh Tùng	0913262869@guest.local	0913262869	Thành công	10	2026-09-26 03:22:35.079	2026-09-26 03:22:35.079
 140	92	Nguyễn Thị Thu	0334618677@guest.local	0334618677	Thành công	10	2026-09-26 03:24:15.238	2026-09-26 03:24:15.238
 141	167	Nguyễn Minh Khuê	0396764462@guest.local	0396764462	Thành công	10	2026-09-26 03:24:50.364	2026-09-26 03:24:50.364
+382	392	Trần Văn Lâm	0983406098@guest.local	0983406098	Thành công	10	2026-10-14 02:37:55.054	2026-10-14 02:37:55.054
+396	392	Ngô Thị Kim Thư	0834830927@guest.local	0834830927	Thành công	10	2026-10-14 03:17:29.587	2026-10-14 03:17:29.587
 142	92	Lê Văn hòa	0345918265@guest.local	0345918265	Thành công	10	2026-09-26 03:25:14.309	2026-09-26 03:25:14.309
 143	165	Nguyễn Thị Hường	0786359686@guest.local	0786359686	Thành công	10	2026-09-26 03:26:08.989	2026-09-26 03:26:08.989
 144	74	Nguyễn Văn Nam	0934489228@guest.local	0934489228	Thành công	10	2026-09-26 03:28:36.517	2026-09-26 03:28:36.517
@@ -2956,11 +3730,33 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 271	217	Phạm Thị hên	0969957755@guest.local	0969957755	Thành công	10	2026-10-05 07:55:29.344	2026-10-05 07:55:29.344
 272	217	Hà Thị Phương	0347461899@guest.local	0347461899	Thành công	10	2026-10-05 07:56:55.675	2026-10-05 07:56:55.675
 273	217	Phạm Thị Hà	0984067961@guest.local	0984067961	Thành công	10	2026-10-05 07:57:43.909	2026-10-05 07:57:43.909
-274	217	Đặng Mai Ly	086031629@guest.local	086031629	Thành công	10	2026-10-05 07:59:16.045	2026-10-05 07:59:16.045
 275	109	Cầm Thị Tươi	0978366318@guest.local	0978366318	Thành công	10	2026-10-05 08:00:16.707	2026-10-05 08:00:16.707
 276	109	Nguyễn Thế Hợp	09779266165@guest.local	09779266165	Thành công	10	2026-10-06 03:28:52.481	2026-10-06 03:28:52.481
 277	109	Nguyễn Thị Minh	0983906208@guest.local	0983906208	Thành công	10	2026-10-06 03:29:57.857	2026-10-06 03:29:57.857
 278	66	Vũ Thị Cúc	0889225989@guest.local	0889225989	Thành công	10	2026-10-06 03:30:32.05	2026-10-06 03:30:32.05
+386	389	Nguyễn Văn Nghĩa	0833931919@guest.local	0833931919	Thành công	10	2026-10-14 02:54:30.762	2026-10-14 02:54:30.762
+387	185	Nguyễn Văn Tạ	0968827786@guest.local	0968827786	Thành công	10	2026-10-14 02:55:05.815	2026-10-14 02:55:05.815
+274	217	Đặng Mai Ly	086031629@guest.local	086031629	Thành công	10	2026-10-05 07:59:16.045	2026-10-05 07:59:16.045
+66	15	C Phương ( Hà )	0913538966@guest.local	0913538966	Thành công	10	2026-09-19 03:16:14.587	2026-09-19 03:16:14.587
+67	15	Cao quốc trường	0983835893@guest.local	0983835893	Thành công	10	2026-09-19 03:16:42.856	2026-09-19 03:16:42.856
+68	15	Nguyễn Văn Đạt	0983323746@guest.local	0983323746	Thành công	10	2026-09-19 03:16:48.02	2026-09-19 03:16:48.02
+69	15	Hoàng Hương	0849672866@guest.local	0849672866	Thành công	10	2026-09-19 03:19:42.914	2026-09-19 03:19:42.914
+70	15	Phạm Quang Hiếu ( Hương)	0855123268@guest.local	0855123268	Thành công	10	2026-09-19 03:20:00.696	2026-09-19 03:20:00.696
+71	15	Anh Thắng ( Hồng Hải)	0123456789@guest.local	0123456789	Thành công	10	2026-09-19 03:22:48.564	2026-09-19 03:22:48.564
+60	45	Vũ Thị Thúy	0945172578@guest.local	0945172578	Thành công	10	2026-09-19 03:06:50.446	2026-09-19 03:06:50.446
+72	15	Đoàn thị bạch yến	0983894308@guest.local	0983894308	Thành công	10	2026-09-19 03:25:42.295	2026-09-19 03:25:42.295
+62	89	Nguyễn Đắc Học	0915240094@guest.local	0915240094	Thành công	10	2026-09-19 03:09:00.536	2026-09-19 03:09:00.536
+73	15	Trần Thị Lan ( cụ Yến)	0966728597@guest.local	0966728597	Thành công	10	2026-09-19 03:25:45.569	2026-09-19 03:25:45.569
+197	196	Nguyễn Thị Kim Oanh	08676599351@guest.local	08676599351	Thành công	10	2026-09-30 03:08:01.32	2026-09-30 03:08:01.32
+199	167	Nguyễn Thị Thi	0379336768@guest.local	0379336768	Thành công	10	2026-09-30 03:16:28.556	2026-09-30 03:16:28.556
+213	45	Nguyễn Ngọc tiếp	0866671972@guest.local	0866671972	Thành công	10	2026-10-03 01:54:54.557	2026-10-03 01:54:54.557
+214	45	Phạm Văn Nam	0913289124@guest.local	0913289124	Thành công	10	2026-10-03 01:55:21.9	2026-10-03 01:55:21.9
+215	122	Phan Quốc Văn	0867971675@guest.local	0867971675	Thành công	10	2026-10-03 02:06:24.124	2026-10-03 02:06:24.124
+216	93	Nguyễn Thị Nhàn	0989358278@guest.local	0989358278	Thành công	10	2026-10-03 02:07:13.803	2026-10-03 02:07:13.803
+217	45	Nguyễn Việt Dũng	0788272867@guest.local	0788272867	Thành công	10	2026-10-03 02:09:53.329	2026-10-03 02:09:53.329
+218	93	Trần Thị Mai Lương	03332231429@guest.local	03332231429	Thành công	10	2026-10-03 02:13:39.849	2026-10-03 02:13:39.849
+219	122	Hoàng Thị Luyện	09728315568@guest.local	09728315568	Thành công	10	2026-10-03 02:18:16.009	2026-10-03 02:18:16.009
+220	40	Nguyễn Thị Dung	0856368502@guest.local	0856368502	Thành công	10	2026-10-03 02:19:20.489	2026-10-03 02:19:20.489
 279	90	Chị châu khách hàng của chích	03728377148@guest.local	03728377148	Thành công	10	2026-10-06 03:36:25.909	2026-10-06 03:36:25.909
 280	204	Đào Thi Hòa	0981398785@guest.local	0981398785	Thành công	10	2026-10-06 03:38:58.17	2026-10-06 03:38:58.17
 281	49	Phạm Hạnh	0376866862@guest.local	0376866862	Thành công	10	2026-10-06 11:41:48.554	2026-10-06 11:41:48.554
@@ -2978,22 +3774,32 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 293	301	Nguyễn Hải quý	0988732586@guest.local	0988732586	Thành công	10	2026-10-07 02:47:46.16	2026-10-07 02:47:46.16
 294	122	Nguyễn Thị Hồng Minh	0932672476@guest.local	0932672476	Thành công	10	2026-10-07 02:49:44.478	2026-10-07 02:49:44.478
 295	301	Lê Thị Huyền Trang	0943227213@guest.local	0943227213	Thành công	10	2026-10-07 02:49:47.182	2026-10-07 02:49:47.182
+358	93	Vương Thị Minh	0913514959@guest.local	0913514959	Thành công	10	2026-10-10 02:49:36.568	2026-10-10 02:49:36.568
+343	90	Anh thiêu	0398987848@guest.local	0398987848	Thành công	10	2026-10-09 12:10:12.189	2026-10-09 12:10:12.189
+390	381	Nguyễn Thị Liễu	0967143276@guest.local	0967143276	Thành công	10	2026-10-14 03:10:45.597	2026-10-14 03:10:45.597
 296	301	Nguyễn Thị Liên	0952782131@guest.local	0952782131	Thành công	10	2026-10-07 02:50:23.902	2026-10-07 02:50:23.902
 297	154	Lương Khánh Tình	0988307994@guest.local	0988307994	Thành công	10	2026-10-07 02:50:31.441	2026-10-07 02:50:31.441
 298	301	Nguyễn Thị hòa	0917921187@guest.local	0917921187	Thành công	10	2026-10-07 02:51:21.918	2026-10-07 02:51:21.918
+336	49	Mã Thanh Hưng	0931645134@guest.local	0931645134	Thành công	10	2026-10-09 06:50:28.241	2026-10-09 06:50:28.241
+337	49	Lê Thị Thư	0822295386@guest.local	0822295386	Thành công	10	2026-10-09 06:52:36.447	2026-10-09 06:52:36.447
+351	48	Nguyễn Thị Bình	0379996973@guest.local	0379996973	Thành công	10	2026-10-09 14:07:23.191	2026-10-09 14:07:23.191
+352	48	Nguyễn Tuấn Ninh	0363280765@guest.local	0363280765	Thành công	10	2026-10-10 01:46:29.075	2026-10-10 01:46:29.075
+353	217	Cung Thu hà	0965759559@guest.local	0965759559	Thành công	10	2026-10-10 02:01:06.764	2026-10-10 02:01:06.764
+354	51	Đỗ Văn Trân	0904304716@guest.local	0904304716	Thành công	10	2026-10-10 02:39:58.856	2026-10-10 02:39:58.856
+355	48	Nguyễn Văn Tiến	0384566639@guest.local	0384566639	Thành công	10	2026-10-10 02:42:37.673	2026-10-10 02:42:37.673
+356	48	Nguyễn Văn Ngọ	0915023899@guest.local	0915023899	Thành công	10	2026-10-10 02:45:28.018	2026-10-10 02:45:28.018
+357	392	Nguyễn Thị Hương	0399868786@guest.local	0399868786	Thành công	10	2026-10-10 02:46:05.263	2026-10-10 02:46:05.263
 299	152	Nguyễn Ngọc Sâm	0983740964@guest.local	0983740964	Thành công	10	2026-10-07 02:52:09.368	2026-10-07 02:52:09.368
 300	301	Lê Thị Bình	0828664858@guest.local	0828664858	Thành công	10	2026-10-07 02:52:09.391	2026-10-07 02:52:09.391
 301	301	Nguyễn Thị Kim Oanh	0987581195@guest.local	0987581195	Thành công	10	2026-10-07 02:58:58.947	2026-10-07 02:58:58.947
 302	301	Nguyễn Văn Quyết	0328906789@guest.local	0328906789	Thành công	10	2026-10-07 02:59:32.861	2026-10-07 02:59:32.861
 303	301	Hoàng Thị tuyết	0968414961@guest.local	0968414961	Thành công	10	2026-10-07 03:00:16.052	2026-10-07 03:00:16.052
 304	301	Trần Văn Thành	0941262164@guest.local	0941262164	Thành công	10	2026-10-07 03:00:52.215	2026-10-07 03:00:52.215
-305	45	Nguyễn Thu Thảo	0936218669@guest.local	0936218669	Thành công	10	2026-10-07 03:01:10.298	2026-10-07 03:01:10.298
-306	301	Bùi đình tiến	0913575968@guest.local	0913575968	Thành công	10	2026-10-07 03:01:57.6	2026-10-07 03:01:57.6
-307	319	Nguyễn Thị Hoa	0946233288@guest.local	0946233288	Thành công	10	2026-10-07 03:04:51.043	2026-10-07 03:04:51.043
-308	40	Trần Thị Thanh Hương	0329685009@guest.local	0329685009	Thành công	10	2026-10-07 03:11:10.803	2026-10-07 03:11:10.803
-309	301	Trần Văn Bình	0989558606@guest.local	0989558606	Thành công	10	2026-10-07 03:11:15.573	2026-10-07 03:11:15.573
-310	152	Hoàng Thị Luyện	0972438568@guest.local	0972438568	Thành công	10	2026-10-07 03:11:48.986	2026-10-07 03:11:48.986
-311	301	Đỗ Thị Lanh	0941848473@guest.local	0941848473	Thành công	10	2026-10-07 03:11:50.15	2026-10-07 03:11:50.15
+391	165	Hoàng Nga	0904383332@guest.local	0904383332	Thành công	10	2026-10-14 03:11:40.062	2026-10-14 03:11:40.062
+392	152	Ngô Thị Diệu	0362113768@guest.local	0362113768	Thành công	10	2026-10-14 03:12:25.873	2026-10-14 03:12:25.873
+393	49	Nguyễn Thị Yến	0967765625@guest.local	0967765625	Thành công	10	2026-10-14 03:13:07.396	2026-10-14 03:13:07.396
+394	319	Vương Thị Kim Chung	0396837919@guest.local	0396837919	Thành công	10	2026-10-14 03:13:47.659	2026-10-14 03:13:47.659
+395	319	Nguyễn Công Hùng	0984223191@guest.local	0984223191	Thành công	10	2026-10-14 03:14:52.626	2026-10-14 03:14:52.626
 312	301	Đỗ Thị Tú	0916016918@guest.local	0916016918	Thành công	10	2026-10-07 03:12:17.332	2026-10-07 03:12:17.332
 313	301	Cao Thị duyên	0942438366@guest.local	0942438366	Thành công	10	2026-10-07 03:12:46.376	2026-10-07 03:12:46.376
 314	319	Nguyễn Thị Hoàng Yến	0974085558@guest.local	0974085558	Thành công	10	2026-10-07 03:12:55.648	2026-10-07 03:12:55.648
@@ -3004,7 +3810,52 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 319	279	Phạm Thị Hồng Linh	0329233328@guest.local	0329233328	Thành công	10	2026-10-07 03:14:15.922	2026-10-07 03:14:15.922
 320	301	Nguyễn Thị Bảy	0912882722@guest.local	0912882722	Thành công	10	2026-10-07 03:14:20.737	2026-10-07 03:14:20.737
 321	93	Nguyễn Thị Thi	8379336768@guest.local	8379336768	Thành công	10	2026-10-07 03:14:42.047	2026-10-07 03:14:42.047
+333	109	Đỗ Lại Thanh	0975635081@guest.local	0975635081	Thành công	10	2026-10-07 03:41:28.287	2026-10-07 03:41:28.287
+334	42	Đảo Quang Trung	0962839461@guest.local	0962839461	Thành công	10	2026-10-09 03:19:31.673	2026-10-09 03:19:31.673
+335	301	Lê Thị Hà	0333088873@guest.local	0333088873	Thành công	10	2026-10-09 06:48:05.474	2026-10-09 06:48:05.474
+338	49	Nguyễn Thị Loan	0969945333@guest.local	0969945333	Thành công	10	2026-10-09 06:54:09.902	2026-10-09 06:54:09.902
+339	49	Hồ Đặng	+84385622390@guest.local	+84385622390	Thành công	10	2026-10-09 06:55:56.104	2026-10-09 06:55:56.104
+340	49	Hoàng Anh	+84981942599@guest.local	+84981942599	Thành công	10	2026-10-09 06:56:41.008	2026-10-09 06:56:41.008
+341	49	Huyền My	0986302256@guest.local	0986302256	Thành công	10	2026-10-09 06:57:20.958	2026-10-09 06:57:20.958
+350	48	Trần Đức Minh	0352313866@guest.local	0352313866	Thành công	10	2026-10-09 13:32:17.147	2026-10-09 13:32:17.147
+359	439	Nguyễn Thị Hà Thuận	0989137422@guest.local	0989137422	Thành công	10	2026-10-10 02:51:21.701	2026-10-10 02:51:21.701
+360	439	Nguyễn Thị Bích Loan	0348861918@guest.local	0348861918	Thành công	10	2026-10-10 02:51:54.578	2026-10-10 02:51:54.578
+361	170	Nguyễn Thị Loan	0965495161@guest.local	0965495161	Thành công	10	2026-10-10 02:58:21.472	2026-10-10 02:58:21.472
+305	45	Nguyễn Thu Thảo	0936218669@guest.local	0936218669	Thành công	10	2026-10-07 03:01:10.298	2026-10-07 03:01:10.298
+306	301	Bùi đình tiến	0913575968@guest.local	0913575968	Thành công	10	2026-10-07 03:01:57.6	2026-10-07 03:01:57.6
+307	319	Nguyễn Thị Hoa	0946233288@guest.local	0946233288	Thành công	10	2026-10-07 03:04:51.043	2026-10-07 03:04:51.043
+308	40	Trần Thị Thanh Hương	0329685009@guest.local	0329685009	Thành công	10	2026-10-07 03:11:10.803	2026-10-07 03:11:10.803
+309	301	Trần Văn Bình	0989558606@guest.local	0989558606	Thành công	10	2026-10-07 03:11:15.573	2026-10-07 03:11:15.573
+310	152	Hoàng Thị Luyện	0972438568@guest.local	0972438568	Thành công	10	2026-10-07 03:11:48.986	2026-10-07 03:11:48.986
+311	301	Đỗ Thị Lanh	0941848473@guest.local	0941848473	Thành công	10	2026-10-07 03:11:50.15	2026-10-07 03:11:50.15
 322	301	Nguyễn Thành Long	0965724926@guest.local	0965724926	Thành công	10	2026-10-07 03:21:33.499	2026-10-07 03:21:33.499
+397	301	Trần Văn Thọ	09822295386@guest.local	09822295386	Thành công	10	2026-10-14 03:34:57.441	2026-10-14 03:34:57.441
+398	301	Nguyễn Thị Chuyên	0969945022@guest.local	0969945022	Thành công	10	2026-10-14 03:35:35.931	2026-10-14 03:35:35.931
+74	15	Vân	9999999998@guest.local	9999999998	Thành công	10	2026-09-19 03:40:24.381	2026-09-19 03:40:24.381
+41	15	Phạm thị nguyệt	0979012294@guest.local	0979012294	Thành công	10	2026-09-19 02:30:01.097	2026-09-19 02:30:01.097
+42	15	Trần thị hồng	0942238855@guest.local	0942238855	Thành công	10	2026-09-19 02:32:25.682	2026-09-19 02:32:25.682
+44	15	Đỗ thị lanh	0941848473@guest.local	0941848473	Thành công	10	2026-09-19 02:34:04.978	2026-09-19 02:34:04.978
+45	15	Nguyên thị ngọc bich	0346511369@guest.local	0346511369	Thành công	10	2026-09-19 02:37:56.92	2026-09-19 02:37:56.92
+46	15	Cao t lan huong ( trinh )	0763416898@guest.local	0763416898	Thành công	10	2026-09-19 02:39:44.347	2026-09-19 02:39:44.347
+47	15	Hoàng văn Nhật	0915026767@guest.local	0915026767	Thành công	10	2026-09-19 02:41:56.551	2026-09-19 02:41:56.551
+48	15	Nguyễn Phú Vụng( A Hoàng)	0865209758@guest.local	0865209758	Thành công	10	2026-09-19 02:44:12.85	2026-09-19 02:44:12.85
+49	15	Nguyễn Văn Hòa	0387549779@guest.local	0387549779	Thành công	10	2026-09-19 02:46:32.174	2026-09-19 02:46:32.174
+38	45	Nguyễn Thị ĐàoNguyeens Tuấn X	0335842475@guest.local	0335842475	Thành công	10	2026-09-19 02:22:09.497	2026-09-19 02:22:09.497
+51	15	Nguyễn thị Nga(Huyền)	0966389651@guest.local	0966389651	Thành công	10	2026-09-19 02:47:19.452	2026-09-19 02:47:19.452
+52	15	Lê Thị Bích Thủy	0394527088@guest.local	0394527088	Thành công	10	2026-09-19 02:50:39.358	2026-09-19 02:50:39.358
+53	15	Lê Thị Thanh Huyền	0886265813@guest.local	0886265813	Thành công	10	2026-09-19 02:51:59.337	2026-09-19 02:51:59.337
+54	15	Vũ Thị Thanh ( Thanh Hương)	0989905945@guest.local	0989905945	Thành công	10	2026-09-19 02:55:36.91	2026-09-19 02:55:36.91
+43	74	Đoàn Thị Tuyết Minh	+84866628865@guest.local	+84866628865	Thành công	10	2026-09-19 02:33:04.275	2026-09-19 02:33:04.275
+55	15	Tran thi thanh Huong	0904555254@guest.local	0904555254	Thành công	10	2026-09-19 02:55:48.127	2026-09-19 02:55:48.127
+56	15	Nguyễn Đức Vĩnh	0984398568@guest.local	0984398568	Thành công	10	2026-09-19 02:59:57.364	2026-09-19 02:59:57.364
+57	15	Phượng Ngọc Thu	+84969881698@guest.local	+84969881698	Thành công	10	2026-09-19 03:03:23.959	2026-09-19 03:03:23.959
+58	15	Vũ Thị Thúy	0945172578@guest.local	0945172578	Thành công	10	2026-09-19 03:03:31.245	2026-09-19 03:03:31.245
+59	15	Nguyễn thúy hang	0975656429@guest.local	0975656429	Thành công	10	2026-09-19 03:04:57.703	2026-09-19 03:04:57.703
+61	15	Nguyễn Xuân mâụ	0978665956@guest.local	0978665956	Thành công	10	2026-09-19 03:06:56.79	2026-09-19 03:06:56.79
+50	45	Nguyễn Quỳnh Thu	0354767135@guest.local	0354767135	Thành công	10	2026-09-19 02:46:35.862	2026-09-19 02:46:35.862
+63	15	duong thanh( cao hương)	0962683595@guest.local	0962683595	Thành công	10	2026-09-19 03:12:37.298	2026-09-19 03:12:37.298
+64	15	Nguyễn Thị Hướng	0916763233@guest.local	0916763233	Thành công	10	2026-09-19 03:13:59.425	2026-09-19 03:13:59.425
+65	15	Quách Thị Thanh Phương	0989170620@guest.local	0989170620	Thành công	10	2026-09-19 03:14:37.564	2026-09-19 03:14:37.564
 323	301	Nguyễn Thị Hướng	0916763233@guest.local	0916763233	Thành công	10	2026-10-07 03:21:57.949	2026-10-07 03:21:57.949
 324	93	Trần Thị Mai Lương	0983729588@guest.local	0983729588	Thành công	10	2026-10-07 03:27:14.996	2026-10-07 03:27:14.996
 325	278	Nguyễn Thị Xuân	0332231429@guest.local	0332231429	Thành công	10	2026-10-07 03:29:51.968	2026-10-07 03:29:51.968
@@ -3015,47 +3866,37 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 330	381	Bùi Hồng Ánh	0763511386@guest.local	0763511386	Thành công	10	2026-10-07 03:39:14.244	2026-10-07 03:39:14.244
 331	41	Phạm Đình Tuấn	0768635148@guest.local	0768635148	Thành công	10	2026-10-07 03:39:55.647	2026-10-07 03:39:55.647
 332	109	Đỗ Mộng Long	8978380004@guest.local	8978380004	Thành công	10	2026-10-07 03:40:53.889	2026-10-07 03:40:53.889
-333	109	Đỗ Lại Thanh	0975635081@guest.local	0975635081	Thành công	10	2026-10-07 03:41:28.287	2026-10-07 03:41:28.287
-334	42	Đảo Quang Trung	0962839461@guest.local	0962839461	Thành công	10	2026-10-09 03:19:31.673967	2026-10-09 03:19:31.673967
-335	301	Lê Thị Hà	0333088873@guest.local	0333088873	Thành công	10	2026-10-09 06:48:05.474241	2026-10-09 06:48:05.474241
-336	49	Mã Thanh Hưng	0931645134@guest.local	0931645134	Thành công	10	2026-10-09 06:50:28.241258	2026-10-09 06:50:28.241258
-337	49	Lê Thị Thư	0822295386@guest.local	0822295386	Thành công	10	2026-10-09 06:52:36.447725	2026-10-09 06:52:36.447725
-338	49	Nguyễn Thị Loan	0969945333@guest.local	0969945333	Thành công	10	2026-10-09 06:54:09.902598	2026-10-09 06:54:09.902598
-339	49	Hồ Đặng	+84385622390@guest.local	+84385622390	Thành công	10	2026-10-09 06:55:56.104242	2026-10-09 06:55:56.104242
-340	49	Hoàng Anh	+84981942599@guest.local	+84981942599	Thành công	10	2026-10-09 06:56:41.00886	2026-10-09 06:56:41.00886
-341	49	Huyền My	0986302256@guest.local	0986302256	Thành công	10	2026-10-09 06:57:20.95838	2026-10-09 06:57:20.95838
-342	49	Chu Thành Long	0338293946@guest.local	0338293946	Thành công	10	2026-10-09 08:05:17.953975	2026-10-09 08:05:17.953975
-343	90	Anh thiêu	0398987848@guest.local	0398987848	Thành công	10	2026-10-09 12:10:12.189174	2026-10-09 12:10:12.189174
-344	48	Nguyễn Văn Ngọ	0994308509@guest.local	0994308509	Thành công	10	2026-10-09 12:18:19.103566	2026-10-09 12:18:19.103566
-345	428	Nguyễn Văn Kính	0982296434@guest.local	0982296434	Thành công	10	2026-10-09 12:25:26.779576	2026-10-09 12:25:26.779576
-346	428	Nguyễn Văn Quế	0349420226@guest.local	0349420226	Thành công	10	2026-10-09 12:26:31.677416	2026-10-09 12:26:31.677416
-347	90	Trúc Phương	0388653289@guest.local	0388653289	Thành công	10	2026-10-09 12:56:24.157169	2026-10-09 12:56:24.157169
-348	90	Trần Thị Mai	0388878598@guest.local	0388878598	Thành công	10	2026-10-09 12:57:57.270966	2026-10-09 12:57:57.270966
-349	48	Nguyễn Thị Thảo	0919452168@guest.local	0919452168	Thành công	10	2026-10-09 13:29:53.633071	2026-10-09 13:29:53.633071
-350	48	Trần Đức Minh	0352313866@guest.local	0352313866	Thành công	10	2026-10-09 13:32:17.147419	2026-10-09 13:32:17.147419
-351	48	Nguyễn Thị Bình	0379996973@guest.local	0379996973	Thành công	10	2026-10-09 14:07:23.191906	2026-10-09 14:07:23.191906
-352	48	Nguyễn Tuấn Ninh	0363280765@guest.local	0363280765	Thành công	10	2026-10-10 01:46:29.07523	2026-10-10 01:46:29.07523
-353	217	Cung Thu hà	0965759559@guest.local	0965759559	Thành công	10	2026-10-10 02:01:06.764193	2026-10-10 02:01:06.764193
-354	51	Đỗ Văn Trân	0904304716@guest.local	0904304716	Thành công	10	2026-10-10 02:39:58.856659	2026-10-10 02:39:58.856659
-355	48	Nguyễn Văn Tiến	0384566639@guest.local	0384566639	Thành công	10	2026-10-10 02:42:37.673246	2026-10-10 02:42:37.673246
-356	48	Nguyễn Văn Ngọ	0915023899@guest.local	0915023899	Thành công	10	2026-10-10 02:45:28.018241	2026-10-10 02:45:28.018241
-357	392	Nguyễn Thị Hương	0399868786@guest.local	0399868786	Thành công	10	2026-10-10 02:46:05.26391	2026-10-10 02:46:05.26391
-358	93	Vương Thị Minh	0913514959@guest.local	0913514959	Thành công	10	2026-10-10 02:49:36.568865	2026-10-10 02:49:36.568865
-359	439	Nguyễn Thị Hà Thuận	0989137422@guest.local	0989137422	Thành công	10	2026-10-10 02:51:21.701175	2026-10-10 02:51:21.701175
-360	439	Nguyễn Thị Bích Loan	0348861918@guest.local	0348861918	Thành công	10	2026-10-10 02:51:54.578571	2026-10-10 02:51:54.578571
-361	170	Nguyễn Thị Loan	0965495161@guest.local	0965495161	Thành công	10	2026-10-10 02:58:21.472051	2026-10-10 02:58:21.472051
-362	93	Lê Thị Kim Nhung	0917786857@guest.local	0917786857	Thành công	10	2026-10-10 03:00:40.618942	2026-10-10 03:00:40.618942
-363	443	Quay Văn Định	0867795133@guest.local	0867795133	Thành công	10	2026-10-10 03:01:17.232373	2026-10-10 03:01:17.232373
-364	443	Lưu Thanh Hải	0775935866@guest.local	0775935866	Thành công	10	2026-10-10 03:02:06.156553	2026-10-10 03:02:06.156553
-365	165	Vũ Thị Tuất	0935667676@guest.local	0935667676	Thành công	10	2026-10-10 03:09:33.649715	2026-10-10 03:09:33.649715
-366	109	Lê Đôn Thiều	0398937848@guest.local	0398937848	Thành công	10	2026-10-10 03:10:48.15343	2026-10-10 03:10:48.15343
-367	301	Lê Thị Hương	0912019977@guest.local	0912019977	Thành công	10	2026-10-10 03:21:19.213083	2026-10-10 03:21:19.213083
-368	301	Cao Minh Chính	0887426981@guest.local	0887426981	Thành công	10	2026-10-10 03:22:19.643201	2026-10-10 03:22:19.643201
-369	301	Đỗ Quyên	0982717285@guest.local	0982717285	Thành công	10	2026-10-10 03:23:41.38599	2026-10-10 03:23:41.38599
-370	301	Bùi Đăng Lâm	0888685610@guest.local	0888685610	Thành công	10	2026-10-10 03:30:28.773878	2026-10-10 03:30:28.773878
-371	301	Đoàn Thị Tuyết Minh	0912666889@guest.local	0912666889	Thành công	10	2026-10-10 03:30:58.429272	2026-10-10 03:30:58.429272
-372	301	Bùi Thế Anh	0966298886@guest.local	0966298886	Thành công	10	2026-10-10 03:32:12.875139	2026-10-10 03:32:12.875139
-373	301	Đỗ Nam	0347221883@guest.local	0347221883	Thành công	10	2026-10-10 03:32:37.419212	2026-10-10 03:32:37.419212
+75	15	Hoàng Sỹ Tuấn	0931527739@guest.local	0931527739	Thành công	10	2026-09-19 03:41:45.124	2026-09-19 03:41:45.124
+76	15	Vũ Hùng Vỹ	0984967555@guest.local	0984967555	Thành công	10	2026-09-19 03:41:53.75	2026-09-19 03:41:53.75
+84	15	Hoàng thị bích	0904708586@guest.local	0904708586	Thành công	10	2026-09-23 07:14:17.547	2026-09-23 07:14:17.547
+182	122	Hoàng Thị Luyện	0972831568@guest.local	0972831568	Thành công	10	2026-09-30 02:42:30.322	2026-09-30 02:42:30.322
+183	67	Nguyễn Thị Luận	0966762185@guest.local	0966762185	Thành công	10	2026-09-30 02:45:02.218	2026-09-30 02:45:02.218
+184	67	Lưu Đức Ngọ	0775935886@guest.local	0775935886	Thành công	10	2026-09-30 02:46:08.602	2026-09-30 02:46:08.602
+185	117	Bùi Hồng Ánh	0763511386@guest.local	0763511386	Thành công	10	2026-09-30 02:46:27.646	2026-09-30 02:46:27.646
+186	40	Hà Thu Thảo	0968265146@guest.local	0968265146	Thành công	10	2026-09-30 02:47:57.076	2026-09-30 02:47:57.076
+190	45	Nguyễn Duy Thanh	0981227266@guest.local	0981227266	Thành công	10	2026-09-30 02:54:49.913	2026-09-30 02:54:49.913
+194	196	Nguyễn Thị Tuyết Nhung	0987775516@guest.local	0987775516	Thành công	10	2026-09-30 03:04:55.214	2026-09-30 03:04:55.214
+195	196	Đoàn Thị Tuyết Minh	0866628865@guest.local	0866628865	Thành công	10	2026-09-30 03:05:21.44	2026-09-30 03:05:21.44
+196	196	Đặng Lâm	0328001998@guest.local	0328001998	Thành công	10	2026-09-30 03:07:26.126	2026-09-30 03:07:26.126
+342	49	Chu Thành Long	0338293946@guest.local	0338293946	Thành công	10	2026-10-09 08:05:17.953	2026-10-09 08:05:17.953
+344	48	Nguyễn Văn Ngọ	0994308509@guest.local	0994308509	Thành công	10	2026-10-09 12:18:19.103	2026-10-09 12:18:19.103
+345	428	Nguyễn Văn Kính	0982296434@guest.local	0982296434	Thành công	10	2026-10-09 12:25:26.779	2026-10-09 12:25:26.779
+346	428	Nguyễn Văn Quế	0349420226@guest.local	0349420226	Thành công	10	2026-10-09 12:26:31.677	2026-10-09 12:26:31.677
+347	90	Trúc Phương	0388653289@guest.local	0388653289	Thành công	10	2026-10-09 12:56:24.157	2026-10-09 12:56:24.157
+348	90	Trần Thị Mai	0388878598@guest.local	0388878598	Thành công	10	2026-10-09 12:57:57.27	2026-10-09 12:57:57.27
+349	48	Nguyễn Thị Thảo	0919452168@guest.local	0919452168	Thành công	10	2026-10-09 13:29:53.633	2026-10-09 13:29:53.633
+362	93	Lê Thị Kim Nhung	0917786857@guest.local	0917786857	Thành công	10	2026-10-10 03:00:40.618	2026-10-10 03:00:40.618
+363	443	Quay Văn Định	0867795133@guest.local	0867795133	Thành công	10	2026-10-10 03:01:17.232	2026-10-10 03:01:17.232
+364	443	Lưu Thanh Hải	0775935866@guest.local	0775935866	Thành công	10	2026-10-10 03:02:06.156	2026-10-10 03:02:06.156
+365	165	Vũ Thị Tuất	0935667676@guest.local	0935667676	Thành công	10	2026-10-10 03:09:33.649	2026-10-10 03:09:33.649
+366	109	Lê Đôn Thiều	0398937848@guest.local	0398937848	Thành công	10	2026-10-10 03:10:48.153	2026-10-10 03:10:48.153
+367	301	Lê Thị Hương	0912019977@guest.local	0912019977	Thành công	10	2026-10-10 03:21:19.213	2026-10-10 03:21:19.213
+368	301	Cao Minh Chính	0887426981@guest.local	0887426981	Thành công	10	2026-10-10 03:22:19.643	2026-10-10 03:22:19.643
+369	301	Đỗ Quyên	0982717285@guest.local	0982717285	Thành công	10	2026-10-10 03:23:41.385	2026-10-10 03:23:41.385
+370	301	Bùi Đăng Lâm	0888685610@guest.local	0888685610	Thành công	10	2026-10-10 03:30:28.773	2026-10-10 03:30:28.773
+371	301	Đoàn Thị Tuyết Minh	0912666889@guest.local	0912666889	Thành công	10	2026-10-10 03:30:58.429	2026-10-10 03:30:58.429
+372	301	Bùi Thế Anh	0966298886@guest.local	0966298886	Thành công	10	2026-10-10 03:32:12.875	2026-10-10 03:32:12.875
+373	301	Đỗ Nam	0347221883@guest.local	0347221883	Thành công	10	2026-10-10 03:32:37.419	2026-10-10 03:32:37.419
 \.
 
 
@@ -3064,11 +3905,11 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 --
 
 COPY public.lucky_wheel_spins (id, wheel_id, wheel_name, participant_name, participant_phone, participant_code, prize, spun_at, status) FROM stdin;
-1	1	Vòng quay Vàng	Thành viên ảo 7	0912345607	TV007	Không trúng	2026-08-25 08:40:20	Đã nhận thưởng
-2	1	Vòng quay Vàng	Thành viên ảo 39	0912345639	TV039	Voucher 1.000.000đ	2026-08-24 11:08:26	Đã nhận thưởng
 3	1	Vòng quay Vàng	Thành viên ảo 56	0912345656	TV056	Không trúng	2026-08-24 11:07:28	Đã nhận thưởng
 4	1	Vòng quay Vàng	Thành viên ảo 65	0912345665	TV065	Không trúng	2026-08-23 16:31:29	Đã nhận thưởng
 5	1	Vòng quay Vàng	Thành viên ảo 69	0912345669	TV069	200 Điểm	2026-08-23 16:31:21	Đã nhận thưởng
+1	1	Vòng quay Vàng	Thành viên ảo 7	0912345607	TV007	Không trúng	2026-08-25 08:40:20	Đã nhận thưởng
+2	1	Vòng quay Vàng	Thành viên ảo 39	0912345639	TV039	Voucher 1.000.000đ	2026-08-24 11:08:26	Đã nhận thưởng
 \.
 
 
@@ -3077,16 +3918,30 @@ COPY public.lucky_wheel_spins (id, wheel_id, wheel_name, participant_name, parti
 --
 
 COPY public.lucky_wheels (id, name, description, reward_text, quantity, event_id, event_name, spins_count, status, is_active, slices_json, core_color, arrow_color, border_color, created_at) FROM stdin;
-3	Vòng quay Đồng	Vòng quay may mắn nhỏ	100 Điểm thưởng	10	\N	\N	1	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:02.079
-5	Vòng quay may mắn 11/08/2026	Sự kiện ngày 11/08	500 Điểm	8	\N	Tri ân đối tác	6	Đã kết thúc	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:02.683
-7	Vòng quay Khởi đầu	Vòng quay cho thành viên mới	50 Điểm	15	\N	\N	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.31
-8	Vòng quay Cuối tuần	Khuyến mãi cuối tuần	Giảm giá 10%	20	\N	\N	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.602
-6	Nghiêng Complex Day – Tri ân đối tác 2026	Tri ân đối tác	Voucher 500K	4	\N	Tri ân đối tác	3	Đã kết thúc	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.014
-10	Vòng quay Mừng sinh nhật	Sinh nhật Nghiêng Complex	Voucher 100.000đ	6	\N	\N	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:04.751
 1	Vòng quay Vàng	Vòng quay giải thưởng lớn dành cho sự kiện chính	Voucher 1.000.000đ	3	\N	Nghiêng Complex Day 2026	11	Đang quay	t	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:00.808
 2	Vòng quay Bạc	Vòng quay giải thưởng phụ	Voucher 500.000đ	5	\N	Nghiêng Complex Day 2026	3	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:01.113
 4	Vòng quay may mắn 13/08/2026	Sự kiện ngày 13/08	Voucher 500.000đ	5	\N	Nghiêng Complex Day 2026	4	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:02.393
 9	Vòng quay VIP	Dành cho thành viên VIP	Voucher 2.000.000đ	2	\N	Nghiêng Complex Day 2026	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.927
+5	Vòng quay may mắn 11/08/2026	Sự kiện ngày 11/08	500 Điểm	8	\N	Tri ân đối tác	6	Đã kết thúc	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:02.683
+7	Vòng quay Khởi đầu	Vòng quay cho thành viên mới	50 Điểm	15	\N	\N	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.31
+3	Vòng quay Đồng	Vòng quay may mắn nhỏ	100 Điểm thưởng	10	\N	\N	1	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:02.079
+6	Nghiêng Complex Day – Tri ân đối tác 2026	Tri ân đối tác	Voucher 500K	4	\N	Tri ân đối tác	3	Đã kết thúc	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.014
+10	Vòng quay Mừng sinh nhật	Sinh nhật Nghiêng Complex	Voucher 100.000đ	6	\N	\N	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:04.751
+8	Vòng quay Cuối tuần	Khuyến mãi cuối tuần	Giảm giá 10%	20	\N	\N	0	Sắp diễn ra	f	[{"id":1,"type":"Voucher","color":"#1e40af","label":"Voucher 1.000.000đ","weight":1},{"id":2,"type":"Điểm","color":"#047857","label":"500 Điểm thưởng","weight":2},{"id":3,"type":"Voucher","color":"#b45309","label":"Voucher 500.000đ","weight":2},{"id":4,"type":"Điểm","color":"#6d28d9","label":"100 Điểm thưởng","weight":3},{"id":5,"type":"Không trúng","color":"#475569","label":"Chúc bạn may mắn","weight":4},{"id":6,"type":"Voucher","color":"#be123c","label":"Voucher 200.000đ","weight":2}]	#1e3a8a	#f59e0b	#1e3a8a	2026-09-17 18:51:03.602
+\.
+
+
+--
+-- Data for Name: operations_fund_beneficiaries; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.operations_fund_beneficiaries (id, department_key, fund_key, fund_source, department, full_name, phone, bank_account, bank_name, weekly_rate, monthly_rate, effective_from, created_by, updated_by, created_at, updated_at) FROM stdin;
+1	connection_deputy	operations	Quỹ vận hành	Tri ân kết nối phó tổng	Nguyễn Thị Hương Thảo				0.005	0.005	1900-01-01	\N	\N	2026-10-13 15:56:58.249+07	2026-10-13 15:56:58.249+07
+2	executive	operations	Quỹ vận hành	Tổng điều hành	Đinh Văn Bắc				0.005	0.005	1900-01-01	\N	\N	2026-10-13 15:56:58.249+07	2026-10-13 15:56:58.249+07
+3	deputy_general	operations	Quỹ vận hành	Phó tổng	Vũ Thị Cúc				0.012	0.012	1900-01-01	\N	\N	2026-10-13 15:56:58.249+07	2026-10-13 15:56:58.249+07
+5	support_kt	support_kt	BP hỗ trợ KT	Quỹ hỗ trợ & dự phòng (KT)					0.001	0.001	1900-01-01	\N	\N	2026-10-13 15:56:58.249+07	2026-10-13 15:56:58.249+07
+4	support_cn	support_cn	BP hỗ trợ CN	Quỹ hỗ trợ & dự phòng (CN)	Nguyễn Đăng An	0343781580	183093983	VP Bank	0.002	0.002	1900-01-01	\N	Vũ Thị Cúc	2026-10-13 15:56:58.249+07	2026-10-13 15:56:58.249+07
+6	support_cn	support_cn	BP hỗ trợ CN	Quỹ hỗ trợ & dự phòng (CN)	Nguyễn Đức Tuấn	0935378785	910081988	VIB	0.002	0.002	2026-10-10	Vũ Thị Cúc	Vũ Thị Cúc	2026-10-13 15:56:58.249+07	2026-10-13 15:56:58.249+07
 \.
 
 
@@ -6184,8 +7039,8 @@ COPY public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text) FROM
 --
 
 COPY public.system_settings (id, key, value, description, updated_at) FROM stdin;
-2	fixed_fees	{"fields":[{"id":"support_fee","name":"Thù lao phụng sự","amount":100000},{"id":"mc_fee","name":"Thù lao MC","amount":200000},{"id":"speaker_fee","name":"Thù lao thuyết trình","amount":300000},{"id":"closer_fee","name":"Chốt sự kiện","amount":200000},{"id":"tea_break_fee","name":"Chi phí tiệc trà (50đ, TĐ hỗ trợ)","amount":50000},{"id":"custom_1790327888174","name":"Thù lao Lễ tân ( thứ 7 )","amount":200000},{"id":"custom_1790327900870","name":"Chốt 1-1","amount":100000},{"id":"custom_1790327918778","name":"Bảo vệ","amount":200000},{"id":"custom_1790327968276","name":"Media & Bao quát sự kiện","amount":100000}],"support_fee":100000,"mc_fee":200000,"speaker_fee":300000,"closer_fee":200000,"tea_break_fee":50000}	Danh sách các trường chi phí cho sự kiện mới	2026-09-29 07:07:02.524
 1	system_logo	/logo-nghieng.png	Đường dẫn logo chính thức của hệ thống	2026-09-06 16:59:38.241
+2	fixed_fees	{"fields":[{"id":"support_fee","name":"Thù lao phụng sự","amount":100000},{"id":"mc_fee","name":"Thù lao MC","amount":200000},{"id":"speaker_fee","name":"Thù lao thuyết trình","amount":300000},{"id":"closer_fee","name":"Chốt sự kiện","amount":200000},{"id":"tea_break_fee","name":"Chi phí tiệc trà (50đ, TĐ hỗ trợ)","amount":50000},{"id":"custom_1790327888174","name":"Thù lao Lễ tân ( thứ 7 )","amount":200000},{"id":"custom_1790327900870","name":"Chốt 1-1","amount":100000},{"id":"custom_1790327918778","name":"Bảo vệ","amount":200000},{"id":"custom_1790327968276","name":"Media & Bao quát sự kiện","amount":100000}],"support_fee":100000,"mc_fee":200000,"speaker_fee":300000,"closer_fee":200000,"tea_break_fee":50000}	Danh sách các trường chi phí cho sự kiện mới	2026-09-29 07:07:02.524
 \.
 
 
@@ -6261,65 +7116,73 @@ COPY public.table_tinh (gid, gid_1, gid_0, country, name_1, varname_1, nl_name_1
 
 
 --
+-- Data for Name: teamlead_fund_splits; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.teamlead_fund_splits (fund_month, leader_percent, updated_by, updated_at) FROM stdin;
+\.
+
+
+--
 -- Data for Name: teamlead_member_teams; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.teamlead_member_teams (id, member_id, team_id, role, include_70) FROM stdin;
-19	12	8	Giám đốc	t
-20	12	7	Giám đốc	t
-21	13	8	Giám đốc	t
-22	14	3	Giám đốc	t
-23	14	9	Giám đốc	t
-24	14	2	Giám đốc	t
-25	14	4	Giám đốc	t
-26	14	1	Giám đốc	t
-27	14	5	Giám đốc	t
-28	15	1	Trưởng phòng	t
-29	16	1	Trưởng phòng	t
-30	17	1	Phó Giám đốc	t
-31	18	2	Trưởng phòng	t
-32	18	5	Trưởng phòng	t
-33	19	5	Trưởng phòng	t
-34	20	4	Trưởng phòng	t
-35	21	7	Phó Giám đốc	t
-36	22	7	Trưởng phòng	t
-1	1	8	Giám đốc	t
-2	1	7	Giám đốc	t
-3	2	8	Giám đốc	t
-4	3	3	Giám đốc	t
-5	3	9	Giám đốc	t
-6	3	2	Giám đốc	t
-7	3	4	Giám đốc	t
-8	4	1	Trưởng phòng	t
-9	5	1	Trưởng phòng	t
-10	6	1	Phó Giám đốc	t
-11	3	1	Giám đốc	t
-12	3	5	Giám đốc	t
-13	7	2	Trưởng phòng	t
-14	7	5	Trưởng phòng	t
-15	8	5	Trưởng phòng	t
-16	9	4	Trưởng phòng	t
-17	10	7	Phó Giám đốc	t
-18	11	7	Trưởng phòng	t
-37	23	8	Giám đốc	t
-38	23	7	Giám đốc	t
-39	24	8	Giám đốc	t
-40	25	3	Giám đốc	t
-41	25	9	Giám đốc	t
-42	25	2	Giám đốc	t
-43	25	4	Giám đốc	t
-44	25	1	Giám đốc	t
-45	25	5	Giám đốc	t
-46	26	1	Trưởng phòng	t
-47	27	1	Trưởng phòng	t
-48	28	1	Phó Giám đốc	t
-49	29	2	Trưởng phòng	t
-50	29	5	Trưởng phòng	t
-51	30	5	Trưởng phòng	t
-52	31	4	Trưởng phòng	t
-53	32	7	Phó Giám đốc	t
-54	33	7	Trưởng phòng	t
-55	34	7	Trưởng phòng	f
+10	6	37	Phó Giám đốc	t
+11	3	37	Giám đốc	t
+12	3	35	Giám đốc	t
+13	7	38	Trưởng phòng	t
+14	7	35	Trưởng phòng	t
+15	8	35	Trưởng phòng	t
+16	9	40	Trưởng phòng	t
+17	10	41	Phó Giám đốc	t
+18	11	41	Trưởng phòng	t
+37	23	47	Giám đốc	t
+38	23	41	Giám đốc	t
+39	24	47	Giám đốc	t
+40	25	39	Giám đốc	t
+41	25	48	Giám đốc	t
+42	25	38	Giám đốc	t
+43	25	40	Giám đốc	t
+44	25	37	Giám đốc	t
+45	25	35	Giám đốc	t
+46	26	37	Trưởng phòng	t
+47	27	37	Trưởng phòng	t
+48	28	37	Phó Giám đốc	t
+49	29	38	Trưởng phòng	t
+50	29	35	Trưởng phòng	t
+51	30	35	Trưởng phòng	t
+52	31	40	Trưởng phòng	t
+53	32	41	Phó Giám đốc	t
+54	33	41	Trưởng phòng	t
+33	19	35	Trưởng phòng	t
+29	16	37	Trưởng phòng	t
+34	20	40	Trưởng phòng	t
+36	22	41	Trưởng phòng	t
+35	21	41	Phó Giám đốc	t
+22	14	39	Giám đốc	t
+25	14	40	Giám đốc	t
+23	14	48	Giám đốc	t
+27	14	35	Giám đốc	t
+24	14	38	Giám đốc	t
+26	14	37	Giám đốc	t
+55	34	41	Trưởng phòng	f
+30	17	37	Phó Giám đốc	t
+21	13	47	Giám đốc	t
+32	18	35	Trưởng phòng	t
+31	18	38	Trưởng phòng	t
+28	15	37	Trưởng phòng	t
+19	12	47	Giám đốc	t
+20	12	41	Giám đốc	t
+1	1	47	Giám đốc	t
+2	1	41	Giám đốc	t
+3	2	47	Giám đốc	t
+4	3	39	Giám đốc	t
+5	3	48	Giám đốc	t
+6	3	38	Giám đốc	t
+7	3	40	Giám đốc	t
+8	4	37	Trưởng phòng	t
+9	5	37	Trưởng phòng	t
 \.
 
 
@@ -6328,6 +7191,11 @@ COPY public.teamlead_member_teams (id, member_id, team_id, role, include_70) FRO
 --
 
 COPY public.teamlead_members (id, month, member_id, member_name, member_phone, include_30, created_at) FROM stdin;
+10	2026-09-01	90	Nguyễn Đức Vĩnh	0984398568	f	2026-10-08 22:11:24.887+07
+11	2026-09-01	109	Hoàng Thị Chích	0384081272	t	2026-10-08 22:11:24.887+07
+31	2026-11-01	221	Dương Hồng Phương	0979345229	t	2026-10-09 02:46:52.406+07
+32	2026-11-01	90	Nguyễn Đức Vĩnh	0984398568	f	2026-10-09 02:46:52.406+07
+33	2026-11-01	109	Hoàng Thị Chích	0384081272	t	2026-10-09 02:46:52.406+07
 5	2026-09-01	402	Diệp Thị Huế	0915095848	t	2026-10-08 22:11:24.887+07
 23	2026-11-01	15	Vũ Thị Cúc	0889225989	t	2026-10-09 02:46:52.406+07
 1	2026-09-01	15	Vũ Thị Cúc	0889225989	t	2026-10-08 22:11:24.887+07
@@ -6339,29 +7207,24 @@ COPY public.teamlead_members (id, month, member_id, member_name, member_phone, i
 30	2026-11-01	40	Cung Thu Hà	0965759559	t	2026-10-09 02:46:52.406+07
 8	2026-09-01	40	Cung Thu Hà	0965759559	t	2026-10-08 22:11:24.887+07
 9	2026-09-01	221	Dương Hồng Phương	0979345229	t	2026-10-08 22:11:24.887+07
-10	2026-09-01	90	Nguyễn Đức Vĩnh	0984398568	f	2026-10-08 22:11:24.887+07
-11	2026-09-01	109	Hoàng Thị Chích	0384081272	t	2026-10-08 22:11:24.887+07
-31	2026-11-01	221	Dương Hồng Phương	0979345229	t	2026-10-09 02:46:52.406+07
-32	2026-11-01	90	Nguyễn Đức Vĩnh	0984398568	f	2026-10-09 02:46:52.406+07
-33	2026-11-01	109	Hoàng Thị Chích	0384081272	t	2026-10-09 02:46:52.406+07
-12	2026-10-01	15	Vũ Thị Cúc	0889225989	t	2026-10-08 22:13:06.487+07
-14	2026-10-01	41	Nguyễn Hùng Vĩ	0326894993	t	2026-10-08 22:13:06.487+07
-17	2026-10-01	48	Phạm Minh Tuấn	0768635148	f	2026-10-08 22:13:06.487+07
+4	2026-09-01	107	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:11:24.887+07
+26	2026-11-01	107	Vũ Hùng Vỹ	0984065555	t	2026-10-09 02:46:52.406+07
+15	2026-10-01	107	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:13:06.487+07
+2	2026-09-01	396	Phạm Thị Hương	0947876133	t	2026-10-08 22:11:24.887+07
+24	2026-11-01	396	Phạm Thị Hương	0947876133	t	2026-10-09 02:46:52.406+07
+13	2026-10-01	396	Phạm Thị Hương	0947876133	t	2026-10-08 22:13:06.487+07
 19	2026-10-01	40	Cung Thu Hà	0965759559	f	2026-10-08 22:13:06.487+07
-20	2026-10-01	221	Dương Hồng Phương	0979345229	f	2026-10-08 22:13:06.487+07
-21	2026-10-01	90	Nguyễn Đức Vĩnh	0984398568	f	2026-10-08 22:13:06.487+07
-22	2026-10-01	109	Hoàng Thị Chích	0384081272	t	2026-10-08 22:13:06.487+07
 16	2026-10-01	402	Diệp Thị Huế	0915095848	t	2026-10-08 22:13:06.487+07
+20	2026-10-01	221	Dương Hồng Phương	0979345229	f	2026-10-08 22:13:06.487+07
+22	2026-10-01	109	Hoàng Thị Chích	0384081272	t	2026-10-08 22:13:06.487+07
+21	2026-10-01	90	Nguyễn Đức Vĩnh	0984398568	f	2026-10-08 22:13:06.487+07
+14	2026-10-01	41	Nguyễn Hùng Vĩ	0326894993	t	2026-10-08 22:13:06.487+07
 34	2026-10-01	406	Nguyễn Minh Châu	0349791507	f	2026-10-10 22:00:20.49+07
-7	2026-09-01	217	Phượng Ngọc Thu	0969881698	t	2026-10-08 22:11:24.887+07
-29	2026-11-01	217	Phượng Ngọc Thu	0969881698	t	2026-10-09 02:46:52.406+07
-18	2026-10-01	217	Phượng Ngọc Thu	0969881698	f	2026-10-08 22:13:06.487+07
-2	2026-09-01	43	Phạm Thị Hương	0947876133	t	2026-10-08 22:11:24.887+07
-24	2026-11-01	43	Phạm Thị Hương	0947876133	t	2026-10-09 02:46:52.406+07
-13	2026-10-01	43	Phạm Thị Hương	0947876133	t	2026-10-08 22:13:06.487+07
-4	2026-09-01	401	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:11:24.887+07
-26	2026-11-01	401	Vũ Hùng Vỹ	0984065555	t	2026-10-09 02:46:52.406+07
-15	2026-10-01	401	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:13:06.487+07
+17	2026-10-01	48	Phạm Minh Tuấn	0768635148	f	2026-10-08 22:13:06.487+07
+12	2026-10-01	15	Vũ Thị Cúc	0889225989	t	2026-10-08 22:13:06.487+07
+7	2026-09-01	91	Phượng Ngọc Thu	0969881698	t	2026-10-08 22:11:24.887+07
+29	2026-11-01	91	Phượng Ngọc Thu	0969881698	t	2026-10-09 02:46:52.406+07
+18	2026-10-01	91	Phượng Ngọc Thu	0969881698	f	2026-10-08 22:13:06.487+07
 \.
 
 
@@ -6370,97 +7233,97 @@ COPY public.teamlead_members (id, month, member_id, member_name, member_phone, i
 --
 
 COPY public.teamlead_payout_rows (id, period_id, membership_id, member_team_id, member_name, member_phone, team_id, team_name, role, eligible_30, eligible_70, sales_basis, payout_30, payout_70, total_amount) FROM stdin;
-114	3	3	6	Nguyễn Hùng Vĩ	0326894993	2	Lộc Phát	Giám đốc	f	t	45000000.00	0.00	730800.00	730800.00
-121	3	7	13	Phượng Ngọc Thu	0969881698	2	Lộc Phát	Trưởng phòng	t	t	45000000.00	517650.00	182700.00	182700.00
-112	3	3	4	Nguyễn Hùng Vĩ	0326894993	3	Thành Công	Giám đốc	t	t	30000000.00	517650.00	609000.00	609000.00
-116	3	4	8	Vũ Hùng Vỹ	0984065555	1	Ong Vàng	Trưởng phòng	t	t	520000000.00	517650.00	1055600.00	1055600.00
-117	3	5	9	Diệp Thị Huế	0915095848	1	Ong Vàng	Trưởng phòng	t	t	520000000.00	517650.00	1055600.00	1055600.00
-118	3	6	10	Phạm Minh Tuấn	0768635148	1	Ong Vàng	Phó Giám đốc	t	t	520000000.00	517650.00	3166800.00	3166800.00
-119	3	3	11	Nguyễn Hùng Vĩ	0326894993	1	Ong Vàng	Giám đốc	f	t	520000000.00	0.00	5278000.00	5278000.00
-102	2	3	12	Nguyễn Hùng Vĩ	0326894993	5	Kiến Vàng	Giám đốc	f	t	40000000.00	0.00	649600.00	649600.00
-104	2	7	14	Phượng Ngọc Thu	0969881698	5	Kiến Vàng	Trưởng phòng	f	t	40000000.00	0.00	81200.00	81200.00
-105	2	8	15	Cung Thu Hà	0965759559	5	Kiến Vàng	Trưởng phòng	t	t	40000000.00	65250.00	81200.00	81200.00
-98	2	4	8	Vũ Hùng Vỹ	0984065555	1	Ong Vàng	Trưởng phòng	t	t	35000000.00	65250.00	71050.00	71050.00
-99	2	5	9	Diệp Thị Huế	0915095848	1	Ong Vàng	Trưởng phòng	t	t	35000000.00	65250.00	71050.00	71050.00
-100	2	6	10	Phạm Minh Tuấn	0768635148	1	Ong Vàng	Phó Giám đốc	t	t	35000000.00	65250.00	213150.00	213150.00
-101	2	3	11	Nguyễn Hùng Vĩ	0326894993	1	Ong Vàng	Giám đốc	f	t	35000000.00	0.00	355250.00	355250.00
-163	5	12	19	Vũ Thị Cúc	0889225989	8	Thịnh Vượng	Giám đốc	t	t	0.00	1087500.00	0.00	0.00
-164	5	12	20	Vũ Thị Cúc	0889225989	7	Happy	Giám đốc	f	t	90000000.00	0.00	913500.00	913500.00
-165	5	13	21	Phạm Thị Hương	0947876133	8	Thịnh Vượng	Giám đốc	t	t	0.00	1087500.00	0.00	0.00
-166	5	14	22	Nguyễn Hùng Vĩ	0326894993	3	Thành Công	Giám đốc	t	t	80000000.00	1087500.00	1624000.00	1624000.00
-167	5	14	23	Nguyễn Hùng Vĩ	0326894993	9	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-168	5	14	24	Nguyễn Hùng Vĩ	0326894993	2	Lộc Phát	Giám đốc	f	t	0.00	0.00	0.00	0.00
-169	5	14	25	Nguyễn Hùng Vĩ	0326894993	4	Biệt đội Kim Cương	Giám đốc	f	t	0.00	0.00	0.00	0.00
-170	5	15	28	Vũ Hùng Vỹ	0984065555	1	Ong Vàng	Trưởng phòng	t	t	580000000.00	1087500.00	1177400.00	1177400.00
-171	5	16	29	Diệp Thị Huế	0915095848	1	Ong Vàng	Trưởng phòng	t	t	580000000.00	1087500.00	1177400.00	1177400.00
-172	5	17	30	Phạm Minh Tuấn	0768635148	1	Ong Vàng	Phó Giám đốc	f	t	580000000.00	0.00	3532200.00	3532200.00
-173	5	14	26	Nguyễn Hùng Vĩ	0326894993	1	Ong Vàng	Giám đốc	f	t	580000000.00	0.00	5887000.00	5887000.00
-73	1	1	1	Vũ Thị Cúc	0889225989	8	Thịnh Vượng	Giám đốc	t	t	0.00	832300.00	0.00	832300.00
-74	1	1	2	Vũ Thị Cúc	0889225989	7	Happy	Giám đốc	f	t	0.00	0.00	0.00	0.00
-75	1	2	3	Phạm Thị Hương	0947876133	8	Thịnh Vượng	Giám đốc	t	t	0.00	832300.00	0.00	832300.00
-76	1	3	4	Nguyễn Hùng Vĩ	0326894993	3	Thành Công	Giám đốc	t	t	30000000.00	832300.00	609000.00	1441300.00
-77	1	3	5	Nguyễn Hùng Vĩ	0326894993	9	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-78	1	3	6	Nguyễn Hùng Vĩ	0326894993	2	Lộc Phát	Giám đốc	f	t	45000000.00	0.00	730800.00	730800.00
-79	1	3	7	Nguyễn Hùng Vĩ	0326894993	4	Biệt đội Kim Cương	Giám đốc	f	t	10000000.00	0.00	162400.00	162400.00
-80	1	4	8	Vũ Hùng Vỹ	0984065555	1	Ong Vàng	Trưởng phòng	t	t	841666666.70	832300.00	1708583.33	2540883.33
-81	1	5	9	Diệp Thị Huế	0915095848	1	Ong Vàng	Trưởng phòng	t	t	841666666.70	832300.00	1708583.33	2540883.33
-82	1	6	10	Phạm Minh Tuấn	0768635148	1	Ong Vàng	Phó Giám đốc	t	t	841666666.70	832300.00	5125750.00	5958050.00
-83	1	3	11	Nguyễn Hùng Vĩ	0326894993	1	Ong Vàng	Giám đốc	f	t	841666666.70	0.00	8542916.67	8542916.67
-84	1	3	12	Nguyễn Hùng Vĩ	0326894993	5	Kiến Vàng	Giám đốc	f	t	40000000.00	0.00	649600.00	649600.00
-85	1	7	13	Phượng Ngọc Thu	0969881698	2	Lộc Phát	Trưởng phòng	t	t	45000000.00	832300.00	182700.00	1015000.00
-86	1	7	14	Phượng Ngọc Thu	0969881698	5	Kiến Vàng	Trưởng phòng	f	t	40000000.00	0.00	81200.00	81200.00
-87	1	8	15	Cung Thu Hà	0965759559	5	Kiến Vàng	Trưởng phòng	t	t	0.00	0.00	0.00	0.00
-88	1	9	16	Dương Hồng Phương	0979345229	4	Biệt đội Kim Cương	Trưởng phòng	t	t	10000000.00	832300.00	40600.00	872900.00
-89	1	10	17	Nguyễn Đức Vĩnh	0984398568	7	Happy	Phó Giám đốc	f	t	0.00	0.00	0.00	0.00
-90	1	11	18	Hoàng Thị Chích	0384081272	7	Happy	Trưởng phòng	t	t	0.00	832300.00	0.00	832300.00
-91	2	1	1	Vũ Thị Cúc	0889225989	8	Thịnh Vượng	Giám đốc	t	t	0.00	65250.00	0.00	0.00
-92	2	1	2	Vũ Thị Cúc	0889225989	7	Happy	Giám đốc	f	t	0.00	0.00	0.00	0.00
-93	2	2	3	Phạm Thị Hương	0947876133	8	Thịnh Vượng	Giám đốc	t	t	0.00	65250.00	0.00	0.00
-94	2	3	4	Nguyễn Hùng Vĩ	0326894993	3	Thành Công	Giám đốc	t	t	0.00	65250.00	0.00	0.00
-95	2	3	5	Nguyễn Hùng Vĩ	0326894993	9	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-96	2	3	6	Nguyễn Hùng Vĩ	0326894993	2	Lộc Phát	Giám đốc	f	t	0.00	0.00	0.00	0.00
-97	2	3	7	Nguyễn Hùng Vĩ	0326894993	4	Biệt đội Kim Cương	Giám đốc	f	t	0.00	0.00	0.00	0.00
-103	2	7	13	Phượng Ngọc Thu	0969881698	2	Lộc Phát	Trưởng phòng	t	t	0.00	65250.00	0.00	0.00
-106	2	9	16	Dương Hồng Phương	0979345229	4	Biệt đội Kim Cương	Trưởng phòng	t	t	0.00	65250.00	0.00	0.00
-107	2	10	17	Nguyễn Đức Vĩnh	0984398568	7	Happy	Phó Giám đốc	f	t	0.00	0.00	0.00	0.00
-108	2	11	18	Hoàng Thị Chích	0384081272	7	Happy	Trưởng phòng	t	t	0.00	65250.00	0.00	0.00
-109	3	1	1	Vũ Thị Cúc	0889225989	8	Thịnh Vượng	Giám đốc	t	t	0.00	517650.00	0.00	0.00
-110	3	1	2	Vũ Thị Cúc	0889225989	7	Happy	Giám đốc	f	t	0.00	0.00	0.00	0.00
-111	3	2	3	Phạm Thị Hương	0947876133	8	Thịnh Vượng	Giám đốc	t	t	0.00	517650.00	0.00	0.00
-113	3	3	5	Nguyễn Hùng Vĩ	0326894993	9	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-115	3	3	7	Nguyễn Hùng Vĩ	0326894993	4	Biệt đội Kim Cương	Giám đốc	f	t	0.00	0.00	0.00	0.00
-120	3	3	12	Nguyễn Hùng Vĩ	0326894993	5	Kiến Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-174	5	14	27	Nguyễn Hùng Vĩ	0326894993	5	Kiến Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-122	3	7	14	Phượng Ngọc Thu	0969881698	5	Kiến Vàng	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
-123	3	8	15	Cung Thu Hà	0965759559	5	Kiến Vàng	Trưởng phòng	t	t	0.00	517650.00	0.00	0.00
-124	3	9	16	Dương Hồng Phương	0979345229	4	Biệt đội Kim Cương	Trưởng phòng	t	t	0.00	517650.00	0.00	0.00
-125	3	10	17	Nguyễn Đức Vĩnh	0984398568	7	Happy	Phó Giám đốc	f	t	0.00	0.00	0.00	0.00
-126	3	11	18	Hoàng Thị Chích	0384081272	7	Happy	Trưởng phòng	t	t	0.00	517650.00	0.00	0.00
-127	4	1	1	Vũ Thị Cúc	0889225989	8	Thịnh Vượng	Giám đốc	t	t	0.00	897550.00	0.00	0.00
-129	4	2	3	Phạm Thị Hương	0947876133	8	Thịnh Vượng	Giám đốc	t	t	0.00	897550.00	0.00	0.00
-130	4	3	4	Nguyễn Hùng Vĩ	0326894993	3	Thành Công	Giám đốc	t	t	0.00	897550.00	0.00	0.00
-131	4	3	5	Nguyễn Hùng Vĩ	0326894993	9	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
-132	4	3	6	Nguyễn Hùng Vĩ	0326894993	2	Lộc Phát	Giám đốc	f	t	0.00	0.00	0.00	0.00
-139	4	7	13	Phượng Ngọc Thu	0969881698	2	Lộc Phát	Trưởng phòng	t	t	0.00	897550.00	0.00	0.00
-175	5	18	31	Phượng Ngọc Thu	0969881698	2	Lộc Phát	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
-176	5	18	32	Phượng Ngọc Thu	0969881698	5	Kiến Vàng	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
-177	5	19	33	Cung Thu Hà	0965759559	5	Kiến Vàng	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
-178	5	20	34	Dương Hồng Phương	0979345229	4	Biệt đội Kim Cương	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
-179	5	21	35	Nguyễn Đức Vĩnh	0984398568	7	Happy	Phó Giám đốc	f	t	90000000.00	0.00	548100.00	548100.00
-180	5	22	36	Hoàng Thị Chích	0384081272	7	Happy	Trưởng phòng	t	t	90000000.00	1087500.00	365400.00	365400.00
-181	5	34	55	Nguyễn Minh Châu	0349791507	7	Happy	Trưởng phòng	f	f	90000000.00	0.00	0.00	0.00
-134	4	4	8	Vũ Hùng Vỹ	0984065555	1	Ong Vàng	Trưởng phòng	t	t	286666667.00	897550.00	581933.33	581933.33
-135	4	5	9	Diệp Thị Huế	0915095848	1	Ong Vàng	Trưởng phòng	t	t	286666667.00	897550.00	581933.33	581933.33
-136	4	6	10	Phạm Minh Tuấn	0768635148	1	Ong Vàng	Phó Giám đốc	t	t	286666667.00	897550.00	1745800.00	1745800.00
-137	4	3	11	Nguyễn Hùng Vĩ	0326894993	1	Ong Vàng	Giám đốc	f	t	286666667.00	0.00	2909666.67	2909666.67
-133	4	3	7	Nguyễn Hùng Vĩ	0326894993	4	Biệt đội Kim Cương	Giám đốc	f	t	10000000.00	0.00	162400.00	162400.00
-142	4	9	16	Dương Hồng Phương	0979345229	4	Biệt đội Kim Cương	Trưởng phòng	t	t	10000000.00	897550.00	40600.00	40600.00
-138	4	3	12	Nguyễn Hùng Vĩ	0326894993	5	Kiến Vàng	Giám đốc	f	t	500000000.00	0.00	8120000.00	8120000.00
-140	4	7	14	Phượng Ngọc Thu	0969881698	5	Kiến Vàng	Trưởng phòng	f	t	500000000.00	0.00	1015000.00	1015000.00
-141	4	8	15	Cung Thu Hà	0965759559	5	Kiến Vàng	Trưởng phòng	t	t	500000000.00	897550.00	1015000.00	1015000.00
-128	4	1	2	Vũ Thị Cúc	0889225989	7	Happy	Giám đốc	f	t	235000000.00	0.00	2385250.00	2385250.00
-143	4	10	17	Nguyễn Đức Vĩnh	0984398568	7	Happy	Phó Giám đốc	f	t	235000000.00	0.00	1431150.00	1431150.00
-144	4	11	18	Hoàng Thị Chích	0384081272	7	Happy	Trưởng phòng	t	t	235000000.00	897550.00	477050.00	477050.00
+163	5	12	19	Vũ Thị Cúc	0889225989	47	Thịnh Vượng	Giám đốc	t	t	0.00	1087500.00	0.00	0.00
+164	5	12	20	Vũ Thị Cúc	0889225989	41	Happy	Giám đốc	f	t	90000000.00	0.00	913500.00	913500.00
+88	1	9	16	Dương Hồng Phương	0979345229	40	Biệt đội Kim Cương	Trưởng phòng	t	t	10000000.00	832300.00	40600.00	872900.00
+107	2	10	17	Nguyễn Đức Vĩnh	0984398568	41	Happy	Phó Giám đốc	f	t	0.00	0.00	0.00	0.00
+108	2	11	18	Hoàng Thị Chích	0384081272	41	Happy	Trưởng phòng	t	t	0.00	65250.00	0.00	0.00
+109	3	1	1	Vũ Thị Cúc	0889225989	47	Thịnh Vượng	Giám đốc	t	t	0.00	517650.00	0.00	0.00
+110	3	1	2	Vũ Thị Cúc	0889225989	41	Happy	Giám đốc	f	t	0.00	0.00	0.00	0.00
+111	3	2	3	Phạm Thị Hương	0947876133	47	Thịnh Vượng	Giám đốc	t	t	0.00	517650.00	0.00	0.00
+113	3	3	5	Nguyễn Hùng Vĩ	0326894993	48	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+115	3	3	7	Nguyễn Hùng Vĩ	0326894993	40	Biệt đội Kim Cương	Giám đốc	f	t	0.00	0.00	0.00	0.00
+120	3	3	12	Nguyễn Hùng Vĩ	0326894993	35	Kiến Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+174	5	14	27	Nguyễn Hùng Vĩ	0326894993	35	Kiến Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+122	3	7	14	Phượng Ngọc Thu	0969881698	35	Kiến Vàng	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
+123	3	8	15	Cung Thu Hà	0965759559	35	Kiến Vàng	Trưởng phòng	t	t	0.00	517650.00	0.00	0.00
+124	3	9	16	Dương Hồng Phương	0979345229	40	Biệt đội Kim Cương	Trưởng phòng	t	t	0.00	517650.00	0.00	0.00
+125	3	10	17	Nguyễn Đức Vĩnh	0984398568	41	Happy	Phó Giám đốc	f	t	0.00	0.00	0.00	0.00
+126	3	11	18	Hoàng Thị Chích	0384081272	41	Happy	Trưởng phòng	t	t	0.00	517650.00	0.00	0.00
+127	4	1	1	Vũ Thị Cúc	0889225989	47	Thịnh Vượng	Giám đốc	t	t	0.00	897550.00	0.00	0.00
+129	4	2	3	Phạm Thị Hương	0947876133	47	Thịnh Vượng	Giám đốc	t	t	0.00	897550.00	0.00	0.00
+130	4	3	4	Nguyễn Hùng Vĩ	0326894993	39	Thành Công	Giám đốc	t	t	0.00	897550.00	0.00	0.00
+131	4	3	5	Nguyễn Hùng Vĩ	0326894993	48	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+132	4	3	6	Nguyễn Hùng Vĩ	0326894993	38	Lộc Phát	Giám đốc	f	t	0.00	0.00	0.00	0.00
+139	4	7	13	Phượng Ngọc Thu	0969881698	38	Lộc Phát	Trưởng phòng	t	t	0.00	897550.00	0.00	0.00
+175	5	18	31	Phượng Ngọc Thu	0969881698	38	Lộc Phát	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
+102	2	3	12	Nguyễn Hùng Vĩ	0326894993	35	Kiến Vàng	Giám đốc	f	t	40000000.00	0.00	649600.00	649600.00
+98	2	4	8	Vũ Hùng Vỹ	0984065555	37	Ong Vàng	Trưởng phòng	t	t	35000000.00	65250.00	71050.00	71050.00
+99	2	5	9	Diệp Thị Huế	0915095848	37	Ong Vàng	Trưởng phòng	t	t	35000000.00	65250.00	71050.00	71050.00
+100	2	6	10	Phạm Minh Tuấn	0768635148	37	Ong Vàng	Phó Giám đốc	t	t	35000000.00	65250.00	213150.00	213150.00
+101	2	3	11	Nguyễn Hùng Vĩ	0326894993	37	Ong Vàng	Giám đốc	f	t	35000000.00	0.00	355250.00	355250.00
+165	5	13	21	Phạm Thị Hương	0947876133	47	Thịnh Vượng	Giám đốc	t	t	0.00	1087500.00	0.00	0.00
+166	5	14	22	Nguyễn Hùng Vĩ	0326894993	39	Thành Công	Giám đốc	t	t	80000000.00	1087500.00	1624000.00	1624000.00
+167	5	14	23	Nguyễn Hùng Vĩ	0326894993	48	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+168	5	14	24	Nguyễn Hùng Vĩ	0326894993	38	Lộc Phát	Giám đốc	f	t	0.00	0.00	0.00	0.00
+169	5	14	25	Nguyễn Hùng Vĩ	0326894993	40	Biệt đội Kim Cương	Giám đốc	f	t	0.00	0.00	0.00	0.00
+170	5	15	28	Vũ Hùng Vỹ	0984065555	37	Ong Vàng	Trưởng phòng	t	t	580000000.00	1087500.00	1177400.00	1177400.00
+171	5	16	29	Diệp Thị Huế	0915095848	37	Ong Vàng	Trưởng phòng	t	t	580000000.00	1087500.00	1177400.00	1177400.00
+172	5	17	30	Phạm Minh Tuấn	0768635148	37	Ong Vàng	Phó Giám đốc	f	t	580000000.00	0.00	3532200.00	3532200.00
+173	5	14	26	Nguyễn Hùng Vĩ	0326894993	37	Ong Vàng	Giám đốc	f	t	580000000.00	0.00	5887000.00	5887000.00
+73	1	1	1	Vũ Thị Cúc	0889225989	47	Thịnh Vượng	Giám đốc	t	t	0.00	832300.00	0.00	832300.00
+74	1	1	2	Vũ Thị Cúc	0889225989	41	Happy	Giám đốc	f	t	0.00	0.00	0.00	0.00
+75	1	2	3	Phạm Thị Hương	0947876133	47	Thịnh Vượng	Giám đốc	t	t	0.00	832300.00	0.00	832300.00
+76	1	3	4	Nguyễn Hùng Vĩ	0326894993	39	Thành Công	Giám đốc	t	t	30000000.00	832300.00	609000.00	1441300.00
+77	1	3	5	Nguyễn Hùng Vĩ	0326894993	48	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+78	1	3	6	Nguyễn Hùng Vĩ	0326894993	38	Lộc Phát	Giám đốc	f	t	45000000.00	0.00	730800.00	730800.00
+79	1	3	7	Nguyễn Hùng Vĩ	0326894993	40	Biệt đội Kim Cương	Giám đốc	f	t	10000000.00	0.00	162400.00	162400.00
+80	1	4	8	Vũ Hùng Vỹ	0984065555	37	Ong Vàng	Trưởng phòng	t	t	841666666.70	832300.00	1708583.33	2540883.33
+81	1	5	9	Diệp Thị Huế	0915095848	37	Ong Vàng	Trưởng phòng	t	t	841666666.70	832300.00	1708583.33	2540883.33
+82	1	6	10	Phạm Minh Tuấn	0768635148	37	Ong Vàng	Phó Giám đốc	t	t	841666666.70	832300.00	5125750.00	5958050.00
+83	1	3	11	Nguyễn Hùng Vĩ	0326894993	37	Ong Vàng	Giám đốc	f	t	841666666.70	0.00	8542916.67	8542916.67
+84	1	3	12	Nguyễn Hùng Vĩ	0326894993	35	Kiến Vàng	Giám đốc	f	t	40000000.00	0.00	649600.00	649600.00
+85	1	7	13	Phượng Ngọc Thu	0969881698	38	Lộc Phát	Trưởng phòng	t	t	45000000.00	832300.00	182700.00	1015000.00
+86	1	7	14	Phượng Ngọc Thu	0969881698	35	Kiến Vàng	Trưởng phòng	f	t	40000000.00	0.00	81200.00	81200.00
+87	1	8	15	Cung Thu Hà	0965759559	35	Kiến Vàng	Trưởng phòng	t	t	0.00	0.00	0.00	0.00
+114	3	3	6	Nguyễn Hùng Vĩ	0326894993	38	Lộc Phát	Giám đốc	f	t	45000000.00	0.00	730800.00	730800.00
+121	3	7	13	Phượng Ngọc Thu	0969881698	38	Lộc Phát	Trưởng phòng	t	t	45000000.00	517650.00	182700.00	182700.00
+112	3	3	4	Nguyễn Hùng Vĩ	0326894993	39	Thành Công	Giám đốc	t	t	30000000.00	517650.00	609000.00	609000.00
+116	3	4	8	Vũ Hùng Vỹ	0984065555	37	Ong Vàng	Trưởng phòng	t	t	520000000.00	517650.00	1055600.00	1055600.00
+117	3	5	9	Diệp Thị Huế	0915095848	37	Ong Vàng	Trưởng phòng	t	t	520000000.00	517650.00	1055600.00	1055600.00
+118	3	6	10	Phạm Minh Tuấn	0768635148	37	Ong Vàng	Phó Giám đốc	t	t	520000000.00	517650.00	3166800.00	3166800.00
+119	3	3	11	Nguyễn Hùng Vĩ	0326894993	37	Ong Vàng	Giám đốc	f	t	520000000.00	0.00	5278000.00	5278000.00
+104	2	7	14	Phượng Ngọc Thu	0969881698	35	Kiến Vàng	Trưởng phòng	f	t	40000000.00	0.00	81200.00	81200.00
+105	2	8	15	Cung Thu Hà	0965759559	35	Kiến Vàng	Trưởng phòng	t	t	40000000.00	65250.00	81200.00	81200.00
+89	1	10	17	Nguyễn Đức Vĩnh	0984398568	41	Happy	Phó Giám đốc	f	t	0.00	0.00	0.00	0.00
+90	1	11	18	Hoàng Thị Chích	0384081272	41	Happy	Trưởng phòng	t	t	0.00	832300.00	0.00	832300.00
+91	2	1	1	Vũ Thị Cúc	0889225989	47	Thịnh Vượng	Giám đốc	t	t	0.00	65250.00	0.00	0.00
+92	2	1	2	Vũ Thị Cúc	0889225989	41	Happy	Giám đốc	f	t	0.00	0.00	0.00	0.00
+93	2	2	3	Phạm Thị Hương	0947876133	47	Thịnh Vượng	Giám đốc	t	t	0.00	65250.00	0.00	0.00
+94	2	3	4	Nguyễn Hùng Vĩ	0326894993	39	Thành Công	Giám đốc	t	t	0.00	65250.00	0.00	0.00
+95	2	3	5	Nguyễn Hùng Vĩ	0326894993	48	Hải Đăng Vàng	Giám đốc	f	t	0.00	0.00	0.00	0.00
+96	2	3	6	Nguyễn Hùng Vĩ	0326894993	38	Lộc Phát	Giám đốc	f	t	0.00	0.00	0.00	0.00
+97	2	3	7	Nguyễn Hùng Vĩ	0326894993	40	Biệt đội Kim Cương	Giám đốc	f	t	0.00	0.00	0.00	0.00
+103	2	7	13	Phượng Ngọc Thu	0969881698	38	Lộc Phát	Trưởng phòng	t	t	0.00	65250.00	0.00	0.00
+106	2	9	16	Dương Hồng Phương	0979345229	40	Biệt đội Kim Cương	Trưởng phòng	t	t	0.00	65250.00	0.00	0.00
+176	5	18	32	Phượng Ngọc Thu	0969881698	35	Kiến Vàng	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
+177	5	19	33	Cung Thu Hà	0965759559	35	Kiến Vàng	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
+178	5	20	34	Dương Hồng Phương	0979345229	40	Biệt đội Kim Cương	Trưởng phòng	f	t	0.00	0.00	0.00	0.00
+179	5	21	35	Nguyễn Đức Vĩnh	0984398568	41	Happy	Phó Giám đốc	f	t	90000000.00	0.00	548100.00	548100.00
+180	5	22	36	Hoàng Thị Chích	0384081272	41	Happy	Trưởng phòng	t	t	90000000.00	1087500.00	365400.00	365400.00
+181	5	34	55	Nguyễn Minh Châu	0349791507	41	Happy	Trưởng phòng	f	f	90000000.00	0.00	0.00	0.00
+134	4	4	8	Vũ Hùng Vỹ	0984065555	37	Ong Vàng	Trưởng phòng	t	t	286666667.00	897550.00	581933.33	581933.33
+135	4	5	9	Diệp Thị Huế	0915095848	37	Ong Vàng	Trưởng phòng	t	t	286666667.00	897550.00	581933.33	581933.33
+136	4	6	10	Phạm Minh Tuấn	0768635148	37	Ong Vàng	Phó Giám đốc	t	t	286666667.00	897550.00	1745800.00	1745800.00
+137	4	3	11	Nguyễn Hùng Vĩ	0326894993	37	Ong Vàng	Giám đốc	f	t	286666667.00	0.00	2909666.67	2909666.67
+133	4	3	7	Nguyễn Hùng Vĩ	0326894993	40	Biệt đội Kim Cương	Giám đốc	f	t	10000000.00	0.00	162400.00	162400.00
+142	4	9	16	Dương Hồng Phương	0979345229	40	Biệt đội Kim Cương	Trưởng phòng	t	t	10000000.00	897550.00	40600.00	40600.00
+138	4	3	12	Nguyễn Hùng Vĩ	0326894993	35	Kiến Vàng	Giám đốc	f	t	500000000.00	0.00	8120000.00	8120000.00
+140	4	7	14	Phượng Ngọc Thu	0969881698	35	Kiến Vàng	Trưởng phòng	f	t	500000000.00	0.00	1015000.00	1015000.00
+141	4	8	15	Cung Thu Hà	0965759559	35	Kiến Vàng	Trưởng phòng	t	t	500000000.00	897550.00	1015000.00	1015000.00
+128	4	1	2	Vũ Thị Cúc	0889225989	41	Happy	Giám đốc	f	t	235000000.00	0.00	2385250.00	2385250.00
+143	4	10	17	Nguyễn Đức Vĩnh	0984398568	41	Happy	Phó Giám đốc	f	t	235000000.00	0.00	1431150.00	1431150.00
+144	4	11	18	Hoàng Thị Chích	0384081272	41	Happy	Trưởng phòng	t	t	235000000.00	897550.00	477050.00	477050.00
 \.
 
 
@@ -6482,14 +7345,14 @@ COPY public.teamlead_periods (id, month, week_no, fund_rate, total_sales, gross_
 --
 
 COPY public.teamlead_teams (id, name, created_at) FROM stdin;
-1	Ong Vàng	2026-10-08 22:11:24.887+07
-2	Lộc Phát	2026-10-08 22:11:24.887+07
-3	Thành Công	2026-10-08 22:11:24.887+07
-4	Biệt đội Kim Cương	2026-10-08 22:11:24.887+07
-5	Kiến Vàng	2026-10-08 22:11:24.887+07
-7	Happy	2026-10-08 22:11:24.887+07
-8	Thịnh Vượng	2026-10-08 22:11:24.887+07
-9	Hải Đăng Vàng	2026-10-08 22:11:24.887+07
+37	Ong Vàng	2026-10-08 22:11:24.887+07
+38	Lộc Phát	2026-10-08 22:11:24.887+07
+39	Thành Công	2026-10-08 22:11:24.887+07
+40	Biệt đội Kim Cương	2026-10-08 22:11:24.887+07
+35	Kiến Vàng	2026-10-08 22:11:24.887+07
+41	Happy	2026-10-08 22:11:24.887+07
+47	Thịnh Vượng	2026-10-08 22:11:24.887+07
+48	Hải Đăng Vàng	2026-10-08 22:11:24.887+07
 \.
 
 
@@ -6498,6 +7361,12 @@ COPY public.teamlead_teams (id, name, created_at) FROM stdin;
 --
 
 COPY public.teamlead_week_eligibility (member_team_id, week_no, include_70, updated_at, include_30) FROM stdin;
+13	5	t	2026-10-09 00:48:52.657+07	\N
+14	5	t	2026-10-09 00:48:52.657+07	\N
+15	5	t	2026-10-09 00:48:52.657+07	\N
+16	5	t	2026-10-09 00:48:52.657+07	\N
+17	5	t	2026-10-09 00:48:52.657+07	\N
+18	5	t	2026-10-09 00:48:52.657+07	\N
 1	3	t	2026-10-09 00:48:52.657+07	\N
 2	3	t	2026-10-09 00:48:52.657+07	\N
 3	3	t	2026-10-09 00:48:52.657+07	\N
@@ -6546,12 +7415,101 @@ COPY public.teamlead_week_eligibility (member_team_id, week_no, include_70, upda
 10	5	t	2026-10-09 00:48:52.657+07	\N
 11	5	t	2026-10-09 00:48:52.657+07	\N
 12	5	t	2026-10-09 00:48:52.657+07	\N
-13	5	t	2026-10-09 00:48:52.657+07	\N
-14	5	t	2026-10-09 00:48:52.657+07	\N
-15	5	t	2026-10-09 00:48:52.657+07	\N
-16	5	t	2026-10-09 00:48:52.657+07	\N
-17	5	t	2026-10-09 00:48:52.657+07	\N
-18	5	t	2026-10-09 00:48:52.657+07	\N
+33	1	t	2026-10-14 14:45:52.425+07	f
+33	2	t	2026-10-14 14:45:52.425+07	f
+33	3	t	2026-10-14 14:45:52.425+07	f
+33	4	t	2026-10-14 14:45:52.425+07	f
+33	5	t	2026-10-14 14:45:52.425+07	f
+21	5	t	2026-10-14 14:45:52.425+07	t
+32	1	t	2026-10-14 14:45:52.425+07	f
+32	2	t	2026-10-14 14:45:52.425+07	f
+32	3	t	2026-10-14 14:45:52.425+07	f
+32	4	t	2026-10-14 14:45:52.425+07	f
+32	5	t	2026-10-14 14:45:52.425+07	f
+31	1	t	2026-10-14 14:45:52.425+07	f
+31	2	t	2026-10-14 14:45:52.425+07	f
+31	3	t	2026-10-14 14:45:52.425+07	f
+31	4	t	2026-10-14 14:45:52.425+07	f
+31	5	t	2026-10-14 14:45:52.425+07	f
+28	1	t	2026-10-14 14:45:52.425+07	t
+28	2	t	2026-10-14 14:45:52.425+07	t
+28	3	t	2026-10-14 14:45:52.425+07	t
+28	4	t	2026-10-14 14:45:52.425+07	t
+28	5	t	2026-10-14 14:45:52.425+07	t
+19	1	t	2026-10-14 14:45:52.425+07	t
+19	2	t	2026-10-14 14:45:52.425+07	t
+19	3	t	2026-10-14 14:45:52.425+07	t
+19	4	t	2026-10-14 14:45:52.425+07	t
+19	5	t	2026-10-14 14:45:52.425+07	t
+20	1	t	2026-10-14 14:45:52.425+07	t
+20	2	t	2026-10-14 14:45:52.425+07	t
+20	3	t	2026-10-14 14:45:52.425+07	t
+20	4	t	2026-10-14 14:45:52.425+07	t
+20	5	t	2026-10-14 14:45:52.425+07	t
+29	1	t	2026-10-14 14:45:52.425+07	t
+29	2	t	2026-10-14 14:45:52.425+07	t
+29	3	t	2026-10-14 14:45:52.425+07	t
+29	4	t	2026-10-14 14:45:52.425+07	t
+29	5	t	2026-10-14 14:45:52.425+07	t
+34	1	t	2026-10-14 14:45:52.425+07	f
+34	2	t	2026-10-14 14:45:52.425+07	f
+34	3	t	2026-10-14 14:45:52.425+07	f
+34	4	t	2026-10-14 14:45:52.425+07	f
+34	5	t	2026-10-14 14:45:52.425+07	f
+36	1	t	2026-10-14 14:45:52.425+07	t
+36	2	t	2026-10-14 14:45:52.425+07	t
+36	3	t	2026-10-14 14:45:52.425+07	t
+36	4	t	2026-10-14 14:45:52.425+07	t
+36	5	t	2026-10-14 14:45:52.425+07	t
+35	1	t	2026-10-14 14:45:52.425+07	f
+35	2	t	2026-10-14 14:45:52.425+07	f
+35	3	t	2026-10-14 14:45:52.425+07	f
+35	4	t	2026-10-14 14:45:52.425+07	f
+35	5	t	2026-10-14 14:45:52.425+07	f
+22	1	t	2026-10-14 14:45:52.425+07	t
+22	2	t	2026-10-14 14:45:52.425+07	t
+22	3	t	2026-10-14 14:45:52.425+07	t
+22	4	t	2026-10-14 14:45:52.425+07	t
+22	5	t	2026-10-14 14:45:52.425+07	t
+25	1	t	2026-10-14 14:45:52.425+07	t
+25	2	t	2026-10-14 14:45:52.425+07	t
+25	3	t	2026-10-14 14:45:52.425+07	t
+25	4	t	2026-10-14 14:45:52.425+07	t
+25	5	t	2026-10-14 14:45:52.425+07	t
+23	1	t	2026-10-14 14:45:52.425+07	t
+23	2	t	2026-10-14 14:45:52.425+07	t
+23	3	t	2026-10-14 14:45:52.425+07	t
+23	4	t	2026-10-14 14:45:52.425+07	t
+23	5	t	2026-10-14 14:45:52.425+07	t
+27	1	t	2026-10-14 14:45:52.425+07	t
+27	2	t	2026-10-14 14:45:52.425+07	t
+27	3	t	2026-10-14 14:45:52.425+07	t
+27	4	t	2026-10-14 14:45:52.425+07	t
+27	5	t	2026-10-14 14:45:52.425+07	t
+24	1	t	2026-10-14 14:45:52.425+07	t
+24	2	t	2026-10-14 14:45:52.425+07	t
+24	3	t	2026-10-14 14:45:52.425+07	t
+24	4	t	2026-10-14 14:45:52.425+07	t
+24	5	t	2026-10-14 14:45:52.425+07	t
+26	1	t	2026-10-14 14:45:52.425+07	t
+26	2	t	2026-10-14 14:45:52.425+07	t
+26	3	t	2026-10-14 14:45:52.425+07	t
+26	4	t	2026-10-14 14:45:52.425+07	t
+26	5	t	2026-10-14 14:45:52.425+07	t
+55	1	f	2026-10-14 14:45:52.425+07	f
+55	2	f	2026-10-14 14:45:52.425+07	f
+55	3	f	2026-10-14 14:45:52.425+07	f
+55	4	f	2026-10-14 14:45:52.425+07	f
+55	5	f	2026-10-14 14:45:52.425+07	f
+30	1	t	2026-10-14 14:45:52.425+07	f
+30	2	t	2026-10-14 14:45:52.425+07	f
+30	3	t	2026-10-14 14:45:52.425+07	f
+30	4	t	2026-10-14 14:45:52.425+07	f
+30	5	t	2026-10-14 14:45:52.425+07	f
+21	1	t	2026-10-14 14:45:52.425+07	t
+21	2	t	2026-10-14 14:45:52.425+07	t
+21	3	t	2026-10-14 14:45:52.425+07	t
+21	4	t	2026-10-14 14:45:52.425+07	t
 \.
 
 
@@ -6580,20 +7538,98 @@ COPY public.teams (id, name, leader_id, created_at, updated_at) FROM stdin;
 
 
 --
+-- Data for Name: training_courses; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.training_courses (id, course_code, course_name, training_type, token_value, budget, created_at) FROM stdin;
+1	TR001	Đào tạo Prosale mới	Offline	120	600000	2026-10-12 08:04:03.042
+2	TR002	Đào tạo prosale mới	Online	100	500000	2026-10-12 08:04:03.268
+6	TR006	ĐT Mô hình Welink	Offline	100	500000	2026-10-12 08:04:04.186
+4	TR004	ĐT Chuyên sâu - Buổi 2 (Lữ hành)	Online	50	250000	2026-10-12 08:04:03.713
+5	TR005	ĐT Chuyên sâu - Buổi 3 (Welink)	Online	50	250000	2026-10-12 08:04:03.936
+3	TR003	ĐT Chuyên sâu - Buổi 1 (Nguồn vốn)	Online	50	250000	2026-10-12 08:04:03.49
+\.
+
+
+--
 -- Data for Name: training_logs; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.training_logs (id, session_code, session_name, member_phone, member_name, role, token_tier, token_count, session_budget, total_tokens, reward_amount, approver, status, training_date, created_at) FROM stdin;
-1	TR001	Buổi đào tạo TR001	0912345671	Nguyễn Văn Hoàng	Giảng viên	Hạng A	10	3000000	18	1666666.667	Tổng điều hành	Đã duyệt	2026-08-03	2026-09-17 18:50:53.126
-2	TR001	Buổi đào tạo TR001	0912345672	Lê Minh Anh	Trợ giảng	Hạng B	5	3000000	18	833333.3333	Tổng điều hành	Đã duyệt	2026-08-03	2026-09-17 18:50:53.397
-3	TR001	Buổi đào tạo TR001	0912345673	Trần Thị Vân	Học viên xuất sắc	Hạng C	3	3000000	18	500000	Tổng điều hành	Đã duyệt	2026-08-03	2026-09-17 18:50:53.673
-4	TR002	Buổi đào tạo TR002	0912345671	Nguyễn Văn Hoàng	Giảng viên	Hạng A	10	8000000	19	4210526.316	Tổng điều hành	Đã duyệt	2026-08-10	2026-09-17 18:50:53.946
-5	TR002	Buổi đào tạo TR002	0912345674	Bùi Minh Đức	Trợ giảng	Hạng B	5	8000000	19	2105263.158	Tổng điều hành	Đã duyệt	2026-08-10	2026-09-17 18:50:54.218
-6	TR002	Buổi đào tạo TR002	0912345675	Ngô Thanh Hải	Học viên xuất sắc	Hạng C	3	8000000	19	1263157.895	Tổng điều hành	Đã duyệt	2026-08-10	2026-09-17 18:50:54.49
-7	TR002	Buổi đào tạo TR002	0912345673	Trần Thị Vân	Học viên	Hạng D	1	8000000	19	421052.6316	Tổng điều hành	Đã duyệt	2026-08-10	2026-09-17 18:50:54.768
-8	TR003	Buổi đào tạo TR003	0912345672	Lê Minh Anh	Giảng viên	Hạng B	5	5000000	9	2777777.778	Tổng điều hành	Đã duyệt	2026-08-17	2026-09-17 18:50:55.034
-9	TR003	Buổi đào tạo TR003	0912345671	Nguyễn Văn Hoàng	Giảng viên	Hạng C	3	5000000	9	1666666.667	Tổng điều hành	Đã duyệt	2026-08-17	2026-09-17 18:50:55.332
-10	TR003	Buổi đào tạo TR003	0912345675	Ngô Thanh Hải	Học viên	Hạng D	1	5000000	9	555555.5556	Tổng điều hành	Đã duyệt	2026-08-17	2026-09-17 18:50:55.608
+COPY public.training_logs (id, session_code, session_name, member_phone, member_name, role, token_tier, token_count, session_budget, total_tokens, reward_amount, approver, status, training_date, created_at, course_code) FROM stdin;
+22	TR002	Đào tạo prosale mới	0947876133	Phạm Thị Hương			40	500000	90	200000	Tổng điều hành	Đã duyệt	2026-09-17	\N	TR002
+21	TR002	Đào tạo prosale mới	0889225989	Vũ Thị Cúc			50	500000	90	250000	Tổng điều hành	Đã duyệt	2026-09-17	\N	TR002
+19	TR001	Đào tạo Prosale mới	0889225989	Vũ Thị Cúc			60	600000	120	300000	Tổng điều hành	Đã duyệt	2026-09-15	\N	TR001
+24	TR006	ĐT Mô hình Welink	000007	Đinh Văn Bắc			100	500000	100	500000	Tổng điều hành	Đã duyệt	2026-10-01	\N	TR006
+23	TR003	ĐT Chuyên sâu - Buổi 1 (Nguồn vốn)	0889225989	Vũ Thị Cúc			50	250000	50	250000	Tổng điều hành	Đã duyệt	2026-09-26	\N	TR003
+20	TR001	Đào tạo Prosale mới	0947876133	Phạm Thị Hương			60	600000	120	350000	Tổng điều hành	Đã duyệt	2026-09-15	\N	TR001
+25	TR001	Đào tạo Prosale mới	0889225989	Vũ Thị Cúc			60	600000	120	300000		Chờ duyệt	2026-10-13	\N	TR001
+26	TR001	Đào tạo Prosale mới	0947876133	Phạm Thị Hương			60	600000	120	300000		Chờ duyệt	2026-10-13	\N	TR001
+\.
+
+
+--
+-- Data for Name: transaction_log_items; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.transaction_log_items (id, transaction_log_id, item_order, title, subtitle, fund_source, beneficiary_name, beneficiary_phone, beneficiary_bank_account, beneficiary_bank_name, beneficiary_user_id, amount, note, created_at) FROM stdin;
+3	19	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Phạm Thùy Lan	\N	\N	BIDV	\N	900000.00	\N	2026-10-12 17:14:16.113+07
+6	14	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Nguyễn Thị Hương Thảo	0965749223	\N	Vpbank	\N	375000.00	\N	2026-10-12 17:14:16.113+07
+10	35	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Hoàng Thị Chích	0384081273	0384081273	\N	\N	6500000.00	\N	2026-10-12 17:14:16.113+07
+11	45	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Nguyễn Thị Hương Thảo	0965749223	0965749223	Vpbank	\N	5158333.00	\N	2026-10-12 17:14:16.113+07
+13	53	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Nguyễn Thị Hương Thảo	0965749223	0965749223	Vpbank	\N	1190000.00	\N	2026-10-12 17:14:16.113+07
+14	39	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Nguyễn Thị Hương	\N	\N	\N	210	1300000.00	\N	2026-10-12 17:14:16.113+07
+15	61	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Trần T Thanh Hương	\N	\N	Agribank	\N	2400000.00	\N	2026-10-12 17:14:16.113+07
+17	1	1	Chi ăn trưa đào tạo prosale mới		Quỹ Đào tạo Chuyên môn & Kỹ năng	Vũ Thị Cúc	0889225989	\N	\N	15	420000.00	\N	2026-10-12 17:14:16.113+07
+51	52	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Phượng Ngọc Thu	0969881698	28275222	\N	217	2925000.00	\N	2026-10-12 17:14:16.113+07
+52	54	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	41	11292067.00	\N	2026-10-12 17:14:16.113+07
+53	55	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Phạm Thùy Lan	0912137909	12810000684060	BIDV	162	2355600.00	\N	2026-10-12 17:14:16.113+07
+54	56	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Nguyễn Minh Châu	0349791507	8869085418	BIDV	406	675000.00	\N	2026-10-12 17:14:16.113+07
+55	57	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Dương Hồng Phương	0979345229	979345229	Vietinbank	221	690600.00	\N	2026-10-12 17:14:16.113+07
+56	58	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Vũ Hùng Vỹ	0984065555	109613685568	Vietinbank	401	3398600.00	\N	2026-10-12 17:14:16.113+07
+57	59	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Cung Thu Hà	0965759559	19023295042029	Techcombank	40	6015000.00	\N	2026-10-12 17:14:16.113+07
+58	60	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Đinh Văn Bắc	000007	19033903936017	Techcombank	411	3166800.00	\N	2026-10-12 17:14:16.113+07
+59	62	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Nguyễn Đăng An	0343781580	183093983	VP Bank	408	2063333.00	\N	2026-10-12 17:14:16.113+07
+60	64	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Đinh Văn Bắc	000007	19033903936017	Techcombank	411	5158333.00	\N	2026-10-12 17:14:16.113+07
+61	65	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Phạm Vinh Quang	0913073619	0541000221027	Vietcombank	243	5000000.00	\N	2026-10-12 17:14:16.113+07
+18	2	1	Công tác thị Trường Sơn La		Chi phí Công tác phí	Vũ Thị Cúc	0889225989	\N	\N	15	6000000.00	\N	2026-10-12 17:14:16.113+07
+19	12	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Cung Thu Hà	\N	\N	Techcombank	40	681200.00	\N	2026-10-12 17:14:16.113+07
+20	13	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Nguyễn Hùng Vĩ	0326894993	31978686868	Techcombank	41	7140000.00	\N	2026-10-12 17:14:16.113+07
+21	16	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Cung Thu Hà	0965759559	19023295042029	Techcombank	40	1255600.00	\N	2026-10-12 17:14:16.113+07
+22	17	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Diệp Thị Huế	0915095848	22891177	ACB	402	2500000.00	\N	2026-10-12 17:14:16.113+07
+23	20	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Diệp Thị Huế	\N	\N	ACB	402	271050.00	\N	2026-10-12 17:14:16.113+07
+24	24	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Đinh Văn Bắc	\N	\N	Techcombank	411	375000.00	\N	2026-10-12 17:14:16.113+07
+25	25	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Nguyễn Hùng Vĩ	\N	\N	31978686868  Techcombank	41	1004850.00	\N	2026-10-12 17:14:16.113+07
+26	26	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Diệp Thị Huế	0915095848	22891177	ACB	402	18665266.00	\N	2026-10-12 17:14:16.113+07
+27	27	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Nguyễn Đăng An	\N	\N	VP Bank	408	150000.00	\N	2026-10-12 17:14:16.113+07
+28	28	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Nguyễn Thị Hương	0399868786	5550000000555	\N	210	2975000.00	\N	2026-10-12 17:14:16.113+07
+29	29	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Vũ Hùng Vỹ	\N	\N	Vietinbank	107	71050.00	\N	2026-10-12 17:14:16.113+07
+30	31	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Phạm Minh Tuấn	0768635148	11004198385	Vietcombank	48	30000000.00	\N	2026-10-12 17:14:16.113+07
+31	32	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	375	9200500.00	\N	2026-10-12 17:14:16.113+07
+32	33	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Nguyễn Đức Vĩnh	0384081272	0384081272	\N	109	2431150.00	\N	2026-10-12 17:14:16.113+07
+33	36	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Trần Thị Thanh Hương	0329685009	2714205148354	Agribank	375	32500000.00	\N	2026-10-12 17:14:16.113+07
+69	158	1	gg	\N	Quỹ Đào tạo Chuyên môn & Kỹ năng	A Phong	0934635468	\N	\N	112	5555.00	\N	2026-10-16 23:38:33.739+07
+70	159	1	hhh	\N	Chi phí Công tác phí	A. Ngọc	0982100474	\N	\N	208	5555555.00	\N	2026-10-16 23:38:52.245+07
+34	37	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Phượng Ngọc Thu	0969881698	28275222	\N	217	1015000.00	\N	2026-10-12 17:14:16.113+07
+35	38	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Vũ Thị Cúc	0889225989	2589225989	Techcombank	15	2975000.00	\N	2026-10-12 17:14:16.113+07
+36	40	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Phượng Ngọc Thu	\N	\N	\N	91	81200.00	\N	2026-10-12 17:14:16.113+07
+65	141	1	Chi ăn trưa đào tạo các prosale mới	\N	Quỹ Đào tạo Chuyên môn & Kỹ năng	Vũ Thị Cúc	0889225989	MB Bank - 0914556677	Techcombank	15	420000.00	\N	2026-10-14 17:24:49.934+07
+37	41	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Phạm Vinh Quang	\N	\N	Vietcombank	243	225000.00	\N	2026-10-12 17:14:16.113+07
+38	42	1	Hoa hồng hợp đồng 2026-09-W4		Hoa hồng hợp đồng	Nguyễn Đăng An	0343781580	183093983	VP Bank	408	300000.00	\N	2026-10-12 17:14:16.113+07
+39	43	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Vũ Thị Cúc	0889225989	2589225989	Techcombank	15	15374250.00	\N	2026-10-12 17:14:16.113+07
+40	44	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Phạm Minh Tuấn	0768635148	11004198385	Vietcombank	48	1745800.00	\N	2026-10-12 17:14:16.113+07
+41	46	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Quàng Thị Đoàn	0988677522	4110032363	BIDV	410	8100000.00	\N	2026-10-12 17:14:16.113+07
+42	47	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Phạm Minh Tuấn	\N	\N	Vietcombank	48	213150.00	\N	2026-10-12 17:14:16.113+07
+43	49	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Nguyễn Thị Hương	0399868786	5550000000555	\N	210	600000.00	\N	2026-10-12 17:14:16.113+07
+44	50	1	Hoa hồng hợp đồng 2026-09-W5		Hoa hồng hợp đồng	Trần Thị Ban	0379863712	4110689671	BIDV	323	1350000.00	\N	2026-10-12 17:14:16.113+07
+45	137	1	Tri ân kết nối phó tổng		Quỹ vận hành	Nguyễn Thị Hương Thảo	000006	0965749223	Vpbank	\N	375000.00	\N	2026-10-12 17:14:16.113+07
+46	133	1	Tri ân kết nối phó tổng		Quỹ vận hành	Nguyễn Thị Hương Thảo	000006	0965749223	Vpbank	\N	2975000.00	\N	2026-10-12 17:14:16.113+07
+47	134	1	Tổng điều hành		Quỹ vận hành	Đinh Văn Bắc	000007	1903390396017	Techcombank	\N	2975000.00	\N	2026-10-12 17:14:16.113+07
+48	135	1	Phó tổng		Quỹ vận hành	Vũ Thị Cúc	0889225989	2589225989	Techcombank	\N	7140000.00	\N	2026-10-12 17:14:16.113+07
+49	136	1	Quỹ hỗ trợ & dự phòng (CN)		BP hỗ trợ CN	Nguyễn Đăng An	0343781580	183093983	VP Bank	\N	1190000.00	\N	2026-10-12 17:14:16.113+07
+50	51	1	Hoa hồng hợp đồng 2026-09-W3		Hoa hồng hợp đồng	Vũ Thị Cúc	\N	\N	Techcombank	15	900000.00	\N	2026-10-12 17:14:16.113+07
+62	138	1	Tổng điều hành		Quỹ vận hành	Đinh Văn Bắc	000007	1903390396017	Techcombank	\N	375000.00	\N	2026-10-12 17:14:16.113+07
+63	139	1	Phó tổng		Quỹ vận hành	Vũ Thị Cúc	0889225989	2589225989	Techcombank	\N	900000.00	\N	2026-10-12 17:14:16.113+07
+64	140	1	Quỹ hỗ trợ & dự phòng (CN)		BP hỗ trợ CN	Nguyễn Đăng An	0343781580	183093983	VP Bank	\N	150000.00	\N	2026-10-12 17:14:16.113+07
 \.
 
 
@@ -6601,80 +7637,73 @@ COPY public.training_logs (id, session_code, session_name, member_phone, member_
 -- Data for Name: transaction_logs; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.transaction_logs (id, request_code, request_date, fund_source, detail_content, requester_id, requester_name, approver_id, approver_name, beneficiary_name, proposed_amount, available_balance, fund_alert, status, actual_expense, receipt_url, created_at, requester_phone, approver_phone, beneficiary_phone, approval_date, payment_date, source_row, source_complete, request_type, beneficiary_bank_account, beneficiary_bank_name, source_period, contract_id, expense_type, beneficiary_user_id, source_contract_id, beneficiary_role) FROM stdin;
-4	YC004	\N	Quỹ Đào tạo Chuyên môn & Kỹ năng	Chi thù lao phụ trách đào tạo Tháng 9	\N		\N			\N	5105000	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:56.992	\N	\N	\N	\N	\N	7	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-5	YC005	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:57.263	\N	\N	\N	\N	\N	8	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-6	YC006	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:57.533	\N	\N	\N	\N	\N	9	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-7	YC007	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:57.81	\N	\N	\N	\N	\N	10	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-8	YC008	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:58.079	\N	\N	\N	\N	\N	11	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-9	YC009	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:58.357	\N	\N	\N	\N	\N	12	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-10	YC010	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:59.316	\N	\N	\N	\N	\N	13	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-11	YC011	\N	Chưa phân loại		\N		\N			\N	\N	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:59.583	\N	\N	\N	\N	\N	14	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-3	YC003	\N	Quỹ Sự kiện & Chốt hợp đồng	Chi các vị trí phụ trách Tiệc trà Tháng 9	\N		\N			\N	8508333.333333334	An toàn	Thiếu dữ liệu	0	\N	2026-09-17 18:50:56.723	\N	\N	\N	\N	\N	6	f	Thủ công	\N	\N	\N	\N	Thủ công	\N	\N	\N
-14	AUTO-2026-09-W3-0965749223	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Thị Hương Thảo	375000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965749223	\N	\N	\N	t	Tự động	\N	Vpbank	2026-09-W3	\N	Thủ công	\N	\N	\N
-15	AUTO-2026-09-W5-Tnghoahngchia	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Tổng hoa hồng chia	122732732	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W5	\N	Thủ công	\N	\N	\N
-18	AUTO-2026-09-W5-Tngquchachia15	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Tổng quỹ chưa chia (15%)	154750000.05	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W5	\N	Thủ công	\N	\N	\N
-19	AUTO-2026-09-W3-PhmThyLan	2026-09-18	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phạm Thùy Lan	900000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	BIDV	2026-09-W3	\N	Thủ công	\N	\N	\N
-21	AUTO-2026-09-W4-Tnghoahngchia	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Tổng hoa hồng chia	70983500	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W4	\N	Thủ công	\N	\N	\N
-22	AUTO-2026-09-W4-Tngquchachia15	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Tổng quỹ chưa chia (15%)	89250000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W4	\N	Thủ công	\N	\N	\N
-23	AUTO-2026-09-W4-Tngqucnli	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Tổng quỹ còn lại	18266500	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W4	\N	Thủ công	\N	\N	\N
-30	AUTO-2026-09-W3-Tngqucnli	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Tổng quỹ còn lại	2302500	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W3	\N	Thủ công	\N	\N	\N
-34	AUTO-2026-09-W5-Tngqucnli	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Tổng quỹ còn lại	32017268.05	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W5	\N	Thủ công	\N	\N	\N
-35	AUTO-2026-09-W5-0384081273	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Hoàng Thị Chích	6500000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0384081273	\N	\N	\N	t	Tự động	0384081273	\N	2026-09-W5	\N	Thủ công	\N	\N	\N
-45	AUTO-2026-09-W5-0965749223	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Thị Hương Thảo	5158333	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965749223	\N	\N	\N	t	Tự động	0965749223	Vpbank	2026-09-W5	\N	Thủ công	\N	\N	\N
-48	AUTO-2026-09-W3-Tngquchachia15	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Tổng quỹ chưa chia (15%)	11250000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W3	\N	Thủ công	\N	\N	\N
-53	AUTO-2026-09-W4-0965749223	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Thị Hương Thảo	1190000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965749223	\N	\N	\N	t	Tự động	0965749223	Vpbank	2026-09-W4	\N	Thủ công	\N	\N	\N
-39	AUTO-2026-09-W3-NguynThHng	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Thị Hương	1300000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W3	\N	Thủ công	210	\N	\N
-61	AUTO-2026-09-W3-TrnTThanhHng	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Trần T Thanh Hương	2400000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Agribank	2026-09-W3	\N	Thủ công	\N	\N	\N
-63	AUTO-2026-09-W3-Tnghoahngchia	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Tổng hoa hồng chia	8947500	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W3	\N	Thủ công	\N	\N	\N
-1	YC001	2026-09-15	Quỹ Đào tạo Chuyên môn & Kỹ năng	Chi ăn trưa đào tạo prosale mới	0889225989	Vũ Thị Cúc	\N		Vũ Thị Cúc	420000	5105000	An toàn	Thiếu dữ liệu	0	https://drive.google.com/drive/folders/19_xCvnjzHtRutmE9ZzEIWxxWcLTmDDpG	2026-09-17 18:50:56.175	0889225989	\N	0889225989	\N	\N	4	f	Thủ công	\N	\N	\N	\N	Thủ công	15	\N	\N
-2	YC002	2026-10-01	Chi phí Công tác phí	Công tác thị Trường Sơn La	0889225989	Vũ Thị Cúc	\N		Vũ Thị Cúc	6000000	5105000	Vượt quá tồn quỹ	Đã chi	6000000	\N	2026-09-17 18:50:56.456	0889225989	\N	0889225989	\N	2026-10-05	5	f	Thủ công	\N	\N	\N	\N	Thủ công	15	\N	\N
-12	AUTO-2026-09-W3-CungThuH	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Cung Thu Hà	681200	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Techcombank	2026-09-W3	\N	Thủ công	40	\N	\N
-13	AUTO-2026-09-W4-0326894993	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Hùng Vĩ	7140000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0326894993	\N	\N	\N	t	Tự động	31978686868	Techcombank	2026-09-W4	\N	Thủ công	41	\N	\N
-16	AUTO-2026-09-W4-0965759559	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Cung Thu Hà	1255600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965759559	\N	\N	\N	t	Tự động	19023295042029	Techcombank	2026-09-W4	\N	Thủ công	40	\N	\N
-17	AUTO-2026-09-W4-0915095848	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Diệp Thị Huế	2500000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0915095848	\N	\N	\N	t	Tự động	22891177	ACB	2026-09-W4	\N	Thủ công	402	\N	\N
-20	AUTO-2026-09-W3-DipThHu	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Diệp Thị Huế	271050	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	ACB	2026-09-W3	\N	Thủ công	402	\N	\N
-24	AUTO-2026-09-W3-inhVnBc	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Đinh Văn Bắc	375000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Techcombank	2026-09-W3	\N	Thủ công	411	\N	\N
-25	AUTO-2026-09-W3-NguynHngV	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Hùng Vĩ	1004850	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	31978686868  Techcombank	2026-09-W3	\N	Thủ công	41	\N	\N
-26	AUTO-2026-09-W5-0915095848	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Diệp Thị Huế	18665266	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0915095848	\N	\N	\N	t	Tự động	22891177	ACB	2026-09-W5	\N	Thủ công	402	\N	\N
-27	AUTO-2026-09-W3-NguynngAn	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Đăng An	150000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	VP Bank	2026-09-W3	\N	Thủ công	408	\N	\N
-28	AUTO-2026-09-W4-0399868786	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Thị Hương	2975000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0399868786	\N	\N	\N	t	Tự động	5550000000555	\N	2026-09-W4	\N	Thủ công	210	\N	\N
-29	AUTO-2026-09-W3-VHngV	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Vũ Hùng Vỹ	71050	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Vietinbank	2026-09-W3	\N	Thủ công	107	\N	\N
-31	AUTO-2026-09-W4-0768635148	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phạm Minh Tuấn	30000000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0768635148	\N	\N	\N	t	Tự động	11004198385	Vietcombank	2026-09-W4	\N	Thủ công	48	\N	\N
-32	AUTO-2026-09-W4-0329685009	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Trần Thị Thanh Hương	9200500	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0329685009	\N	\N	\N	t	Tự động	2714205148354	Agribank	2026-09-W4	\N	Thủ công	375	\N	\N
-33	AUTO-2026-09-W5-0384081272	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Đức Vĩnh	2431150	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0384081272	\N	\N	\N	t	Tự động	0384081272	\N	2026-09-W5	\N	Thủ công	109	\N	\N
-36	AUTO-2026-09-W5-0329685009	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Trần Thị Thanh Hương	32500000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0329685009	\N	\N	\N	t	Tự động	2714205148354	Agribank	2026-09-W5	\N	Thủ công	375	\N	\N
-37	AUTO-2026-09-W5-0969881698	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Phượng Ngọc Thu	1015000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0969881698	\N	\N	\N	t	Tự động	28275222	\N	2026-09-W5	\N	Thủ công	217	\N	\N
-38	AUTO-2026-09-W4-0889225989	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Vũ Thị Cúc	2975000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0889225989	\N	\N	\N	t	Tự động	2589225989	Techcombank	2026-09-W4	\N	Thủ công	15	\N	\N
-40	AUTO-2026-09-W3-PhngNgcThu	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phượng Ngọc Thu	81200	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W3	\N	Thủ công	91	\N	\N
-41	AUTO-2026-09-W3-PhmVinhQuang	2026-09-18	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phạm Vinh Quang	225000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Vietcombank	2026-09-W3	\N	Thủ công	243	\N	\N
-42	AUTO-2026-09-W4-0343781580	2026-09-22	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Đăng An	300000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0343781580	\N	\N	\N	t	Tự động	183093983	VP Bank	2026-09-W4	\N	Thủ công	408	\N	\N
-43	AUTO-2026-09-W5-0889225989	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Vũ Thị Cúc	15374250	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0889225989	\N	\N	\N	t	Tự động	2589225989	Techcombank	2026-09-W5	\N	Thủ công	15	\N	\N
-44	AUTO-2026-09-W5-0768635148	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Phạm Minh Tuấn	1745800	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0768635148	\N	\N	\N	t	Tự động	11004198385	Vietcombank	2026-09-W5	\N	Thủ công	48	\N	\N
-46	AUTO-2026-09-W5-0988677522	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Quàng Thị Đoàn	8100000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0988677522	\N	\N	\N	t	Tự động	4110032363	BIDV	2026-09-W5	\N	Thủ công	410	\N	\N
-47	AUTO-2026-09-W3-PhmMinhTun	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phạm Minh Tuấn	213150	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Vietcombank	2026-09-W3	\N	Thủ công	48	\N	\N
-49	AUTO-2026-09-W5-0399868786	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Thị Hương	600000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0399868786	\N	\N	\N	t	Tự động	5550000000555	\N	2026-09-W5	\N	Thủ công	210	\N	\N
-50	AUTO-2026-09-W5-0379863712	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Trần Thị Ban	1350000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0379863712	\N	\N	\N	t	Tự động	4110689671	BIDV	2026-09-W5	\N	Thủ công	323	\N	\N
-51	AUTO-2026-09-W3-VThCc	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Vũ Thị Cúc	900000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Techcombank	2026-09-W3	\N	Thủ công	15	\N	\N
-52	AUTO-2026-09-W4-0969881698	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phượng Ngọc Thu	2925000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0969881698	\N	\N	\N	t	Tự động	28275222	\N	2026-09-W4	\N	Thủ công	217	\N	\N
-54	AUTO-2026-09-W5-0326894993	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Hùng Vĩ	11292067	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0326894993	\N	\N	\N	t	Tự động	31978686868	Techcombank	2026-09-W5	\N	Thủ công	41	\N	\N
-55	AUTO-2026-09-W4-0912137909	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phạm Thùy Lan	2355600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0912137909	\N	\N	\N	t	Tự động	12810000684060	BIDV	2026-09-W4	\N	Thủ công	162	\N	\N
-56	AUTO-2026-09-W5-0349791507	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Minh Châu	675000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0349791507	\N	\N	\N	t	Tự động	8869085418	BIDV	2026-09-W5	\N	Thủ công	406	\N	\N
-57	AUTO-2026-09-W5-0979345229	2026-09-30	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Dương Hồng Phương	690600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0979345229	\N	\N	\N	t	Tự động	979345229	Vietinbank	2026-09-W5	\N	Thủ công	221	\N	\N
-58	AUTO-2026-09-W5-0984065555	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Vũ Hùng Vỹ	3398600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0984065555	\N	\N	\N	t	Tự động	109613685568	Vietinbank	2026-09-W5	\N	Thủ công	401	\N	\N
-59	AUTO-2026-09-W5-0965759559	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Cung Thu Hà	6015000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965759559	\N	\N	\N	t	Tự động	19023295042029	Techcombank	2026-09-W5	\N	Thủ công	40	\N	\N
-60	AUTO-2026-09-W4-000007	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Đinh Văn Bắc	3166800	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	000007	\N	\N	\N	t	Tự động	19033903936017	Techcombank	2026-09-W4	\N	Thủ công	411	\N	\N
-62	AUTO-2026-09-W5-0343781580	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Đăng An	2063333	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0343781580	\N	\N	\N	t	Tự động	183093983	VP Bank	2026-09-W5	\N	Thủ công	408	\N	\N
-64	AUTO-2026-09-W5-000007	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Đinh Văn Bắc	5158333	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	000007	\N	\N	\N	t	Tự động	19033903936017	Techcombank	2026-09-W5	\N	Thủ công	411	\N	\N
-65	AUTO-2026-09-W4-0913073619	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phạm Vinh Quang	5000000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0913073619	\N	\N	\N	t	Tự động	0541000221027	Vietcombank	2026-09-W4	\N	Thủ công	243	\N	\N
-137	KC-T9-05	2026-09-18	Quỹ vận hành	Tri ân kết nối phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Thị Hương Thảo	375000	0	An toàn	Đã chi	375000	\N	2026-10-10 14:43:12.775	\N	\N	000006	2026-09-28	2026-09-28	\N	t	Thủ công	0965749223	Vpbank	\N	\N	Thủ công	\N	\N	\N
-133	KC-T9-01	2026-09-25	Quỹ vận hành	Tri ân kết nối phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Thị Hương Thảo	2975000	0	An toàn	Đã chi	2975000	\N	2026-10-10 14:43:12.755	\N	\N	000006	2026-09-28	2026-09-28	\N	t	Thủ công	0965749223	Vpbank	\N	\N	Thủ công	\N	\N	\N
-134	KC-T9-02	2026-09-25	Quỹ vận hành	Tổng điều hành	\N	Hệ thống	\N	Ban Giám Đốc	Đinh Văn Bắc	2975000	0	An toàn	Đã chi	2975000	\N	2026-10-10 14:43:12.769	\N	\N	000007	2026-09-28	2026-09-28	\N	t	Thủ công	1903390396017	Techcombank	\N	\N	Thủ công	\N	\N	\N
-135	KC-T9-03	2026-09-25	Quỹ vận hành	Phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Vũ Thị Cúc	7140000	0	An toàn	Đã chi	7140000	\N	2026-10-10 14:43:12.771	\N	\N	0889225989	2026-09-28	2026-09-28	\N	t	Thủ công	2589225989	Techcombank	\N	\N	Thủ công	\N	\N	\N
-136	KC-T9-04	2026-09-25	BP hỗ trợ CN	Quỹ hỗ trợ & dự phòng (CN)	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Đăng An	1190000	0	An toàn	Đã chi	1190000	\N	2026-10-10 14:43:12.774	\N	\N	0343781580	2026-09-28	2026-09-28	\N	t	Thủ công	183093983	VP Bank	\N	\N	Thủ công	\N	\N	\N
-138	KC-T9-06	2026-09-18	Quỹ vận hành	Tổng điều hành	\N	Hệ thống	\N	Ban Giám Đốc	Đinh Văn Bắc	375000	0	An toàn	Đã chi	375000	\N	2026-10-10 14:43:12.777	\N	\N	000007	2026-09-28	2026-09-28	\N	t	Thủ công	1903390396017	Techcombank	\N	\N	Thủ công	\N	\N	\N
-139	KC-T9-07	2026-09-18	Quỹ vận hành	Phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Vũ Thị Cúc	900000	0	An toàn	Đã chi	900000	\N	2026-10-10 14:43:12.778	\N	\N	0889225989	2026-09-28	2026-09-28	\N	t	Thủ công	2589225989	Techcombank	\N	\N	Thủ công	\N	\N	\N
-140	KC-T9-08	2026-09-18	BP hỗ trợ CN	Quỹ hỗ trợ & dự phòng (CN)	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Đăng An	150000	0	An toàn	Đã chi	150000	\N	2026-10-10 14:43:12.78	\N	\N	0343781580	2026-09-28	2026-09-28	\N	t	Thủ công	183093983	VP Bank	\N	\N	Thủ công	\N	\N	\N
+COPY public.transaction_logs (id, request_code, request_date, fund_source, detail_content, requester_id, requester_name, approver_id, approver_name, beneficiary_name, proposed_amount, available_balance, fund_alert, status, actual_expense, receipt_url, created_at, requester_phone, approver_phone, beneficiary_phone, approval_date, payment_date, source_row, source_complete, request_type, beneficiary_bank_account, beneficiary_bank_name, source_period, contract_id, expense_type, beneficiary_user_id, source_contract_id, beneficiary_role, items, note) FROM stdin;
+35	AUTO-2026-09-W5-0384081273	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Hoàng Thị Chích	6500000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0384081273	\N	\N	\N	t	Tự động	0384081273	\N	2026-09-W5	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":6500000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Hoàng Thị Chích","beneficiary_phone":"0384081273","beneficiary_user_id":null,"beneficiary_bank_name":null,"beneficiary_bank_account":"0384081273"}]	\N
+45	AUTO-2026-09-W5-0965749223	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Thị Hương Thảo	5158333	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965749223	\N	\N	\N	t	Tự động	0965749223	Vpbank	2026-09-W5	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":5158333,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Thị Hương Thảo","beneficiary_phone":"0965749223","beneficiary_user_id":null,"beneficiary_bank_name":"Vpbank","beneficiary_bank_account":"0965749223"}]	\N
+53	AUTO-2026-09-W4-0965749223	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Thị Hương Thảo	1190000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965749223	\N	\N	\N	t	Tự động	0965749223	Vpbank	2026-09-W4	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":1190000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Thị Hương Thảo","beneficiary_phone":"0965749223","beneficiary_user_id":null,"beneficiary_bank_name":"Vpbank","beneficiary_bank_account":"0965749223"}]	\N
+44	AUTO-2026-09-W5-0768635148	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Phạm Minh Tuấn	1745800	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0768635148	\N	\N	\N	t	Tự động	11004198385	Vietcombank	2026-09-W5	\N	Thủ công	48	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":1745800,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Minh Tuấn","beneficiary_phone":"0768635148","beneficiary_user_id":48,"beneficiary_bank_name":"Vietcombank","beneficiary_bank_account":"11004198385"}]	\N
+60	AUTO-2026-09-W4-000007	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Đinh Văn Bắc	3166800	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	000007	\N	\N	\N	t	Tự động	19033903936017	Techcombank	2026-09-W4	\N	Thủ công	411	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":3166800,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Đinh Văn Bắc","beneficiary_phone":"000007","beneficiary_user_id":411,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"19033903936017"}]	\N
+62	AUTO-2026-09-W5-0343781580	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Đăng An	2063333	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0343781580	\N	\N	\N	t	Tự động	183093983	VP Bank	2026-09-W5	\N	Thủ công	408	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":2063333,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Đăng An","beneficiary_phone":"0343781580","beneficiary_user_id":408,"beneficiary_bank_name":"VP Bank","beneficiary_bank_account":"183093983"}]	\N
+64	AUTO-2026-09-W5-000007	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Đinh Văn Bắc	5158333	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	000007	\N	\N	\N	t	Tự động	19033903936017	Techcombank	2026-09-W5	\N	Thủ công	411	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":5158333,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Đinh Văn Bắc","beneficiary_phone":"000007","beneficiary_user_id":411,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"19033903936017"}]	\N
+65	AUTO-2026-09-W4-0913073619	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phạm Vinh Quang	5000000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0913073619	\N	\N	\N	t	Tự động	0541000221027	Vietcombank	2026-09-W4	\N	Thủ công	243	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":5000000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Vinh Quang","beneficiary_phone":"0913073619","beneficiary_user_id":243,"beneficiary_bank_name":"Vietcombank","beneficiary_bank_account":"0541000221027"}]	\N
+139	KC-T9-07	2026-09-18	Quỹ vận hành	Phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Vũ Thị Cúc	900000	0	An toàn	Đã chi	900000	\N	2026-10-10 14:43:12.778	\N	\N	0889225989	2026-09-28	2026-09-28	\N	t	Thủ công	2589225989	Techcombank	\N	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Phó tổng","amount":900000,"subtitle":"","fund_source":"Quỹ vận hành","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":"0889225989","beneficiary_user_id":null,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"2589225989"}]	\N
+13	AUTO-2026-09-W4-0326894993	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Hùng Vĩ	7140000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0326894993	\N	\N	\N	t	Tự động	31978686868	Techcombank	2026-09-W4	\N	Thủ công	41	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":7140000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Hùng Vĩ","beneficiary_phone":"0326894993","beneficiary_user_id":41,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"31978686868"}]	\N
+19	AUTO-2026-09-W3-PhmThyLan	2026-09-18	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phạm Thùy Lan	900000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	BIDV	2026-09-W3	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":900000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Thùy Lan","beneficiary_phone":null,"beneficiary_user_id":null,"beneficiary_bank_name":"BIDV","beneficiary_bank_account":null}]	\N
+16	AUTO-2026-09-W4-0965759559	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Cung Thu Hà	1255600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965759559	\N	\N	\N	t	Tự động	19023295042029	Techcombank	2026-09-W4	\N	Thủ công	40	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":1255600,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Cung Thu Hà","beneficiary_phone":"0965759559","beneficiary_user_id":40,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"19023295042029"}]	\N
+135	KC-T9-03	2026-09-25	Quỹ vận hành	Phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Vũ Thị Cúc	7140000	0	An toàn	Đã chi	7140000	\N	2026-10-10 14:43:12.771	\N	\N	0889225989	2026-09-28	2026-09-28	\N	t	Thủ công	2589225989	Techcombank	\N	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Phó tổng","amount":7140000,"subtitle":"","fund_source":"Quỹ vận hành","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":"0889225989","beneficiary_user_id":null,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"2589225989"}]	\N
+140	KC-T9-08	2026-09-18	BP hỗ trợ CN	Quỹ hỗ trợ & dự phòng (CN)	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Đăng An	150000	0	An toàn	Đã chi	150000	\N	2026-10-10 14:43:12.78	\N	\N	0343781580	2026-09-28	2026-09-28	\N	t	Thủ công	183093983	VP Bank	\N	\N	Thủ công	408	\N	\N	[{"note":"","order":1,"title":"Quỹ hỗ trợ & dự phòng (CN)","amount":150000,"subtitle":"","fund_source":"BP hỗ trợ CN","beneficiary_name":"Nguyễn Đăng An","beneficiary_phone":"0343781580","beneficiary_user_id":null,"beneficiary_bank_name":"VP Bank","beneficiary_bank_account":"183093983"}]	\N
+136	KC-T9-04	2026-09-25	BP hỗ trợ CN	Quỹ hỗ trợ & dự phòng (CN)	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Đăng An	1190000	0	An toàn	Đã chi	1190000	\N	2026-10-10 14:43:12.774	\N	\N	0343781580	2026-09-28	2026-09-28	\N	t	Thủ công	183093983	VP Bank	\N	\N	Thủ công	408	\N	\N	[{"note":"","order":1,"title":"Quỹ hỗ trợ & dự phòng (CN)","amount":1190000,"subtitle":"","fund_source":"BP hỗ trợ CN","beneficiary_name":"Nguyễn Đăng An","beneficiary_phone":"0343781580","beneficiary_user_id":null,"beneficiary_bank_name":"VP Bank","beneficiary_bank_account":"183093983"}]	\N
+39	AUTO-2026-09-W3-NguynThHng	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Thị Hương	1300000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	5550000000555	\N	2026-09-W3	\N	Thủ công	210	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":1300000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Thị Hương","beneficiary_phone":null,"beneficiary_user_id":210,"beneficiary_bank_name":null,"beneficiary_bank_account":null}]	\N
+1	YC001	2026-09-15	Quỹ Đào tạo Chuyên môn & Kỹ năng	Chi ăn trưa đào tạo prosale mới	0889225989	Vũ Thị Cúc	\N		Vũ Thị Cúc	420000	5105000	An toàn	Thiếu dữ liệu	0	https://drive.google.com/drive/folders/19_xCvnjzHtRutmE9ZzEIWxxWcLTmDDpG	2026-09-17 18:50:56.175	0889225989	\N	0889225989	\N	\N	4	f	Thủ công	MB Bank - 0914556677	Techcombank	\N	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Chi ăn trưa đào tạo prosale mới","amount":420000,"subtitle":"","fund_source":"Quỹ Đào tạo Chuyên môn & Kỹ năng","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":"0889225989","beneficiary_user_id":15,"beneficiary_bank_name":null,"beneficiary_bank_account":null}]	\N
+2	YC002	2026-10-01	Chi phí Công tác phí	Công tác thị Trường Sơn La	0889225989	Vũ Thị Cúc	\N		Vũ Thị Cúc	6000000	5105000	Vượt quá tồn quỹ	Đã chi	6000000	\N	2026-09-17 18:50:56.456	0889225989	\N	0889225989	\N	2026-10-05	5	f	Thủ công	MB Bank - 0914556677	Techcombank	\N	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Công tác thị Trường Sơn La","amount":6000000,"subtitle":"","fund_source":"Chi phí Công tác phí","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":"0889225989","beneficiary_user_id":15,"beneficiary_bank_name":null,"beneficiary_bank_account":null}]	\N
+17	AUTO-2026-09-W4-0915095848	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Diệp Thị Huế	2500000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0915095848	\N	\N	\N	t	Tự động	22891177	ACB	2026-09-W4	\N	Thủ công	402	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":2500000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Diệp Thị Huế","beneficiary_phone":"0915095848","beneficiary_user_id":402,"beneficiary_bank_name":"ACB","beneficiary_bank_account":"22891177"}]	\N
+20	AUTO-2026-09-W3-DipThHu	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Diệp Thị Huế	271050	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	22891177	ACB	2026-09-W3	\N	Thủ công	402	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":271050,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Diệp Thị Huế","beneficiary_phone":null,"beneficiary_user_id":402,"beneficiary_bank_name":"ACB","beneficiary_bank_account":null}]	\N
+24	AUTO-2026-09-W3-inhVnBc	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Đinh Văn Bắc	375000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	19033903936017	Techcombank	2026-09-W3	\N	Thủ công	411	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":375000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Đinh Văn Bắc","beneficiary_phone":null,"beneficiary_user_id":411,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":null}]	\N
+14	AUTO-2026-09-W3-0965749223	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Thị Hương Thảo	375000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965749223	\N	\N	\N	t	Tự động	\N	Vpbank	2026-09-W3	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":375000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Thị Hương Thảo","beneficiary_phone":"0965749223","beneficiary_user_id":null,"beneficiary_bank_name":"Vpbank","beneficiary_bank_account":null}]	\N
+43	AUTO-2026-09-W5-0889225989	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Vũ Thị Cúc	15374250	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0889225989	\N	\N	\N	t	Tự động	2589225989	Techcombank	2026-09-W5	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":15374250,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":"0889225989","beneficiary_user_id":15,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"2589225989"}]	\N
+12	AUTO-2026-09-W3-CungThuH	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Cung Thu Hà	681200	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	19023295042029	Techcombank	2026-09-W3	\N	Thủ công	40	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":681200,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Cung Thu Hà","beneficiary_phone":null,"beneficiary_user_id":40,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":null}]	\N
+25	AUTO-2026-09-W3-NguynHngV	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Hùng Vĩ	1004850	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	31978686868	31978686868  Techcombank	2026-09-W3	\N	Thủ công	41	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":1004850,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Hùng Vĩ","beneficiary_phone":null,"beneficiary_user_id":41,"beneficiary_bank_name":"31978686868  Techcombank","beneficiary_bank_account":null}]	\N
+49	AUTO-2026-09-W5-0399868786	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Thị Hương	600000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0399868786	\N	\N	\N	t	Tự động	5550000000555	\N	2026-09-W5	\N	Thủ công	210	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":600000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Thị Hương","beneficiary_phone":"0399868786","beneficiary_user_id":210,"beneficiary_bank_name":null,"beneficiary_bank_account":"5550000000555"}]	\N
+51	AUTO-2026-09-W3-VThCc	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Vũ Thị Cúc	900000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	MB Bank - 0914556677	Techcombank	2026-09-W3	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":900000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":null,"beneficiary_user_id":15,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":null}]	\N
+52	AUTO-2026-09-W4-0969881698	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phượng Ngọc Thu	2925000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0969881698	\N	\N	\N	t	Tự động	28275222	\N	2026-09-W4	\N	Thủ công	217	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":2925000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phượng Ngọc Thu","beneficiary_phone":"0969881698","beneficiary_user_id":217,"beneficiary_bank_name":null,"beneficiary_bank_account":"28275222"}]	\N
+26	AUTO-2026-09-W5-0915095848	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Diệp Thị Huế	18665266	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0915095848	\N	\N	\N	t	Tự động	22891177	ACB	2026-09-W5	\N	Thủ công	402	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":18665266,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Diệp Thị Huế","beneficiary_phone":"0915095848","beneficiary_user_id":402,"beneficiary_bank_name":"ACB","beneficiary_bank_account":"22891177"}]	\N
+31	AUTO-2026-09-W4-0768635148	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phạm Minh Tuấn	30000000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0768635148	\N	\N	\N	t	Tự động	11004198385	Vietcombank	2026-09-W4	\N	Thủ công	48	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":30000000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Minh Tuấn","beneficiary_phone":"0768635148","beneficiary_user_id":48,"beneficiary_bank_name":"Vietcombank","beneficiary_bank_account":"11004198385"}]	\N
+27	AUTO-2026-09-W3-NguynngAn	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Nguyễn Đăng An	150000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	183093983	VP Bank	2026-09-W3	\N	Thủ công	408	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":150000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Đăng An","beneficiary_phone":null,"beneficiary_user_id":408,"beneficiary_bank_name":"VP Bank","beneficiary_bank_account":null}]	\N
+28	AUTO-2026-09-W4-0399868786	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Thị Hương	2975000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0399868786	\N	\N	\N	t	Tự động	5550000000555	\N	2026-09-W4	\N	Thủ công	210	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":2975000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Thị Hương","beneficiary_phone":"0399868786","beneficiary_user_id":210,"beneficiary_bank_name":null,"beneficiary_bank_account":"5550000000555"}]	\N
+29	AUTO-2026-09-W3-VHngV	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Vũ Hùng Vỹ	71050	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Vietinbank	2026-09-W3	\N	Thủ công	107	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":71050,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Vũ Hùng Vỹ","beneficiary_phone":null,"beneficiary_user_id":107,"beneficiary_bank_name":"Vietinbank","beneficiary_bank_account":null}]	\N
+32	AUTO-2026-09-W4-0329685009	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Trần Thị Thanh Hương	9200500	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0329685009	\N	\N	\N	t	Tự động	2714205148354	Agribank	2026-09-W4	\N	Thủ công	375	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":9200500,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Trần Thị Thanh Hương","beneficiary_phone":"0329685009","beneficiary_user_id":375,"beneficiary_bank_name":"Agribank","beneficiary_bank_account":"2714205148354"}]	\N
+36	AUTO-2026-09-W5-0329685009	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Trần Thị Thanh Hương	32500000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0329685009	\N	\N	\N	t	Tự động	2714205148354	Agribank	2026-09-W5	\N	Thủ công	375	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":32500000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Trần Thị Thanh Hương","beneficiary_phone":"0329685009","beneficiary_user_id":375,"beneficiary_bank_name":"Agribank","beneficiary_bank_account":"2714205148354"}]	\N
+38	AUTO-2026-09-W4-0889225989	2026-09-19	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Vũ Thị Cúc	2975000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0889225989	\N	\N	\N	t	Tự động	2589225989	Techcombank	2026-09-W4	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":2975000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Vũ Thị Cúc","beneficiary_phone":"0889225989","beneficiary_user_id":15,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"2589225989"}]	\N
+42	AUTO-2026-09-W4-0343781580	2026-09-22	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Nguyễn Đăng An	300000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0343781580	\N	\N	\N	t	Tự động	183093983	VP Bank	2026-09-W4	\N	Thủ công	408	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":300000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Đăng An","beneficiary_phone":"0343781580","beneficiary_user_id":408,"beneficiary_bank_name":"VP Bank","beneficiary_bank_account":"183093983"}]	\N
+46	AUTO-2026-09-W5-0988677522	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Quàng Thị Đoàn	8100000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0988677522	\N	\N	\N	t	Tự động	4110032363	BIDV	2026-09-W5	\N	Thủ công	410	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":8100000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Quàng Thị Đoàn","beneficiary_phone":"0988677522","beneficiary_user_id":410,"beneficiary_bank_name":"BIDV","beneficiary_bank_account":"4110032363"}]	\N
+158	YC35558	2026-10-16	Quỹ Đào tạo Chuyên môn & Kỹ năng	1. gg · 5.555 đ	\N	Vũ Thị Cúc	\N	A Phong	A Phong	5555	0	Vượt quá tồn quỹ	Chờ duyệt	0	\N	2026-10-16 16:38:33.739	0904123456	\N	0934635468	\N	\N	\N	t	Thủ công	\N	\N	\N	\N	Thủ công	112	\N	\N	[{"note":"","order":1,"title":"gg","amount":5555,"subtitle":"","fundSource":"Quỹ Đào tạo Chuyên môn & Kỹ năng","beneficiaryName":"A Phong","beneficiaryPhone":"0934635468","beneficiaryUserId":112,"beneficiaryBankName":null,"beneficiaryBankAccount":null}]	\N
+159	YC40159	2026-10-16	Chi phí Công tác phí	1. hhh · 5.555.555 đ	\N	Vũ Thị Cúc	\N	A tuấn	A. Ngọc	5555555	0	Vượt quá tồn quỹ	Chờ duyệt	0	\N	2026-10-16 16:38:52.245	0904123456	\N	0982100474	\N	\N	\N	t	Thủ công	\N	\N	\N	\N	Thủ công	208	\N	\N	[{"note":"","order":1,"title":"hhh","amount":5555555,"subtitle":"","fundSource":"Chi phí Công tác phí","beneficiaryName":"A. Ngọc","beneficiaryPhone":"0982100474","beneficiaryUserId":208,"beneficiaryBankName":null,"beneficiaryBankAccount":null}]	\N
+50	AUTO-2026-09-W5-0379863712	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Trần Thị Ban	1350000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0379863712	\N	\N	\N	t	Tự động	4110689671	BIDV	2026-09-W5	\N	Thủ công	323	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":1350000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Trần Thị Ban","beneficiary_phone":"0379863712","beneficiary_user_id":323,"beneficiary_bank_name":"BIDV","beneficiary_bank_account":"4110689671"}]	\N
+137	KC-T9-05	2026-09-18	Quỹ vận hành	Tri ân kết nối phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Thị Hương Thảo	375000	0	An toàn	Đã chi	375000	\N	2026-10-10 14:43:12.775	\N	\N	000006	2026-09-28	2026-09-28	\N	t	Thủ công	0965749223	Vpbank	\N	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Tri ân kết nối phó tổng","amount":375000,"subtitle":"","fund_source":"Quỹ vận hành","beneficiary_name":"Nguyễn Thị Hương Thảo","beneficiary_phone":"000006","beneficiary_user_id":null,"beneficiary_bank_name":"Vpbank","beneficiary_bank_account":"0965749223"}]	\N
+133	KC-T9-01	2026-09-25	Quỹ vận hành	Tri ân kết nối phó tổng	\N	Hệ thống	\N	Ban Giám Đốc	Nguyễn Thị Hương Thảo	2975000	0	An toàn	Đã chi	2975000	\N	2026-10-10 14:43:12.755	\N	\N	000006	2026-09-28	2026-09-28	\N	t	Thủ công	0965749223	Vpbank	\N	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Tri ân kết nối phó tổng","amount":2975000,"subtitle":"","fund_source":"Quỹ vận hành","beneficiary_name":"Nguyễn Thị Hương Thảo","beneficiary_phone":"000006","beneficiary_user_id":null,"beneficiary_bank_name":"Vpbank","beneficiary_bank_account":"0965749223"}]	\N
+54	AUTO-2026-09-W5-0326894993	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Hùng Vĩ	11292067	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0326894993	\N	\N	\N	t	Tự động	31978686868	Techcombank	2026-09-W5	\N	Thủ công	41	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":11292067,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Hùng Vĩ","beneficiary_phone":"0326894993","beneficiary_user_id":41,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"31978686868"}]	\N
+55	AUTO-2026-09-W4-0912137909	2026-09-23	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W4	\N	Hệ thống tự động	\N		Phạm Thùy Lan	2355600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0912137909	\N	\N	\N	t	Tự động	12810000684060	BIDV	2026-09-W4	\N	Thủ công	162	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W4","amount":2355600,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Thùy Lan","beneficiary_phone":"0912137909","beneficiary_user_id":162,"beneficiary_bank_name":"BIDV","beneficiary_bank_account":"12810000684060"}]	\N
+56	AUTO-2026-09-W5-0349791507	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Minh Châu	675000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0349791507	\N	\N	\N	t	Tự động	8869085418	BIDV	2026-09-W5	\N	Thủ công	406	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":675000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Minh Châu","beneficiary_phone":"0349791507","beneficiary_user_id":406,"beneficiary_bank_name":"BIDV","beneficiary_bank_account":"8869085418"}]	\N
+57	AUTO-2026-09-W5-0979345229	2026-09-30	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Dương Hồng Phương	690600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0979345229	\N	\N	\N	t	Tự động	979345229	Vietinbank	2026-09-W5	\N	Thủ công	221	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":690600,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Dương Hồng Phương","beneficiary_phone":"0979345229","beneficiary_user_id":221,"beneficiary_bank_name":"Vietinbank","beneficiary_bank_account":"979345229"}]	\N
+58	AUTO-2026-09-W5-0984065555	2026-09-27	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Vũ Hùng Vỹ	3398600	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0984065555	\N	\N	\N	t	Tự động	109613685568	Vietinbank	2026-09-W5	\N	Thủ công	401	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":3398600,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Vũ Hùng Vỹ","beneficiary_phone":"0984065555","beneficiary_user_id":401,"beneficiary_bank_name":"Vietinbank","beneficiary_bank_account":"109613685568"}]	\N
+59	AUTO-2026-09-W5-0965759559	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Cung Thu Hà	6015000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0965759559	\N	\N	\N	t	Tự động	19023295042029	Techcombank	2026-09-W5	\N	Thủ công	40	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":6015000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Cung Thu Hà","beneficiary_phone":"0965759559","beneficiary_user_id":40,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"19023295042029"}]	\N
+33	AUTO-2026-09-W5-0384081272	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Nguyễn Đức Vĩnh	2431150	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0384081272	\N	\N	\N	t	Tự động	0384081272	\N	2026-09-W5	\N	Thủ công	109	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":2431150,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Nguyễn Đức Vĩnh","beneficiary_phone":"0384081272","beneficiary_user_id":109,"beneficiary_bank_name":null,"beneficiary_bank_account":"0384081272"}]	\N
+37	AUTO-2026-09-W5-0969881698	2026-10-02	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W5	\N	Hệ thống tự động	\N		Phượng Ngọc Thu	1015000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	0969881698	\N	\N	\N	t	Tự động	28275222	\N	2026-09-W5	\N	Thủ công	217	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W5","amount":1015000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phượng Ngọc Thu","beneficiary_phone":"0969881698","beneficiary_user_id":217,"beneficiary_bank_name":null,"beneficiary_bank_account":"28275222"}]	\N
+40	AUTO-2026-09-W3-PhngNgcThu	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phượng Ngọc Thu	81200	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	\N	2026-09-W3	\N	Thủ công	91	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":81200,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phượng Ngọc Thu","beneficiary_phone":null,"beneficiary_user_id":91,"beneficiary_bank_name":null,"beneficiary_bank_account":null}]	\N
+41	AUTO-2026-09-W3-PhmVinhQuang	2026-09-18	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phạm Vinh Quang	225000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	0541000221027	Vietcombank	2026-09-W3	\N	Thủ công	243	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":225000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Vinh Quang","beneficiary_phone":null,"beneficiary_user_id":243,"beneficiary_bank_name":"Vietcombank","beneficiary_bank_account":null}]	\N
+47	AUTO-2026-09-W3-PhmMinhTun	2026-09-17	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Phạm Minh Tuấn	213150	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	11004198385	Vietcombank	2026-09-W3	\N	Thủ công	48	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":213150,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Phạm Minh Tuấn","beneficiary_phone":null,"beneficiary_user_id":48,"beneficiary_bank_name":"Vietcombank","beneficiary_bank_account":null}]	\N
+61	AUTO-2026-09-W3-TrnTThanhHng	2026-09-15	Hoa hồng hợp đồng	Hoa hồng hợp đồng 2026-09-W3	\N	Hệ thống tự động	\N		Trần T Thanh Hương	2400000	0	Chờ đối chiếu	Chờ duyệt	0	\N	\N	\N	\N	\N	\N	\N	\N	t	Tự động	\N	Agribank	2026-09-W3	\N	Thủ công	\N	\N	\N	[{"note":"","order":1,"title":"Hoa hồng hợp đồng 2026-09-W3","amount":2400000,"subtitle":"","fund_source":"Hoa hồng hợp đồng","beneficiary_name":"Trần T Thanh Hương","beneficiary_phone":null,"beneficiary_user_id":null,"beneficiary_bank_name":"Agribank","beneficiary_bank_account":null}]	\N
+141	YC20801	2026-09-15	Quỹ Đào tạo Chuyên môn & Kỹ năng	1. Chi ăn trưa đào tạo các prosale mới · 420.000 đ	\N	Vũ Thị Cúc	\N	Đinh Văn Bắc	Vũ Thị Cúc	420000	0	Vượt quá tồn quỹ	Đã duyệt	420000	\N	2026-10-14 10:24:49.934	0904123456	\N	0889225989	2026-10-14	2026-10-14	\N	t	Thủ công	MB Bank - 0914556677	Techcombank	\N	\N	Thủ công	15	\N	\N	[{"note":"","order":1,"title":"Chi ăn trưa đào tạo các prosale mới","amount":420000,"subtitle":"","fundSource":"Quỹ Đào tạo Chuyên môn & Kỹ năng","beneficiaryName":"Vũ Thị Cúc","beneficiaryPhone":"0889225989","beneficiaryUserId":15,"beneficiaryBankName":"Techcombank","beneficiaryBankAccount":"MB Bank - 0914556677"}]	\N
+138	KC-T9-06	2026-09-18	Quỹ vận hành	Tổng điều hành	\N	Hệ thống	\N	Ban Giám Đốc	Đinh Văn Bắc	375000	0	An toàn	Đã chi	375000	\N	2026-10-10 14:43:12.777	\N	\N	000007	2026-09-28	2026-09-28	\N	t	Thủ công	1903390396017	Techcombank	\N	\N	Thủ công	411	\N	\N	[{"note":"","order":1,"title":"Tổng điều hành","amount":375000,"subtitle":"","fund_source":"Quỹ vận hành","beneficiary_name":"Đinh Văn Bắc","beneficiary_phone":"000007","beneficiary_user_id":null,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"1903390396017"}]	\N
+134	KC-T9-02	2026-09-25	Quỹ vận hành	Tổng điều hành	\N	Hệ thống	\N	Ban Giám Đốc	Đinh Văn Bắc	2975000	0	An toàn	Đã chi	2975000	\N	2026-10-10 14:43:12.769	\N	\N	000007	2026-09-28	2026-09-28	\N	t	Thủ công	1903390396017	Techcombank	\N	\N	Thủ công	411	\N	\N	[{"note":"","order":1,"title":"Tổng điều hành","amount":2975000,"subtitle":"","fund_source":"Quỹ vận hành","beneficiary_name":"Đinh Văn Bắc","beneficiary_phone":"000007","beneficiary_user_id":null,"beneficiary_bank_name":"Techcombank","beneficiary_bank_account":"1903390396017"}]	\N
+\.
+
+
+--
+-- Data for Name: user_teams; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.user_teams (user_id, team_id, created_at) FROM stdin;
 \.
 
 
@@ -6682,414 +7711,461 @@ COPY public.transaction_logs (id, request_code, request_date, fund_source, detai
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.users (id, full_name, phone, email, password, identity_card, bank_account, role, classification, title, team_id, ref_code, referrer_id, referral_group, source, join_date, status, is_team_leader_eligible, invite_count, guest_count, notes, created_at, updated_at, google_id, avatar_url, team_name, business_unit) FROM stdin;
-396	Phạm Thị Hương	0947876136	\N	\N	\N	\N	Khác	Nhân sự	Giám đốc	7	N_0947876136	15	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-10 20:31:46.457	\N	\N	Thịnh Vượng	Khối kinh doanh
-50	Cao văn trường	0865680267	\N	0865680267	\N	\N	Thành viên	Thành viên	\N	\N	N_0865680267	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:55:41.868	2026-09-19 01:55:41.868	\N	\N	\N	Khối kinh doanh
-51	Lương Hồng Hải	0919520885	\N	0919520885	\N	\N	Thành viên	Thành viên	\N	\N	N_0919520885	268	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:58:56.012	2026-10-10 02:15:02.646746	\N	\N	\N	Khối kinh doanh
-52	Lê Văn Thời	0929639345	\N	0929639345	\N	\N	Thành viên	Thành viên	\N	\N	N_0929639345	49	Lê Thị Hà	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:00:17.676	2026-10-06 11:40:07.373	\N	\N	\N	Khối kinh doanh
-53	Nguyễn Đức Côn	0971542688	\N	0971542688	\N	\N	Thành viên	Thành viên	\N	\N	N_0971542688	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:01:50.403	2026-09-19 02:01:50.403	\N	\N	\N	Khối kinh doanh
-54	Nguyễn Hồ Phương	0779292959	\N	0779292959	\N	\N	Thành viên	Thành viên	\N	\N	N_0779292959	49	Lê Thị Hà	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:02:45.841	2026-09-19 02:02:45.841	\N	\N	\N	Khối kinh doanh
-55	Nguyễn Thị Đào	0385562896	\N	0385562896	\N	\N	Thành viên	Thành viên	\N	\N	N_0385562896	\N	Khách vãng lai	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:03:10.531	2026-09-19 02:03:10.531	\N	\N	\N	Khối kinh doanh
-56	Lê thanh vi	0913258659	\N	0913258659	\N	\N	Thành viên	Thành viên	\N	\N	N_0913258659	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:15.29	2026-09-30 02:49:39.555	\N	\N	\N	Khối kinh doanh
-57	Quản Thị Phòng	0386708895	\N	0386708895	\N	\N	Thành viên	Thành viên	\N	\N	N_0386708895	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:38.425	2026-09-19 02:04:38.425	\N	\N	\N	Khối kinh doanh
-59	Vũ van biên	0989944612	\N	0989944612	\N	\N	Thành viên	Thành viên	\N	\N	N_0989944612	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:05:15.295	2026-09-19 02:05:15.295	\N	\N	\N	Khối kinh doanh
-60	Vũ Thị Kim Thư( Hùng Vỹ)	0854716372	\N	0854716372	\N	\N	Thành viên	Thành viên	\N	\N	N_0854716372	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:05:22.891	2026-10-10 02:38:38.388006	\N	\N	\N	Khối kinh doanh
-61	Lê Văn kiểm	0968085316	\N	0968085316	\N	\N	Thành viên	Thành viên	\N	\N	N_0968085316	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:06:30.396	2026-09-19 02:06:30.396	\N	\N	\N	Khối kinh doanh
-62	Phạm văn Pha	0973765167	\N	0973765167	\N	\N	Thành viên	Thành viên	\N	\N	N_0973765167	56	Lê thanh vi	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:06:39.899	2026-09-19 02:06:39.899	\N	\N	\N	Khối kinh doanh
-63	Nguyễn thế viễn	0988359108	\N	0988359108	\N	\N	Thành viên	Thành viên	\N	\N	N_0988359108	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:07:14.725	2026-09-19 02:07:14.725	\N	\N	\N	Khối kinh doanh
-64	Lê Văn Hải ( khách của Vũ Thuý)	0903213785	\N	0903213785	\N	\N	Thành viên	Thành viên	\N	\N	N_0903213785	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:07:31.247	2026-09-19 02:07:31.247	\N	\N	\N	Khối kinh doanh
-65	Nguyễn Trà My	0344514394	\N	0344514394	\N	\N	Thành viên	Thành viên	\N	\N	N_0344514394	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:09:57.705	2026-09-19 02:09:57.705	\N	\N	\N	Khối kinh doanh
-67	phạm thị Tuyết(vỹ)	0936446922	\N	0936446922	\N	\N	Thành viên	Thành viên	\N	\N	N_0936446922	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:16:37.298	2026-10-03 02:10:32.637	\N	\N	\N	Khối kinh doanh
-69	Bùi thị kim oanh(tuyết)	0834262681	\N	0834262681	\N	\N	Thành viên	Thành viên	\N	\N	N_0834262681	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:17:29.186	2026-09-19 02:17:29.186	\N	\N	\N	Khối kinh doanh
-70	Lê Thị Loan( Hà )	0904220531	\N	0904220531	\N	\N	Thành viên	Thành viên	\N	\N	N_0904220531	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:22:07.011	2026-09-19 02:22:07.011	\N	\N	\N	Khối kinh doanh
-71	Nguyễn Thị ĐàoNguyeens Tuấn X	0335842475	\N	0335842475	\N	\N	Thành viên	Thành viên	\N	\N	N_0335842475	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:22:09.452	2026-09-19 02:22:09.452	\N	\N	\N	Khối kinh doanh
-72	Nguyễn Tiến Dũng	0943472943	\N	0943472943	\N	\N	Thành viên	Thành viên	\N	\N	N_0943472943	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:22:36.128	2026-09-25 08:24:38.335	\N	\N	\N	Khối kinh doanh
-73	Hồ Kim Thoa	0774244280	\N	0774244280	\N	\N	Thành viên	Thành viên	\N	\N	N_0774244280	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:23:12.805	2026-09-19 02:23:12.805	\N	\N	\N	Khối kinh doanh
-74	Vũ Ngoc Bảo	0966289668	ngocbaofc@gmail.com	0966289668	\N	\N	Thành viên	Thành viên	\N	\N	N_0966289668	301	0365922687	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:29:34.924	2026-10-07 03:13:16.359	\N	\N	\N	Khối kinh doanh
-75	Phạm thị nguyệt	0979012294	\N	0979012294	\N	\N	Thành viên	Thành viên	\N	\N	N_0979012294	74	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:30:01.05	2026-09-26 03:30:20.877	\N	\N	\N	Khối kinh doanh
-76	Trần thị hồng	0942238855	\N	0942238855	\N	\N	Thành viên	Thành viên	\N	\N	N_0942238855	74	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:32:25.646	2026-09-26 03:29:49.599	\N	\N	\N	Khối kinh doanh
-77	Đoàn Thị Tuyết Minh	+84866628865	\N	+84866628865	\N	\N	Thành viên	Thành viên	\N	\N	N_+84866628865	74	Vũ Ngoc Bảo	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:33:04.229	2026-09-19 02:33:04.229	\N	\N	\N	Khối kinh doanh
-78	Đỗ thị lanh	0941848473	\N	0941848473	\N	\N	Thành viên	Thành viên	\N	\N	N_0941848473	301	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:34:04.943	2026-10-07 03:11:50.101	\N	\N	\N	Khối kinh doanh
-79	Nguyên thị ngọc bich	0346511369	\N	0346511369	\N	\N	Thành viên	Thành viên	\N	\N	N_0346511369	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:37:56.872	2026-09-19 02:37:56.872	\N	\N	\N	Khối kinh doanh
-80	Cao t lan huong ( trinh )	0763416898	\N	0763416898	\N	\N	Thành viên	Thành viên	\N	\N	N_0763416898	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:39:44.29	2026-09-19 02:39:44.29	\N	\N	\N	Ban nguồn vốn
-42	Lê Thị Chanh	0385213858	\N	\N	\N	\N	Phụng sự	Nhân sự	Thành viên	\N	N_0385213858	\N	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	f	0	0	\N	2026-09-18 16:30:27.372	2026-09-19 01:34:37.089	\N	\N	\N	Khối kinh doanh
-46	Vy Văn Hiền ( A Thủ)	0915312849	\N	0915312849	\N	\N	Thành viên	Thành viên	\N	\N	N_0915312849	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:43:00.544	2026-09-19 01:43:00.544	\N	\N	\N	Khối kinh doanh
-81	Hoàng văn Nhật	0915026767	\N	0915026767	\N	\N	Thành viên	Thành viên	\N	2	N_0915026767	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:41:56.509	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh
-82	Nguyễn Phú Vụng( A Hoàng)	0865209758	\N	0865209758	\N	\N	Thành viên	Thành viên	\N	\N	N_0865209758	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:44:12.807	2026-09-19 02:44:12.807	\N	\N	\N	Khối kinh doanh
-83	Nguyễn Văn Hòa	0387549779	\N	0387549779	\N	\N	Thành viên	Thành viên	\N	\N	N_0387549779	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:46:32.138	2026-09-19 02:46:32.138	\N	\N	\N	Khối kinh doanh
-84	Nguyễn Quỳnh Thu	0354767135	\N	0354767135	\N	\N	Thành viên	Thành viên	\N	\N	N_0354767135	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:46:35.826	2026-10-06 14:25:13.686	\N	\N	\N	Khối kinh doanh
-85	Nguyễn thị Nga(Huyền)	0966389651	\N	0966389651	\N	\N	Thành viên	Thành viên	\N	\N	N_0966389651	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:47:19.41	2026-09-19 02:47:19.41	\N	\N	\N	Khối kinh doanh
-86	Lê Thị Bích Thủy	0394527088	\N	0394527088	\N	\N	Thành viên	Thành viên	\N	\N	N_0394527088	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:50:39.322	2026-09-19 02:50:39.322	\N	\N	\N	Khối kinh doanh
-87	Lê Thị Thanh Huyền	0886265813	\N	0886265813	\N	\N	Thành viên	Thành viên	\N	\N	N_0886265813	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:51:59.293	2026-09-19 02:51:59.293	\N	\N	\N	Khối kinh doanh
-88	Vũ Thị Thanh ( Thanh Hương)	0989905945	\N	0989905945	\N	\N	Thành viên	Thành viên	\N	\N	N_0989905945	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:55:36.868	2026-09-19 02:55:36.868	\N	\N	\N	Khối kinh doanh
-89	Tran thi thanh Huong	0904555254	\N	0904555254	\N	\N	Thành viên	Thành viên	\N	\N	N_0904555254	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:55:48.081	2026-10-03 02:30:44.262	\N	\N	\N	Khối kinh doanh
-92	Nguyễn thúy hang	0975656429	\N	0975656429	\N	\N	Thành viên	Thành viên	\N	\N	N_0975656429	93	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:04:57.66	2026-09-26 01:56:59.487	\N	\N	\N	Khối kinh doanh
-93	Nguyễn Xuân mâụ	0978665956	\N	0978665956	\N	\N	Thành viên	Thành viên	\N	\N	N_0978665956	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:06:56.741	2026-09-19 03:06:56.741	\N	\N	\N	Khối kinh doanh
-94	Nguyễn Đắc Học	0915240094	\N	0915240094	\N	\N	Thành viên	Thành viên	\N	\N	N_0915240094	89	Tran thi thanh Huong	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:09:00.494	2026-09-19 03:09:00.494	\N	\N	\N	Khối kinh doanh
-95	duong thanh( cao hương)	0962683595	\N	0962683595	\N	\N	Thành viên	Thành viên	\N	\N	N_0962683595	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:12:37.256	2026-09-19 03:12:37.256	\N	\N	\N	Khối kinh doanh
-96	Nguyễn Thị Hướng	0916763233	\N	0916763233	\N	\N	Thành viên	Thành viên	\N	\N	N_0916763233	301	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:13:59.382	2026-10-07 03:21:57.903	\N	\N	\N	Khối kinh doanh
-97	Quách Thị Thanh Phương	0989170620	\N	0989170620	\N	\N	Thành viên	Thành viên	\N	\N	N_0989170620	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:14:37.524	2026-09-19 03:14:37.524	\N	\N	\N	Khối kinh doanh
-98	C Phương ( Hà )	0913538966	\N	0913538966	\N	\N	Thành viên	Thành viên	\N	\N	N_0913538966	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:16:14.547	2026-09-19 03:16:14.547	\N	\N	\N	Khối kinh doanh
-99	Cao quốc trường	0983835893	\N	0983835893	\N	\N	Thành viên	Thành viên	\N	\N	N_0983835893	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:16:42.818	2026-09-19 03:16:42.818	\N	\N	\N	Khối kinh doanh
-100	Nguyễn Văn Đạt	0983323746	\N	0983323746	\N	\N	Thành viên	Thành viên	\N	\N	N_0983323746	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:16:47.982	2026-09-19 03:16:47.982	\N	\N	\N	Khối kinh doanh
-101	Hoàng Hương	0849672866	\N	0849672866	\N	\N	Thành viên	Thành viên	\N	\N	N_0849672866	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:19:42.867	2026-09-19 03:19:42.867	\N	\N	\N	Khối kinh doanh
-102	Phạm Quang Hiếu ( Hương)	0855123268	\N	0855123268	\N	\N	Thành viên	Thành viên	\N	\N	N_0855123268	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:20:00.647	2026-09-19 03:20:00.647	\N	\N	\N	Khối kinh doanh
-103	Đoàn thị bạch yến	0983894308	\N	0983894308	\N	\N	Thành viên	Thành viên	\N	\N	N_0983894308	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:25:42.246	2026-09-19 03:25:42.246	\N	\N	\N	Khối kinh doanh
-106	Hoàng Sỹ Tuấn	0931527739	\N	0931527739	\N	\N	Thành viên	Thành viên	\N	\N	N_0931527739	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:41:45.083	2026-09-19 03:41:45.083	\N	\N	\N	Khối kinh doanh
-108	Lê Văn Linh	0347321111	\N	0347321111	\N	\N	Thành viên	Thành viên	\N	\N	N_0347321111	\N	Nguyễn Tuấn	\N	2026-09-21	Đang hoạt động	f	0	0	\N	2026-09-21 02:56:18.207	2026-09-21 02:56:18.207	\N	\N	\N	Khối kinh doanh
-110	Ngô Huyền Dịu	0353729533	\N	0353729533	\N	\N	Thành viên	Thành viên	\N	\N	N_0353729533	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:24:07.454	2026-09-23 06:24:07.454	\N	\N	\N	Khối kinh doanh
-111	Đặng Thế Long	0972847275	\N	0972847275	\N	\N	Thành viên	Thành viên	\N	\N	N_0972847275	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:25:36.034	2026-09-23 06:25:36.034	\N	\N	\N	Khối kinh doanh
-112	A Phong	0934635468	\N	0934635468	\N	\N	Thành viên	Thành viên	\N	\N	N_0934635468	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:25:45.583	2026-09-23 06:25:45.583	\N	\N	\N	Khối kinh doanh
-113	Nguyễn Văn Bình	0385029771	\N	0385029771	\N	\N	Thành viên	Thành viên	\N	\N	N_0385029771	107	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:42:48.088	2026-09-23 06:42:48.088	\N	\N	\N	Khối kinh doanh
-115	Đỗ thị phương (thủ)	0362593296	\N	0362593296	\N	\N	Thành viên	Thành viên	\N	\N	N_0362593296	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:46:54.905	2026-09-23 06:46:54.905	\N	\N	\N	Khối kinh doanh
-109	Hoàng Thị Chích	0384081272	\N	0384081272	\N	\N	Thành viên	Thành viên	Trưởng phòng	6	N_0384081272	90	Nguyễn Đức Vĩnh	\N	2026-09-22	Đang hoạt động	t	0	0	\N	2026-09-22 11:09:43.688	2026-10-11 00:23:51.042	\N	\N	Happy	Khối kinh doanh
-91	Phượng Ngọc Thu	+84969881698	\N	+84969881698	\N	\N	Thành viên	Thành viên	Trưởng phòng	1	N_+84969881698	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:03:23.918	2026-10-10 20:31:46.443	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh
-107	Vũ Hùng Vỹ	0984967555	\N	0984967555	\N	\N	Thành viên	Thành viên	Trưởng phòng	2	N_0984967555	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:41:53.708	2026-10-10 20:31:46.446	\N	\N	Ong Vàng	Khối kinh doanh
-90	Nguyễn Đức Vĩnh	0984398568	\N	0984398568	\N	\N	Thành viên	Thành viên	Phó Giám đốc	6	N_0984398568	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 02:59:57.316	2026-10-11 00:23:51.042	\N	\N	Happy	Khối kinh doanh
-58	Đỗ Văn hành	0985425466	\N	0985425466	\N	\N	Thành viên	Thành viên	\N	\N	N_0985425466	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:49.839	2026-09-19 02:04:49.839	\N	\N	\N	Khối kinh doanh
-116	Vũ thị Tuất (thịnh)	0935667676	\N	0935667676	\N	\N	Thành viên	Thành viên	\N	\N	N_0935667676	165	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:54:24.603	2026-10-10 03:09:33.61001	\N	\N	\N	Khối kinh doanh
-117	Hoàng Thị Luyện ( A thịnh)	0972831568	\N	0972831568	\N	\N	Thành viên	Thành viên	\N	\N	N_0972831568	122	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:54:31.418	2026-09-30 02:42:30.288	\N	\N	\N	Khối kinh doanh
-118	Hồ Xuân thu( diệp Huế)	0988388012	\N	0988388012	\N	\N	Thành viên	Thành viên	\N	\N	N_0988388012	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:58:00.717	2026-09-23 06:58:00.717	\N	\N	\N	Khối kinh doanh
-119	Ngô Thanh Bình ( Quang Trung)	0987922275	\N	0987922275	\N	\N	Thành viên	Thành viên	\N	\N	N_0987922275	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:58:55.116	2026-09-23 06:58:55.116	\N	\N	\N	Khối kinh doanh
-120	Lê Văn tiến	0394799052	\N	0394799052	\N	\N	Thành viên	Thành viên	\N	2	N_0394799052	118	Hồ Xuân thu( diệp Huế)	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:59:04.012	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh
-121	Ngô Quang Trung	0913527524	\N	0913527524	\N	\N	Thành viên	Thành viên	\N	\N	N_0913527524	\N	0979345229	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:01:31.297	2026-09-23 07:01:31.297	\N	\N	\N	Khối kinh doanh
-122	Phạm Văn thịnh (a thủ )	09771133668	\N	09771133668	\N	\N	Thành viên	Thành viên	\N	\N	N_09771133668	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:06:28.965	2026-09-23 07:06:28.965	\N	\N	\N	Ban nguồn vốn
-123	Hoàng thị bích	0904708586	\N	0904708586	\N	\N	Thành viên	Thành viên	\N	\N	N_0904708586	\N	Vũ Thị Cúc	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:14:17.511	2026-09-23 07:14:17.511	\N	\N	\N	Khối kinh doanh
-124	Giang Thanh Ngọc	0376317831	\N	0376317831	\N	\N	Thành viên	Thành viên	\N	4	N_0376317831	41	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:14:45.6	2026-10-09 00:26:35.228	\N	\N	Thành Công	Khối kinh doanh
-125	Nguyễn Thị Bảy	0912882722	\N	0912882722	\N	\N	Thành viên	Thành viên	\N	\N	N_0912882722	301	Hải Quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:20:49.716	2026-10-07 03:14:20.696	\N	\N	\N	Khối kinh doanh
-126	Lê Thị Bích Ngần	0984298738	\N	0984298738	\N	\N	Thành viên	Thành viên	\N	\N	N_0984298738	\N	Hải Quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:21:22.443	2026-09-23 07:21:22.443	\N	\N	\N	Khối kinh doanh
-127	Khuyến	0911755777	\N	0911755777	\N	\N	Thành viên	Thành viên	\N	\N	N_0911755777	\N	Chỉnh	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:28.174	2026-09-23 07:26:28.174	\N	\N	\N	Khối kinh doanh
-128	Dũng(chỉnh)	0755161779	\N	0755161779	\N	\N	Thành viên	Thành viên	\N	\N	N_0755161779	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:32.615	2026-09-23 07:26:32.615	\N	\N	\N	Khối kinh doanh
-129	Bùi đăng lâm	0328001998	\N	0328001998	\N	\N	Thành viên	Thành viên	\N	\N	N_0328001998	196	Nguyễn hải quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:36.28	2026-09-30 03:07:26.08	\N	\N	\N	Khối kinh doanh
-130	Hà trọng Dũng	0913367713	\N	0913367713	\N	\N	Thành viên	Thành viên	\N	\N	N_0913367713	45	Chu Thị Lương	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:29:38.958	2026-09-30 02:25:23.325	\N	\N	\N	Khối kinh doanh
-131	Triệu Thị Yến	0352287668	\N	0352287668	\N	\N	Thành viên	Thành viên	\N	\N	N_0352287668	\N	Chị Khôi	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:29:42.683	2026-09-23 07:29:42.683	\N	\N	\N	Khối kinh doanh
-132	Hoàng Văn Định	0913968752	\N	0913968752	\N	\N	Thành viên	Thành viên	\N	\N	N_0913968752	\N	Cô Linh	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:34:16.581	2026-09-23 07:34:16.581	\N	\N	\N	Khối kinh doanh
-133	Bùi Thị Nguyệt	0932003666	\N	0932003666	\N	\N	Thành viên	Thành viên	\N	\N	N_0932003666	41	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:42:45.844	2026-09-26 03:17:05.457	\N	\N	\N	Khối kinh doanh
-134	A tuấn	0901759436	\N	0901759436	\N	\N	Thành viên	Thành viên	\N	\N	N_0901759436	44	Vũ Thị Thủy	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:46:02.345	2026-09-23 07:46:02.345	\N	\N	\N	Khối kinh doanh
-135	Đinh Thị Thơm	0397863708	\N	0397863708	\N	\N	Thành viên	Thành viên	\N	\N	N_0397863708	\N	Đỗ Thuý Hằng	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:01:06.765	2026-09-23 08:01:06.765	\N	\N	\N	Khối kinh doanh
-136	Đỗ thuý Hằng	0912519172	\N	0912519172	\N	\N	Thành viên	Thành viên	\N	\N	N_0912519172	93	Nguyễn Xuân mâụ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:01:13.543	2026-09-23 08:01:13.543	\N	\N	\N	Khối kinh doanh
-137	Nguyễn thị kim loan	0963239211	\N	0963239211	\N	\N	Thành viên	Thành viên	\N	\N	N_0963239211	136	Đỗ thuý Hằng	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:01:32.468	2026-09-23 08:01:32.468	\N	\N	\N	Khối kinh doanh
-138	Lê Thị Xuân Mai	0988560303	\N	0988560303	\N	\N	Thành viên	Thành viên	\N	\N	N_0988560303	\N	Cô Thu	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:02:15.042	2026-09-23 08:02:15.042	\N	\N	\N	Khối kinh doanh
-139	Nguyễn Thị Vân	0974059609	\N	0974059609	\N	\N	Thành viên	Thành viên	\N	\N	N_0974059609	\N	Cô Thu	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:02:55.184	2026-09-23 08:02:55.184	\N	\N	\N	Khối kinh doanh
-140	Diệp Thị Hằng	0393221856	\N	0393221856	\N	\N	Thành viên	Thành viên	\N	\N	N_0393221856	\N	Diệp Thị Huế	\N	2026-09-24	Đang hoạt động	f	0	0	\N	2026-09-24 09:29:44.394	2026-09-24 09:29:44.394	\N	\N	\N	Khối kinh doanh
-141	Đặng văn Hưng	0982307243	\N	0982307243	\N	\N	Thành viên	Thành viên	\N	\N	N_0982307243	140	Diệp Thị Hằng	\N	2026-09-24	Đang hoạt động	f	0	0	\N	2026-09-24 09:32:53.235	2026-09-24 09:32:53.235	\N	\N	\N	Khối kinh doanh
-142	Nguyễn Thị Dung	0973383487	\N	0973383487	\N	\N	Thành viên	Thành viên	\N	\N	N_0973383487	49	Lê Thị Hà	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 12:27:34.663	2026-09-25 12:27:34.663	\N	\N	\N	Khối kinh doanh
-143	Hoàng Cường	0345792111	\N	0345792111	\N	\N	Thành viên	Thành viên	\N	\N	N_0345792111	\N	Vũ Thị Cúc	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 12:54:34.837	2026-09-25 12:54:34.837	\N	\N	\N	Khối kinh doanh
-144	Nguyễn Văn A	0986981919	\N	0986981919	\N	\N	Thành viên	Thành viên	\N	\N	N_0986981919	\N	Vũ Thị Cúc	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 12:59:03.975	2026-09-25 12:59:03.975	\N	\N	\N	Khối kinh doanh
-145	Nguyễn Thị Hà	0373360136	\N	0373360136	\N	\N	Thành viên	Thành viên	Thành viên	\N	N_0373360136	48	Phạm Minh Tuấn	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 13:50:37.521	2026-09-28 03:31:15.09	\N	\N	\N	Khối kinh doanh
-146	Nguyễn Thị Nhạn	0982882523	\N	0982882523	\N	\N	Thành viên	Thành viên	\N	\N	N_0982882523	93	Trần Mai Lương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 01:44:38.112	2026-09-30 02:04:49.541	\N	\N	\N	Khối kinh doanh
-147	Nguyễn Văn Điền	0985544078	\N	0985544078	\N	\N	Thành viên	Thành viên	\N	\N	N_0985544078	146	Nguyễn Thị Nhạn	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 01:45:14.471	2026-09-26 01:45:14.471	\N	\N	\N	Khối kinh doanh
-148	Lương Vũ Tiến	0974200697	\N	0974200697	\N	\N	Thành viên	Thành viên	\N	\N	N_0974200697	146	Nguyễn Thị Nhạn	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 01:46:06.495	2026-09-26 01:46:06.495	\N	\N	\N	Khối kinh doanh
-149	Nguyễn Văn Trung	0978581968	\N	0978581968	\N	\N	Thành viên	Thành viên	\N	\N	N_0978581968	42	Lê Thị Chanh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:01:27.718	2026-09-26 02:01:27.718	\N	\N	\N	Khối kinh doanh
-66	Đinh thị thảo	0356044186	\N	0356044186	\N	\N	Thành viên	Thành viên	\N	\N	N_0356044186	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:14:29.399	2026-09-19 02:14:29.399	\N	\N	\N	Khối kinh doanh
-150	Đào Thị Hoà	0981398785	\N	0981398785	\N	\N	Thành viên	Thành viên	\N	\N	N_0981398785	204	Hồ Xuân thu( diệp Huế)	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:02:53.265	2026-10-06 03:38:58.133	\N	\N	\N	Khối kinh doanh
-151	Bùi Văn Tấn	0866852565	\N	0866852565	\N	\N	Thành viên	Thành viên	\N	\N	N_0866852565	\N	Cô Hoà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:04:02.377	2026-09-26 02:04:02.377	\N	\N	\N	Khối kinh doanh
-152	NGUYỄN NGỌC THỦ	0966382168	\N	0966382168	\N	\N	Thành viên	Thành viên	\N	\N	N_0966382168	93	Nguyễn Xuân mâụ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:09:21.146	2026-10-10 03:16:11.783763	\N	\N	\N	Khối kinh doanh
-153	Nguyễn Văn Thạch	0986623904	\N	0986623904	\N	\N	Thành viên	Thành viên	\N	\N	N_0986623904	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:10:20.554	2026-09-26 02:10:20.554	\N	\N	\N	Khối kinh doanh
-154	Trần Thị Thanh Hương	0876766327	\N	0876766327	\N	\N	Thành viên	Thành viên	\N	1	N_0876766327	154	Nguyễn Hùng Vĩ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:15:55.767	2026-10-09 00:26:35.228	\N	\N	Kiến Vàng	Khối kinh doanh
-155	Trần thị minh thu	0856108703	\N	0856108703	\N	\N	Thành viên	Thành viên	\N	\N	N_0856108703	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:16:15.694	2026-09-26 02:16:15.694	\N	\N	\N	Khối kinh doanh
-156	Nguyễn Thị Cẩm	0987821384	\N	0987821384	\N	\N	Thành viên	Thành viên	\N	\N	N_0987821384	49	Lê Thị Hà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:16:50.78	2026-09-26 02:16:50.78	\N	\N	\N	Khối kinh doanh
-157	Lưu Thanh Hải	0775935868	\N	0775935868	\N	\N	Thành viên	Thành viên	\N	\N	N_0775935868	109	Hoàng Thị Chích	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:17:58.669	2026-09-26 02:17:58.669	\N	\N	\N	Khối kinh doanh
-158	Ngô Ứng Hà	0913213060	\N	0913213060	\N	\N	Thành viên	Thành viên	\N	\N	N_0913213060	150	Đào Thị Hoà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:20:04.703	2026-09-26 02:20:04.703	\N	\N	\N	Khối kinh doanh
-159	Hoàng kim hà	0342992674	\N	0342992674	\N	\N	Thành viên	Thành viên	\N	\N	N_0342992674	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:47.438	2026-09-26 02:22:47.438	\N	\N	\N	Khối kinh doanh
-160	Nguyễn Thị Liên Hương	0354824859	\N	0354824859	\N	\N	Thành viên	Thành viên	\N	\N	N_0354824859	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:54	2026-09-26 02:22:54	\N	\N	\N	Khối kinh doanh
-161	Phạm Vinh Quang	0913073619	\N	0913073619	\N	\N	Thành viên	Thành viên	\N	\N	N_0913073619	107	Vũ Hùng Vỹ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:28:29.653	2026-09-26 02:28:29.653	\N	\N	\N	Khối kinh doanh
-162	Phạm thị Thúy Lan	0912137909	\N	0912137909	\N	\N	Thành viên	Thành viên	\N	\N	N_0912137909	161	Phạm Vinh Quang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:28:53.869	2026-09-26 02:28:53.869	\N	\N	\N	Khối kinh doanh
-163	Phạm Thu Hương	0349572568	\N	0349572568	\N	\N	Thành viên	Thành viên	\N	\N	N_0349572568	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:36:06.691	2026-09-26 02:36:06.691	\N	\N	\N	Khối kinh doanh
-164	Dương giáp công	0326685768	\N	0326685768	\N	\N	Thành viên	Thành viên	\N	\N	N_0326685768	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:36:30.409	2026-09-26 02:36:30.409	\N	\N	\N	Khối kinh doanh
-165	Phạm Văn thịnh	0977113668	\N	0977113668	\N	\N	Thành viên	Thành viên	\N	\N	N_0977113668	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:37:25.744	2026-09-26 02:37:25.744	\N	\N	\N	Khối kinh doanh
-166	Hoàng Văn Bảy	0385688414	\N	0385688414	\N	\N	Thành viên	Thành viên	\N	\N	N_0385688414	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:37:34.603	2026-09-26 02:37:34.603	\N	\N	\N	Khối kinh doanh
-167	Kiều Thị Hồng Tâm	0918140192	\N	0918140192	\N	\N	Thành viên	Thành viên	\N	\N	N_0918140192	93	Nguyễn Xuân mâụ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:44:00.26	2026-09-30 02:58:30.643	\N	\N	\N	Khối kinh doanh
-168	Nguyễn Thị Sáu	0976231413	\N	0976231413	\N	\N	Thành viên	Thành viên	\N	\N	N_0976231413	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:52:45.075	2026-09-26 02:52:45.075	\N	\N	\N	Khối kinh doanh
-169	Bùi Hồng ánh	0763511380	\N	0763511380	\N	\N	Thành viên	Thành viên	\N	\N	N_0763511380	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:53:15.757	2026-09-26 02:53:15.757	\N	\N	\N	Khối kinh doanh
-170	Đào Thị Mai	0982511796	\N	0982511796	\N	\N	Thành viên	Thành viên	\N	\N	N_0982511796	93	Nguyễn Xuân mâụ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:54:27.928	2026-10-10 02:53:14.947473	\N	\N	\N	Khối kinh doanh
-171	Nguyễn thị Lan	0985798176	\N	0985798176	\N	\N	Thành viên	Thành viên	\N	\N	N_0985798176	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:55:23.669	2026-09-26 02:55:23.669	\N	\N	\N	Khối kinh doanh
-172	Đào Thị Dung	0904406706	\N	0904406706	\N	\N	Thành viên	Thành viên	\N	\N	N_0904406706	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:55:31.701	2026-09-26 02:55:31.701	\N	\N	\N	Khối kinh doanh
-173	Nguyễn Thị Phượng	0963286653	\N	0963286653	\N	\N	Thành viên	Thành viên	\N	\N	N_0963286653	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:56:15.299	2026-09-26 02:56:15.299	\N	\N	\N	Khối kinh doanh
-174	Nguyễn thị Xuân loan	0962375605	\N	0962375605	\N	\N	Thành viên	Thành viên	\N	\N	N_0962375605	\N	Nguyễn Thị Hà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:03:58.33	2026-09-26 03:03:58.33	\N	\N	\N	Khối kinh doanh
-175	Nguyễn thị Ngọc	0376566725	\N	0376566725	\N	\N	Thành viên	Thành viên	\N	\N	N_0376566725	122	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:05:35.873	2026-10-03 01:40:12.165	\N	\N	\N	Khối kinh doanh
-176	Nguyễn thị thi	0379336768	\N	0379336768	\N	\N	Thành viên	Thành viên	\N	\N	N_0379336768	167	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:07:55.864	2026-09-30 03:16:28.51	\N	\N	\N	Khối kinh doanh
-177	HÀ MINH SƠN	0985867676	\N	0985867676	\N	\N	Thành viên	Thành viên	\N	\N	N_0985867676	167	Kiều Thị Hồng Tâm	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:09:42.007	2026-09-26 03:09:42.007	\N	\N	\N	Khối kinh doanh
-178	Trương Ngọc Hạnh	0867073589	\N	0867073589	\N	\N	Thành viên	Thành viên	\N	\N	N_0867073589	167	Kiều Thị Hồng Tâm	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:09:48.066	2026-09-26 03:09:48.066	\N	\N	\N	Khối kinh doanh
-179	Hà Thị Minh Hường	0934944568	\N	0934944568	\N	\N	Thành viên	Thành viên	\N	\N	N_0934944568	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:11:00.296	2026-09-26 03:11:00.296	\N	\N	\N	Khối kinh doanh
-180	Phạm Lan Anh	0853414319	\N	0853414319	\N	\N	Thành viên	Thành viên	\N	\N	N_0853414319	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:11:39.164	2026-09-26 03:11:39.164	\N	\N	\N	Khối kinh doanh
-181	Đào Thị Dung	0901106706	\N	0901106706	\N	\N	Thành viên	Thành viên	\N	\N	N_0901106706	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:12:05.89	2026-09-26 03:12:05.89	\N	\N	\N	Khối kinh doanh
-182	Phan Quốc Văn	0867971675	\N	0867971675	\N	\N	Thành viên	Thành viên	\N	\N	N_0867971675	122	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:12:17.063	2026-10-03 02:06:24.049	\N	\N	\N	Khối kinh doanh
-183	Nguyễn Thị Dung	0965372066	\N	0965372066	\N	\N	Thành viên	Thành viên	\N	\N	N_0965372066	109	Hoàng Thị Chích	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:13:36.213	2026-09-26 03:13:36.213	\N	\N	\N	Khối kinh doanh
-114	Nguyễn kim Oanh (thủ)	0964675506	\N	0964675506	\N	\N	Thành viên	Thành viên	\N	\N	N_0964675506	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:46:14.198	2026-09-23 06:46:14.198	\N	\N	\N	Khối kinh doanh
-184	Phạm Tuấn Nga	0969951349	\N	0969951349	\N	\N	Thành viên	Thành viên	\N	\N	N_0969951349	109	Hoàng Thị Chích	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:14:03.368	2026-09-26 03:14:03.368	\N	\N	\N	Khối kinh doanh
-185	Nguyễn Văn nghĩa	0833931919	\N	0833931919	\N	\N	Thành viên	Thành viên	\N	\N	N_0833931919	\N	Khách vãng lai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:18:25.105	2026-09-26 03:18:25.105	\N	\N	\N	Khối kinh doanh
-186	Hoàng Văn Thoại	0986577191	\N	0986577191	\N	\N	Thành viên	Thành viên	\N	\N	N_0986577191	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:21:14.577	2026-10-07 02:51:47.475	\N	\N	\N	Khối kinh doanh
-187	Phạm Thanh Tùng	0913262869	\N	0913262869	\N	\N	Thành viên	Thành viên	\N	\N	N_0913262869	45	Chu Thị Lương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:22:35.033	2026-09-26 03:22:35.033	\N	\N	\N	Khối kinh doanh
-188	Nguyễn Thị Thu	0334618677	\N	0334618677	\N	\N	Thành viên	Thành viên	\N	\N	N_0334618677	92	Nguyễn thúy hang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:24:15.196	2026-09-26 03:24:15.196	\N	\N	\N	Khối kinh doanh
-189	Nguyễn Minh Khuê	0396764462	\N	0396764462	\N	\N	Thành viên	Thành viên	\N	\N	N_0396764462	167	Kiều Thị Hồng Tâm	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:24:50.314	2026-09-26 03:24:50.314	\N	\N	\N	Khối kinh doanh
-190	Lê Văn hòa	0345918265	\N	0345918265	\N	\N	Thành viên	Thành viên	\N	\N	N_0345918265	92	Nguyễn thúy hang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:25:14.262	2026-09-26 03:25:14.262	\N	\N	\N	Khối kinh doanh
-191	Nguyễn Thị Hường	0786359686	\N	0786359686	\N	\N	Thành viên	Thành viên	\N	\N	N_0786359686	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:26:08.95	2026-09-26 03:26:08.95	\N	\N	\N	Khối kinh doanh
-192	Nguyễn Văn Nam	0934489228	\N	0934489228	\N	\N	Thành viên	Thành viên	\N	\N	N_0934489228	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:28:36.478	2026-09-26 03:28:36.478	\N	\N	\N	Khối kinh doanh
-193	Nguyễn Thị Kim Oanh	0947248634	\N	0947248634	\N	\N	Thành viên	Thành viên	\N	\N	N_0947248634	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:29:06.207	2026-09-26 03:29:06.207	\N	\N	\N	Khối kinh doanh
-194	Đỗ Thị Chỉ	0866917296	\N	0866917296	\N	\N	Thành viên	Thành viên	\N	\N	N_0866917296	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:29:07.009	2026-09-26 03:29:07.009	\N	\N	\N	Khối kinh doanh
-195	Đồng Thị Oanh	0834227499	\N	0834227499	\N	\N	Thành viên	Thành viên	\N	\N	N_0834227499	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:30:06.17	2026-09-26 03:30:06.17	\N	\N	\N	Khối kinh doanh
-196	Nguyễn Hải Quý	0988732586	\N	0988732586	\N	\N	Thành viên	Thành viên	\N	\N	N_0988732586	301	Khách vãng lai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:30:37.266	2026-10-07 02:47:46.112	\N	\N	\N	Khối kinh doanh
-197	Nguyễn Thị Tâm	0785139499	\N	0785139499	\N	\N	Thành viên	Thành viên	\N	\N	N_0785139499	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:31:20.91	2026-09-26 03:31:20.91	\N	\N	\N	Khối kinh doanh
-198	Đoàn Thị Tuyết Minh	0866628865	\N	0866628865	\N	\N	Thành viên	Thành viên	\N	\N	N_0866628865	196	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:32:04.43	2026-10-03 03:16:58.681	\N	\N	\N	Khối kinh doanh
-199	Đỗ Thị Lanh	0947874832	\N	0947874832	\N	\N	Thành viên	Thành viên	\N	\N	N_0947874832	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:32:42.677	2026-09-26 03:32:42.677	\N	\N	\N	Ban nguồn vốn
-200	Lê Thị Huyền Trang	0943227213	\N	0943227213	\N	\N	Thành viên	Thành viên	\N	\N	N_0943227213	196	Nguyễn Hải Quý	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:34:46.371	2026-10-10 03:18:29.535853	\N	\N	\N	Khối kinh doanh
-201	Cao Minh Chỉnh	0589916688	\N	0589916688	\N	\N	Thành viên	Thành viên	\N	\N	N_0589916688	200	Lê Thị Huyền Trang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:35:44.682	2026-09-30 03:04:06.271	\N	\N	\N	Khối kinh doanh
-202	Nguyễn Thị Hoa	0796135248	\N	0796135248	\N	\N	Thành viên	Thành viên	\N	\N	N_0796135248	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:34:25.402	2026-09-28 03:34:25.402	\N	\N	\N	Khối kinh doanh
-204	Đào Thị Hòa (Diệp Huế)	0949492688	\N	0949492688	\N	\N	Thành viên	Thành viên	\N	\N	N_0949492688	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:39:29.836	2026-09-28 03:39:29.836	\N	\N	\N	Khối kinh doanh
-206	Chij Hōi	0984466535	\N	0984466535	\N	\N	Thành viên	Thành viên	\N	\N	N_0984466535	204	Đào Thị Hòa (Diệp Huế)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:47:13.877	2026-09-28 03:47:13.877	\N	\N	\N	Khối kinh doanh
-208	A. Ngọc	0982100474	\N	0982100474	\N	\N	Thành viên	Thành viên	\N	\N	N_0982100474	\N	Nguyễn Thị Hương  (0399868786)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:55:21.332	2026-09-28 03:55:21.332	\N	\N	\N	Khối kinh doanh
-209	Nguyen thi Lien	0972624075	\N	0972624075	\N	\N	Thành viên	Thành viên	\N	\N	\N	40	\N	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:56:25.951	2026-10-03 02:55:43.395	\N	\N	\N	Khối kinh doanh
-210	Nguyễn Thị Hương	0399868786	huongmt6@gmail.com	Huong76	\N	\N	Thành viên	Thành viên	\N	2	\N	392	\N	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:00:02.461	2026-10-10 02:46:05.213796	\N	\N	Ong Vàng	Khối kinh doanh
-211	Nguyên thị a	0912	\N	0912	\N	\N	Thành viên	Thành viên	\N	\N	N_0912	\N	Nguyễn Thị Liên	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:00:18.01	2026-09-28 04:00:18.01	\N	\N	\N	Khối kinh doanh
-212	Nguyễn văn bình	0977840825	\N	0977840825	\N	\N	Thành viên	Thành viên	\N	\N	N_0977840825	42	Lê Thị Chanh	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:00:53.762	2026-10-06 03:30:03.01	\N	\N	\N	Khối kinh doanh
-213	Nguyên thị a	1234	\N	1234	\N	\N	Thành viên	Thành viên	\N	\N	N_1234	\N	Nguyễn Thị Liên	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:01:20.008	2026-09-28 04:01:20.008	\N	\N	\N	Khối kinh doanh
-214	Lê.Thị Nhung	0398733976	\N	0398733976	\N	\N	Thành viên	Thành viên	\N	\N	N_0398733976	109	Hoàng Thị Chích	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:11:34.145	2026-10-07 02:12:12.884	\N	\N	\N	Khối kinh doanh
-218	Trần Quang Hưng	0973635118	\N	0973635118	\N	\N	Thành viên	Thành viên	\N	\N	N_0973635118	40	Cung Thu Hà	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:49:57.456	2026-09-28 08:49:57.456	\N	\N	\N	Khối kinh doanh
-219	Nghiêm anh tuấn	0982374972	\N	0982374972	\N	\N	Thành viên	Thành viên	\N	\N	N_0982374972	217	Phượng Ngọc Thu	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:50:16.99	2026-09-28 08:50:16.99	\N	\N	\N	Khối kinh doanh
-220	Nguyễn Thị Tú	0378665516	\N	0378665516	\N	\N	Thành viên	Thành viên	\N	\N	N_0378665516	109	Hoàng Thị Chích	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:51:14.935	2026-09-28 08:51:14.935	\N	\N	\N	Khối kinh doanh
-222	Nguyễn Thị Hồng	0984652434	\N	0984652434	\N	\N	Thành viên	Thành viên	\N	\N	N_0984652434	\N	Dương Hồng Phương (N_0979345229)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 09:17:37.167	2026-09-28 09:17:37.167	\N	\N	\N	Khối kinh doanh
-217	Phượng Ngọc Thu	0969881698	\N	0969881698	\N	\N	Thành viên	Thành viên	Trưởng phòng	1	N_0969881698	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:28:58.973	2026-10-11 00:23:51.042	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh
-221	Dương Hồng Phương	0979345229	\N	0946370299	\N	\N	Thành viên	Thành viên	Trưởng phòng	5	\N	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:57:03.023	2026-10-11 00:23:51.042	\N	\N	Biệt đội Kim Cương	Khối kinh doanh
-224	Nguyễn Văn Bình	0397031046	\N	0397031046	\N	\N	Thành viên	Thành viên	\N	\N	N_0397031046	\N	Diiep thị Huế	\N	2026-09-29	Đang hoạt động	f	0	0	\N	2026-09-29 06:32:06.274	2026-09-29 06:32:06.274	\N	\N	\N	Khối kinh doanh
-225	Nguyễn Văn Dậu	0983531269	\N	0983531269	\N	\N	Thành viên	Thành viên	\N	2	N_0983531269	\N	Hỗ xuân Thu	\N	2026-09-29	Đang hoạt động	f	0	0	\N	2026-09-29 06:33:43.409	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh
-228	Chị châu	0328377148	\N	0328377148	\N	\N	Thành viên	Thành viên	\N	\N	N_0328377148	109	Hoàng Thị Chích	\N	2026-09-29	Đang hoạt động	f	0	0	\N	2026-09-29 08:57:47.68	2026-09-29 08:57:47.68	\N	\N	\N	Khối kinh doanh
-229	Nguyễn tất Thắng	0913531265	\N	0913531265	\N	\N	Thành viên	Thành viên	Thành viên	3	N_0913531265	217	Phượng Ngọc Thu	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-29 12:02:49.823	2026-10-09 01:20:43.11	\N	\N	Lộc Phát	Khối kinh doanh
-230	Trần Phương Giang	0982251616	\N	0982251616	\N	\N	Thành viên	Thành viên	\N	\N	N_0982251616	49	Lê Thị Hà	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 00:27:59.711	2026-09-30 00:27:59.711	\N	\N	\N	Ban nguồn vốn
-231	Nguyễn Thị Loan	0936640000	\N	0936640000	\N	\N	Thành viên	Thành viên	\N	\N	N_0936640000	230	Trần Phương Giang	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 00:29:21.412	2026-09-30 00:29:21.412	\N	\N	\N	Khối kinh doanh
-232	Lê Tiến Hùng	0352963796	\N	0352963796	\N	\N	Thành viên	Thành viên	\N	\N	N_0352963796	\N	Vũ Thị Thúy	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:02:32.365	2026-09-30 02:02:32.365	\N	\N	\N	Khối kinh doanh
-233	Dương Thị Hải Lý	0981761559	\N	0981761559	\N	\N	Thành viên	Thành viên	\N	\N	N_0981761559	146	Nguyễn Thị Nhạn	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:05:50.498	2026-09-30 02:05:50.498	\N	\N	\N	Khối kinh doanh
-234	Nguyễn thị Như Ngọc	0976772387	\N	0976772387	\N	\N	Thành viên	Thành viên	\N	\N	N_0976772387	124	Giang Thanh Ngọc	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:07:38.651	2026-09-30 02:07:38.651	\N	\N	\N	Khối kinh doanh
-235	Phan Văn Nhiên	0961130934	\N	0961130934	\N	\N	Thành viên	Thành viên	\N	\N	N_0961130934	\N	Chu Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:11:10.611	2026-09-30 02:11:10.611	\N	\N	\N	Khối kinh doanh
-236	Doãn Văn Sáng	0972155307	\N	0972155307	\N	\N	Thành viên	Thành viên	\N	\N	N_0972155307	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:14:28.499	2026-09-30 02:14:28.499	\N	\N	\N	Khối kinh doanh
-237	Nguyễn Thị Tuất	0397966465	\N	0397966465	\N	\N	Thành viên	Thành viên	\N	\N	N_0397966465	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:15:23.267	2026-09-30 02:15:23.267	\N	\N	\N	Khối kinh doanh
-238	Nguyễn Quỳnh Thu	03547767135	\N	03547767135	\N	\N	Thành viên	Thành viên	\N	\N	N_03547767135	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:24:50.095	2026-09-30 02:24:50.095	\N	\N	\N	Khối kinh doanh
-239	Hoàng Thị Mai Lý	0382127273	\N	0382127273	\N	\N	Thành viên	Thành viên	\N	\N	N_0382127273	152	NGUYỄN NGỌC THỦ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:25:56.314	2026-09-30 02:25:56.314	\N	\N	\N	Khối kinh doanh
-240	Trần Thị Ngọc Lan	0348616616	\N	0348616616	\N	\N	Thành viên	Thành viên	\N	\N	N_0348616616	45	NGUYỄN NGỌC THỦ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:26:22.22	2026-10-06 12:24:31.03	\N	\N	\N	Khối kinh doanh
-241	Phạm thị khang	0343234954	\N	0343234954	\N	\N	Thành viên	Thành viên	\N	\N	N_0343234954	\N	Dương Hồng Phương (0979345229)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:26:33.769	2026-09-30 02:26:33.769	\N	\N	\N	Khối kinh doanh
-242	Nguyễn Tất Thắng	0913231265	\N	0913231265	\N	\N	Thành viên	Thành viên	\N	3	N_0913231265	\N	Phượng Ngọc Thu (N_+84969881698)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:27:38.614	2026-10-09 00:26:35.228	\N	\N	Lộc Phát	Khối kinh doanh
-243	Phạm Vinh Quang	-0913073619	\N	-0913073619	\N	\N	Thành viên	Thành viên	\N	\N	N_-0913073619	107	Vũ Hùng Vỹ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:30:50.346	2026-09-30 02:30:50.346	\N	\N	\N	Khối kinh doanh
-244	Nguyễn Hữu Đức	0972882528	\N	0972882528	\N	\N	Thành viên	Thành viên	\N	\N	N_0972882528	93	Nguyễn Xuân mâụ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:33:14.587	2026-09-30 02:33:14.587	\N	\N	\N	Ban nguồn vốn
-245	Thiều Thị Miên	0394069541	\N	0394069541	\N	\N	Thành viên	Thành viên	\N	\N	N_0394069541	244	Nguyễn Hữu Đức	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:34:15.345	2026-09-30 02:34:15.345	\N	\N	\N	Khối kinh doanh
-246	NguyễN Thị Thơ	0363462286	\N	0363462286	\N	\N	Thành viên	Thành viên	\N	\N	N_0363462286	\N	Prosale	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:37:53.909	2026-09-30 02:37:53.909	\N	\N	\N	Khối kinh doanh
-247	Nguyễn Thị Luận	0966762185	\N	0966762185	\N	\N	Thành viên	Thành viên	\N	\N	N_0966762185	67	phạm thị Tuyết(vỹ)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:45:02.171	2026-09-30 02:45:02.171	\N	\N	\N	Khối kinh doanh
-248	Lưu Đức Ngọ	0775935886	\N	0775935886	\N	\N	Thành viên	Thành viên	\N	\N	N_0775935886	67	phạm thị Tuyết(vỹ)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:46:08.568	2026-09-30 02:46:08.568	\N	\N	\N	Khối kinh doanh
-249	Bùi Hồng Ánh	0763511386	\N	0763511386	\N	\N	Thành viên	Thành viên	\N	\N	N_0763511386	381	Hoàng Thị Luyện ( A thịnh)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:46:27.611	2026-10-07 03:39:14.205	\N	\N	\N	Khối kinh doanh
-250	Hà Thu Thảo	0968265146	\N	0968265146	\N	\N	Thành viên	Thành viên	\N	\N	N_0968265146	40	Cung Thu Hà	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:47:57.034	2026-09-30 02:47:57.034	\N	\N	\N	Khối kinh doanh
-251	Hoàng Thị Bằng	0349758813	\N	0349758813	\N	\N	Thành viên	Thành viên	\N	\N	N_0349758813	249	Bùi Hồng Ánh	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:49:21.564	2026-09-30 02:49:21.564	\N	\N	\N	Khối kinh doanh
-252	Ngô Thị Luyết	0364383129	\N	0364383129	\N	\N	Thành viên	Thành viên	\N	\N	N_0364383129	56	Lê thanh vi	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:49:52.075	2026-09-30 02:49:52.075	\N	\N	\N	Khối kinh doanh
-253	Phạm Văn Pha	0373765167	\N	0373765167	\N	\N	Thành viên	Thành viên	\N	\N	N_0373765167	56	Lê thanh vi	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:50:23.831	2026-09-30 02:50:23.831	\N	\N	\N	Khối kinh doanh
-254	Nguyễn Duy Thanh	0981227266	\N	0981227266	\N	\N	Thành viên	Thành viên	\N	\N	N_0981227266	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:54:49.872	2026-09-30 02:54:49.872	\N	\N	\N	Khối kinh doanh
-255	Vũ Thị Nà	0971060729	\N	0971060729	\N	\N	Thành viên	Thành viên	\N	\N	N_0971060729	41	Nguyễn Hùng Vĩ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:00:11.745	2026-09-30 03:00:11.745	\N	\N	\N	Khối kinh doanh
-256	Lê Ngọc Thành	0976690454	\N	0976690454	\N	\N	Thành viên	Thành viên	\N	\N	N_0976690454	41	Nguyễn Hùng Vĩ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:01:07.131	2026-09-30 03:01:07.131	\N	\N	\N	Khối kinh doanh
-257	Nguyễn Thị Tuyết Nhung	0987775516	\N	0987775516	\N	\N	Thành viên	Thành viên	\N	\N	N_0987775516	196	Nguyễn Hải Quý	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:04:55.172	2026-09-30 03:04:55.172	\N	\N	\N	Khối kinh doanh
-258	Lê Thị Hồng Duyến	0336894986	\N	0336894986	\N	\N	Thành viên	Thành viên	\N	\N	N_0336894986	\N	Minh(Quý)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:06:47.705	2026-09-30 03:06:47.705	\N	\N	\N	Khối kinh doanh
-259	Nguyễn Thị Kim Oanh	08676599351	\N	08676599351	\N	\N	Thành viên	Thành viên	\N	\N	N_08676599351	196	Nguyễn Hải Quý	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:08:01.279	2026-09-30 03:08:01.279	\N	\N	\N	Khối kinh doanh
-260	Tần Dâu Dao	0945913368	\N	0945913368	\N	\N	Thành viên	Thành viên	\N	\N	N_0945913368	\N	Quyết(quý)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:08:29.625	2026-09-30 03:08:29.625	\N	\N	\N	Khối kinh doanh
-261	Nguyễn Văn Quyết	0328906789	\N	0328906789	\N	\N	Thành viên	Thành viên	\N	\N	N_0328906789	301	Nguyễn Hải Quý	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:10:14.666	2026-10-10 03:19:48.602355	\N	\N	\N	Khối kinh doanh
-262	Nguyễn Văn Duân	0987730562	\N	0987730562	\N	\N	Thành viên	Thành viên	\N	\N	N_0987730562	109	Hoàng Thị Chích	\N	2026-10-02	Đang hoạt động	f	0	0	\N	2026-10-02 14:11:51.181	2026-10-02 14:11:51.181	\N	\N	\N	Khối kinh doanh
-263	Nguyễn Thị Chuyên	0969945022	\N	0969945022	\N	\N	Thành viên	Thành viên	\N	\N	N_0969945022	49	Lê Thị Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 00:49:27.917	2026-10-03 00:49:27.917	\N	\N	\N	Ban nguồn vốn
-264	Phùng Hưng	0966289186	\N	0966289186	\N	\N	Thành viên	Thành viên	\N	\N	N_0966289186	263	Nguyễn Thị Chuyên	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 00:50:57.164	2026-10-03 00:50:57.164	\N	\N	\N	Khối kinh doanh
-265	Lê Thị Mỹ	0904620663	\N	0904620663	\N	\N	Thành viên	Thành viên	\N	\N	N_0904620663	\N	Trần Thị Hồng Vân (0962240952)	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:39:19.623	2026-10-03 01:39:19.623	\N	\N	\N	Khối kinh doanh
-266	Nguyễn Thị Thanh	0945331679	\N	0945331679	\N	\N	Thành viên	Thành viên	\N	\N	N_0945331679	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:40:35.374	2026-10-03 01:40:35.374	\N	\N	\N	Khối kinh doanh
-267	Hoàng hồng sâm	0916712278	\N	0916712278	\N	\N	Thành viên	Thành viên	\N	\N	N_0916712278	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:41:45.727	2026-10-03 01:41:45.727	\N	\N	\N	Khối kinh doanh
-268	Lê Thị Hương	0868877769	\N	0868877769	\N	\N	Thành viên	Thành viên	\N	\N	N_0868877769	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:42:15.697	2026-10-03 01:42:15.697	\N	\N	\N	Khối kinh doanh
-269	Nguyễn nghi Lộc	0768941968	\N	0768941968	\N	\N	Thành viên	Thành viên	\N	\N	N_0768941968	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:43:31.919	2026-10-03 01:43:31.919	\N	\N	\N	Khối kinh doanh
-270	Vũ Đình Thiết	0986539758	\N	0986539758	\N	\N	Thành viên	Thành viên	\N	\N	N_0986539758	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:52:19.635	2026-10-03 01:52:19.635	\N	\N	\N	Khối kinh doanh
-271	Lại Thanh Tuấn	0814717222	\N	0814717222	\N	\N	Thành viên	Thành viên	\N	\N	N_0814717222	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:53:00.297	2026-10-03 01:53:00.297	\N	\N	\N	Khối kinh doanh
-272	Lại Hồng Dương	0916831228	\N	0916831228	\N	\N	Thành viên	Thành viên	\N	\N	N_0916831228	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:53:39.661	2026-10-03 01:53:39.661	\N	\N	\N	Khối kinh doanh
-273	Nguyễn Ngọc tiếp	0866671972	\N	0866671972	\N	\N	Thành viên	Thành viên	\N	\N	N_0866671972	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:54:54.507	2026-10-03 01:54:54.507	\N	\N	\N	Khối kinh doanh
-274	Phạm Văn Nam	0913289124	\N	0913289124	\N	\N	Thành viên	Thành viên	\N	\N	N_0913289124	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:55:21.86	2026-10-03 01:55:21.86	\N	\N	\N	Khối kinh doanh
-275	Nguyễn Thị Hoa	0961007989	\N	0961007989	\N	\N	Thành viên	Thành viên	\N	\N	N_0961007989	\N	Vũ Thị Thúy	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:02:48.558	2026-10-03 02:02:48.558	\N	\N	\N	Khối kinh doanh
-276	Nguyễn Thị Nhàn	0989358278	\N	0989358278	\N	\N	Thành viên	Thành viên	\N	\N	N_0989358278	93	Nguyễn Xuân mâụ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:07:13.76	2026-10-03 02:07:13.76	\N	\N	\N	Khối kinh doanh
-277	Nguyễn Việt Dũng	0788272867	\N	0788272867	\N	\N	Thành viên	Thành viên	\N	\N	N_0788272867	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:09:53.282	2026-10-03 02:09:53.282	\N	\N	\N	Khối kinh doanh
-278	Trần Thị Mai Lương	03332231429	\N	03332231429	\N	\N	Thành viên	Thành viên	\N	\N	N_03332231429	93	Nguyễn Xuân mâụ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:13:39.803	2026-10-03 02:13:39.803	\N	\N	\N	Khối kinh doanh
-279	Hoàng Thị Luyện	09728315568	\N	09728315568	\N	\N	Thành viên	Thành viên	\N	\N	N_09728315568	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:18:15.966	2026-10-03 02:18:15.966	\N	\N	\N	Khối kinh doanh
-280	Nguyễn Thị Dung	0856368502	\N	0856368502	\N	\N	Thành viên	Thành viên	\N	\N	N_0856368502	40	Cung Thu Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:19:20.442	2026-10-03 02:19:20.442	\N	\N	\N	Khối kinh doanh
-281	Nguyễn Đức Chiến	0972177711	\N	0972177711	\N	\N	Thành viên	Thành viên	\N	\N	N_0972177711	40	Cung Thu Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:21:02.445	2026-10-03 02:21:02.445	\N	\N	\N	Khối kinh doanh
-282	Nguyễn Thị Nhạn	0982882533	\N	0982882533	\N	\N	Thành viên	Thành viên	\N	\N	N_0982882533	278	Trần Thị Mai Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:26:01.304	2026-10-03 02:26:01.304	\N	\N	\N	Ban nguồn vốn
-283	Nguyễn Quang Lộc	0963220352	\N	0963220352	\N	\N	Thành viên	Thành viên	\N	\N	N_0963220352	282	Nguyễn Thị Nhạn	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:27:42.11	2026-10-03 02:27:42.11	\N	\N	\N	Khối kinh doanh
-284	Nguyễn Văn Thắng	0866713553	\N	0866713553	\N	\N	Thành viên	Thành viên	\N	\N	N_0866713553	80	Cao t lan huong ( trinh )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:28:17.578	2026-10-03 02:28:17.578	\N	\N	\N	Khối kinh doanh
-285	Nguyễn Thị Hoàng	0983273968	\N	0983273968	\N	\N	Thành viên	Thành viên	\N	\N	N_0983273968	\N	Vũ Thị Thúy	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:37:09.471	2026-10-03 02:37:09.471	\N	\N	\N	Khối kinh doanh
-286	Trần Thị Yên	0399634855	\N	0399634855	\N	\N	Thành viên	Thành viên	\N	\N	N_0399634855	44	Vũ Thị Thủy	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:38:39.356	2026-10-03 02:38:39.356	\N	\N	\N	Khối kinh doanh
-287	Nguyễn Văn Ngọ	0915023899	\N	0915023899	\N	\N	Thành viên	Thành viên	\N	\N	N_0915023899	48	Prosale	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:44:17.084	2026-10-10 02:45:27.884179	\N	\N	\N	Khối kinh doanh
-288	Nguyễn Văn Tiến	0384566639	\N	0384566639	\N	\N	Thành viên	Thành viên	\N	\N	N_0384566639	48	Prosale	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:44:57.196	2026-10-10 02:42:37.636438	\N	\N	\N	Khối kinh doanh
-289	Nguyễn Đức Tuynh	0984417548	\N	0984417548	\N	\N	Thành viên	Thành viên	\N	\N	N_0984417548	40	Cung Thu Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:54:07.854	2026-10-03 02:54:07.854	\N	\N	\N	Khối kinh doanh
-290	Vũ Thị Thúy	+84945172578	\N	+84945172578	\N	\N	Thành viên	Thành viên	\N	\N	N_+84945172578	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:55:09.821	2026-10-06 03:32:20.183	\N	\N	\N	Khối kinh doanh
-291	Lương Hồng Phong	0967695768	\N	0967695768	\N	\N	Thành viên	Thành viên	\N	\N	N_0967695768	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:59:25.005	2026-10-03 02:59:25.005	\N	\N	\N	Khối kinh doanh
-292	Đồng Văn truyền	0817248899	\N	0817248899	\N	\N	Thành viên	Thành viên	\N	\N	N_0817248899	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:00:12.43	2026-10-03 03:00:12.43	\N	\N	\N	Khối kinh doanh
-293	Ngô Thị Hằng	0816231188	\N	0816231188	\N	\N	Thành viên	Thành viên	\N	\N	N_0816231188	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:01:18.464	2026-10-03 03:01:18.464	\N	\N	\N	Khối kinh doanh
-294	Bùi quyết thắng	0968565999	\N	0968565999	\N	\N	Thành viên	Thành viên	\N	\N	N_0968565999	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:01:43.774	2026-10-03 03:01:43.774	\N	\N	\N	Khối kinh doanh
-295	Lê Thị Hạnh	0376544168	\N	0376544168	\N	\N	Thành viên	Thành viên	\N	\N	N_0376544168	60	Vũ Thị Kim Thư( Hùng Vỹ)	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:08:27.713	2026-10-03 03:08:27.713	\N	\N	\N	Khối kinh doanh
-296	Phạm thị thủy	0987581195	\N	0987581195	\N	\N	Thành viên	Thành viên	\N	\N	N_0987581195	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:09:23.677	2026-10-10 03:20:19.760743	\N	\N	\N	Khối kinh doanh
-297	Lê Thị Thảo	0904360412	\N	0904360412	\N	\N	Thành viên	Thành viên	\N	\N	N_0904360412	41	Nguyễn Hùng Vĩ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:09:24.192	2026-10-07 02:19:06.937	\N	\N	\N	Khối kinh doanh
-44	Vũ Thị Thủy	0945172578	\N	\N	\N	\N	Phụng sự, Lễ tân	Nhân sự	Thành viên	\N	N_0945172578	45	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	f	0	0	\N	2026-09-18 16:30:27.372	2026-09-29 13:00:33.884	\N	\N	\N	Khối kinh doanh
-298	Nguyễn Đức Huy	0348774893	\N	0348774893	\N	\N	Thành viên	Thành viên	\N	\N	N_0348774893	41	Nguyễn Hùng Vĩ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:09:48.524	2026-10-03 03:09:48.524	\N	\N	\N	Khối kinh doanh
-299	Nguyễn Văn quyết	00328906789	\N	00328906789	\N	\N	Thành viên	Thành viên	\N	\N	N_00328906789	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:12:24.964	2026-10-03 03:12:24.964	\N	\N	\N	Khối kinh doanh
-300	Nguyễn Thị Hường	0936463782	\N	0936463782	\N	\N	Thành viên	Thành viên	\N	\N	N_0936463782	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:14:03.364	2026-10-03 03:14:03.364	\N	\N	\N	Khối kinh doanh
-301	Nguyễn Hải Quý	0974684398	\N	0974684398	\N	\N	Thành viên	Thành viên	\N	\N	N_0974684398	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:15:10.376	2026-10-03 03:15:10.376	\N	\N	\N	Khối kinh doanh
-302	Cao Minh chỉnh	0383918182	\N	0383918182	\N	\N	Thành viên	Thành viên	\N	\N	N_0383918182	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:15:50.533	2026-10-03 03:15:50.533	\N	\N	\N	Khối kinh doanh
-303	Trịnh Công Thắng	0788238116	\N	0788238116	\N	\N	Thành viên	Thành viên	\N	\N	N_0788238116	51	Lương Hồng Hải	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:17:17.713	2026-10-03 03:17:17.713	\N	\N	\N	Khối kinh doanh
-304	Nguyễn Thị Bảy	0864302210	\N	0864302210	\N	\N	Thành viên	Thành viên	\N	\N	N_0864302210	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:17:36.574	2026-10-03 03:17:36.574	\N	\N	\N	Khối kinh doanh
-305	Dương Thị Phượng	0387450975	\N	0387450975	\N	\N	Thành viên	Thành viên	\N	\N	N_0387450975	217	Phượng Ngọc Thu	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:18:14.434	2026-10-03 03:18:14.434	\N	\N	\N	Khối kinh doanh
-306	Nguyễn Thị Xuân	0326944844	\N	0326944844	\N	\N	Thành viên	Thành viên	\N	\N	N_0326944844	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:18:29.411	2026-10-03 03:18:29.411	\N	\N	\N	Khối kinh doanh
-307	Trần Thu Hà	0915936861	\N	0915936861	\N	\N	Thành viên	Thành viên	\N	\N	N_0915936861	217	Phượng Ngọc Thu	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:18:52.006	2026-10-03 03:18:52.006	\N	\N	\N	Khối kinh doanh
-308	Nguyễn Ánh Hướng	00993652411	\N	00993652411	\N	\N	Thành viên	Thành viên	\N	\N	N_00993652411	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:19:13.825	2026-10-03 03:19:13.825	\N	\N	\N	Khối kinh doanh
-309	Chu Hồng Diệp	0987620374	\N	0987620374	\N	\N	Thành viên	Thành viên	\N	\N	N_0987620374	217	Phượng Ngọc Thu	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:19:21.49	2026-10-03 03:19:21.49	\N	\N	\N	Khối kinh doanh
-310	Nguyễn Ngọc Thụy	0948657304	\N	0948657304	\N	\N	Thành viên	Thành viên	\N	\N	N_0948657304	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:22:57.324	2026-10-03 03:22:57.324	\N	\N	\N	Khối kinh doanh
-311	Bùi Đăng Lâm	0847234509	\N	0847234509	\N	\N	Thành viên	Thành viên	\N	\N	N_0847234509	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:23:30.298	2026-10-03 03:23:30.298	\N	\N	\N	Khối kinh doanh
-313	Nguyễn Thị Hằng	0958003134	\N	0958003134	\N	\N	Thành viên	Thành viên	\N	\N	N_0958003134	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:26:54.021	2026-10-03 03:26:54.021	\N	\N	\N	Khối kinh doanh
-314	Nguyễn Thị Thoa	0364761955	\N	0364761955	\N	\N	Thành viên	Thành viên	\N	4	N_0364761955	15	Vũ Thị Cúc	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:27:02.026	2026-10-09 00:26:35.228	\N	\N	Thành Công	Khối kinh doanh
-315	Nguyễn Thanh Loan	0364658692	\N	0364658692	\N	\N	Thành viên	Thành viên	\N	\N	N_0364658692	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:27:19.657	2026-10-03 03:27:19.657	\N	\N	\N	Khối kinh doanh
-316	Nguyễn Tuấn Hồng	0399812392	\N	0399812392	\N	\N	Thành viên	Thành viên	\N	\N	N_0399812392	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:27:44.582	2026-10-03 03:27:44.582	\N	\N	\N	Khối kinh doanh
-317	Đỗ thị Lan	0988203165	\N	0988203165	\N	\N	Thành viên	Thành viên	\N	\N	N_0988203165	56	Lê thanh vi	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:30:27.992	2026-10-03 03:30:27.992	\N	\N	\N	Khối kinh doanh
-318	Vũ Huy San	0836752083	\N	0836752083	\N	\N	Thành viên	Thành viên	\N	\N	N_0836752083	56	Lê thanh vi	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:31:36.357	2026-10-03 03:31:36.357	\N	\N	\N	Khối kinh doanh
-319	Kiều Tâm	0918140195	\N	0918140195	\N	\N	Thành viên	Thành viên	\N	\N	N_0918140195	93	Nguyễn Xuân mâụ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:33:09.43	2026-10-07 03:12:17.532	\N	\N	\N	Khối kinh doanh
-320	Nguyễn Thị Huyền	0961824106	\N	0961824106	\N	\N	Thành viên	Thành viên	\N	\N	N_0961824106	\N	Chu Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:34:15.956	2026-10-03 03:34:15.956	\N	\N	\N	Khối kinh doanh
-321	Nguyễn Thị Tư	0975833673	\N	0975833673	\N	\N	Thành viên	Thành viên	\N	\N	N_0975833673	313	Nguyễn Thị Hằng	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:35:09.411	2026-10-03 03:35:09.411	\N	\N	\N	Khối kinh doanh
-322	Lê Hồng Liên	0384473988	\N	0384473988	\N	\N	Thành viên	Thành viên	\N	\N	N_0384473988	117	Hoàng Thị Luyện ( A thịnh)	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:36:23.033	2026-10-03 03:36:23.033	\N	\N	\N	Khối kinh doanh
-323	Trần Thị Ban	0379863712	\N	0379863712	\N	\N	Thành viên	Thành viên	\N	\N	N_0379863712	109	Hoàng Thị Chích	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:43:56.363	2026-10-05 07:43:56.363	\N	\N	\N	Khối kinh doanh
-324	Lò Thị Biên	0968836426	\N	0968836426	\N	\N	Thành viên	Thành viên	\N	\N	N_0968836426	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:44:43.82	2026-10-05 07:44:43.82	\N	\N	\N	Khối kinh doanh
-325	Nguyễn thị Minh châu	0349791505	\N	0349791505	\N	\N	Thành viên	Thành viên	\N	\N	N_0349791505	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:45:20.661	2026-10-05 07:45:20.661	\N	\N	\N	Khối kinh doanh
-326	Bùi Thị Nguyên	0828671867	\N	0828671867	\N	\N	Thành viên	Thành viên	\N	\N	N_0828671867	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:47:04.665	2026-10-05 07:47:04.665	\N	\N	\N	Khối kinh doanh
-327	Lò Dũng	0342589699	\N	0342589699	\N	\N	Thành viên	Thành viên	\N	\N	N_0342589699	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:47:33.657	2026-10-05 07:47:33.657	\N	\N	\N	Khối kinh doanh
-328	Đỗ Thị Thư	0372645562	\N	0372645562	\N	\N	Thành viên	Thành viên	\N	\N	N_0372645562	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:48:30.973	2026-10-05 07:48:30.973	\N	\N	\N	Khối kinh doanh
-329	Phạm Thị Liên	0385904800	\N	0385904800	\N	\N	Thành viên	Thành viên	\N	\N	N_0385904800	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:49:44.715	2026-10-05 07:49:44.715	\N	\N	\N	Khối kinh doanh
-330	Phạm Thị hên	0969957755	\N	0969957755	\N	\N	Thành viên	Thành viên	\N	\N	N_0969957755	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:55:29.282	2026-10-05 07:55:29.282	\N	\N	\N	Khối kinh doanh
-331	Hà Thị Phương	0347461899	\N	0347461899	\N	\N	Thành viên	Thành viên	\N	\N	N_0347461899	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:56:55.633	2026-10-05 07:56:55.633	\N	\N	\N	Khối kinh doanh
-332	Phạm Thị Hà	0984067961	\N	0984067961	\N	\N	Thành viên	Thành viên	\N	\N	N_0984067961	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:57:43.861	2026-10-05 07:57:43.861	\N	\N	\N	Khối kinh doanh
-333	Đặng Mai Ly	086031629	\N	086031629	\N	\N	Thành viên	Thành viên	\N	\N	N_086031629	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:59:16	2026-10-05 07:59:16	\N	\N	\N	Khối kinh doanh
-334	Cầm Thị Tươi	0978366318	\N	0978366318	\N	\N	Thành viên	Thành viên	\N	\N	N_0978366318	109	Hoàng Thị Chích	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 08:00:16.669	2026-10-05 08:00:16.669	\N	\N	\N	Khối kinh doanh
-335	Nguyễn Thế Hợp	09779266165	\N	09779266165	\N	\N	Thành viên	Thành viên	\N	\N	N_09779266165	109	Hoàng Thị Chích	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:28:52.423	2026-10-06 03:28:52.423	\N	\N	\N	Khối kinh doanh
-336	Nguyễn Thị Minh	0983906208	\N	0983906208	\N	\N	Thành viên	Thành viên	\N	6	N_0983906208	109	Hoàng Thị Chích	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:29:57.818	2026-10-09 00:26:35.228	\N	\N	Happy	Khối kinh doanh
-337	Trần Thị Minh Hương	0385130939	\N	0385130939	\N	\N	Thành viên	Thành viên	\N	\N	N_0385130939	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:32:01.109	2026-10-06 03:32:01.109	\N	\N	\N	Khối kinh doanh
-338	Bùi Thị Hường	0358458697	\N	0358458697	\N	\N	Thành viên	Thành viên	\N	\N	N_0358458697	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:32:40.244	2026-10-06 03:32:40.244	\N	\N	\N	Khối kinh doanh
-339	Vũ Thị Hương	0335113926	\N	0335113926	\N	\N	Thành viên	Thành viên	\N	\N	N_0335113926	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:33:10.426	2026-10-06 03:33:10.426	\N	\N	\N	Khối kinh doanh
-340	Lường Thị Hậu	0853541579	\N	0853541579	\N	\N	Thành viên	Thành viên	\N	\N	N_0853541579	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:33:41.67	2026-10-06 03:33:41.67	\N	\N	\N	Khối kinh doanh
-341	Trần Thị Lan Hương	0986562245	\N	0986562245	\N	\N	Thành viên	Thành viên	\N	6	N_0986562245	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:34:28.385	2026-10-09 00:26:35.228	\N	\N	Happy	Khối kinh doanh
-342	Cà Thị Mai Hương	0904023462	\N	0904023462	\N	\N	Thành viên	Thành viên	\N	\N	N_0904023462	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:34:55.553	2026-10-06 03:34:55.553	\N	\N	\N	Khối kinh doanh
-343	Lò Văn Bâng	0978179298	\N	0978179298	\N	\N	Thành viên	Thành viên	\N	\N	N_0978179298	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:35:37.239	2026-10-06 03:35:37.239	\N	\N	\N	Khối kinh doanh
-344	Nguyễn thi Trang	0847470626	\N	0847470626	\N	\N	Thành viên	Thành viên	\N	\N	N_0847470626	\N	Dương Hồng Phương (N_0979345229)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:35:56.229	2026-10-06 03:35:56.229	\N	\N	\N	Khối kinh doanh
-345	Quàng Văn Lả	0382112976	\N	0382112976	\N	\N	Thành viên	Thành viên	\N	\N	N_0382112976	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:07.672	2026-10-06 03:36:07.672	\N	\N	\N	Khối kinh doanh
-346	Chị châu khách hàng của chích	03728377148	\N	03728377148	\N	\N	Thành viên	Thành viên	\N	\N	N_03728377148	90	Nguyễn Đức Vĩnh	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:25.874	2026-10-06 03:36:25.874	\N	\N	\N	Khối kinh doanh
-347	Lò Văn Loan	0986936767	\N	0986936767	\N	\N	Thành viên	Thành viên	\N	\N	N_0986936767	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:41.316	2026-10-06 03:36:41.316	\N	\N	\N	Khối kinh doanh
-348	Đỗ Văn Ngữ	0988509844	\N	0988509844	\N	\N	Thành viên	Thành viên	\N	\N	N_0988509844	\N	Phượng Ngọc Thu (N_+84969881698)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:59.17	2026-10-06 03:36:59.17	\N	\N	\N	Khối kinh doanh
-349	Quàng Văn Chiêu	0946867262	\N	0946867262	\N	\N	Thành viên	Thành viên	\N	\N	N_0946867262	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:37:13.835	2026-10-06 03:37:13.835	\N	\N	\N	Khối kinh doanh
-350	Nguyễn thị Lan	0975726363	\N	0975726363	\N	\N	Thành viên	Thành viên	\N	\N	N_0975726363	\N	Dương Hồng Phương (N_0979345229)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:41:33.475	2026-10-06 03:41:33.475	\N	\N	\N	Khối kinh doanh
-351	Đỗ Văn Hóa	0969086882	\N	0969086882	\N	\N	Thành viên	Thành viên	\N	\N	N_0969086882	\N	Vũ Thị Thúy 0945172578	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 06:35:55.728	2026-10-06 06:35:55.728	\N	\N	\N	Khối kinh doanh
-352	Phạm Hạnh	0376866862	\N	0376866862	\N	\N	Thành viên	Thành viên	\N	\N	N_0376866862	49	Lê Thị Hà	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 11:41:48.51	2026-10-06 11:41:48.51	\N	\N	\N	Khối kinh doanh
-353	Chú Nguyễn Văn Kình	0364478646	\N	0364478646	\N	\N	Thành viên	Thành viên	\N	\N	N_0364478646	\N	Vũ Thị Thúy 0945172578	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 15:40:25.918	2026-10-06 15:40:25.918	\N	\N	\N	Khối kinh doanh
-354	Cô phạm thị Lý lần đầu	0364478664	\N	0364478664	\N	\N	Thành viên	Thành viên	\N	\N	N_0364478664	\N	Vũ Thị Thúy 0945172578	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 15:42:29.317	2026-10-06 15:42:29.317	\N	\N	\N	Khối kinh doanh
-355	Nguyễn Thị Sơn	0974669578	\N	0974669578	\N	\N	Thành viên	Thành viên	\N	\N	N_0974669578	49	Lê Thị Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 00:34:11.375	2026-10-07 00:34:11.375	\N	\N	\N	Khối kinh doanh
-356	Nguyễn Thị Kim	0326860856	\N	0326860856	\N	\N	Thành viên	Thành viên	\N	\N	N_0326860856	\N	Vũ Thị Thúy 0945172578	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 01:53:13.878	2026-10-07 01:53:13.878	\N	\N	\N	Khối kinh doanh
-357	Nguyễn Mạnh Hùng	0965984779	\N	0965984779	\N	\N	Thành viên	Thành viên	\N	\N	N_0965984779	214	Lê.Thị Nhung	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:17:32.186	2026-10-07 02:17:32.186	\N	\N	\N	Khối kinh doanh
-358	Nguyễn Mộng Phương	0902149966	\N	0902149966	\N	\N	Thành viên	Thành viên	\N	\N	N_0902149966	41	Nguyễn Hùng Vĩ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:18:16.178	2026-10-07 02:18:16.178	\N	\N	\N	Khối kinh doanh
-359	Nguyễn Đức Huy	0348778893	\N	0348778893	\N	\N	Thành viên	Thành viên	\N	\N	N_0348778893	41	Nguyễn Hùng Vĩ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:18:40.621	2026-10-07 02:18:40.621	\N	\N	\N	Khối kinh doanh
-360	Đặng Thị Phượng	0985986703	\N	0985986703	\N	\N	Thành viên	Thành viên	\N	\N	N_0985986703	\N	Trần Thị Hồng Vân (0962240952)	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:21:17.232	2026-10-07 02:21:17.232	\N	\N	\N	Khối kinh doanh
-361	Trần Văn Bình	0989558609	\N	0989558609	\N	\N	Thành viên	Thành viên	\N	\N	N_0989558609	199	Đỗ Thị Lanh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:23:35.944	2026-10-07 02:23:35.944	\N	\N	\N	Khối kinh doanh
-362	Phạm Đức Nhật	0912055531	\N	0912055531	\N	\N	Thành viên	Thành viên	\N	\N	N_0912055531	199	Đỗ Thị Lanh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:24:39.452	2026-10-07 02:24:39.452	\N	\N	\N	Khối kinh doanh
-363	Nguyễn Thị Hồng Minh	0932672476	\N	0932672476	\N	\N	Thành viên	Thành viên	\N	\N	N_0932672476	122	Phạm Văn thịnh (a thủ )	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:49:44.444	2026-10-07 02:49:44.444	\N	\N	\N	Khối kinh doanh
-364	Nguyễn Thị Liên	0952782131	\N	0952782131	\N	\N	Thành viên	Thành viên	\N	\N	N_0952782131	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:50:23.852	2026-10-07 02:50:23.852	\N	\N	\N	Khối kinh doanh
-365	Lương Khánh Tình	0988307994	\N	0988307994	\N	\N	Thành viên	Thành viên	\N	\N	N_0988307994	154	Trần Thị Thanh Hương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:50:31.393	2026-10-07 02:50:31.393	\N	\N	\N	Khối kinh doanh
-367	Nguyễn Ngọc Sâm	0983740964	\N	0983740964	\N	\N	Thành viên	Thành viên	\N	\N	N_0983740964	152	NGUYỄN NGỌC THỦ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:52:09.329	2026-10-07 02:52:09.329	\N	\N	\N	Khối kinh doanh
-368	Lê Thị Bình	0828664858	\N	0828664858	\N	\N	Thành viên	Thành viên	\N	\N	N_0828664858	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:52:09.351	2026-10-07 02:52:09.351	\N	\N	\N	Khối kinh doanh
-369	Đàm Thành Đạt	0399665717	\N	0399665717	\N	\N	Thành viên	Thành viên	\N	\N	N_0399665717	\N	Khách vãng lai	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:59:33.805	2026-10-07 02:59:33.805	\N	\N	\N	Khối kinh doanh
-370	Hoàng Thị tuyết	0968414961	\N	0968414961	\N	\N	Thành viên	Thành viên	\N	\N	N_0968414961	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:00:16.004	2026-10-07 03:00:16.004	\N	\N	\N	Khối kinh doanh
-371	Trần Văn Thành	0941262164	\N	0941262164	\N	\N	Thành viên	Thành viên	\N	\N	N_0941262164	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:00:52.167	2026-10-07 03:00:52.167	\N	\N	\N	Khối kinh doanh
-372	Nguyễn Thu Thảo	0936218669	\N	0936218669	\N	\N	Thành viên	Thành viên	\N	\N	N_0936218669	45	Chu Thị Lương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:01:10.249	2026-10-07 03:01:10.249	\N	\N	\N	Khối kinh doanh
-373	Bùi đình tiến	0913575968	\N	0913575968	\N	\N	Thành viên	Thành viên	\N	\N	N_0913575968	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:01:57.557	2026-10-07 03:01:57.557	\N	\N	\N	Khối kinh doanh
-375	Trần Thị Thanh Hương	0329685009	\N	0329685009	\N	\N	Thành viên	Thành viên	\N	1	N_0329685009	40	Cung Thu Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:11:10.762	2026-10-09 00:26:35.228	\N	\N	Kiến Vàng	Khối kinh doanh
-376	Trần Văn Bình	0989558606	\N	0989558606	\N	\N	Thành viên	Thành viên	\N	\N	N_0989558606	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:11:15.534	2026-10-07 03:11:15.534	\N	\N	\N	Khối kinh doanh
-377	Hoàng Thị Luyện	0972438568	\N	0972438568	\N	\N	Thành viên	Thành viên	\N	\N	N_0972438568	152	NGUYỄN NGỌC THỦ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:11:48.937	2026-10-07 03:11:48.937	\N	\N	\N	Khối kinh doanh
-378	Đỗ Thị Tú	0916016918	\N	0916016918	\N	\N	Thành viên	Thành viên	\N	\N	N_0916016918	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:12:17.292	2026-10-07 03:12:17.292	\N	\N	\N	Khối kinh doanh
-379	Cao Thị duyên	0942438366	\N	0942438366	\N	\N	Thành viên	Thành viên	\N	\N	N_0942438366	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:12:46.328	2026-10-07 03:12:46.328	\N	\N	\N	Khối kinh doanh
-380	Nguyễn Thị Hoàng Yến	0974085558	\N	0974085558	\N	\N	Thành viên	Thành viên	\N	\N	N_0974085558	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:12:55.601	2026-10-07 03:12:55.601	\N	\N	\N	Khối kinh doanh
-381	Nguyễn Th��� Thịnh	0976651925	\N	0976651925	\N	\N	Thành viên	Thành viên	\N	\N	N_0976651925	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:13:20.449	2026-10-07 03:13:20.449	\N	\N	\N	Khối kinh doanh
-382	Nguyễn Thị Thu Hương	0982894388	\N	0982894388	\N	\N	Thành viên	Thành viên	\N	\N	N_0982894388	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:13:44.364	2026-10-07 03:13:44.364	\N	\N	\N	Khối kinh doanh
-383	Bùi Bích liên	0393842148	\N	0393842148	\N	\N	Thành viên	Thành viên	\N	\N	N_0393842148	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:13:48.69	2026-10-07 03:13:48.69	\N	\N	\N	Khối kinh doanh
-384	Phạm Thị Hồng Linh	0329233328	\N	0329233328	\N	\N	Thành viên	Thành viên	\N	\N	N_0329233328	279	Hoàng Thị Luyện	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:14:15.881	2026-10-07 03:14:15.881	\N	\N	\N	Khối kinh doanh
-385	Nguyễn Thị Thi	8379336768	\N	8379336768	\N	\N	Thành viên	Thành viên	\N	\N	N_8379336768	93	Nguyễn Xuân mâụ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:14:42.003	2026-10-07 03:14:42.003	\N	\N	\N	Khối kinh doanh
-386	Nguyễn Thành Long	0965724926	\N	0965724926	\N	\N	Thành viên	Thành viên	\N	\N	N_0965724926	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:21:33.459	2026-10-07 03:21:33.459	\N	\N	\N	Khối kinh doanh
-387	Trần Thị Mai Lương	0983729588	\N	0983729588	\N	\N	Thành viên	Thành viên	\N	\N	N_0983729588	93	Nguyễn Xuân mâụ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:27:14.954	2026-10-07 03:27:14.954	\N	\N	\N	Khối kinh doanh
-388	Nguyễn Thị Xuân	0332231429	\N	0332231429	\N	\N	Thành viên	Thành viên	\N	\N	N_0332231429	278	Trần Thị Mai Lương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:29:51.919	2026-10-07 03:29:51.919	\N	\N	\N	Khối kinh doanh
-389	Nguyễn Thị Nga	0914722831	\N	0914722831	\N	\N	Thành viên	Thành viên	\N	2	N_0914722831	278	Trần Thị Mai Lương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:30:33.239	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh
-390	Đàm Thị Liên	0764959314	\N	0764959314	\N	\N	Thành viên	Thành viên	\N	\N	N_0764959314	279	Hoàng Thị Luyện	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:31:24.13	2026-10-07 03:31:24.13	\N	\N	\N	Khối kinh doanh
-391	Nguyễn Vũ Hưng	0345466260	\N	0345466260	\N	\N	Thành viên	Thành viên	\N	\N	N_0345466260	40	Cung Thu Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:33:51.36	2026-10-07 03:33:51.36	\N	\N	\N	Khối kinh doanh
-392	Vũ Hùng Vĩ	0984967553	\N	0984967553	\N	\N	Thành viên	Thành viên	\N	\N	N_0984967553	\N	Phạm Tuấn	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:34:45.075	2026-10-07 03:34:45.075	\N	\N	\N	Khối kinh doanh
-393	Nguyễn Thị Ngọc	0947536338	\N	0947536338	\N	\N	Thành viên	Thành viên	\N	\N	N_0947536338	249	Bùi Hồng Ánh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:38:31.371	2026-10-07 03:38:31.371	\N	\N	\N	Khối kinh doanh
-394	Đỗ Mộng Long	8978380004	\N	8978380004	\N	\N	Thành viên	Thành viên	\N	6	N_8978380004	109	Hoàng Thị Chích	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:40:53.847	2026-10-09 00:26:35.228	\N	\N	Happy	Khối kinh doanh
-395	Đỗ Lại Thanh	0975635081	\N	0975635081	\N	\N	Thành viên	Thành viên	\N	\N	N_0975635081	109	Hoàng Thị Chích	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:41:28.216	2026-10-07 03:41:28.216	\N	\N	\N	Khối kinh doanh
-423	Huyền My	0986302256	\N	0986302256	\N	\N	Thành viên	Thành viên	\N	\N	N_0986302256	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:57:20.915658	2026-10-09 06:57:20.915658	\N	\N	\N	Khối kinh doanh
-424	Chu Thành Long	0338293946	\N	0338293946	\N	\N	Thành viên	Thành viên	\N	\N	N_0338293946	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 08:05:17.891633	2026-10-09 08:05:17.891633	\N	\N	\N	Khối kinh doanh
-425	Lại Văn chính	0977980573	\N	0977980573	\N	\N	Thành viên	Thành viên	\N	\N	N_0977980573	\N	Phượng Ngọc Thu (N_+84969881698)	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 11:56:36.908387	2026-10-09 11:56:36.908387	\N	\N	\N	Khối kinh doanh
-426	Anh thiêu	0398987848	\N	0398987848	\N	\N	Thành viên	Thành viên	\N	\N	N_0398987848	90	Nguyễn Đức Vĩnh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:10:12.142028	2026-10-09 12:10:12.142028	\N	\N	\N	Khối kinh doanh
-427	Nguyễn Văn Ngọ	0994308509	\N	0994308509	\N	\N	Thành viên	Thành viên	\N	\N	N_0994308509	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:18:19.055591	2026-10-09 12:18:19.055591	\N	\N	\N	Khối kinh doanh
-428	Nguyễn Văn Tiến	0916069992	\N	0916069992	\N	\N	Thành viên	Thành viên	\N	\N	N_0916069992	\N	Nguyễn Văn Ngọ (0994308509)	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:22:07.879296	2026-10-09 12:22:07.879296	\N	\N	\N	Khối kinh doanh
-429	Nguyễn Văn Kính	0982296434	\N	0982296434	\N	\N	Thành viên	Thành viên	\N	\N	N_0982296434	428	Nguyễn Văn Tiến	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:25:26.739063	2026-10-09 12:25:26.739063	\N	\N	\N	Khối kinh doanh
-430	Nguyễn Văn Quế	0349420226	\N	0349420226	\N	\N	Thành viên	Thành viên	\N	\N	N_0349420226	428	Nguyễn Văn Tiến	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:26:31.630419	2026-10-09 12:26:31.630419	\N	\N	\N	Khối kinh doanh
-431	Trúc Phương	0388653289	\N	0388653289	\N	\N	Thành viên	Thành viên	\N	\N	N_0388653289	90	Nguyễn Đức Vĩnh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:56:24.086338	2026-10-09 12:56:24.086338	\N	\N	\N	Khối kinh doanh
-432	Trần Thị Mai	0388878598	\N	0388878598	\N	\N	Thành viên	Thành viên	\N	\N	N_0388878598	90	Nguyễn Đức Vĩnh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:57:57.222276	2026-10-09 12:57:57.222276	\N	\N	\N	Khối kinh doanh
-433	Nguyễn Thị Thảo	0919452168	\N	0919452168	\N	\N	Thành viên	Thành viên	\N	\N	N_0919452168	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 13:29:53.577249	2026-10-09 13:29:53.577249	\N	\N	\N	Khối kinh doanh
-434	Trần Đức Minh	0352313866	\N	0352313866	\N	\N	Thành viên	Thành viên	\N	\N	N_0352313866	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 13:32:17.101236	2026-10-09 13:32:17.101236	\N	\N	\N	Khối kinh doanh
-435	Nguyễn Thị Bình	0379996973	\N	0379996973	\N	\N	Thành viên	Thành viên	\N	\N	N_0379996973	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 14:07:23.127131	2026-10-09 14:07:23.127131	\N	\N	\N	Khối kinh doanh
-436	Nguyễn Tuấn Ninh	0363280765	\N	0363280765	\N	\N	Thành viên	Thành viên	\N	\N	N_0363280765	48	Phạm Minh Tuấn	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 01:46:29.020708	2026-10-10 01:46:29.020708	\N	\N	\N	Khối kinh doanh
-437	Đỗ Văn Trân	0904304716	\N	0904304716	\N	\N	Thành viên	Thành viên	\N	\N	N_0904304716	51	Lương Hồng Hải	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:39:58.814131	2026-10-10 02:39:58.814131	\N	\N	\N	Khối kinh doanh
-438	Nguyễn Thị Giang	0364577296	\N	0364577296	\N	\N	Thành viên	Thành viên	\N	\N	N_0364577296	\N	Nguyễn Thị Hương (0399868786)	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:46:49.918091	2026-10-10 02:46:49.918091	\N	\N	\N	Khối kinh doanh
-439	Vương Thị Minh	0913514959	\N	0913514959	\N	\N	Thành viên	Thành viên	\N	\N	N_0913514959	93	Nguyễn Xuân mâụ	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:49:36.534329	2026-10-10 02:49:36.534329	\N	\N	\N	Khối kinh doanh
-440	Nguyễn Thị Hà Thuận	0989137422	\N	0989137422	\N	\N	Thành viên	Thành viên	\N	\N	N_0989137422	439	Vương Thị Minh	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:51:21.661566	2026-10-10 02:51:21.661566	\N	\N	\N	Khối kinh doanh
-441	Nguyễn Thị Bích Loan	0348861918	\N	0348861918	\N	\N	Thành viên	Thành viên	\N	\N	N_0348861918	439	Vương Thị Minh	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:51:54.539658	2026-10-10 02:51:54.539658	\N	\N	\N	Khối kinh doanh
-442	Nguyễn Thị Loan	0965495161	\N	0965495161	\N	\N	Thành viên	Thành viên	\N	\N	N_0965495161	170	Đào Thị Mai	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:58:21.226202	2026-10-10 02:58:21.226202	\N	\N	\N	Khối kinh doanh
-443	Lê Thị Kim Nhung	0917786857	\N	0917786857	\N	\N	Thành viên	Thành viên	\N	\N	N_0917786857	93	Nguyễn Xuân mâụ	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:00:40.571238	2026-10-10 03:00:40.571238	\N	\N	\N	Khối kinh doanh
-444	Quay Văn Định	0867795133	\N	0867795133	\N	\N	Thành viên	Thành viên	\N	\N	N_0867795133	443	Lê Thị Kim Nhung	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:01:17.19109	2026-10-10 03:01:17.19109	\N	\N	\N	Khối kinh doanh
-445	Lê Đôn Thiều	0398937848	\N	0398937848	\N	\N	Thành viên	Thành viên	\N	\N	N_0398937848	109	Hoàng Thị Chích	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:10:48.113002	2026-10-10 03:10:48.113002	\N	\N	\N	Khối kinh doanh
-446	Lê Thị Hương	0912019977	\N	0912019977	\N	\N	Thành viên	Thành viên	\N	\N	N_0912019977	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:21:19.167495	2026-10-10 03:21:19.167495	\N	\N	\N	Khối kinh doanh
-447	Cao Minh Chính	0887426981	\N	0887426981	\N	\N	Thành viên	Thành viên	\N	\N	N_0887426981	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:22:19.599006	2026-10-10 03:22:19.599006	\N	\N	\N	Khối kinh doanh
-448	Đỗ Quyên	0982717285	\N	0982717285	\N	\N	Thành viên	Thành viên	\N	\N	N_0982717285	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:23:41.341034	2026-10-10 03:23:41.341034	\N	\N	\N	Khối kinh doanh
-449	Bùi Đăng Lâm	0888685610	\N	0888685610	\N	\N	Thành viên	Thành viên	\N	\N	N_0888685610	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:30:28.733199	2026-10-10 03:30:28.733199	\N	\N	\N	Khối kinh doanh
-450	Đoàn Thị Tuyết Minh	0912666889	\N	0912666889	\N	\N	Thành viên	Thành viên	\N	\N	N_0912666889	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:30:58.384466	2026-10-10 03:30:58.384466	\N	\N	\N	Khối kinh doanh
-451	Bùi Thế Anh	0966298886	\N	0966298886	\N	\N	Thành viên	Thành viên	\N	\N	N_0966298886	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:32:12.833827	2026-10-10 03:32:12.833827	\N	\N	\N	Khối kinh doanh
-452	Đỗ Nam	0347221883	\N	0347221883	\N	\N	Thành viên	Thành viên	\N	\N	N_0347221883	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:32:37.378217	2026-10-10 03:32:37.378217	\N	\N	\N	Khối kinh doanh
-45	Chu Thị Lương	0368684468	\N	0368684468	\N	\N	Thành viên	Thành viên	\N	\N	N_0368684468	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:34:26.69	2026-09-19 01:34:26.69	\N	\N	\N	Ban nguồn vốn
-47	Đào Thị Lan ( Thơ )	0976067881	\N	0976067881	\N	\N	Thành viên	Thành viên	\N	\N	N_0976067881	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:48:22.173	2026-09-30 01:53:37.939	\N	\N	\N	Khối kinh doanh
-15	Vũ Thị Cúc	0889225989	cucvt@nghiengcomplex.vn	\N	001200000014	MB Bank - 0914556677	Admin	Nhân sự	Chủ tịch	6	N_0914556677	66	Thành viên hệ thống	Sáng lập viên	2024-12-01	Đang hoạt động	t	0	30	Người duyệt điều kiện Team Leader & duyệt chi phí sự kiện	2026-09-01 17:18:05.8	2026-10-11 00:23:51.025	\N	\N	Happy, Thịnh Vượng	Khối kinh doanh
-40	Cung Thu Hà	0965759559	\N	\N	\N	\N	Phụng sự	Nhân sự	Trưởng phòng	1	N_0965759559	217	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-11 00:23:51.025	\N	\N	Kiến Vàng	Khối kinh doanh
-41	Nguyễn Hùng Vĩ	0326894993	\N	\N	\N	\N	MC	Nhân sự	Giám đốc	5	N_0326894993	45	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-11 00:23:51.025	\N	\N	Biệt đội Kim Cương, Hải Đăng Vàng, Kiến Vàng, Lộc Phát, Ong Vàng, Thành Công	Khối kinh doanh
-43	Phạm Thị Hương	0947876133	\N	\N	\N	\N	Chốt sự kiện, Lễ tân	Nhân sự	Giám đốc	7	N_0947876133	15	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-11 00:23:51.025	\N	\N	Thịnh Vượng	Khối kinh doanh
-48	Phạm Minh Tuấn	0768635148	\N	0768635148	\N	\N	Thành viên	Thành viên	Phó Giám đốc	2	N_0768635148	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 01:49:07.545	2026-10-11 00:23:51.042	\N	\N	Ong Vàng	Khối kinh doanh
-49	Lê Thị Hà	0333088873	leha.hbl@gmail.com	0333088873	\N	\N	Thành viên	Thành viên	\N	\N	N_0333088873	49	098 8732586	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:54:49.891	2026-10-07 02:27:47.217	\N	\N	\N	Ban nguồn vốn
-68	Lưu Thanh Hải( Nhung)	0775935866	\N	0775935866	\N	\N	Thành viên	Thành viên	\N	\N	N_0775935866	443	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:16:38.809	2026-10-10 03:02:06.116277	\N	\N	\N	Khối kinh doanh
-104	Trần Thị Lan ( cụ Yến)	0966728597	\N	0966728597	\N	\N	Thành viên	Thành viên	\N	\N	N_0966728597	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:25:45.521	2026-09-19 03:25:45.521	\N	\N	\N	Khối kinh doanh
-105	Vân	9999999998	\N	9999999998	\N	\N	Thành viên	Thành viên	\N	\N	N_9999999998	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:40:24.337	2026-09-19 03:40:24.337	\N	\N	\N	Khối kinh doanh
-205	Trần Thị Hồng Vân	0962240952	\N	0962240952	\N	\N	Thành viên	Thành viên	\N	\N	\N	150	\N	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:46:10.834	2026-10-07 02:19:56.066	\N	\N	\N	Khối kinh doanh
-216	Nguyen thi Hạnh	0354582631	\N	0354582631	\N	\N	Thành viên	Thành viên	\N	\N	N_0354582631	\N	Người giới thiệu (N_0979345229)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:24:59.375	2026-09-28 08:24:59.375	\N	\N	\N	Khối kinh doanh
-366	Nguyễn Thị hòa	0917921187	\N	0917921187	\N	\N	Thành viên	Thành viên	\N	\N	N_0917921187	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:51:21.872	2026-10-07 02:51:21.872	\N	\N	\N	Khối kinh doanh
-397	Chu Thị Lương	0972008333	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	4	N_0972008333	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Thành Công	Khối kinh doanh
-398	Lương Hồng Hải	0978400289	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	\N	N_0978400289	89	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Hải Đăng Vàng	Khối kinh doanh
-399	Nguyễn Thị Quỳnh Anh	0812790496	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	4	N_0812790496	41	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Thành Công	Khối kinh doanh
-400	Nguyễn Thị Nga	0902276528	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0902276528	221	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh
-374	Nguyễn Thị Hoa	0946233288	\N	0946233288	\N	\N	Thành viên	Thành viên	\N	\N	N_0946233288	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:04:51.001	2026-10-07 03:04:51.001	\N	\N	\N	Khối kinh doanh
-403	Đào Thị Hòa	0949492658	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0949492658	402	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh
-404	Nguyễn Thị Xuân	0382658688	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0382658688	402	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh
-405	Nguyễn Thị Loan	0912415469	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	6	N_0912415469	109	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Happy	Khối kinh doanh
-408	Nguyễn Đăng An	0343781580	\N	\N	\N	\N	Khác	Nhân sự	\N	\N	N_0343781580	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	\N	Khối kinh doanh
-409	Trương Thị Thùy Trang	0938566009	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0938566009	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh
-410	Quảng Thị Đoàn	0988677522	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	6	N_0988677522	323	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Happy	Khối kinh doanh
-411	Đinh Văn Bắc	000007	\N	\N	\N	\N	Khác	Nhân sự	\N	\N	N_000007	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	\N	Khối kinh doanh
-416	vân	1122334455	\N	\N	\N	\N	Nhân viên	Sale	Thành viên	\N	N_1122334455	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 03:06:47.739	2026-10-09 03:06:47.739	\N	\N	\N	Khối kinh doanh
-401	Vũ Hùng Vỹ	0984065555	\N	\N	\N	\N	Khác	Nhân sự	Trưởng phòng	2	N_0984065555	145	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-11 00:23:51.042	\N	\N	Ong Vàng	Khối kinh doanh
-402	Diệp Thị Huế	0915095848	\N	\N	\N	\N	Khác	Nhân sự	Trưởng phòng	2	N_0915095848	401	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-11 00:23:51.042	\N	\N	Ong Vàng	Khối kinh doanh
-407	Nguyễn Văn Hà	0943167088	\N	\N	\N	\N	Khác	Nh��n sự	Thành viên	6	N_0943167088	15	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Happy	Khối kinh doanh
-412	Khách Đăng Ký BNV	0966294968	\N	0966294968	\N	\N	Thành viên	Thành viên	\N	\N	N_0966294968	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:30.197	2026-10-09 09:00:30.197	\N	\N	\N	Khối kinh doanh
-413	Khách Đăng Ký Khối Doanh	0955792444	\N	0955792444	\N	\N	Thành viên	Thành viên	\N	\N	N_0955792444	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:30.232	2026-10-09 09:00:30.232	\N	\N	\N	Khối kinh doanh
-414	Khách Đăng Ký BNV	0966447377	\N	0966447377	\N	\N	Thành viên	Thành viên	\N	\N	N_0966447377	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:40.561	2026-10-09 09:00:40.561	\N	\N	\N	Khối kinh doanh
-415	Khách Đăng Ký Khối Doanh	0955764205	\N	0955764205	\N	\N	Thành viên	Thành viên	\N	\N	N_0955764205	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:40.596	2026-10-09 09:00:40.596	\N	\N	\N	Khối kinh doanh
-417	Đảo Quang Trung	0962839461	\N	0962839461	\N	\N	Thành viên	Thành viên	\N	\N	N_0962839461	42	Lê Thị Chanh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 03:19:31.627385	2026-10-09 03:19:31.627385	\N	\N	\N	Khối kinh doanh
-418	Mã Thanh Hưng	0931645134	\N	0931645134	\N	\N	Thành viên	Thành viên	\N	\N	N_0931645134	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:50:07.575087	2026-10-09 06:50:28.190997	\N	\N	\N	Khối kinh doanh
-419	Lê Thị Thư	0822295386	\N	0822295386	\N	\N	Thành viên	Thành viên	\N	\N	N_0822295386	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:52:36.412729	2026-10-09 06:52:36.412729	\N	\N	\N	Khối kinh doanh
-420	Nguyễn Thị Loan	0969945333	\N	0969945333	\N	\N	Thành viên	Thành viên	\N	\N	N_0969945333	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:54:09.853681	2026-10-09 06:54:09.853681	\N	\N	\N	Khối kinh doanh
-421	Hồ Đặng	+84385622390	\N	+84385622390	\N	\N	Thành viên	Thành viên	\N	\N	N_+84385622390	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:55:56.069936	2026-10-09 06:55:56.069936	\N	\N	\N	Khối kinh doanh
-422	Hoàng Anh	+84981942599	\N	+84981942599	\N	\N	Thành viên	Thành viên	\N	\N	N_+84981942599	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:56:40.968537	2026-10-09 06:56:40.968537	\N	\N	\N	Khối kinh doanh
-406	Nguyễn Minh Châu	0349791507	\N	\N	\N	\N	Khác	Nhân sự	Trưởng phòng	6	N_0349791507	109	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-11 00:23:51.042	\N	\N	Happy	Khối kinh doanh
+COPY public.users (id, full_name, phone, email, password, identity_card, bank_account, role, classification, title, team_id, ref_code, referrer_id, referral_group, source, join_date, status, is_team_leader_eligible, invite_count, guest_count, notes, created_at, updated_at, google_id, avatar_url, team_name, business_unit, bank_name, created_by_name, updated_by_name) FROM stdin;
+485	Nguyễn Thị Hồng	0974478595	\N	0974478595	\N	\N	Thành viên	Thành viên	\N	\N	N_0974478595	465	Nguyễn Mai Thiện	\N	2026-10-16	Đang hoạt động	f	0	0	\N	2026-10-16 05:04:11.234	2026-10-16 05:04:11.234	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+487	Đô đắc chiều	0392899842	\N	0392899842	\N	\N	Thành viên	Thành viên	\N	\N	N_0392899842	109	Hoàng Thị Chích	\N	2026-10-16	Đang hoạt động	f	0	0	\N	2026-10-16 12:33:35.622	2026-10-16 12:33:35.622	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+40	Cung Thu Hà	0965759559	\N	\N	\N	19023295042029	Phụng sự	Nhân sự	Trưởng phòng	1	N_0965759559	217	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-17 02:32:24.48	\N	\N	Kiến Vàng	Khối kinh doanh	Techcombank	\N	\N
+490	Phạm Thị Khánh Vân	0987033405	\N	0987033405	\N	\N	Thành viên	Thành viên	\N	\N	N_0987033405	\N	Trần thị minh thu (0856108703)	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:38:24.103	2026-10-17 01:38:24.103	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+491	Nguyễn Thị Vui	0377009738	\N	0377009738	\N	\N	Thành viên	Thành viên	\N	\N	N_0377009738	93	Nguyễn Xuân mâụ	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:49:57.27	2026-10-17 01:49:57.27	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+221	Dương Hồng Phương	0979345229	\N	0946370299	\N	979345229	Thành viên	Thành viên	Trưởng phòng	5	\N	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:57:03.023	2026-10-17 02:32:24.695	\N	\N	Biệt đội Kim Cương	Khối kinh doanh	Vietinbank	\N	\N
+492	Phạm Thị Minh	0336879363	\N	0336879363	\N	\N	Thành viên	Thành viên	\N	\N	N_0336879363	491	Nguyễn Thị Vui	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:50:31.401	2026-10-17 01:50:31.401	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+51	Lương Hồng Hải	0919520885	\N	0919520885	\N	\N	Thành viên	Thành viên	\N	\N	N_0919520885	268	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:58:56.012	2026-10-10 02:15:02.646	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+53	Nguyễn Đức Côn	0971542688	\N	0971542688	\N	\N	Thành viên	Thành viên	\N	\N	N_0971542688	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:01:50.403	2026-09-19 02:01:50.403	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+54	Nguyễn Hồ Phương	0779292959	\N	0779292959	\N	\N	Thành viên	Thành viên	\N	\N	N_0779292959	49	Lê Thị Hà	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:02:45.841	2026-09-19 02:02:45.841	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+489	Phí thị Hương	0947943138	\N	0947943138	\N	\N	Thành viên	Thành viên	\N	\N	N_0947943138	\N	Vũ Thị Thúy (N_+84945172578)	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 00:01:27.435	2026-10-17 00:01:27.435	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+493	Hứa Xuân Từ	0387077698	\N	0387077698	\N	\N	Thành viên	Thành viên	\N	\N	N_0387077698	491	Nguyễn Thị Vui	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:51:49.973	2026-10-17 01:51:49.973	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+494	Vũ Thị Phiêm	0862548959	\N	0862548959	\N	\N	Thành viên	Thành viên	\N	\N	N_0862548959	152	NGUYỄN NGỌC THỦ	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:52:54.687	2026-10-17 01:52:54.687	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+406	Nguyễn Minh Châu	0349791507	\N	\N	\N	8869085418	Khác	Nhân sự	Trưởng phòng	6	N_0349791507	109	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:32:24.786	\N	\N	Happy	Khối kinh doanh	BIDV	\N	\N
+55	Nguyễn Thị Đào	0385562896	\N	0385562896	\N	\N	Thành viên	Thành viên	\N	\N	N_0385562896	\N	Khách vãng lai	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:03:10.531	2026-09-19 02:03:10.531	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+56	Lê thanh vi	0913258659	\N	0913258659	\N	\N	Thành viên	Thành viên	\N	\N	N_0913258659	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:15.29	2026-09-30 02:49:39.555	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+57	Quản Thị Phòng	0386708895	\N	0386708895	\N	\N	Thành viên	Thành viên	\N	\N	N_0386708895	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:38.425	2026-09-19 02:04:38.425	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+488	Tran le phat dat	0947289003	\N	0947289003	\N	\N	Thành viên	Thành viên	\N	\N	N_0947289003	\N	0886265813 le thi thanh huyen	\N	2026-10-16	Đang hoạt động	f	0	0	\N	2026-10-16 15:10:50.035	2026-10-16 15:10:50.035	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+48	Phạm Minh Tuấn	0768635148	\N	0768635148	\N	11004198385	Thành viên	Thành viên	Phó Giám đốc	2	N_0768635148	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 01:49:07.545	2026-10-17 02:32:24.541	\N	\N	Ong Vàng	Khối kinh doanh	Vietcombank	\N	\N
+495	Đỗ Duy Trưởng	0988834544	\N	0988834544	\N	\N	Thành viên	Thành viên	\N	\N	N_0988834544	278	Trần Thị Mai Lương	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:54:28.991	2026-10-17 01:54:28.991	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+43	Phạm Thị Hương	0947876133	\N	\N	\N	\N	Chốt sự kiện, Lễ tân	Nhân sự	Giám đốc	7	N_0947876133	15	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-17 02:24:01.511	\N	\N	Thịnh Vượng	Khối kinh doanh	\N	\N	\N
+486	Hoàng Thị Huề	0966116573	\N	\N	\N	\N	Nhân viên	Sale	Thành viên	\N	N_0966116573	15	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-16 09:21:02.716	2026-10-17 01:54:41.677	\N	\N	\N	Khối kinh doanh	\N	Vũ Thị Cúc	Vũ Thị Cúc
+496	Hoàng Văn Thoại	0986577981	\N	0986577981	\N	\N	Thành viên	Thành viên	\N	\N	N_0986577981	152	NGUYỄN NGỌC THỦ	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:55:36.763	2026-10-17 01:55:36.763	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+497	Nguyễn Thị Mai	0961185655	\N	0961185655	\N	\N	Thành viên	Thành viên	\N	\N	N_0961185655	45	Chu Thị Lương	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:56:34.397	2026-10-17 01:56:34.397	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+498	Đặng Diệp Hà	0901771966	\N	0901771966	\N	\N	Thành viên	Thành viên	\N	\N	N_0901771966	73	Hồ Kim Thoa	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:57:31.893	2026-10-17 01:57:31.893	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+499	Lê Hằng	0914571331	\N	0914571331	\N	\N	Thành viên	Thành viên	\N	\N	N_0914571331	73	Hồ Kim Thoa	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:58:19.096	2026-10-17 01:58:19.096	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+111	Đặng Thế Long	0972847275	\N	0972847275	\N	\N	Thành viên	Thành viên	\N	\N	N_0972847275	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:25:36.034	2026-09-23 06:25:36.034	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+112	A Phong	0934635468	\N	0934635468	\N	\N	Thành viên	Thành viên	\N	\N	N_0934635468	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:25:45.583	2026-09-23 06:25:45.583	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+15	Vũ Thị Cúc	0889225989	cucvt@nghiengcomplex.vn	\N	001200000014	MB Bank - 0914556677	Admin	Nhân sự	Chủ tịch	6	N_0914556677	66	Thành viên hệ thống	Sáng lập viên	2024-12-01	Đang hoạt động	t	0	30	Người duyệt điều kiện Team Leader & duyệt chi phí sự kiện	2026-09-01 17:18:05.8	2026-10-17 02:32:24.449	\N	\N	Happy, Thịnh Vượng	Khối kinh doanh	Techcombank	\N	\N
+214	Lê Thị Nhung	0398733976	\N	0398733976	\N	\N	Thành viên	Thành viên	Thành viên	\N	N_0398733976	109	Hoàng Thị Chích	\N	2026-09-28	Đang hoạt động	f	0	3	\N	2026-09-28 04:11:34.145	2026-10-16 09:24:46.825	\N	\N	\N	Khối kinh doanh	\N	\N	Vũ Thị Cúc
+118	Hồ Xuân thu( diệp Huế)	0988388012	\N	0988388012	\N	\N	Thành viên	Thành viên	\N	\N	N_0988388012	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:58:00.717	2026-09-23 06:58:00.717	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+73	Hồ Kim Thoa	0774244280	\N	0774244280	\N	\N	Thành viên	Thành viên	\N	\N	N_0774244280	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:23:12.805	2026-09-19 02:23:12.805	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+75	Phạm thị nguyệt	0979012294	\N	0979012294	\N	\N	Thành viên	Thành viên	\N	\N	N_0979012294	74	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:30:01.05	2026-09-26 03:30:20.877	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+76	Trần thị hồng	0942238855	\N	0942238855	\N	\N	Thành viên	Thành viên	\N	\N	N_0942238855	74	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:32:25.646	2026-09-26 03:29:49.599	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+77	Đoàn Thị Tuyết Minh	+84866628865	\N	+84866628865	\N	\N	Thành viên	Thành viên	\N	\N	N_+84866628865	74	Vũ Ngoc Bảo	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:33:04.229	2026-09-19 02:33:04.229	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+78	Đỗ thị lanh	0941848473	\N	0941848473	\N	\N	Thành viên	Thành viên	\N	\N	N_0941848473	301	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:34:04.943	2026-10-07 03:11:50.101	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+79	Nguyên thị ngọc bich	0346511369	\N	0346511369	\N	\N	Thành viên	Thành viên	\N	\N	N_0346511369	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:37:56.872	2026-09-19 02:37:56.872	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+42	Lê Thị Chanh	0385213858	\N	\N	\N	\N	Phụng sự	Nhân sự	Thành viên	\N	N_0385213858	\N	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	f	0	0	\N	2026-09-18 16:30:27.372	2026-09-19 01:34:37.089	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+456	Đăng thị ngọc	0961195756	\N	0961195756	\N	\N	Thành viên	Thành viên	\N	\N	N_0961195756	109	Hoàng Thị Chích	\N	2026-10-13	Đang hoạt động	f	0	0	\N	2026-10-13 07:59:33.45	2026-10-13 07:59:33.45	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+323	Trần Thị Ban	0379863712	\N	0379863712	\N	4110689671	Thành viên	Thành viên	\N	\N	N_0379863712	109	Hoàng Thị Chích	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:43:56.363	2026-10-05 07:43:56.363	\N	\N	\N	Khối kinh doanh	BIDV	\N	\N
+375	Trần Thị Thanh Hương	0329685009	\N	0329685009	\N	2714205148354	Thành viên	Thành viên	\N	1	N_0329685009	40	Cung Thu Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:11:10.762	2026-10-09 00:26:35.228	\N	\N	Kiến Vàng	Khối kinh doanh	Agribank	\N	\N
+46	Vy Văn Hiền ( A Thủ)	0915312849	\N	0915312849	\N	\N	Thành viên	Thành viên	\N	\N	N_0915312849	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:43:00.544	2026-09-19 01:43:00.544	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+82	Nguyễn Phú Vụng( A Hoàng)	0865209758	\N	0865209758	\N	\N	Thành viên	Thành viên	\N	\N	N_0865209758	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:44:12.807	2026-09-19 02:44:12.807	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+83	Nguyễn Văn Hòa	0387549779	\N	0387549779	\N	\N	Thành viên	Thành viên	\N	\N	N_0387549779	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:46:32.138	2026-09-19 02:46:32.138	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+113	Nguyễn Văn Bình	0385029771	\N	0385029771	\N	\N	Thành viên	Thành viên	\N	\N	N_0385029771	107	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:42:48.088	2026-09-23 06:42:48.088	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+115	Đỗ thị phương (thủ)	0362593296	\N	0362593296	\N	\N	Thành viên	Thành viên	\N	\N	N_0362593296	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:46:54.905	2026-09-23 06:46:54.905	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+58	Đỗ Văn hành	0985425466	\N	0985425466	\N	\N	Thành viên	Thành viên	\N	\N	N_0985425466	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:49.839	2026-09-19 02:04:49.839	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+116	Vũ thị Tuất (thịnh)	0935667676	\N	0935667676	\N	\N	Thành viên	Thành viên	\N	\N	N_0935667676	165	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:54:24.603	2026-10-10 03:09:33.61	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+119	Ngô Thanh Bình ( Quang Trung)	0987922275	\N	0987922275	\N	\N	Thành viên	Thành viên	\N	\N	N_0987922275	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:58:55.116	2026-09-23 06:58:55.116	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+127	Khuyến	0911755777	\N	0911755777	\N	\N	Thành viên	Thành viên	\N	\N	N_0911755777	\N	Chỉnh	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:28.174	2026-09-23 07:26:28.174	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+129	Bùi đăng lâm	0328001998	\N	0328001998	\N	\N	Thành viên	Thành viên	\N	\N	N_0328001998	196	Nguyễn hải quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:36.28	2026-09-30 03:07:26.08	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+59	Vũ van biên	0989944612	\N	0989944612	\N	\N	Thành viên	Thành viên	\N	\N	N_0989944612	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:05:15.295	2026-09-19 02:05:15.295	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+463	Nguyễn Thị Yến	0347871795	\N	0347871795	\N	\N	Thành viên	Thành viên	\N	\N	N_0347871795	155	Trần thị minh thu	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 01:48:25.856	2026-10-14 01:48:25.856	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+464	Trần Bích Uyên	0977956825	\N	0977956825	\N	\N	Thành viên	Thành viên	\N	\N	N_0977956825	150	Đào Thị Hoà	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:30:19.94	2026-10-14 02:30:19.94	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+60	Vũ Thị Kim Thư( Hùng Vỹ)	0854716372	\N	0854716372	\N	\N	Thành viên	Thành viên	\N	\N	N_0854716372	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:05:22.891	2026-10-10 02:38:38.388	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+61	Lê Văn kiểm	0968085316	\N	0968085316	\N	\N	Thành viên	Thành viên	\N	\N	N_0968085316	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:06:30.396	2026-09-19 02:06:30.396	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+62	Phạm văn Pha	0973765167	\N	0973765167	\N	\N	Thành viên	Thành viên	\N	\N	N_0973765167	56	Lê thanh vi	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:06:39.899	2026-09-19 02:06:39.899	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+64	Lê Văn Hải ( khách của Vũ Thuý)	0903213785	\N	0903213785	\N	\N	Thành viên	Thành viên	\N	\N	N_0903213785	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:07:31.247	2026-09-19 02:07:31.247	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+65	Nguyễn Trà My	0344514394	\N	0344514394	\N	\N	Thành viên	Thành viên	\N	\N	N_0344514394	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:09:57.705	2026-09-19 02:09:57.705	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+69	Bùi thị kim oanh(tuyết)	0834262681	\N	0834262681	\N	\N	Thành viên	Thành viên	\N	\N	N_0834262681	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:17:29.186	2026-09-19 02:17:29.186	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+70	Lê Thị Loan( Hà )	0904220531	\N	0904220531	\N	\N	Thành viên	Thành viên	\N	\N	N_0904220531	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:22:07.011	2026-09-19 02:22:07.011	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+71	Nguyễn Thị ĐàoNguyeens Tuấn X	0335842475	\N	0335842475	\N	\N	Thành viên	Thành viên	\N	\N	N_0335842475	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:22:09.452	2026-09-19 02:22:09.452	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+453	Chi Hường li vi	0968021339	\N	0968021339	\N	\N	Thành viên	Thành viên	\N	\N	N_0968021339	\N	Dương Hồng Phương (N_0979345229)	\N	2026-10-11	Đang hoạt động	f	0	0	\N	2026-10-11 09:00:28.881	2026-10-11 09:00:28.881	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+454	Nguyen minh Phú	0913546266	\N	0913546266	\N	\N	Thành viên	Thành viên	\N	\N	N_0913546266	\N	Dương Hồng Phương (0979345229)	\N	2026-10-12	Đang hoạt động	f	0	0	\N	2026-10-12 13:12:10.428	2026-10-12 13:12:10.428	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+72	Nguyễn Tiến Dũng	0943472943	\N	0943472943	\N	\N	Thành viên	Thành viên	\N	\N	N_0943472943	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:22:36.128	2026-09-25 08:24:38.335	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+455	Qoan` thị lan	0983276323	\N	0983276323	\N	\N	Thành viên	Thành viên	\N	\N	N_0983276323	109	Hoàng Thị Chích	\N	2026-10-13	Đang hoạt động	f	0	0	\N	2026-10-13 07:56:55.077	2026-10-13 07:56:55.077	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+117	Hoàng Thị Luyện ( A thịnh)	0972831568	\N	0972831568	\N	\N	Thành viên	Thành viên	\N	\N	N_0972831568	122	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:54:31.418	2026-09-30 02:42:30.288	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+457	Nguyễn Đức Tuấn	0935378785	\N	\N	\N	910081988	Nh?n s?	Nh?n s?	Th?nh vi?n	\N	\N	\N	\N	\N	\N	Ho?t ??ng	f	0	0	\N	2026-10-13 08:56:58.249	2026-10-13 08:56:58.249	\N	\N	\N	Khối kinh doanh	VIB	Vũ Thị Cúc	Vũ Thị Cúc
+162	Phạm thị Thúy Lan	0912137909	\N	0912137909	\N	12810000684060	Thành viên	Thành viên	\N	\N	N_0912137909	161	Phạm Vinh Quang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:28:53.869	2026-09-26 02:28:53.869	\N	\N	\N	Khối kinh doanh	BIDV	\N	\N
+130	Hà trọng Dũng	0913367713	\N	0913367713	\N	\N	Thành viên	Thành viên	\N	\N	N_0913367713	45	Chu Thị Lương	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:29:38.958	2026-09-30 02:25:23.325	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+465	Nguyễn Mai Thiện	0986813114	\N	0986813114	\N	\N	Thành viên	Thành viên	\N	\N	N_0986813114	40	Cung Thu Hà	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:33:50.598	2026-10-14 02:33:50.598	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+474	Lê Văn Cương	0979701466	\N	0979701466	\N	\N	Thành viên	Thành viên	\N	\N	N_0979701466	152	NGUYỄN NGỌC THỦ	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:06:36.182	2026-10-14 03:06:36.182	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+243	Phạm Vinh Quang	-0913073619	\N	-0913073619	\N	0541000221027	Thành viên	Thành viên	\N	\N	N_-0913073619	107	Vũ Hùng Vỹ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:30:50.346	2026-09-30 02:30:50.346	\N	\N	\N	Khối kinh doanh	Vietcombank	\N	\N
+63	Nguyễn thế viễn	0988359108	\N	0988359108	\N	\N	Thành viên	Thành viên	\N	\N	N_0988359108	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:07:14.725	2026-09-19 02:07:14.725	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+459	Nguyễn Thị trang	07871850224	\N	07871850224	\N	\N	Thành viên	Thành viên	\N	\N	N_07871850224	109	Hoàng Thị Chích	\N	2026-10-13	Đang hoạt động	f	0	0	\N	2026-10-13 11:50:29.849	2026-10-13 11:50:29.849	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+460	Nguyễn Thị Thanh	0369729704	\N	0369729704	\N	\N	Thành viên	Thành viên	\N	\N	N_0369729704	109	Hoàng Thị Chích	\N	2026-10-13	Đang hoạt động	f	0	0	\N	2026-10-13 11:53:30.134	2026-10-13 11:53:30.134	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+134	A tuấn	0901759436	\N	0901759436	\N	\N	Thành viên	Thành viên	\N	\N	N_0901759436	44	Vũ Thị Thủy	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:46:02.345	2026-09-23 07:46:02.345	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+135	Đinh Thị Thơm	0397863708	\N	0397863708	\N	\N	Thành viên	Thành viên	\N	\N	N_0397863708	\N	Đỗ Thuý Hằng	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:01:06.765	2026-09-23 08:01:06.765	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+138	Lê Thị Xuân Mai	0988560303	\N	0988560303	\N	\N	Thành viên	Thành viên	\N	\N	N_0988560303	\N	Cô Thu	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:02:15.042	2026-09-23 08:02:15.042	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+139	Nguyễn Thị Vân	0974059609	\N	0974059609	\N	\N	Thành viên	Thành viên	\N	\N	N_0974059609	\N	Cô Thu	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:02:55.184	2026-09-23 08:02:55.184	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+140	Diệp Thị Hằng	0393221856	\N	0393221856	\N	\N	Thành viên	Thành viên	\N	\N	N_0393221856	\N	Diệp Thị Huế	\N	2026-09-24	Đang hoạt động	f	0	0	\N	2026-09-24 09:29:44.394	2026-09-24 09:29:44.394	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+141	Đặng văn Hưng	0982307243	\N	0982307243	\N	\N	Thành viên	Thành viên	\N	\N	N_0982307243	140	Diệp Thị Hằng	\N	2026-09-24	Đang hoạt động	f	0	0	\N	2026-09-24 09:32:53.235	2026-09-24 09:32:53.235	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+142	Nguyễn Thị Dung	0973383487	\N	0973383487	\N	\N	Thành viên	Thành viên	\N	\N	N_0973383487	49	Lê Thị Hà	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 12:27:34.663	2026-09-25 12:27:34.663	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+143	Hoàng Cường	0345792111	\N	0345792111	\N	\N	Thành viên	Thành viên	\N	\N	N_0345792111	\N	Vũ Thị Cúc	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 12:54:34.837	2026-09-25 12:54:34.837	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+128	Dũng(chỉnh)	0755161779	\N	0755161779	\N	\N	Thành viên	Thành viên	\N	\N	N_0755161779	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:32.615	2026-09-23 07:26:32.615	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+144	Nguyễn Văn A	0986981919	\N	0986981919	\N	\N	Thành viên	Thành viên	\N	\N	N_0986981919	\N	Vũ Thị Cúc	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 12:59:03.975	2026-09-25 12:59:03.975	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+145	Nguyễn Thị Hà	0373360136	\N	0373360136	\N	\N	Thành viên	Thành viên	Thành viên	\N	N_0373360136	48	Phạm Minh Tuấn	\N	2026-09-25	Đang hoạt động	f	0	0	\N	2026-09-25 13:50:37.521	2026-09-28 03:31:15.09	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+146	Nguyễn Thị Nhạn	0982882523	\N	0982882523	\N	\N	Thành viên	Thành viên	\N	\N	N_0982882523	93	Trần Mai Lương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 01:44:38.112	2026-09-30 02:04:49.541	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+147	Nguyễn Văn Điền	0985544078	\N	0985544078	\N	\N	Thành viên	Thành viên	\N	\N	N_0985544078	146	Nguyễn Thị Nhạn	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 01:45:14.471	2026-09-26 01:45:14.471	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+148	Lương Vũ Tiến	0974200697	\N	0974200697	\N	\N	Thành viên	Thành viên	\N	\N	N_0974200697	146	Nguyễn Thị Nhạn	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 01:46:06.495	2026-09-26 01:46:06.495	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+149	Nguyễn Văn Trung	0978581968	\N	0978581968	\N	\N	Thành viên	Thành viên	\N	\N	N_0978581968	42	Lê Thị Chanh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:01:27.718	2026-09-26 02:01:27.718	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+66	Đinh thị thảo	0356044186	\N	0356044186	\N	\N	Thành viên	Thành viên	\N	\N	N_0356044186	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:14:29.399	2026-09-19 02:14:29.399	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+150	Đào Thị Hoà	0981398785	\N	0981398785	\N	\N	Thành viên	Thành viên	\N	\N	N_0981398785	204	Hồ Xuân thu( diệp Huế)	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:02:53.265	2026-10-06 03:38:58.133	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+151	Bùi Văn Tấn	0866852565	\N	0866852565	\N	\N	Thành viên	Thành viên	\N	\N	N_0866852565	\N	Cô Hoà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:04:02.377	2026-09-26 02:04:02.377	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+152	NGUYỄN NGỌC THỦ	0966382168	\N	0966382168	\N	\N	Thành viên	Thành viên	\N	\N	N_0966382168	93	Nguyễn Xuân mâụ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:09:21.146	2026-10-10 03:16:11.783	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+153	Nguyễn Văn Thạch	0986623904	\N	0986623904	\N	\N	Thành viên	Thành viên	\N	\N	N_0986623904	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:10:20.554	2026-09-26 02:10:20.554	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+155	Trần thị minh thu	0856108703	\N	0856108703	\N	\N	Thành viên	Thành viên	\N	\N	N_0856108703	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:16:15.694	2026-09-26 02:16:15.694	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+156	Nguyễn Thị Cẩm	0987821384	\N	0987821384	\N	\N	Thành viên	Thành viên	\N	\N	N_0987821384	49	Lê Thị Hà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:16:50.78	2026-09-26 02:16:50.78	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+157	Lưu Thanh Hải	0775935868	\N	0775935868	\N	\N	Thành viên	Thành viên	\N	\N	N_0775935868	109	Hoàng Thị Chích	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:17:58.669	2026-09-26 02:17:58.669	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+154	Trần Thị Thanh Hương	0876766327	\N	0876766327	\N	\N	Thành viên	Thành viên	\N	1	N_0876766327	154	Nguyễn Hùng Vĩ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:15:55.767	2026-10-17 01:36:21.363	\N	\N	Kiến Vàng	Khối kinh doanh	\N	\N	\N
+133	Bùi Thị Nguyệt	0932003666	\N	0932003666	\N	\N	Thành viên	Thành viên	\N	\N	N_0932003666	73	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:42:45.844	2026-10-17 01:57:54.383	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+158	Ngô Ứng Hà	0913213060	\N	0913213060	\N	\N	Thành viên	Thành viên	\N	\N	N_0913213060	150	Đào Thị Hoà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:20:04.703	2026-09-26 02:20:04.703	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+466	Nguyễn Thị Yến	0967765626	\N	0967765626	\N	\N	Thành viên	Thành viên	\N	\N	N_0967765626	49	Lê Thị Hà	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:36:06.744	2026-10-14 02:36:06.744	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+468	Nguyễn Trí Đạo	0913043791	\N	0913043791	\N	\N	Thành viên	Thành viên	\N	\N	N_0913043791	\N	Bảo Châu	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:49:57.53	2026-10-14 02:49:57.53	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+469	Trương Thục Định	0356100791	\N	0356100791	\N	\N	Thành viên	Thành viên	\N	\N	N_0356100791	375	Trần Thị Thanh Hương	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:51:38.071	2026-10-14 02:51:38.071	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+470	Nguyễn Thị Yến	034781795	\N	034781795	\N	\N	Thành viên	Thành viên	\N	\N	N_034781795	155	Trần thị minh thu	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:52:06.531	2026-10-14 02:52:06.531	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+471	Nguyễn Quang Ánh	0332706584	\N	0332706584	\N	\N	Thành viên	Thành viên	\N	\N	N_0332706584	\N	Vũ Thị Thúy (N_+84945172578)	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:52:14.293	2026-10-14 02:52:14.293	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+475	Vũ Văn Kiên	0967773184	\N	0967773184	\N	\N	Thành viên	Thành viên	\N	\N	N_0967773184	45	Chu Thị Lương	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:07:45.673	2026-10-14 03:07:45.673	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+159	Hoàng kim hà	0342992674	\N	0342992674	\N	\N	Thành viên	Thành viên	\N	\N	N_0342992674	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:47.438	2026-09-26 02:22:47.438	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+160	Nguyễn Thị Liên Hương	0354824859	\N	0354824859	\N	\N	Thành viên	Thành viên	\N	\N	N_0354824859	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:54	2026-09-26 02:22:54	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+161	Phạm Vinh Quang	0913073619	\N	0913073619	\N	\N	Thành viên	Thành viên	\N	\N	N_0913073619	107	Vũ Hùng Vỹ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:28:29.653	2026-09-26 02:28:29.653	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+163	Phạm Thu Hương	0349572568	\N	0349572568	\N	\N	Thành viên	Thành viên	\N	\N	N_0349572568	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:36:06.691	2026-09-26 02:36:06.691	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+164	Dương giáp công	0326685768	\N	0326685768	\N	\N	Thành viên	Thành viên	\N	\N	N_0326685768	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:36:30.409	2026-09-26 02:36:30.409	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+165	Phạm Văn thịnh	0977113668	\N	0977113668	\N	\N	Thành viên	Thành viên	\N	\N	N_0977113668	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:37:25.744	2026-09-26 02:37:25.744	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+166	Hoàng Văn Bảy	0385688414	\N	0385688414	\N	\N	Thành viên	Thành viên	\N	\N	N_0385688414	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:37:34.603	2026-09-26 02:37:34.603	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+167	Kiều Thị Hồng Tâm	0918140192	\N	0918140192	\N	\N	Thành viên	Thành viên	\N	\N	N_0918140192	93	Nguyễn Xuân mâụ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:44:00.26	2026-09-30 02:58:30.643	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+168	Nguyễn Thị Sáu	0976231413	\N	0976231413	\N	\N	Thành viên	Thành viên	\N	\N	N_0976231413	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:52:45.075	2026-09-26 02:52:45.075	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+169	Bùi Hồng ánh	0763511380	\N	0763511380	\N	\N	Thành viên	Thành viên	\N	\N	N_0763511380	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:53:15.757	2026-09-26 02:53:15.757	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+170	Đào Thị Mai	0982511796	\N	0982511796	\N	\N	Thành viên	Thành viên	\N	\N	N_0982511796	93	Nguyễn Xuân mâụ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:54:27.928	2026-10-10 02:53:14.947	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+171	Nguyễn thị Lan	0985798176	\N	0985798176	\N	\N	Thành viên	Thành viên	\N	\N	N_0985798176	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:55:23.669	2026-09-26 02:55:23.669	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+172	Đào Thị Dung	0904406706	\N	0904406706	\N	\N	Thành viên	Thành viên	\N	\N	N_0904406706	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:55:31.701	2026-09-26 02:55:31.701	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+173	Nguyễn Thị Phượng	0963286653	\N	0963286653	\N	\N	Thành viên	Thành viên	\N	\N	N_0963286653	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:56:15.299	2026-09-26 02:56:15.299	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+174	Nguyễn thị Xuân loan	0962375605	\N	0962375605	\N	\N	Thành viên	Thành viên	\N	\N	N_0962375605	\N	Nguyễn Thị Hà	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:03:58.33	2026-09-26 03:03:58.33	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+175	Nguyễn thị Ngọc	0376566725	\N	0376566725	\N	\N	Thành viên	Thành viên	\N	\N	N_0376566725	122	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:05:35.873	2026-10-03 01:40:12.165	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+176	Nguyễn thị thi	0379336768	\N	0379336768	\N	\N	Thành viên	Thành viên	\N	\N	N_0379336768	167	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:07:55.864	2026-09-30 03:16:28.51	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+50	Cao văn trường	0865680267	\N	0865680267	\N	\N	Thành viên	Thành viên	\N	\N	N_0865680267	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:55:41.868	2026-09-19 01:55:41.868	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+177	HÀ MINH SƠN	0985867676	\N	0985867676	\N	\N	Thành viên	Thành viên	\N	\N	N_0985867676	167	Kiều Thị Hồng Tâm	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:09:42.007	2026-09-26 03:09:42.007	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+178	Trương Ngọc Hạnh	0867073589	\N	0867073589	\N	\N	Thành viên	Thành viên	\N	\N	N_0867073589	167	Kiều Thị Hồng Tâm	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:09:48.066	2026-09-26 03:09:48.066	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+179	Hà Thị Minh Hường	0934944568	\N	0934944568	\N	\N	Thành viên	Thành viên	\N	\N	N_0934944568	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:11:00.296	2026-09-26 03:11:00.296	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+180	Phạm Lan Anh	0853414319	\N	0853414319	\N	\N	Thành viên	Thành viên	\N	\N	N_0853414319	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:11:39.164	2026-09-26 03:11:39.164	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+182	Phan Quốc Văn	0867971675	\N	0867971675	\N	\N	Thành viên	Thành viên	\N	\N	N_0867971675	122	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:12:17.063	2026-10-03 02:06:24.049	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+183	Nguyễn Thị Dung	0965372066	\N	0965372066	\N	\N	Thành viên	Thành viên	\N	\N	N_0965372066	109	Hoàng Thị Chích	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:13:36.213	2026-09-26 03:13:36.213	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+114	Nguyễn kim Oanh (thủ)	0964675506	\N	0964675506	\N	\N	Thành viên	Thành viên	\N	\N	N_0964675506	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:46:14.198	2026-09-23 06:46:14.198	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+184	Phạm Tuấn Nga	0969951349	\N	0969951349	\N	\N	Thành viên	Thành viên	\N	\N	N_0969951349	109	Hoàng Thị Chích	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:14:03.368	2026-09-26 03:14:03.368	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+185	Nguyễn Văn nghĩa	0833931919	\N	0833931919	\N	\N	Thành viên	Thành viên	\N	\N	N_0833931919	\N	Khách vãng lai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:18:25.105	2026-09-26 03:18:25.105	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+186	Hoàng Văn Thoại	0986577191	\N	0986577191	\N	\N	Thành viên	Thành viên	\N	\N	N_0986577191	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:21:14.577	2026-10-07 02:51:47.475	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+187	Phạm Thanh Tùng	0913262869	\N	0913262869	\N	\N	Thành viên	Thành viên	\N	\N	N_0913262869	45	Chu Thị Lương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:22:35.033	2026-09-26 03:22:35.033	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+188	Nguyễn Thị Thu	0334618677	\N	0334618677	\N	\N	Thành viên	Thành viên	\N	\N	N_0334618677	92	Nguyễn thúy hang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:24:15.196	2026-09-26 03:24:15.196	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+467	Trần Văn Lâm	0983406098	\N	0983406098	\N	\N	Thành viên	Thành viên	\N	\N	N_0983406098	392	Vũ Hùng Vĩ	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:37:55.008	2026-10-14 02:37:55.008	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+189	Nguyễn Minh Khuê	0396764462	\N	0396764462	\N	\N	Thành viên	Thành viên	\N	\N	N_0396764462	167	Kiều Thị Hồng Tâm	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:24:50.314	2026-09-26 03:24:50.314	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+190	Lê Văn hòa	0345918265	\N	0345918265	\N	\N	Thành viên	Thành viên	\N	\N	N_0345918265	92	Nguyễn thúy hang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:25:14.262	2026-09-26 03:25:14.262	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+191	Nguyễn Thị Hường	0786359686	\N	0786359686	\N	\N	Thành viên	Thành viên	\N	\N	N_0786359686	165	Phạm Văn thịnh	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:26:08.95	2026-09-26 03:26:08.95	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+192	Nguyễn Văn Nam	0934489228	\N	0934489228	\N	\N	Thành viên	Thành viên	\N	\N	N_0934489228	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:28:36.478	2026-09-26 03:28:36.478	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+193	Nguyễn Thị Kim Oanh	0947248634	\N	0947248634	\N	\N	Thành viên	Thành viên	\N	\N	N_0947248634	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:29:06.207	2026-09-26 03:29:06.207	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+194	Đỗ Thị Chỉ	0866917296	\N	0866917296	\N	\N	Thành viên	Thành viên	\N	\N	N_0866917296	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:29:07.009	2026-09-26 03:29:07.009	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+195	Đồng Thị Oanh	0834227499	\N	0834227499	\N	\N	Thành viên	Thành viên	\N	\N	N_0834227499	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:30:06.17	2026-09-26 03:30:06.17	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+197	Nguyễn Thị Tâm	0785139499	\N	0785139499	\N	\N	Thành viên	Thành viên	\N	\N	N_0785139499	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:31:20.91	2026-09-26 03:31:20.91	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+198	Đoàn Thị Tuyết Minh	0866628865	\N	0866628865	\N	\N	Thành viên	Thành viên	\N	\N	N_0866628865	196	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:32:04.43	2026-10-03 03:16:58.681	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+200	Lê Thị Huyền Trang	0943227213	\N	0943227213	\N	\N	Thành viên	Thành viên	\N	\N	N_0943227213	196	Nguyễn Hải Quý	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:34:46.371	2026-10-10 03:18:29.535	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+206	Chij Hōi	0984466535	\N	0984466535	\N	\N	Thành viên	Thành viên	\N	\N	N_0984466535	204	Đào Thị Hòa (Diệp Huế)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:47:13.877	2026-09-28 03:47:13.877	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+208	A. Ngọc	0982100474	\N	0982100474	\N	\N	Thành viên	Thành viên	\N	\N	N_0982100474	\N	Nguyễn Thị Hương  (0399868786)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:55:21.332	2026-09-28 03:55:21.332	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+209	Nguyen thi Lien	0972624075	\N	0972624075	\N	\N	Thành viên	Thành viên	\N	\N	\N	40	\N	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:56:25.951	2026-10-03 02:55:43.395	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+211	Nguyên thị a	0912	\N	0912	\N	\N	Thành viên	Thành viên	\N	\N	N_0912	\N	Nguyễn Thị Liên	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:00:18.01	2026-09-28 04:00:18.01	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+212	Nguyễn văn bình	0977840825	\N	0977840825	\N	\N	Thành viên	Thành viên	\N	\N	N_0977840825	42	Lê Thị Chanh	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:00:53.762	2026-10-06 03:30:03.01	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+213	Nguyên thị a	1234	\N	1234	\N	\N	Thành viên	Thành viên	\N	\N	N_1234	\N	Nguyễn Thị Liên	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:01:20.008	2026-09-28 04:01:20.008	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+210	Nguyễn Thị Hương	0399868786	huongmt6@gmail.com	Huong76	\N	5550000000555	Thành viên	Thành viên	\N	2	\N	392	\N	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 04:00:02.461	2026-10-10 02:46:05.213	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+67	phạm thị Tuyết(vỹ)	0936446922	\N	0936446922	\N	\N	Thành viên	Thành viên	\N	\N	N_0936446922	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:16:37.298	2026-10-03 02:10:32.637	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+218	Trần Quang Hưng	0973635118	\N	0973635118	\N	\N	Thành viên	Thành viên	\N	\N	N_0973635118	40	Cung Thu Hà	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:49:57.456	2026-09-28 08:49:57.456	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+219	Nghiêm anh tuấn	0982374972	\N	0982374972	\N	\N	Thành viên	Thành viên	\N	\N	N_0982374972	217	Phượng Ngọc Thu	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:50:16.99	2026-09-28 08:50:16.99	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+220	Nguyễn Thị Tú	0378665516	\N	0378665516	\N	\N	Thành viên	Thành viên	\N	\N	N_0378665516	109	Hoàng Thị Chích	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:51:14.935	2026-09-28 08:51:14.935	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+222	Nguyễn Thị Hồng	0984652434	\N	0984652434	\N	\N	Thành viên	Thành viên	\N	\N	N_0984652434	\N	Dương Hồng Phương (N_0979345229)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 09:17:37.167	2026-09-28 09:17:37.167	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+224	Nguyễn Văn Bình	0397031046	\N	0397031046	\N	\N	Thành viên	Thành viên	\N	\N	N_0397031046	\N	Diiep thị Huế	\N	2026-09-29	Đang hoạt động	f	0	0	\N	2026-09-29 06:32:06.274	2026-09-29 06:32:06.274	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+225	Nguyễn Văn Dậu	0983531269	\N	0983531269	\N	\N	Thành viên	Thành viên	\N	2	N_0983531269	\N	Hỗ xuân Thu	\N	2026-09-29	Đang hoạt động	f	0	0	\N	2026-09-29 06:33:43.409	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+228	Chị châu	0328377148	\N	0328377148	\N	\N	Thành viên	Thành viên	\N	\N	N_0328377148	109	Hoàng Thị Chích	\N	2026-09-29	Đang hoạt động	f	0	0	\N	2026-09-29 08:57:47.68	2026-09-29 08:57:47.68	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+229	Nguyễn tất Thắng	0913531265	\N	0913531265	\N	\N	Thành viên	Thành viên	Thành viên	3	N_0913531265	217	Phượng Ngọc Thu	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-29 12:02:49.823	2026-10-09 01:20:43.11	\N	\N	Lộc Phát	Khối kinh doanh	\N	\N	\N
+231	Nguyễn Thị Loan	0936640000	\N	0936640000	\N	\N	Thành viên	Thành viên	\N	\N	N_0936640000	230	Trần Phương Giang	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 00:29:21.412	2026-09-30 00:29:21.412	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+232	Lê Tiến Hùng	0352963796	\N	0352963796	\N	\N	Thành viên	Thành viên	\N	\N	N_0352963796	\N	Vũ Thị Thúy	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:02:32.365	2026-09-30 02:02:32.365	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+233	Dương Thị Hải Lý	0981761559	\N	0981761559	\N	\N	Thành viên	Thành viên	\N	\N	N_0981761559	146	Nguyễn Thị Nhạn	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:05:50.498	2026-09-30 02:05:50.498	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+234	Nguyễn thị Như Ngọc	0976772387	\N	0976772387	\N	\N	Thành viên	Thành viên	\N	\N	N_0976772387	124	Giang Thanh Ngọc	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:07:38.651	2026-09-30 02:07:38.651	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+235	Phan Văn Nhiên	0961130934	\N	0961130934	\N	\N	Thành viên	Thành viên	\N	\N	N_0961130934	\N	Chu Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:11:10.611	2026-09-30 02:11:10.611	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+236	Doãn Văn Sáng	0972155307	\N	0972155307	\N	\N	Thành viên	Thành viên	\N	\N	N_0972155307	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:14:28.499	2026-09-30 02:14:28.499	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+237	Nguyễn Thị Tuất	0397966465	\N	0397966465	\N	\N	Thành viên	Thành viên	\N	\N	N_0397966465	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:15:23.267	2026-09-30 02:15:23.267	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+238	Nguyễn Quỳnh Thu	03547767135	\N	03547767135	\N	\N	Thành viên	Thành viên	\N	\N	N_03547767135	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:24:50.095	2026-09-30 02:24:50.095	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+472	Nguyễn Văn Tạ	0968827786	\N	0968827786	\N	\N	Thành viên	Thành viên	\N	\N	N_0968827786	185	Nguyễn Văn nghĩa	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:55:05.779	2026-10-14 02:55:05.779	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+239	Hoàng Thị Mai Lý	0382127273	\N	0382127273	\N	\N	Thành viên	Thành viên	\N	\N	N_0382127273	152	NGUYỄN NGỌC THỦ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:25:56.314	2026-09-30 02:25:56.314	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+240	Trần Thị Ngọc Lan	0348616616	\N	0348616616	\N	\N	Thành viên	Thành viên	\N	\N	N_0348616616	45	NGUYỄN NGỌC THỦ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:26:22.22	2026-10-06 12:24:31.03	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+241	Phạm thị khang	0343234954	\N	0343234954	\N	\N	Thành viên	Thành viên	\N	\N	N_0343234954	\N	Dương Hồng Phương (0979345229)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:26:33.769	2026-09-30 02:26:33.769	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+242	Nguyễn Tất Thắng	0913231265	\N	0913231265	\N	\N	Thành viên	Thành viên	\N	3	N_0913231265	\N	Phượng Ngọc Thu (N_+84969881698)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:27:38.614	2026-10-09 00:26:35.228	\N	\N	Lộc Phát	Khối kinh doanh	\N	\N	\N
+245	Thiều Thị Miên	0394069541	\N	0394069541	\N	\N	Thành viên	Thành viên	\N	\N	N_0394069541	244	Nguyễn Hữu Đức	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:34:15.345	2026-09-30 02:34:15.345	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+247	Nguyễn Thị Luận	0966762185	\N	0966762185	\N	\N	Thành viên	Thành viên	\N	\N	N_0966762185	67	phạm thị Tuyết(vỹ)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:45:02.171	2026-09-30 02:45:02.171	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+248	Lưu Đức Ngọ	0775935886	\N	0775935886	\N	\N	Thành viên	Thành viên	\N	\N	N_0775935886	67	phạm thị Tuyết(vỹ)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:46:08.568	2026-09-30 02:46:08.568	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+249	Bùi Hồng Ánh	0763511386	\N	0763511386	\N	\N	Thành viên	Thành viên	\N	\N	N_0763511386	381	Hoàng Thị Luyện ( A thịnh)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:46:27.611	2026-10-07 03:39:14.205	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+250	Hà Thu Thảo	0968265146	\N	0968265146	\N	\N	Thành viên	Thành viên	\N	\N	N_0968265146	40	Cung Thu Hà	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:47:57.034	2026-09-30 02:47:57.034	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+251	Hoàng Thị Bằng	0349758813	\N	0349758813	\N	\N	Thành viên	Thành viên	\N	\N	N_0349758813	249	Bùi Hồng Ánh	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:49:21.564	2026-09-30 02:49:21.564	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+252	Ngô Thị Luyết	0364383129	\N	0364383129	\N	\N	Thành viên	Thành viên	\N	\N	N_0364383129	56	Lê thanh vi	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:49:52.075	2026-09-30 02:49:52.075	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+253	Phạm Văn Pha	0373765167	\N	0373765167	\N	\N	Thành viên	Thành viên	\N	\N	N_0373765167	56	Lê thanh vi	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:50:23.831	2026-09-30 02:50:23.831	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+254	Nguyễn Duy Thanh	0981227266	\N	0981227266	\N	\N	Thành viên	Thành viên	\N	\N	N_0981227266	45	Chu Thị Lương	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:54:49.872	2026-09-30 02:54:49.872	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+80	Cao t lan huong ( trinh )	0763416898	\N	0763416898	\N	\N	Thành viên	Thành viên	\N	\N	N_0763416898	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:39:44.29	2026-09-19 02:39:44.29	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+255	Vũ Thị Nà	0971060729	\N	0971060729	\N	\N	Thành viên	Thành viên	\N	\N	N_0971060729	41	Nguyễn Hùng Vĩ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:00:11.745	2026-09-30 03:00:11.745	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+256	Lê Ngọc Thành	0976690454	\N	0976690454	\N	\N	Thành viên	Thành viên	\N	\N	N_0976690454	41	Nguyễn Hùng Vĩ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:01:07.131	2026-09-30 03:01:07.131	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+257	Nguyễn Thị Tuyết Nhung	0987775516	\N	0987775516	\N	\N	Thành viên	Thành viên	\N	\N	N_0987775516	196	Nguyễn Hải Quý	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:04:55.172	2026-09-30 03:04:55.172	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+258	Lê Thị Hồng Duyến	0336894986	\N	0336894986	\N	\N	Thành viên	Thành viên	\N	\N	N_0336894986	\N	Minh(Quý)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:06:47.705	2026-09-30 03:06:47.705	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+259	Nguyễn Thị Kim Oanh	08676599351	\N	08676599351	\N	\N	Thành viên	Thành viên	\N	\N	N_08676599351	196	Nguyễn Hải Quý	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:08:01.279	2026-09-30 03:08:01.279	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+260	Tần Dâu Dao	0945913368	\N	0945913368	\N	\N	Thành viên	Thành viên	\N	\N	N_0945913368	\N	Quyết(quý)	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:08:29.625	2026-09-30 03:08:29.625	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+261	Nguyễn Văn Quyết	0328906789	\N	0328906789	\N	\N	Thành viên	Thành viên	\N	\N	N_0328906789	301	Nguyễn Hải Quý	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 03:10:14.666	2026-10-10 03:19:48.602	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+262	Nguyễn Văn Duân	0987730562	\N	0987730562	\N	\N	Thành viên	Thành viên	\N	\N	N_0987730562	109	Hoàng Thị Chích	\N	2026-10-02	Đang hoạt động	f	0	0	\N	2026-10-02 14:11:51.181	2026-10-02 14:11:51.181	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+263	Nguyễn Thị Chuyên	0969945022	\N	0969945022	\N	\N	Thành viên	Thành viên	\N	\N	N_0969945022	49	Lê Thị Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 00:49:27.917	2026-10-03 00:49:27.917	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+264	Phùng Hưng	0966289186	\N	0966289186	\N	\N	Thành viên	Thành viên	\N	\N	N_0966289186	263	Nguyễn Thị Chuyên	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 00:50:57.164	2026-10-03 00:50:57.164	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+265	Lê Thị Mỹ	0904620663	\N	0904620663	\N	\N	Thành viên	Thành viên	\N	\N	N_0904620663	\N	Trần Thị Hồng Vân (0962240952)	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:39:19.623	2026-10-03 01:39:19.623	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+266	Nguyễn Thị Thanh	0945331679	\N	0945331679	\N	\N	Thành viên	Thành viên	\N	\N	N_0945331679	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:40:35.374	2026-10-03 01:40:35.374	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+267	Hoàng hồng sâm	0916712278	\N	0916712278	\N	\N	Thành viên	Thành viên	\N	\N	N_0916712278	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:41:45.727	2026-10-03 01:41:45.727	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+268	Lê Thị Hương	0868877769	\N	0868877769	\N	\N	Thành viên	Thành viên	\N	\N	N_0868877769	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:42:15.697	2026-10-03 01:42:15.697	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+269	Nguyễn nghi Lộc	0768941968	\N	0768941968	\N	\N	Thành viên	Thành viên	\N	\N	N_0768941968	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:43:31.919	2026-10-03 01:43:31.919	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+270	Vũ Đình Thiết	0986539758	\N	0986539758	\N	\N	Thành viên	Thành viên	\N	\N	N_0986539758	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:52:19.635	2026-10-03 01:52:19.635	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+271	Lại Thanh Tuấn	0814717222	\N	0814717222	\N	\N	Thành viên	Thành viên	\N	\N	N_0814717222	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:53:00.297	2026-10-03 01:53:00.297	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+272	Lại Hồng Dương	0916831228	\N	0916831228	\N	\N	Thành viên	Thành viên	\N	\N	N_0916831228	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:53:39.661	2026-10-03 01:53:39.661	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+273	Nguyễn Ngọc tiếp	0866671972	\N	0866671972	\N	\N	Thành viên	Thành viên	\N	\N	N_0866671972	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:54:54.507	2026-10-03 01:54:54.507	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+274	Phạm Văn Nam	0913289124	\N	0913289124	\N	\N	Thành viên	Thành viên	\N	\N	N_0913289124	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 01:55:21.86	2026-10-03 01:55:21.86	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+275	Nguyễn Thị Hoa	0961007989	\N	0961007989	\N	\N	Thành viên	Thành viên	\N	\N	N_0961007989	\N	Vũ Thị Thúy	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:02:48.558	2026-10-03 02:02:48.558	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+473	Vũ Công Nghệ	0335892388	\N	0335892388	\N	\N	Thành viên	Thành viên	\N	\N	N_0335892388	\N	Nhạn	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:05:35.328	2026-10-14 03:05:35.328	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+276	Nguyễn Thị Nhàn	0989358278	\N	0989358278	\N	\N	Thành viên	Thành viên	\N	\N	N_0989358278	93	Nguyễn Xuân mâụ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:07:13.76	2026-10-03 02:07:13.76	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+277	Nguyễn Việt Dũng	0788272867	\N	0788272867	\N	\N	Thành viên	Thành viên	\N	\N	N_0788272867	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:09:53.282	2026-10-03 02:09:53.282	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+278	Trần Thị Mai Lương	03332231429	\N	03332231429	\N	\N	Thành viên	Thành viên	\N	\N	N_03332231429	93	Nguyễn Xuân mâụ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:13:39.803	2026-10-03 02:13:39.803	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+279	Hoàng Thị Luyện	09728315568	\N	09728315568	\N	\N	Thành viên	Thành viên	\N	\N	N_09728315568	122	Phạm Văn thịnh (a thủ )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:18:15.966	2026-10-03 02:18:15.966	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+283	Nguyễn Quang Lộc	0963220352	\N	0963220352	\N	\N	Thành viên	Thành viên	\N	\N	N_0963220352	282	Nguyễn Thị Nhạn	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:27:42.11	2026-10-03 02:27:42.11	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+284	Nguyễn Văn Thắng	0866713553	\N	0866713553	\N	\N	Thành viên	Thành viên	\N	\N	N_0866713553	80	Cao t lan huong ( trinh )	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:28:17.578	2026-10-03 02:28:17.578	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+285	Nguyễn Thị Hoàng	0983273968	\N	0983273968	\N	\N	Thành viên	Thành viên	\N	\N	N_0983273968	\N	Vũ Thị Thúy	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:37:09.471	2026-10-03 02:37:09.471	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+286	Trần Thị Yên	0399634855	\N	0399634855	\N	\N	Thành viên	Thành viên	\N	\N	N_0399634855	44	Vũ Thị Thủy	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:38:39.356	2026-10-03 02:38:39.356	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+287	Nguyễn Văn Ngọ	0915023899	\N	0915023899	\N	\N	Thành viên	Thành viên	\N	\N	N_0915023899	48	Prosale	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:44:17.084	2026-10-10 02:45:27.884	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+288	Nguyễn Văn Tiến	0384566639	\N	0384566639	\N	\N	Thành viên	Thành viên	\N	\N	N_0384566639	48	Prosale	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:44:57.196	2026-10-10 02:42:37.636	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+289	Nguyễn Đức Tuynh	0984417548	\N	0984417548	\N	\N	Thành viên	Thành viên	\N	\N	N_0984417548	40	Cung Thu Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:54:07.854	2026-10-03 02:54:07.854	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+290	Vũ Thị Thúy	+84945172578	\N	+84945172578	\N	\N	Thành viên	Thành viên	\N	\N	N_+84945172578	45	Chu Thị Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:55:09.821	2026-10-06 03:32:20.183	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+291	Lương Hồng Phong	0967695768	\N	0967695768	\N	\N	Thành viên	Thành viên	\N	\N	N_0967695768	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:59:25.005	2026-10-03 02:59:25.005	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+292	Đồng Văn truyền	0817248899	\N	0817248899	\N	\N	Thành viên	Thành viên	\N	\N	N_0817248899	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:00:12.43	2026-10-03 03:00:12.43	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+293	Ngô Thị Hằng	0816231188	\N	0816231188	\N	\N	Thành viên	Thành viên	\N	\N	N_0816231188	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:01:18.464	2026-10-03 03:01:18.464	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+294	Bùi quyết thắng	0968565999	\N	0968565999	\N	\N	Thành viên	Thành viên	\N	\N	N_0968565999	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:01:43.774	2026-10-03 03:01:43.774	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+295	Lê Thị Hạnh	0376544168	\N	0376544168	\N	\N	Thành viên	Thành viên	\N	\N	N_0376544168	60	Vũ Thị Kim Thư( Hùng Vỹ)	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:08:27.713	2026-10-03 03:08:27.713	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+44	Vũ Thị Thủy	0945172578	\N	\N	\N	\N	Phụng sự, Lễ tân	Nhân sự	Thành viên	\N	N_0945172578	45	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	f	0	0	\N	2026-09-18 16:30:27.372	2026-09-29 13:00:33.884	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+298	Nguyễn Đức Huy	0348774893	\N	0348774893	\N	\N	Thành viên	Thành viên	\N	\N	N_0348774893	41	Nguyễn Hùng Vĩ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:09:48.524	2026-10-03 03:09:48.524	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+299	Nguyễn Văn quyết	00328906789	\N	00328906789	\N	\N	Thành viên	Thành viên	\N	\N	N_00328906789	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:12:24.964	2026-10-03 03:12:24.964	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+300	Nguyễn Thị Hường	0936463782	\N	0936463782	\N	\N	Thành viên	Thành viên	\N	\N	N_0936463782	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:14:03.364	2026-10-03 03:14:03.364	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+301	Nguyễn Hải Quý	0974684398	\N	0974684398	\N	\N	Thành viên	Thành viên	\N	\N	N_0974684398	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:15:10.376	2026-10-03 03:15:10.376	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+302	Cao Minh chỉnh	0383918182	\N	0383918182	\N	\N	Thành viên	Thành viên	\N	\N	N_0383918182	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:15:50.533	2026-10-03 03:15:50.533	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+303	Trịnh Công Thắng	0788238116	\N	0788238116	\N	\N	Thành viên	Thành viên	\N	\N	N_0788238116	51	Lương Hồng Hải	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:17:17.713	2026-10-03 03:17:17.713	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+304	Nguyễn Thị Bảy	0864302210	\N	0864302210	\N	\N	Thành viên	Thành viên	\N	\N	N_0864302210	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:17:36.574	2026-10-03 03:17:36.574	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+305	Dương Thị Phượng	0387450975	\N	0387450975	\N	\N	Thành viên	Thành viên	\N	\N	N_0387450975	217	Phượng Ngọc Thu	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:18:14.434	2026-10-03 03:18:14.434	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+306	Nguyễn Thị Xuân	0326944844	\N	0326944844	\N	\N	Thành viên	Thành viên	\N	\N	N_0326944844	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:18:29.411	2026-10-03 03:18:29.411	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+307	Trần Thu Hà	0915936861	\N	0915936861	\N	\N	Thành viên	Thành viên	\N	\N	N_0915936861	217	Phượng Ngọc Thu	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:18:52.006	2026-10-03 03:18:52.006	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+308	Nguyễn Ánh Hướng	00993652411	\N	00993652411	\N	\N	Thành viên	Thành viên	\N	\N	N_00993652411	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:19:13.825	2026-10-03 03:19:13.825	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+309	Chu Hồng Diệp	0987620374	\N	0987620374	\N	\N	Thành viên	Thành viên	\N	\N	N_0987620374	217	Phượng Ngọc Thu	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:19:21.49	2026-10-03 03:19:21.49	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+310	Nguyễn Ngọc Thụy	0948657304	\N	0948657304	\N	\N	Thành viên	Thành viên	\N	\N	N_0948657304	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:22:57.324	2026-10-03 03:22:57.324	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+311	Bùi Đăng Lâm	0847234509	\N	0847234509	\N	\N	Thành viên	Thành viên	\N	\N	N_0847234509	196	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:23:30.298	2026-10-03 03:23:30.298	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+313	Nguyễn Thị Hằng	0958003134	\N	0958003134	\N	\N	Thành viên	Thành viên	\N	\N	N_0958003134	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:26:54.021	2026-10-03 03:26:54.021	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+297	Lê Thị Thảo	0904360412	\N	0904360412	\N	\N	Thành viên	Thành viên	\N	\N	N_0904360412	73	Nguyễn Hùng Vĩ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:09:24.192	2026-10-17 01:59:26.155	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+476	Hoàng Thị Mai Lý	0382127573	\N	0382127573	\N	\N	Thành viên	Thành viên	\N	\N	N_0382127573	\N	NĐT	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:09:47.385	2026-10-14 03:09:47.385	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+477	Nguyễn Thị Liễu	0967143276	\N	0967143276	\N	\N	Thành viên	Thành viên	\N	\N	N_0967143276	381	Nguyễn Th��� Thịnh	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:10:45.555	2026-10-14 03:10:45.555	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+478	Hoàng Nga	0904383332	\N	0904383332	\N	\N	Thành viên	Thành viên	\N	\N	N_0904383332	165	Phạm Văn thịnh	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:11:40.011	2026-10-14 03:11:40.011	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+479	Ngô Thị Diệu	0362113768	\N	0362113768	\N	\N	Thành viên	Thành viên	\N	\N	N_0362113768	152	NGUYỄN NGỌC THỦ	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:12:25.827	2026-10-14 03:12:25.827	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+480	Nguyễn Thị Yến	0967765625	\N	0967765625	\N	\N	Thành viên	Thành viên	\N	\N	N_0967765625	49	Lê Thị Hà	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:13:07.335	2026-10-14 03:13:07.335	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+314	Nguyễn Thị Thoa	0364761955	\N	0364761955	\N	\N	Thành viên	Thành viên	\N	4	N_0364761955	15	Vũ Thị Cúc	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:27:02.026	2026-10-09 00:26:35.228	\N	\N	Thành Công	Khối kinh doanh	\N	\N	\N
+315	Nguyễn Thanh Loan	0364658692	\N	0364658692	\N	\N	Thành viên	Thành viên	\N	\N	N_0364658692	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:27:19.657	2026-10-03 03:27:19.657	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+317	Đỗ thị Lan	0988203165	\N	0988203165	\N	\N	Thành viên	Thành viên	\N	\N	N_0988203165	56	Lê thanh vi	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:30:27.992	2026-10-03 03:30:27.992	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+318	Vũ Huy San	0836752083	\N	0836752083	\N	\N	Thành viên	Thành viên	\N	\N	N_0836752083	56	Lê thanh vi	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:31:36.357	2026-10-03 03:31:36.357	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+319	Kiều Tâm	0918140195	\N	0918140195	\N	\N	Thành viên	Thành viên	\N	\N	N_0918140195	93	Nguyễn Xuân mâụ	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:33:09.43	2026-10-07 03:12:17.532	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+320	Nguyễn Thị Huyền	0961824106	\N	0961824106	\N	\N	Thành viên	Thành viên	\N	\N	N_0961824106	\N	Chu Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:34:15.956	2026-10-03 03:34:15.956	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+321	Nguyễn Thị Tư	0975833673	\N	0975833673	\N	\N	Thành viên	Thành viên	\N	\N	N_0975833673	313	Nguyễn Thị Hằng	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:35:09.411	2026-10-03 03:35:09.411	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+322	Lê Hồng Liên	0384473988	\N	0384473988	\N	\N	Thành viên	Thành viên	\N	\N	N_0384473988	117	Hoàng Thị Luyện ( A thịnh)	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:36:23.033	2026-10-03 03:36:23.033	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+324	Lò Thị Biên	0968836426	\N	0968836426	\N	\N	Thành viên	Thành viên	\N	\N	N_0968836426	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:44:43.82	2026-10-05 07:44:43.82	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+325	Nguyễn thị Minh châu	0349791505	\N	0349791505	\N	\N	Thành viên	Thành viên	\N	\N	N_0349791505	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:45:20.661	2026-10-05 07:45:20.661	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+74	Vũ Ngoc Bảo	0966289668	ngocbaofc@gmail.com	0966289668	\N	\N	Thành viên	Thành viên	\N	\N	N_0966289668	301	0365922687	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:29:34.924	2026-10-07 03:13:16.359	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+326	Bùi Thị Nguyên	0828671867	\N	0828671867	\N	\N	Thành viên	Thành viên	\N	\N	N_0828671867	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:47:04.665	2026-10-05 07:47:04.665	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+327	Lò Dũng	0342589699	\N	0342589699	\N	\N	Thành viên	Thành viên	\N	\N	N_0342589699	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:47:33.657	2026-10-05 07:47:33.657	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+328	Đỗ Thị Thư	0372645562	\N	0372645562	\N	\N	Thành viên	Thành viên	\N	\N	N_0372645562	323	Trần Thị Ban	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:48:30.973	2026-10-05 07:48:30.973	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+329	Phạm Thị Liên	0385904800	\N	0385904800	\N	\N	Thành viên	Thành viên	\N	\N	N_0385904800	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:49:44.715	2026-10-05 07:49:44.715	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+330	Phạm Thị hên	0969957755	\N	0969957755	\N	\N	Thành viên	Thành viên	\N	\N	N_0969957755	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:55:29.282	2026-10-05 07:55:29.282	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+331	Hà Thị Phương	0347461899	\N	0347461899	\N	\N	Thành viên	Thành viên	\N	\N	N_0347461899	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:56:55.633	2026-10-05 07:56:55.633	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+332	Phạm Thị Hà	0984067961	\N	0984067961	\N	\N	Thành viên	Thành viên	\N	\N	N_0984067961	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:57:43.861	2026-10-05 07:57:43.861	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+333	Đặng Mai Ly	086031629	\N	086031629	\N	\N	Thành viên	Thành viên	\N	\N	N_086031629	217	Phượng Ngọc Thu	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 07:59:16	2026-10-05 07:59:16	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+334	Cầm Thị Tươi	0978366318	\N	0978366318	\N	\N	Thành viên	Thành viên	\N	\N	N_0978366318	109	Hoàng Thị Chích	\N	2026-10-05	Đang hoạt động	f	0	0	\N	2026-10-05 08:00:16.669	2026-10-05 08:00:16.669	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+335	Nguyễn Thế Hợp	09779266165	\N	09779266165	\N	\N	Thành viên	Thành viên	\N	\N	N_09779266165	109	Hoàng Thị Chích	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:28:52.423	2026-10-06 03:28:52.423	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+336	Nguyễn Thị Minh	0983906208	\N	0983906208	\N	\N	Thành viên	Thành viên	\N	6	N_0983906208	109	Hoàng Thị Chích	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:29:57.818	2026-10-09 00:26:35.228	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+337	Trần Thị Minh Hương	0385130939	\N	0385130939	\N	\N	Thành viên	Thành viên	\N	\N	N_0385130939	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:32:01.109	2026-10-06 03:32:01.109	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+338	Bùi Thị Hường	0358458697	\N	0358458697	\N	\N	Thành viên	Thành viên	\N	\N	N_0358458697	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:32:40.244	2026-10-06 03:32:40.244	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+339	Vũ Thị Hương	0335113926	\N	0335113926	\N	\N	Thành viên	Thành viên	\N	\N	N_0335113926	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:33:10.426	2026-10-06 03:33:10.426	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+340	Lường Thị Hậu	0853541579	\N	0853541579	\N	\N	Thành viên	Thành viên	\N	\N	N_0853541579	\N	Đào Minh Thanh ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:33:41.67	2026-10-06 03:33:41.67	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+341	Trần Thị Lan Hương	0986562245	\N	0986562245	\N	\N	Thành viên	Thành viên	\N	6	N_0986562245	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:34:28.385	2026-10-09 00:26:35.228	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+342	Cà Thị Mai Hương	0904023462	\N	0904023462	\N	\N	Thành viên	Thành viên	\N	\N	N_0904023462	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:34:55.553	2026-10-06 03:34:55.553	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+343	Lò Văn Bâng	0978179298	\N	0978179298	\N	\N	Thành viên	Thành viên	\N	\N	N_0978179298	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:35:37.239	2026-10-06 03:35:37.239	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+344	Nguyễn thi Trang	0847470626	\N	0847470626	\N	\N	Thành viên	Thành viên	\N	\N	N_0847470626	\N	Dương Hồng Phương (N_0979345229)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:35:56.229	2026-10-06 03:35:56.229	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+345	Quàng Văn Lả	0382112976	\N	0382112976	\N	\N	Thành viên	Thành viên	\N	\N	N_0382112976	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:07.672	2026-10-06 03:36:07.672	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+481	Vương Thị Kim Chung	0396837919	\N	0396837919	\N	\N	Thành viên	Thành viên	\N	\N	N_0396837919	319	Kiều Tâm	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:13:47.612	2026-10-14 03:13:47.612	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+482	Nguyễn Công Hùng	0984223191	\N	0984223191	\N	\N	Thành viên	Thành viên	\N	\N	N_0984223191	319	Kiều Tâm	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:14:52.584	2026-10-14 03:14:52.584	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+84	Nguyễn Quỳnh Thu	0354767135	\N	0354767135	\N	\N	Thành viên	Thành viên	\N	\N	N_0354767135	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:46:35.826	2026-10-06 14:25:13.686	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+458	phan thị thanh thuỷ	0983009962	\N	0983009962	\N	\N	Thành viên	Thành viên	\N	\N	N_0983009962	\N	0886265813Lê thị thanh huyền	\N	2026-10-13	Đang hoạt động	f	0	0	\N	2026-10-13 10:08:52.173	2026-10-13 10:08:52.173	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+461	Hòang quang Huy	0352832736	\N	0352832736	\N	\N	Thành viên	Thành viên	\N	\N	N_0352832736	\N	Dương Hồng Phương (0979345229)	\N	2026-10-13	Đang hoạt động	f	0	0	\N	2026-10-13 15:08:30.733	2026-10-13 15:08:30.733	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+462	Đỗ Thị Nhiệm	0985016368	\N	0985016368	\N	\N	Thành viên	Thành viên	\N	\N	N_0985016368	\N	Tràn Thị Thanh Hương	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 00:48:35.617	2026-10-14 00:48:35.617	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+85	Nguyễn thị Nga(Huyền)	0966389651	\N	0966389651	\N	\N	Thành viên	Thành viên	\N	\N	N_0966389651	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:47:19.41	2026-09-19 02:47:19.41	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+86	Lê Thị Bích Thủy	0394527088	\N	0394527088	\N	\N	Thành viên	Thành viên	\N	\N	N_0394527088	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:50:39.322	2026-09-19 02:50:39.322	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+87	Lê Thị Thanh Huyền	0886265813	\N	0886265813	\N	\N	Thành viên	Thành viên	\N	\N	N_0886265813	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:51:59.293	2026-09-19 02:51:59.293	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+346	Chị châu khách hàng của chích	03728377148	\N	03728377148	\N	\N	Thành viên	Thành viên	\N	\N	N_03728377148	90	Nguyễn Đức Vĩnh	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:25.874	2026-10-06 03:36:25.874	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+347	Lò Văn Loan	0986936767	\N	0986936767	\N	\N	Thành viên	Thành viên	\N	\N	N_0986936767	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:41.316	2026-10-06 03:36:41.316	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+348	Đỗ Văn Ngữ	0988509844	\N	0988509844	\N	\N	Thành viên	Thành viên	\N	\N	N_0988509844	\N	Phượng Ngọc Thu (N_+84969881698)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:36:59.17	2026-10-06 03:36:59.17	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+349	Quàng Văn Chiêu	0946867262	\N	0946867262	\N	\N	Thành viên	Thành viên	\N	\N	N_0946867262	\N	Quàng Thị Đoàn ( Chích)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:37:13.835	2026-10-06 03:37:13.835	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+352	Phạm Hạnh	0376866862	\N	0376866862	\N	\N	Thành viên	Thành viên	\N	\N	N_0376866862	49	Lê Thị Hà	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 11:41:48.51	2026-10-06 11:41:48.51	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+353	Chú Nguyễn Văn Kình	0364478646	\N	0364478646	\N	\N	Thành viên	Thành viên	\N	\N	N_0364478646	\N	Vũ Thị Thúy 0945172578	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 15:40:25.918	2026-10-06 15:40:25.918	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+354	Cô phạm thị Lý lần đầu	0364478664	\N	0364478664	\N	\N	Thành viên	Thành viên	\N	\N	N_0364478664	\N	Vũ Thị Thúy 0945172578	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 15:42:29.317	2026-10-06 15:42:29.317	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+355	Nguyễn Thị Sơn	0974669578	\N	0974669578	\N	\N	Thành viên	Thành viên	\N	\N	N_0974669578	49	Lê Thị Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 00:34:11.375	2026-10-07 00:34:11.375	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+356	Nguyễn Thị Kim	0326860856	\N	0326860856	\N	\N	Thành viên	Thành viên	\N	\N	N_0326860856	\N	Vũ Thị Thúy 0945172578	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 01:53:13.878	2026-10-07 01:53:13.878	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+372	Nguyễn Thu Thảo	0936218669	\N	0936218669	\N	\N	Thành viên	Thành viên	\N	\N	N_0936218669	45	Chu Thị Lương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:01:10.249	2026-10-07 03:01:10.249	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+373	Bùi đình tiến	0913575968	\N	0913575968	\N	\N	Thành viên	Thành viên	\N	\N	N_0913575968	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:01:57.557	2026-10-07 03:01:57.557	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+385	Nguyễn Thị Thi	8379336768	\N	8379336768	\N	\N	Thành viên	Thành viên	\N	\N	N_8379336768	93	Nguyễn Xuân mâụ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:14:42.003	2026-10-07 03:14:42.003	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+386	Nguyễn Thành Long	0965724926	\N	0965724926	\N	\N	Thành viên	Thành viên	\N	\N	N_0965724926	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:21:33.459	2026-10-07 03:21:33.459	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+387	Trần Thị Mai Lương	0983729588	\N	0983729588	\N	\N	Thành viên	Thành viên	\N	\N	N_0983729588	93	Nguyễn Xuân mâụ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:27:14.954	2026-10-07 03:27:14.954	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+388	Nguyễn Thị Xuân	0332231429	\N	0332231429	\N	\N	Thành viên	Thành viên	\N	\N	N_0332231429	278	Trần Thị Mai Lương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:29:51.919	2026-10-07 03:29:51.919	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+389	Nguyễn Thị Nga	0914722831	\N	0914722831	\N	\N	Thành viên	Thành viên	\N	2	N_0914722831	278	Trần Thị Mai Lương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:30:33.239	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+390	Đàm Thị Liên	0764959314	\N	0764959314	\N	\N	Thành viên	Thành viên	\N	\N	N_0764959314	279	Hoàng Thị Luyện	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:31:24.13	2026-10-07 03:31:24.13	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+391	Nguyễn Vũ Hưng	0345466260	\N	0345466260	\N	\N	Thành viên	Thành viên	\N	\N	N_0345466260	40	Cung Thu Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:33:51.36	2026-10-07 03:33:51.36	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+359	Nguyễn Đức Huy	0348778893	\N	0348778893	\N	\N	Thành viên	Thành viên	\N	\N	N_0348778893	73	Nguyễn Hùng Vĩ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:18:40.621	2026-10-17 01:58:58.821	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+107	Vũ Hùng Vỹ	0984967555	\N	0984967555	\N	\N	Thành viên	Thành viên	Trưởng phòng	2	N_0984967555	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:41:53.708	2026-10-17 02:32:24.633	\N	\N	Ong Vàng	Khối kinh doanh	Vietinbank	\N	\N
+108	Lê Văn Linh	0347321111	\N	0347321111	\N	\N	Thành viên	Thành viên	\N	\N	N_0347321111	\N	Nguyễn Tuấn	\N	2026-09-21	Đang hoạt động	f	0	0	\N	2026-09-21 02:56:18.207	2026-09-21 02:56:18.207	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+88	Vũ Thị Thanh ( Thanh Hương)	0989905945	\N	0989905945	\N	\N	Thành viên	Thành viên	\N	\N	N_0989905945	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:55:36.868	2026-09-19 02:55:36.868	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+483	Ngô Thị Kim Thư	0834830927	\N	0834830927	\N	\N	Thành viên	Thành viên	\N	\N	N_0834830927	392	Vũ Hùng Vĩ	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:17:29.546	2026-10-14 03:17:29.546	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+89	Tran thi thanh Huong	0904555254	\N	0904555254	\N	\N	Thành viên	Thành viên	\N	\N	N_0904555254	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:55:48.081	2026-10-03 02:30:44.262	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+92	Nguyễn thúy hang	0975656429	\N	0975656429	\N	\N	Thành viên	Thành viên	\N	\N	N_0975656429	93	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:04:57.66	2026-09-26 01:56:59.487	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+93	Nguyễn Xuân mâụ	0978665956	\N	0978665956	\N	\N	Thành viên	Thành viên	\N	\N	N_0978665956	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:06:56.741	2026-09-19 03:06:56.741	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+94	Nguyễn Đắc Học	0915240094	\N	0915240094	\N	\N	Thành viên	Thành viên	\N	\N	N_0915240094	89	Tran thi thanh Huong	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:09:00.494	2026-09-19 03:09:00.494	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+95	duong thanh( cao hương)	0962683595	\N	0962683595	\N	\N	Thành viên	Thành viên	\N	\N	N_0962683595	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:12:37.256	2026-09-19 03:12:37.256	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+96	Nguyễn Thị Hướng	0916763233	\N	0916763233	\N	\N	Thành viên	Thành viên	\N	\N	N_0916763233	301	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:13:59.382	2026-10-07 03:21:57.903	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+97	Quách Thị Thanh Phương	0989170620	\N	0989170620	\N	\N	Thành viên	Thành viên	\N	\N	N_0989170620	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:14:37.524	2026-09-19 03:14:37.524	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+52	Lê Văn Thời	0929639345	\N	0929639345	\N	\N	Thành viên	Thành viên	\N	\N	N_0929639345	49	Lê Thị Hà	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:00:17.676	2026-10-06 11:40:07.373	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+103	Đoàn thị bạch yến	0983894308	\N	0983894308	\N	\N	Thành viên	Thành viên	\N	\N	N_0983894308	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:25:42.246	2026-09-19 03:25:42.246	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+106	Hoàng Sỹ Tuấn	0931527739	\N	0931527739	\N	\N	Thành viên	Thành viên	\N	\N	N_0931527739	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:41:45.083	2026-09-19 03:41:45.083	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+110	Ngô Huyền Dịu	0353729533	\N	0353729533	\N	\N	Thành viên	Thành viên	\N	\N	N_0353729533	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:24:07.454	2026-09-23 06:24:07.454	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+296	Phạm thị thủy	0987581195	\N	0987581195	\N	\N	Thành viên	Thành viên	\N	\N	N_0987581195	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:09:23.677	2026-10-10 03:20:19.76	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+484	Trần Văn Thọ	09822295386	\N	09822295386	\N	\N	Thành viên	Thành viên	\N	\N	N_09822295386	301	Nguyễn Hải Quý	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:34:57.393	2026-10-14 03:34:57.393	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+98	C Phương ( Hà )	0913538966	\N	0913538966	\N	\N	Thành viên	Thành viên	\N	\N	N_0913538966	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:16:14.547	2026-09-19 03:16:14.547	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+99	Cao quốc trường	0983835893	\N	0983835893	\N	\N	Thành viên	Thành viên	\N	\N	N_0983835893	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:16:42.818	2026-09-19 03:16:42.818	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+100	Nguyễn Văn Đạt	0983323746	\N	0983323746	\N	\N	Thành viên	Thành viên	\N	\N	N_0983323746	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:16:47.982	2026-09-19 03:16:47.982	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+101	Hoàng Hương	0849672866	\N	0849672866	\N	\N	Thành viên	Thành viên	\N	\N	N_0849672866	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:19:42.867	2026-09-19 03:19:42.867	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+102	Phạm Quang Hiếu ( Hương)	0855123268	\N	0855123268	\N	\N	Thành viên	Thành viên	\N	\N	N_0855123268	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:20:00.647	2026-09-19 03:20:00.647	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+120	Lê Văn tiến	0394799052	\N	0394799052	\N	\N	Thành viên	Thành viên	\N	2	N_0394799052	118	Hồ Xuân thu( diệp Huế)	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:59:04.012	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+121	Ngô Quang Trung	0913527524	\N	0913527524	\N	\N	Thành viên	Thành viên	\N	\N	N_0913527524	\N	0979345229	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:01:31.297	2026-09-23 07:01:31.297	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+136	Đỗ thuý Hằng	0912519172	\N	0912519172	\N	\N	Thành viên	Thành viên	\N	\N	N_0912519172	93	Nguyễn Xuân mâụ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:01:13.543	2026-09-23 08:01:13.543	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+137	Nguyễn thị kim loan	0963239211	\N	0963239211	\N	\N	Thành viên	Thành viên	\N	\N	N_0963239211	136	Đỗ thuý Hằng	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 08:01:32.468	2026-09-23 08:01:32.468	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+123	Hoàng thị bích	0904708586	\N	0904708586	\N	\N	Thành viên	Thành viên	\N	\N	N_0904708586	\N	Vũ Thị Cúc	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:14:17.511	2026-09-23 07:14:17.511	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+124	Giang Thanh Ngọc	0376317831	\N	0376317831	\N	\N	Thành viên	Thành viên	\N	4	N_0376317831	41	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:14:45.6	2026-10-09 00:26:35.228	\N	\N	Thành Công	Khối kinh doanh	\N	\N	\N
+125	Nguyễn Thị Bảy	0912882722	\N	0912882722	\N	\N	Thành viên	Thành viên	\N	\N	N_0912882722	301	Hải Quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:20:49.716	2026-10-07 03:14:20.696	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+126	Lê Thị Bích Ngần	0984298738	\N	0984298738	\N	\N	Thành viên	Thành viên	\N	\N	N_0984298738	\N	Hải Quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:21:22.443	2026-09-23 07:21:22.443	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+396	Phạm Thị Hương	0947876136	\N	\N	\N	\N	Khác	Nhân sự	Giám đốc	7	N_0947876136	15	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:32:24.725	\N	\N	Thịnh Vượng	Khối kinh doanh	\N	\N	\N
+131	Triệu Thị Yến	0352287668	\N	0352287668	\N	\N	Thành viên	Thành viên	\N	\N	N_0352287668	\N	Chị Khôi	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:29:42.683	2026-09-23 07:29:42.683	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+132	Hoàng Văn Định	0913968752	\N	0913968752	\N	\N	Thành viên	Thành viên	\N	\N	N_0913968752	\N	Cô Linh	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:34:16.581	2026-09-23 07:34:16.581	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+181	Đào Thị Dung	0901106706	\N	0901106706	\N	\N	Thành viên	Thành viên	\N	\N	N_0901106706	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:12:05.89	2026-09-26 03:12:05.89	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+201	Cao Minh Chỉnh	0589916688	\N	0589916688	\N	\N	Thành viên	Thành viên	\N	\N	N_0589916688	200	Lê Thị Huyền Trang	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:35:44.682	2026-09-30 03:04:06.271	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+202	Nguyễn Thị Hoa	0796135248	\N	0796135248	\N	\N	Thành viên	Thành viên	\N	\N	N_0796135248	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:34:25.402	2026-09-28 03:34:25.402	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+204	Đào Thị Hòa (Diệp Huế)	0949492688	\N	0949492688	\N	\N	Thành viên	Thành viên	\N	\N	N_0949492688	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:39:29.836	2026-09-28 03:39:29.836	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+246	NguyễN Thị Thơ	0363462286	\N	0363462286	\N	\N	Thành viên	Thành viên	\N	\N	N_0363462286	\N	Prosale	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:37:53.909	2026-09-30 02:37:53.909	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+280	Nguyễn Thị Dung	0856368502	\N	0856368502	\N	\N	Thành viên	Thành viên	\N	\N	N_0856368502	40	Cung Thu Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:19:20.442	2026-10-03 02:19:20.442	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+281	Nguyễn Đức Chiến	0972177711	\N	0972177711	\N	\N	Thành viên	Thành viên	\N	\N	N_0972177711	40	Cung Thu Hà	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:21:02.445	2026-10-03 02:21:02.445	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+316	Nguyễn Tuấn Hồng	0399812392	\N	0399812392	\N	\N	Thành viên	Thành viên	\N	\N	N_0399812392	301	Nguyễn Hải Quý	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 03:27:44.582	2026-10-03 03:27:44.582	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+350	Nguyễn thị Lan	0975726363	\N	0975726363	\N	\N	Thành viên	Thành viên	\N	\N	N_0975726363	\N	Dương Hồng Phương (N_0979345229)	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 03:41:33.475	2026-10-06 03:41:33.475	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+351	Đỗ Văn Hóa	0969086882	\N	0969086882	\N	\N	Thành viên	Thành viên	\N	\N	N_0969086882	\N	Vũ Thị Thúy 0945172578	\N	2026-10-06	Đang hoạt động	f	0	0	\N	2026-10-06 06:35:55.728	2026-10-06 06:35:55.728	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+357	Nguyễn Mạnh Hùng	0965984779	\N	0965984779	\N	\N	Thành viên	Thành viên	\N	\N	N_0965984779	214	Lê.Thị Nhung	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:17:32.186	2026-10-07 02:17:32.186	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+358	Nguyễn Mộng Phương	0902149966	\N	0902149966	\N	\N	Thành viên	Thành viên	\N	\N	N_0902149966	41	Nguyễn Hùng Vĩ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:18:16.178	2026-10-07 02:18:16.178	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+360	Đặng Thị Phượng	0985986703	\N	0985986703	\N	\N	Thành viên	Thành viên	\N	\N	N_0985986703	\N	Trần Thị Hồng Vân (0962240952)	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:21:17.232	2026-10-07 02:21:17.232	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+361	Trần Văn Bình	0989558609	\N	0989558609	\N	\N	Thành viên	Thành viên	\N	\N	N_0989558609	199	Đỗ Thị Lanh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:23:35.944	2026-10-07 02:23:35.944	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+362	Phạm Đức Nhật	0912055531	\N	0912055531	\N	\N	Thành viên	Thành viên	\N	\N	N_0912055531	199	Đỗ Thị Lanh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:24:39.452	2026-10-07 02:24:39.452	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+363	Nguyễn Thị Hồng Minh	0932672476	\N	0932672476	\N	\N	Thành viên	Thành viên	\N	\N	N_0932672476	122	Phạm Văn thịnh (a thủ )	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:49:44.444	2026-10-07 02:49:44.444	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+81	Hoàng văn Nhật	0915026767	\N	0915026767	\N	\N	Thành viên	Thành viên	\N	2	N_0915026767	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:41:56.509	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+401	Vũ Hùng Vỹ	0984065555	\N	\N	\N	109613685568	Khác	Nhân sự	Trưởng phòng	2	N_0984065555	145	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:24:01.672	\N	\N	Ong Vàng	Khối kinh doanh	Vietinbank	\N	\N
+90	Nguyễn Đức Vĩnh	0984398568	\N	0984398568	\N	\N	Thành viên	Thành viên	Phó Giám đốc	6	N_0984398568	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 02:59:57.316	2026-10-17 02:32:24.572	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+447	Cao Minh Chính	0887426981	\N	0887426981	\N	\N	Thành viên	Thành viên	\N	\N	N_0887426981	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:22:19.599	2026-10-10 03:22:19.599	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+448	Đỗ Quyên	0982717285	\N	0982717285	\N	\N	Thành viên	Thành viên	\N	\N	N_0982717285	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:23:41.341	2026-10-10 03:23:41.341	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+449	Bùi Đăng Lâm	0888685610	\N	0888685610	\N	\N	Thành viên	Thành viên	\N	\N	N_0888685610	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:30:28.733	2026-10-10 03:30:28.733	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+450	Đoàn Thị Tuyết Minh	0912666889	\N	0912666889	\N	\N	Thành viên	Thành viên	\N	\N	N_0912666889	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:30:58.384	2026-10-10 03:30:58.384	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+364	Nguyễn Thị Liên	0952782131	\N	0952782131	\N	\N	Thành viên	Thành viên	\N	\N	N_0952782131	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:50:23.852	2026-10-07 02:50:23.852	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+365	Lương Khánh Tình	0988307994	\N	0988307994	\N	\N	Thành viên	Thành viên	\N	\N	N_0988307994	154	Trần Thị Thanh Hương	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:50:31.393	2026-10-07 02:50:31.393	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+367	Nguyễn Ngọc Sâm	0983740964	\N	0983740964	\N	\N	Thành viên	Thành viên	\N	\N	N_0983740964	152	NGUYỄN NGỌC THỦ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:52:09.329	2026-10-07 02:52:09.329	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+368	Lê Thị Bình	0828664858	\N	0828664858	\N	\N	Thành viên	Thành viên	\N	\N	N_0828664858	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:52:09.351	2026-10-07 02:52:09.351	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+369	Đàm Thành Đạt	0399665717	\N	0399665717	\N	\N	Thành viên	Thành viên	\N	\N	N_0399665717	\N	Khách vãng lai	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:59:33.805	2026-10-07 02:59:33.805	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+370	Hoàng Thị tuyết	0968414961	\N	0968414961	\N	\N	Thành viên	Thành viên	\N	\N	N_0968414961	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:00:16.004	2026-10-07 03:00:16.004	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+371	Trần Văn Thành	0941262164	\N	0941262164	\N	\N	Thành viên	Thành viên	\N	\N	N_0941262164	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:00:52.167	2026-10-07 03:00:52.167	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+420	Nguyễn Thị Loan	0969945333	\N	0969945333	\N	\N	Thành viên	Thành viên	\N	\N	N_0969945333	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:54:09.853	2026-10-09 06:54:09.853	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+421	Hồ Đặng	+84385622390	\N	+84385622390	\N	\N	Thành viên	Thành viên	\N	\N	N_+84385622390	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:55:56.069	2026-10-09 06:55:56.069	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+376	Trần Văn Bình	0989558606	\N	0989558606	\N	\N	Thành viên	Thành viên	\N	\N	N_0989558606	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:11:15.534	2026-10-07 03:11:15.534	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+377	Hoàng Thị Luyện	0972438568	\N	0972438568	\N	\N	Thành viên	Thành viên	\N	\N	N_0972438568	152	NGUYỄN NGỌC THỦ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:11:48.937	2026-10-07 03:11:48.937	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+378	Đỗ Thị Tú	0916016918	\N	0916016918	\N	\N	Thành viên	Thành viên	\N	\N	N_0916016918	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:12:17.292	2026-10-07 03:12:17.292	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+379	Cao Thị duyên	0942438366	\N	0942438366	\N	\N	Thành viên	Thành viên	\N	\N	N_0942438366	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:12:46.328	2026-10-07 03:12:46.328	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+380	Nguyễn Thị Hoàng Yến	0974085558	\N	0974085558	\N	\N	Thành viên	Thành viên	\N	\N	N_0974085558	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:12:55.601	2026-10-07 03:12:55.601	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+381	Nguyễn Th��� Thịnh	0976651925	\N	0976651925	\N	\N	Thành viên	Thành viên	\N	\N	N_0976651925	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:13:20.449	2026-10-07 03:13:20.449	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+382	Nguyễn Thị Thu Hương	0982894388	\N	0982894388	\N	\N	Thành viên	Thành viên	\N	\N	N_0982894388	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:13:44.364	2026-10-07 03:13:44.364	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+383	Bùi Bích liên	0393842148	\N	0393842148	\N	\N	Thành viên	Thành viên	\N	\N	N_0393842148	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:13:48.69	2026-10-07 03:13:48.69	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+384	Phạm Thị Hồng Linh	0329233328	\N	0329233328	\N	\N	Thành viên	Thành viên	\N	\N	N_0329233328	279	Hoàng Thị Luyện	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:14:15.881	2026-10-07 03:14:15.881	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+392	Vũ Hùng Vĩ	0984967553	\N	0984967553	\N	\N	Thành viên	Thành viên	\N	\N	N_0984967553	\N	Phạm Tuấn	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:34:45.075	2026-10-07 03:34:45.075	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+393	Nguyễn Thị Ngọc	0947536338	\N	0947536338	\N	\N	Thành viên	Thành viên	\N	\N	N_0947536338	249	Bùi Hồng Ánh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:38:31.371	2026-10-07 03:38:31.371	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+394	Đỗ Mộng Long	8978380004	\N	8978380004	\N	\N	Thành viên	Thành viên	\N	6	N_8978380004	109	Hoàng Thị Chích	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:40:53.847	2026-10-09 00:26:35.228	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+424	Chu Thành Long	0338293946	\N	0338293946	\N	\N	Thành viên	Thành viên	\N	\N	N_0338293946	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 08:05:17.891	2026-10-09 08:05:17.891	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+196	Nguyễn Hải Quý	0988732586	\N	0988732586	\N	\N	Thành viên	Thành viên	\N	\N	N_0988732586	301	Khách vãng lai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:30:37.266	2026-10-07 02:47:46.112	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+395	Đỗ Lại Thanh	0975635081	\N	0975635081	\N	\N	Thành viên	Thành viên	\N	\N	N_0975635081	109	Hoàng Thị Chích	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:41:28.216	2026-10-07 03:41:28.216	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+423	Huyền My	0986302256	\N	0986302256	\N	\N	Thành viên	Thành viên	\N	\N	N_0986302256	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:57:20.915	2026-10-09 06:57:20.915	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+425	Lại Văn chính	0977980573	\N	0977980573	\N	\N	Thành viên	Thành viên	\N	\N	N_0977980573	\N	Phượng Ngọc Thu (N_+84969881698)	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 11:56:36.908	2026-10-09 11:56:36.908	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+426	Anh thiêu	0398987848	\N	0398987848	\N	\N	Thành viên	Thành viên	\N	\N	N_0398987848	90	Nguyễn Đức Vĩnh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:10:12.142	2026-10-09 12:10:12.142	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+427	Nguyễn Văn Ngọ	0994308509	\N	0994308509	\N	\N	Thành viên	Thành viên	\N	\N	N_0994308509	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:18:19.055	2026-10-09 12:18:19.055	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+428	Nguyễn Văn Tiến	0916069992	\N	0916069992	\N	\N	Thành viên	Thành viên	\N	\N	N_0916069992	\N	Nguyễn Văn Ngọ (0994308509)	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:22:07.879	2026-10-09 12:22:07.879	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+429	Nguyễn Văn Kính	0982296434	\N	0982296434	\N	\N	Thành viên	Thành viên	\N	\N	N_0982296434	428	Nguyễn Văn Tiến	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:25:26.739	2026-10-09 12:25:26.739	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+444	Quay Văn Định	0867795133	\N	0867795133	\N	\N	Thành viên	Thành viên	\N	\N	N_0867795133	443	Lê Thị Kim Nhung	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:01:17.191	2026-10-10 03:01:17.191	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+445	Lê Đôn Thiều	0398937848	\N	0398937848	\N	\N	Thành viên	Thành viên	\N	\N	N_0398937848	109	Hoàng Thị Chích	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:10:48.113	2026-10-10 03:10:48.113	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+446	Lê Thị Hương	0912019977	\N	0912019977	\N	\N	Thành viên	Thành viên	\N	\N	N_0912019977	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:21:19.167	2026-10-10 03:21:19.167	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+49	Lê Thị Hà	0333088873	leha.hbl@gmail.com	0333088873	\N	\N	Thành viên	Thành viên	\N	\N	N_0333088873	49	098 8732586	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:54:49.891	2026-10-07 02:27:47.217	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+68	Lưu Thanh Hải( Nhung)	0775935866	\N	0775935866	\N	\N	Thành viên	Thành viên	\N	\N	N_0775935866	443	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:16:38.809	2026-10-10 03:02:06.116	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+205	Trần Thị Hồng Vân	0962240952	\N	0962240952	\N	\N	Thành viên	Thành viên	\N	\N	\N	150	\N	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 03:46:10.834	2026-10-07 02:19:56.066	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+430	Nguyễn Văn Quế	0349420226	\N	0349420226	\N	\N	Thành viên	Thành viên	\N	\N	N_0349420226	428	Nguyễn Văn Tiến	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:26:31.63	2026-10-09 12:26:31.63	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+431	Trúc Phương	0388653289	\N	0388653289	\N	\N	Thành viên	Thành viên	\N	\N	N_0388653289	90	Nguyễn Đức Vĩnh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:56:24.086	2026-10-09 12:56:24.086	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+432	Trần Thị Mai	0388878598	\N	0388878598	\N	\N	Thành viên	Thành viên	\N	\N	N_0388878598	90	Nguyễn Đức Vĩnh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 12:57:57.222	2026-10-09 12:57:57.222	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+433	Nguyễn Thị Thảo	0919452168	\N	0919452168	\N	\N	Thành viên	Thành viên	\N	\N	N_0919452168	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 13:29:53.577	2026-10-09 13:29:53.577	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+434	Trần Đức Minh	0352313866	\N	0352313866	\N	\N	Thành viên	Thành viên	\N	\N	N_0352313866	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 13:32:17.101	2026-10-09 13:32:17.101	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+435	Nguyễn Thị Bình	0379996973	\N	0379996973	\N	\N	Thành viên	Thành viên	\N	\N	N_0379996973	48	Phạm Minh Tuấn	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 14:07:23.127	2026-10-09 14:07:23.127	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+436	Nguyễn Tuấn Ninh	0363280765	\N	0363280765	\N	\N	Thành viên	Thành viên	\N	\N	N_0363280765	48	Phạm Minh Tuấn	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 01:46:29.02	2026-10-10 01:46:29.02	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+437	Đỗ Văn Trân	0904304716	\N	0904304716	\N	\N	Thành viên	Thành viên	\N	\N	N_0904304716	51	Lương Hồng Hải	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:39:58.814	2026-10-10 02:39:58.814	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+438	Nguyễn Thị Giang	0364577296	\N	0364577296	\N	\N	Thành viên	Thành viên	\N	\N	N_0364577296	\N	Nguyễn Thị Hương (0399868786)	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:46:49.918	2026-10-10 02:46:49.918	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+439	Vương Thị Minh	0913514959	\N	0913514959	\N	\N	Thành viên	Thành viên	\N	\N	N_0913514959	93	Nguyễn Xuân mâụ	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:49:36.534	2026-10-10 02:49:36.534	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+443	Lê Thị Kim Nhung	0917786857	\N	0917786857	\N	\N	Thành viên	Thành viên	\N	\N	N_0917786857	93	Nguyễn Xuân mâụ	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:00:40.571	2026-10-10 03:00:40.571	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+403	Đào Thị Hòa	0949492658	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0949492658	402	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+105	Vân	9999999998	\N	9999999998	\N	\N	Thành viên	Thành viên	\N	\N	N_9999999998	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:40:24.337	2026-09-19 03:40:24.337	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+404	Nguyễn Thị Xuân	0382658688	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0382658688	402	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+405	Nguyễn Thị Loan	0912415469	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	6	N_0912415469	109	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+409	Trương Thị Thùy Trang	0938566009	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0938566009	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+407	Nguyễn Văn Hà	0943167088	\N	\N	\N	\N	Khác	Nh��n sự	Thành viên	6	N_0943167088	15	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+412	Khách Đăng Ký BNV	0966294968	\N	0966294968	\N	\N	Thành viên	Thành viên	\N	\N	N_0966294968	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:30.197	2026-10-09 09:00:30.197	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+451	Bùi Thế Anh	0966298886	\N	0966298886	\N	\N	Thành viên	Thành viên	\N	\N	N_0966298886	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:32:12.833	2026-10-10 03:32:12.833	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+452	Đỗ Nam	0347221883	\N	0347221883	\N	\N	Thành viên	Thành viên	\N	\N	N_0347221883	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:32:37.378	2026-10-10 03:32:37.378	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+45	Chu Thị Lương	0368684468	\N	0368684468	\N	\N	Thành viên	Thành viên	\N	\N	N_0368684468	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:34:26.69	2026-09-19 01:34:26.69	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+47	Đào Thị Lan ( Thơ )	0976067881	\N	0976067881	\N	\N	Thành viên	Thành viên	\N	\N	N_0976067881	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:48:22.173	2026-09-30 01:53:37.939	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+104	Trần Thị Lan ( cụ Yến)	0966728597	\N	0966728597	\N	\N	Thành viên	Thành viên	\N	\N	N_0966728597	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 03:25:45.521	2026-09-19 03:25:45.521	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+413	Khách Đăng Ký Khối Doanh	0955792444	\N	0955792444	\N	\N	Thành viên	Thành viên	\N	\N	N_0955792444	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:30.232	2026-10-09 09:00:30.232	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+414	Khách Đăng Ký BNV	0966447377	\N	0966447377	\N	\N	Thành viên	Thành viên	\N	\N	N_0966447377	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:40.561	2026-10-09 09:00:40.561	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+415	Khách Đăng Ký Khối Doanh	0955764205	\N	0955764205	\N	\N	Thành viên	Thành viên	\N	\N	N_0955764205	\N	\N	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 09:00:40.596	2026-10-09 09:00:40.596	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+422	Hoàng Anh	+84981942599	\N	+84981942599	\N	\N	Thành viên	Thành viên	\N	\N	N_+84981942599	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:56:40.968	2026-10-09 06:56:40.968	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+408	Nguyễn Đăng An	0343781580	\N	\N	\N	183093983	Khác	Nhân sự	\N	\N	N_0343781580	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	\N	Khối kinh doanh	VP Bank	\N	\N
+122	Phạm Văn thịnh (a thủ )	09771133668	\N	09771133668	\N	\N	Thành viên	Thành viên	\N	\N	N_09771133668	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:06:28.965	2026-09-23 07:06:28.965	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+199	Đỗ Thị Lanh	0947874832	\N	0947874832	\N	\N	Thành viên	Thành viên	\N	\N	N_0947874832	74	Vũ Ngoc Bảo	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:32:42.677	2026-09-26 03:32:42.677	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+230	Trần Phương Giang	0982251616	\N	0982251616	\N	\N	Thành viên	Thành viên	\N	\N	N_0982251616	49	Lê Thị Hà	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 00:27:59.711	2026-09-30 00:27:59.711	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+244	Nguyễn Hữu Đức	0972882528	\N	0972882528	\N	\N	Thành viên	Thành viên	\N	\N	N_0972882528	93	Nguyễn Xuân mâụ	\N	2026-09-30	Đang hoạt động	f	0	0	\N	2026-09-30 02:33:14.587	2026-09-30 02:33:14.587	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+282	Nguyễn Thị Nhạn	0982882533	\N	0982882533	\N	\N	Thành viên	Thành viên	\N	\N	N_0982882533	278	Trần Thị Mai Lương	\N	2026-10-03	Đang hoạt động	f	0	0	\N	2026-10-03 02:26:01.304	2026-10-03 02:26:01.304	\N	\N	\N	Ban nguồn vốn	\N	\N	\N
+440	Nguyễn Thị Hà Thuận	0989137422	\N	0989137422	\N	\N	Thành viên	Thành viên	\N	\N	N_0989137422	439	Vương Thị Minh	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:51:21.661	2026-10-10 02:51:21.661	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+441	Nguyễn Thị Bích Loan	0348861918	\N	0348861918	\N	\N	Thành viên	Thành viên	\N	\N	N_0348861918	439	Vương Thị Minh	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:51:54.539	2026-10-10 02:51:54.539	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+442	Nguyễn Thị Loan	0965495161	\N	0965495161	\N	\N	Thành viên	Thành viên	\N	\N	N_0965495161	170	Đào Thị Mai	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 02:58:21.226	2026-10-10 02:58:21.226	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+216	Nguyen thi Hạnh	0354582631	\N	0354582631	\N	\N	Thành viên	Thành viên	\N	\N	N_0354582631	\N	Người giới thiệu (N_0979345229)	\N	2026-09-28	Đang hoạt động	f	0	0	\N	2026-09-28 08:24:59.375	2026-09-28 08:24:59.375	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+366	Nguyễn Thị hòa	0917921187	\N	0917921187	\N	\N	Thành viên	Thành viên	\N	\N	N_0917921187	301	Nguyễn Hải Quý	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:51:21.872	2026-10-07 02:51:21.872	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+397	Chu Thị Lương	0972008333	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	4	N_0972008333	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Thành Công	Khối kinh doanh	\N	\N	\N
+398	Lương Hồng Hải	0978400289	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	\N	N_0978400289	89	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Hải Đăng Vàng	Khối kinh doanh	\N	\N	\N
+399	Nguyễn Thị Quỳnh Anh	0812790496	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	4	N_0812790496	41	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Thành Công	Khối kinh doanh	\N	\N	\N
+410	Quảng Thị Đoàn	0988677522	\N	\N	\N	4110032363	Khác	Nhân sự	Thành viên	6	N_0988677522	323	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Happy	Khối kinh doanh	BIDV	\N	\N
+400	Nguyễn Thị Nga	0902276528	\N	\N	\N	\N	Khác	Nhân sự	Thành viên	2	N_0902276528	221	Chọn người mời trong hệ thống	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
+411	Đinh Văn Bắc	000007	\N	\N	\N	19033903936017	Khác	Nhân sự	\N	\N	N_000007	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 01:34:41.63	2026-10-09 01:35:15.389	\N	\N	\N	Khối kinh doanh	Techcombank	\N	\N
+374	Nguyễn Thị Hoa	0946233288	\N	0946233288	\N	\N	Thành viên	Thành viên	\N	\N	N_0946233288	319	Kiều Tâm	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:04:51.001	2026-10-07 03:04:51.001	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+416	vân	1122334455	\N	\N	\N	\N	Nhân viên	Sale	Thành viên	\N	N_1122334455	\N	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-09 03:06:47.739	2026-10-09 03:06:47.739	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+417	Đảo Quang Trung	0962839461	\N	0962839461	\N	\N	Thành viên	Thành viên	\N	\N	N_0962839461	42	Lê Thị Chanh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 03:19:31.627	2026-10-09 03:19:31.627	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+418	Mã Thanh Hưng	0931645134	\N	0931645134	\N	\N	Thành viên	Thành viên	\N	\N	N_0931645134	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:50:07.575	2026-10-09 06:50:28.19	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+419	Lê Thị Thư	0822295386	\N	0822295386	\N	\N	Thành viên	Thành viên	\N	\N	N_0822295386	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:52:36.412	2026-10-09 06:52:36.412	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+217	Phượng Ngọc Thu	0969881698	\N	0969881698	\N	28275222	Thành viên	Thành viên	Trưởng phòng	1	N_0969881698	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:28:58.973	2026-10-17 02:24:01.616	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh	\N	\N	\N
+41	Nguyễn Hùng Vĩ	0326894993	\N	\N	\N	31978686868	MC	Nhân sự	Giám đốc	5	N_0326894993	45	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-17 02:32:24.51	\N	\N	Biệt đội Kim Cương, Hải Đăng Vàng, Kiến Vàng, Lộc Phát, Ong Vàng, Thành Công	Khối kinh doanh	\N	\N	\N
+91	Phượng Ngọc Thu	+84969881698	\N	+84969881698	\N	\N	Thành viên	Thành viên	Trưởng phòng	1	N_+84969881698	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:03:23.918	2026-10-17 02:32:24.603	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh	\N	\N	\N
+109	Hoàng Thị Chích	0384081272	\N	0384081272	\N	0384081272	Thành viên	Thành viên	Trưởng phòng	6	N_0384081272	90	Nguyễn Đức Vĩnh	\N	2026-09-22	Đang hoạt động	t	0	0	\N	2026-09-22 11:09:43.688	2026-10-17 02:32:24.664	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+402	Diệp Thị Huế	0915095848	\N	\N	\N	22891177	Khác	Nhân sự	Trưởng phòng	2	N_0915095848	401	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:32:24.755	\N	\N	Ong Vàng	Khối kinh doanh	ACB	\N	\N
 \.
 
 
@@ -7152,42 +8228,42 @@ SELECT pg_catalog.setval('public.allocation_policy_versions_id_seq', 1, true);
 -- Name: contracts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.contracts_id_seq', 51, true);
+SELECT pg_catalog.setval('public.contracts_id_seq', 61, true);
 
 
 --
 -- Name: event_attachments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.event_attachments_id_seq', 1, true);
+SELECT pg_catalog.setval('public.event_attachments_id_seq', 1, false);
 
 
 --
 -- Name: event_in_charge_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.event_in_charge_id_seq', 75, true);
+SELECT pg_catalog.setval('public.event_in_charge_id_seq', 86, true);
 
 
 --
 -- Name: event_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.event_logs_id_seq', 1, true);
+SELECT pg_catalog.setval('public.event_logs_id_seq', 1, false);
 
 
 --
 -- Name: event_organizer_roles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.event_organizer_roles_id_seq', 1, true);
+SELECT pg_catalog.setval('public.event_organizer_roles_id_seq', 1, false);
 
 
 --
 -- Name: event_registrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.event_registrations_id_seq', 595, true);
+SELECT pg_catalog.setval('public.event_registrations_id_seq', 1235, true);
 
 
 --
@@ -7201,7 +8277,14 @@ SELECT pg_catalog.setval('public.event_schedules_id_seq', 1, false);
 -- Name: events_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.events_id_seq', 84, true);
+SELECT pg_catalog.setval('public.events_id_seq', 86, true);
+
+
+--
+-- Name: fund_beneficiary_allocations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.fund_beneficiary_allocations_id_seq', 1185, true);
 
 
 --
@@ -7222,7 +8305,7 @@ SELECT pg_catalog.setval('public.fund_weekly_allocations_id_seq', 140, true);
 -- Name: invitations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.invitations_id_seq', 373, true);
+SELECT pg_catalog.setval('public.invitations_id_seq', 413, true);
 
 
 --
@@ -7237,6 +8320,13 @@ SELECT pg_catalog.setval('public.lucky_wheel_spins_id_seq', 5, true);
 --
 
 SELECT pg_catalog.setval('public.lucky_wheels_id_seq', 10, true);
+
+
+--
+-- Name: operations_fund_beneficiaries_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.operations_fund_beneficiaries_id_seq', 6, true);
 
 
 --
@@ -7292,7 +8382,7 @@ SELECT pg_catalog.setval('public.teamlead_periods_id_seq', 5, true);
 -- Name: teamlead_teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.teamlead_teams_id_seq', 19, true);
+SELECT pg_catalog.setval('public.teamlead_teams_id_seq', 48, true);
 
 
 --
@@ -7303,24 +8393,38 @@ SELECT pg_catalog.setval('public.teams_id_seq', 32, true);
 
 
 --
+-- Name: training_courses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.training_courses_id_seq', 6, true);
+
+
+--
 -- Name: training_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.training_logs_id_seq', 10, true);
+SELECT pg_catalog.setval('public.training_logs_id_seq', 26, true);
+
+
+--
+-- Name: transaction_log_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.transaction_log_items_id_seq', 70, true);
 
 
 --
 -- Name: transaction_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.transaction_logs_id_seq', 182, true);
+SELECT pg_catalog.setval('public.transaction_logs_id_seq', 159, true);
 
 
 --
 -- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.users_id_seq', 452, true);
+SELECT pg_catalog.setval('public.users_id_seq', 499, true);
 
 
 --
@@ -7476,6 +8580,14 @@ ALTER TABLE ONLY public.lucky_wheels
 
 
 --
+-- Name: operations_fund_beneficiaries operations_fund_beneficiaries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operations_fund_beneficiaries
+    ADD CONSTRAINT operations_fund_beneficiaries_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7505,6 +8617,14 @@ ALTER TABLE ONLY public.system_settings
 
 ALTER TABLE ONLY public.table_tinh
     ADD CONSTRAINT table_tinh_pkey PRIMARY KEY (gid);
+
+
+--
+-- Name: teamlead_fund_splits teamlead_fund_splits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.teamlead_fund_splits
+    ADD CONSTRAINT teamlead_fund_splits_pkey PRIMARY KEY (fund_month);
 
 
 --
@@ -7596,11 +8716,27 @@ ALTER TABLE ONLY public.teams
 
 
 --
+-- Name: training_courses training_courses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.training_courses
+    ADD CONSTRAINT training_courses_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: training_logs training_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.training_logs
     ADD CONSTRAINT training_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: transaction_log_items transaction_log_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.transaction_log_items
+    ADD CONSTRAINT transaction_log_items_pkey PRIMARY KEY (id);
 
 
 --
@@ -7625,6 +8761,14 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.permissions
     ADD CONSTRAINT uq_permissions_user_module UNIQUE (user_id, module);
+
+
+--
+-- Name: user_teams user_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_teams
+    ADD CONSTRAINT user_teams_pkey PRIMARY KEY (user_id, team_id);
 
 
 --
@@ -7692,6 +8836,20 @@ CREATE INDEX teamlead_payout_rows_period_idx ON public.teamlead_payout_rows USIN
 --
 
 CREATE UNIQUE INDEX teamlead_teams_name_ci_idx ON public.teamlead_teams USING btree (lower(btrim((name)::text)));
+
+
+--
+-- Name: training_courses_course_code_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX training_courses_course_code_uidx ON public.training_courses USING btree (course_code);
+
+
+--
+-- Name: training_logs_course_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX training_logs_course_date_idx ON public.training_logs USING btree (course_code, training_date);
 
 
 --
@@ -7923,6 +9081,14 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 ALTER TABLE ONLY public.teamlead_week_eligibility
     ADD CONSTRAINT teamlead_week_eligibility_member_team_id_fkey FOREIGN KEY (member_team_id) REFERENCES public.teamlead_member_teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: training_logs training_logs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.training_logs
+    ADD CONSTRAINT training_logs_course_code_fkey FOREIGN KEY (course_code) REFERENCES public.training_courses(course_code) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
 --
