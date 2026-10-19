@@ -17,32 +17,40 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
+-- Name: public; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
 -- *not* creating schema, since initdb creates it
 
 
+ALTER SCHEMA public OWNER TO postgres;
+
 --
--- Name: tiger; Type: SCHEMA; Schema: -; Owner: -
+-- Name: tiger; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
 CREATE SCHEMA tiger;
 
 
+ALTER SCHEMA tiger OWNER TO postgres;
+
 --
--- Name: tiger_data; Type: SCHEMA; Schema: -; Owner: -
+-- Name: tiger_data; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
 CREATE SCHEMA tiger_data;
 
 
+ALTER SCHEMA tiger_data OWNER TO postgres;
+
 --
--- Name: topology; Type: SCHEMA; Schema: -; Owner: -
+-- Name: topology; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
 CREATE SCHEMA topology;
 
+
+ALTER SCHEMA topology OWNER TO postgres;
 
 --
 -- Name: address_standardizer; Type: EXTENSION; Schema: -; Owner: -
@@ -52,7 +60,7 @@ CREATE EXTENSION IF NOT EXISTS address_standardizer WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION address_standardizer; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION address_standardizer; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION address_standardizer IS 'Used to parse an address into constituent elements. Generally used to support geocoding address normalization step.';
@@ -66,7 +74,7 @@ CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION fuzzystrmatch; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION fuzzystrmatch; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION fuzzystrmatch IS 'determine similarities and distance between strings';
@@ -80,7 +88,7 @@ CREATE EXTENSION IF NOT EXISTS ogr_fdw WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION ogr_fdw; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION ogr_fdw; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION ogr_fdw IS 'foreign-data wrapper for GIS data access';
@@ -94,7 +102,7 @@ CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION postgis; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION postgis; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION postgis IS 'PostGIS geometry, geography, and raster spatial types and functions';
@@ -108,7 +116,7 @@ CREATE EXTENSION IF NOT EXISTS pgrouting WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION pgrouting; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION pgrouting; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION pgrouting IS 'pgRouting Extension';
@@ -122,7 +130,7 @@ CREATE EXTENSION IF NOT EXISTS pointcloud WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION pointcloud; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION pointcloud; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION pointcloud IS 'data type for lidar point clouds';
@@ -136,7 +144,7 @@ CREATE EXTENSION IF NOT EXISTS pointcloud_postgis WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION pointcloud_postgis; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION pointcloud_postgis; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION pointcloud_postgis IS 'integration for pointcloud LIDAR data and PostGIS geometry data';
@@ -150,7 +158,7 @@ CREATE EXTENSION IF NOT EXISTS postgis_sfcgal WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION postgis_sfcgal; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION postgis_sfcgal; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION postgis_sfcgal IS 'PostGIS SFCGAL functions';
@@ -164,7 +172,7 @@ CREATE EXTENSION IF NOT EXISTS postgis_tiger_geocoder WITH SCHEMA tiger;
 
 
 --
--- Name: EXTENSION postgis_tiger_geocoder; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION postgis_tiger_geocoder; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION postgis_tiger_geocoder IS 'PostGIS tiger geocoder and reverse geocoder';
@@ -178,7 +186,7 @@ CREATE EXTENSION IF NOT EXISTS postgis_topology WITH SCHEMA topology;
 
 
 --
--- Name: EXTENSION postgis_topology; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION postgis_topology; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION postgis_topology IS 'PostGIS topology spatial types and functions';
@@ -192,7 +200,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
@@ -201,7 +209,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 SET default_tablespace = '';
 
 --
--- Name: allocation_policy_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: allocation_policy_versions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.allocation_policy_versions (
@@ -216,8 +224,10 @@ CREATE TABLE public.allocation_policy_versions (
 );
 
 
+ALTER TABLE public.allocation_policy_versions OWNER TO postgres;
+
 --
--- Name: allocation_policy_versions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: allocation_policy_versions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.allocation_policy_versions_id_seq
@@ -228,15 +238,17 @@ CREATE SEQUENCE public.allocation_policy_versions_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.allocation_policy_versions_id_seq OWNER TO postgres;
+
 --
--- Name: allocation_policy_versions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: allocation_policy_versions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.allocation_policy_versions_id_seq OWNED BY public.allocation_policy_versions.id;
 
 
 --
--- Name: contracts; Type: TABLE; Schema: public; Owner: -
+-- Name: contracts; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.contracts (
@@ -277,8 +289,10 @@ CREATE TABLE public.contracts (
 );
 
 
+ALTER TABLE public.contracts OWNER TO postgres;
+
 --
--- Name: contracts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: contracts_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.contracts_id_seq
@@ -289,15 +303,17 @@ CREATE SEQUENCE public.contracts_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.contracts_id_seq OWNER TO postgres;
+
 --
--- Name: contracts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: contracts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.contracts_id_seq OWNED BY public.contracts.id;
 
 
 --
--- Name: event_attachments; Type: TABLE; Schema: public; Owner: -
+-- Name: event_attachments; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.event_attachments (
@@ -312,8 +328,10 @@ CREATE TABLE public.event_attachments (
 );
 
 
+ALTER TABLE public.event_attachments OWNER TO postgres;
+
 --
--- Name: event_attachments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: event_attachments_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.event_attachments_id_seq
@@ -324,15 +342,17 @@ CREATE SEQUENCE public.event_attachments_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.event_attachments_id_seq OWNER TO postgres;
+
 --
--- Name: event_attachments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: event_attachments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.event_attachments_id_seq OWNED BY public.event_attachments.id;
 
 
 --
--- Name: event_in_charge; Type: TABLE; Schema: public; Owner: -
+-- Name: event_in_charge; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.event_in_charge (
@@ -352,8 +372,10 @@ CREATE TABLE public.event_in_charge (
 );
 
 
+ALTER TABLE public.event_in_charge OWNER TO postgres;
+
 --
--- Name: event_in_charge_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: event_in_charge_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.event_in_charge_id_seq
@@ -364,15 +386,17 @@ CREATE SEQUENCE public.event_in_charge_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.event_in_charge_id_seq OWNER TO postgres;
+
 --
--- Name: event_in_charge_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: event_in_charge_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.event_in_charge_id_seq OWNED BY public.event_in_charge.id;
 
 
 --
--- Name: event_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: event_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.event_logs (
@@ -395,8 +419,10 @@ CREATE TABLE public.event_logs (
 );
 
 
+ALTER TABLE public.event_logs OWNER TO postgres;
+
 --
--- Name: event_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: event_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.event_logs_id_seq
@@ -407,15 +433,17 @@ CREATE SEQUENCE public.event_logs_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.event_logs_id_seq OWNER TO postgres;
+
 --
--- Name: event_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: event_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.event_logs_id_seq OWNED BY public.event_logs.id;
 
 
 --
--- Name: event_organizer_roles; Type: TABLE; Schema: public; Owner: -
+-- Name: event_organizer_roles; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.event_organizer_roles (
@@ -430,8 +458,10 @@ CREATE TABLE public.event_organizer_roles (
 );
 
 
+ALTER TABLE public.event_organizer_roles OWNER TO postgres;
+
 --
--- Name: event_organizer_roles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: event_organizer_roles_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.event_organizer_roles_id_seq
@@ -442,15 +472,17 @@ CREATE SEQUENCE public.event_organizer_roles_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.event_organizer_roles_id_seq OWNER TO postgres;
+
 --
--- Name: event_organizer_roles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: event_organizer_roles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.event_organizer_roles_id_seq OWNED BY public.event_organizer_roles.id;
 
 
 --
--- Name: event_registrations; Type: TABLE; Schema: public; Owner: -
+-- Name: event_registrations; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.event_registrations (
@@ -478,8 +510,10 @@ CREATE TABLE public.event_registrations (
 );
 
 
+ALTER TABLE public.event_registrations OWNER TO postgres;
+
 --
--- Name: event_registrations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: event_registrations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.event_registrations_id_seq
@@ -490,15 +524,17 @@ CREATE SEQUENCE public.event_registrations_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.event_registrations_id_seq OWNER TO postgres;
+
 --
--- Name: event_registrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: event_registrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.event_registrations_id_seq OWNED BY public.event_registrations.id;
 
 
 --
--- Name: event_schedules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: event_schedules_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.event_schedules_id_seq
@@ -509,8 +545,10 @@ CREATE SEQUENCE public.event_schedules_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.event_schedules_id_seq OWNER TO postgres;
+
 --
--- Name: event_schedules; Type: TABLE; Schema: public; Owner: -
+-- Name: event_schedules; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.event_schedules (
@@ -526,8 +564,10 @@ CREATE TABLE public.event_schedules (
 );
 
 
+ALTER TABLE public.event_schedules OWNER TO postgres;
+
 --
--- Name: events; Type: TABLE; Schema: public; Owner: -
+-- Name: events; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.events (
@@ -565,8 +605,10 @@ CREATE TABLE public.events (
 );
 
 
+ALTER TABLE public.events OWNER TO postgres;
+
 --
--- Name: events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: events_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.events_id_seq
@@ -577,15 +619,17 @@ CREATE SEQUENCE public.events_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.events_id_seq OWNER TO postgres;
+
 --
--- Name: events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.events_id_seq OWNED BY public.events.id;
 
 
 --
--- Name: fund_beneficiary_allocations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: fund_beneficiary_allocations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.fund_beneficiary_allocations_id_seq
@@ -596,8 +640,10 @@ CREATE SEQUENCE public.fund_beneficiary_allocations_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.fund_beneficiary_allocations_id_seq OWNER TO postgres;
+
 --
--- Name: fund_beneficiary_allocations; Type: TABLE; Schema: public; Owner: -
+-- Name: fund_beneficiary_allocations; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.fund_beneficiary_allocations (
@@ -626,8 +672,10 @@ CREATE TABLE public.fund_beneficiary_allocations (
 );
 
 
+ALTER TABLE public.fund_beneficiary_allocations OWNER TO postgres;
+
 --
--- Name: fund_event_expenses; Type: TABLE; Schema: public; Owner: -
+-- Name: fund_event_expenses; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.fund_event_expenses (
@@ -644,8 +692,10 @@ CREATE TABLE public.fund_event_expenses (
 );
 
 
+ALTER TABLE public.fund_event_expenses OWNER TO postgres;
+
 --
--- Name: fund_event_expenses_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: fund_event_expenses_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.fund_event_expenses_id_seq
@@ -656,15 +706,17 @@ CREATE SEQUENCE public.fund_event_expenses_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.fund_event_expenses_id_seq OWNER TO postgres;
+
 --
--- Name: fund_event_expenses_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: fund_event_expenses_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.fund_event_expenses_id_seq OWNED BY public.fund_event_expenses.id;
 
 
 --
--- Name: fund_weekly_allocations; Type: TABLE; Schema: public; Owner: -
+-- Name: fund_weekly_allocations; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.fund_weekly_allocations (
@@ -685,8 +737,10 @@ CREATE TABLE public.fund_weekly_allocations (
 );
 
 
+ALTER TABLE public.fund_weekly_allocations OWNER TO postgres;
+
 --
--- Name: fund_weekly_allocations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: fund_weekly_allocations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.fund_weekly_allocations_id_seq
@@ -697,15 +751,17 @@ CREATE SEQUENCE public.fund_weekly_allocations_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.fund_weekly_allocations_id_seq OWNER TO postgres;
+
 --
--- Name: fund_weekly_allocations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: fund_weekly_allocations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.fund_weekly_allocations_id_seq OWNED BY public.fund_weekly_allocations.id;
 
 
 --
--- Name: invitations; Type: TABLE; Schema: public; Owner: -
+-- Name: invitations; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.invitations (
@@ -721,8 +777,10 @@ CREATE TABLE public.invitations (
 );
 
 
+ALTER TABLE public.invitations OWNER TO postgres;
+
 --
--- Name: invitations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: invitations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.invitations_id_seq
@@ -733,15 +791,17 @@ CREATE SEQUENCE public.invitations_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.invitations_id_seq OWNER TO postgres;
+
 --
--- Name: invitations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: invitations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.invitations_id_seq OWNED BY public.invitations.id;
 
 
 --
--- Name: lucky_wheel_spins_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: lucky_wheel_spins_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.lucky_wheel_spins_id_seq
@@ -752,8 +812,10 @@ CREATE SEQUENCE public.lucky_wheel_spins_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.lucky_wheel_spins_id_seq OWNER TO postgres;
+
 --
--- Name: lucky_wheel_spins; Type: TABLE; Schema: public; Owner: -
+-- Name: lucky_wheel_spins; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.lucky_wheel_spins (
@@ -769,8 +831,10 @@ CREATE TABLE public.lucky_wheel_spins (
 );
 
 
+ALTER TABLE public.lucky_wheel_spins OWNER TO postgres;
+
 --
--- Name: lucky_wheels_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: lucky_wheels_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.lucky_wheels_id_seq
@@ -781,8 +845,10 @@ CREATE SEQUENCE public.lucky_wheels_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.lucky_wheels_id_seq OWNER TO postgres;
+
 --
--- Name: lucky_wheels; Type: TABLE; Schema: public; Owner: -
+-- Name: lucky_wheels; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.lucky_wheels (
@@ -804,8 +870,10 @@ CREATE TABLE public.lucky_wheels (
 );
 
 
+ALTER TABLE public.lucky_wheels OWNER TO postgres;
+
 --
--- Name: operations_fund; Type: VIEW; Schema: public; Owner: -
+-- Name: operations_fund; Type: VIEW; Schema: public; Owner: postgres
 --
 
 CREATE VIEW public.operations_fund AS
@@ -827,8 +895,10 @@ CREATE VIEW public.operations_fund AS
   WHERE ((fund_weekly_allocations.fund_key)::text = ANY (ARRAY[('operations'::character varying)::text, ('support_cn'::character varying)::text, ('support_kt'::character varying)::text]));
 
 
+ALTER VIEW public.operations_fund OWNER TO postgres;
+
 --
--- Name: operations_fund_beneficiaries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: operations_fund_beneficiaries_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.operations_fund_beneficiaries_id_seq
@@ -839,8 +909,10 @@ CREATE SEQUENCE public.operations_fund_beneficiaries_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.operations_fund_beneficiaries_id_seq OWNER TO postgres;
+
 --
--- Name: operations_fund_beneficiaries; Type: TABLE; Schema: public; Owner: -
+-- Name: operations_fund_beneficiaries; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.operations_fund_beneficiaries (
@@ -863,8 +935,10 @@ CREATE TABLE public.operations_fund_beneficiaries (
 );
 
 
+ALTER TABLE public.operations_fund_beneficiaries OWNER TO postgres;
+
 --
--- Name: transaction_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: transaction_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.transaction_logs_id_seq
@@ -875,8 +949,10 @@ CREATE SEQUENCE public.transaction_logs_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.transaction_logs_id_seq OWNER TO postgres;
+
 --
--- Name: transaction_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: transaction_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.transaction_logs (
@@ -918,8 +994,10 @@ CREATE TABLE public.transaction_logs (
 );
 
 
+ALTER TABLE public.transaction_logs OWNER TO postgres;
+
 --
--- Name: payment_journal; Type: VIEW; Schema: public; Owner: -
+-- Name: payment_journal; Type: VIEW; Schema: public; Owner: postgres
 --
 
 CREATE VIEW public.payment_journal AS
@@ -959,8 +1037,10 @@ CREATE VIEW public.payment_journal AS
    FROM public.transaction_logs;
 
 
+ALTER VIEW public.payment_journal OWNER TO postgres;
+
 --
--- Name: permissions; Type: TABLE; Schema: public; Owner: -
+-- Name: permissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.permissions (
@@ -976,8 +1056,10 @@ CREATE TABLE public.permissions (
 );
 
 
+ALTER TABLE public.permissions OWNER TO postgres;
+
 --
--- Name: permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.permissions_id_seq
@@ -988,15 +1070,17 @@ CREATE SEQUENCE public.permissions_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.permissions_id_seq OWNER TO postgres;
+
 --
--- Name: permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.permissions_id_seq OWNED BY public.permissions.id;
 
 
 --
--- Name: system_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: system_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.system_settings_id_seq
@@ -1007,8 +1091,10 @@ CREATE SEQUENCE public.system_settings_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.system_settings_id_seq OWNER TO postgres;
+
 --
--- Name: system_settings; Type: TABLE; Schema: public; Owner: -
+-- Name: system_settings; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.system_settings (
@@ -1020,8 +1106,10 @@ CREATE TABLE public.system_settings (
 );
 
 
+ALTER TABLE public.system_settings OWNER TO postgres;
+
 --
--- Name: table_tinh; Type: TABLE; Schema: public; Owner: -
+-- Name: table_tinh; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.table_tinh (
@@ -1041,8 +1129,10 @@ CREATE TABLE public.table_tinh (
 );
 
 
+ALTER TABLE public.table_tinh OWNER TO postgres;
+
 --
--- Name: table_tinh_gid_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: table_tinh_gid_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.table_tinh_gid_seq
@@ -1053,15 +1143,17 @@ CREATE SEQUENCE public.table_tinh_gid_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.table_tinh_gid_seq OWNER TO postgres;
+
 --
--- Name: table_tinh_gid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: table_tinh_gid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.table_tinh_gid_seq OWNED BY public.table_tinh.gid;
 
 
 --
--- Name: teamlead_payout_rows; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_payout_rows; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_payout_rows (
@@ -1083,8 +1175,10 @@ CREATE TABLE public.teamlead_payout_rows (
 );
 
 
+ALTER TABLE public.teamlead_payout_rows OWNER TO postgres;
+
 --
--- Name: teamlead_periods; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_periods; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_periods (
@@ -1106,8 +1200,10 @@ CREATE TABLE public.teamlead_periods (
 );
 
 
+ALTER TABLE public.teamlead_periods OWNER TO postgres;
+
 --
--- Name: teamlead_fund; Type: VIEW; Schema: public; Owner: -
+-- Name: teamlead_fund; Type: VIEW; Schema: public; Owner: postgres
 --
 
 CREATE VIEW public.teamlead_fund AS
@@ -1126,8 +1222,10 @@ CREATE VIEW public.teamlead_fund AS
      LEFT JOIN public.teamlead_payout_rows pr ON ((pr.period_id = tp.id)));
 
 
+ALTER VIEW public.teamlead_fund OWNER TO postgres;
+
 --
--- Name: teamlead_fund_splits; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_fund_splits; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_fund_splits (
@@ -1138,8 +1236,10 @@ CREATE TABLE public.teamlead_fund_splits (
 );
 
 
+ALTER TABLE public.teamlead_fund_splits OWNER TO postgres;
+
 --
--- Name: teamlead_member_teams; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_member_teams; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_member_teams (
@@ -1151,8 +1251,10 @@ CREATE TABLE public.teamlead_member_teams (
 );
 
 
+ALTER TABLE public.teamlead_member_teams OWNER TO postgres;
+
 --
--- Name: teamlead_member_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: teamlead_member_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.teamlead_member_teams_id_seq
@@ -1163,15 +1265,17 @@ CREATE SEQUENCE public.teamlead_member_teams_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.teamlead_member_teams_id_seq OWNER TO postgres;
+
 --
--- Name: teamlead_member_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: teamlead_member_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.teamlead_member_teams_id_seq OWNED BY public.teamlead_member_teams.id;
 
 
 --
--- Name: teamlead_members; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_members; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_members (
@@ -1185,8 +1289,10 @@ CREATE TABLE public.teamlead_members (
 );
 
 
+ALTER TABLE public.teamlead_members OWNER TO postgres;
+
 --
--- Name: teamlead_members_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: teamlead_members_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.teamlead_members_id_seq
@@ -1197,15 +1303,17 @@ CREATE SEQUENCE public.teamlead_members_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.teamlead_members_id_seq OWNER TO postgres;
+
 --
--- Name: teamlead_members_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: teamlead_members_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.teamlead_members_id_seq OWNED BY public.teamlead_members.id;
 
 
 --
--- Name: teamlead_payout_rows_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: teamlead_payout_rows_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.teamlead_payout_rows_id_seq
@@ -1216,15 +1324,17 @@ CREATE SEQUENCE public.teamlead_payout_rows_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.teamlead_payout_rows_id_seq OWNER TO postgres;
+
 --
--- Name: teamlead_payout_rows_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: teamlead_payout_rows_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.teamlead_payout_rows_id_seq OWNED BY public.teamlead_payout_rows.id;
 
 
 --
--- Name: teamlead_periods_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: teamlead_periods_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.teamlead_periods_id_seq
@@ -1235,15 +1345,17 @@ CREATE SEQUENCE public.teamlead_periods_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.teamlead_periods_id_seq OWNER TO postgres;
+
 --
--- Name: teamlead_periods_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: teamlead_periods_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.teamlead_periods_id_seq OWNED BY public.teamlead_periods.id;
 
 
 --
--- Name: teamlead_teams; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_teams; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_teams (
@@ -1253,8 +1365,10 @@ CREATE TABLE public.teamlead_teams (
 );
 
 
+ALTER TABLE public.teamlead_teams OWNER TO postgres;
+
 --
--- Name: teamlead_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: teamlead_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.teamlead_teams_id_seq
@@ -1265,15 +1379,17 @@ CREATE SEQUENCE public.teamlead_teams_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.teamlead_teams_id_seq OWNER TO postgres;
+
 --
--- Name: teamlead_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: teamlead_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.teamlead_teams_id_seq OWNED BY public.teamlead_teams.id;
 
 
 --
--- Name: teamlead_week_eligibility; Type: TABLE; Schema: public; Owner: -
+-- Name: teamlead_week_eligibility; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teamlead_week_eligibility (
@@ -1286,8 +1402,10 @@ CREATE TABLE public.teamlead_week_eligibility (
 );
 
 
+ALTER TABLE public.teamlead_week_eligibility OWNER TO postgres;
+
 --
--- Name: teams; Type: TABLE; Schema: public; Owner: -
+-- Name: teams; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.teams (
@@ -1299,8 +1417,10 @@ CREATE TABLE public.teams (
 );
 
 
+ALTER TABLE public.teams OWNER TO postgres;
+
 --
--- Name: teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: teams_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.teams_id_seq
@@ -1311,15 +1431,17 @@ CREATE SEQUENCE public.teams_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.teams_id_seq OWNER TO postgres;
+
 --
--- Name: teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.teams_id_seq OWNED BY public.teams.id;
 
 
 --
--- Name: training_courses_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: training_courses_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.training_courses_id_seq
@@ -1330,8 +1452,10 @@ CREATE SEQUENCE public.training_courses_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.training_courses_id_seq OWNER TO postgres;
+
 --
--- Name: training_courses; Type: TABLE; Schema: public; Owner: -
+-- Name: training_courses; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.training_courses (
@@ -1345,8 +1469,10 @@ CREATE TABLE public.training_courses (
 );
 
 
+ALTER TABLE public.training_courses OWNER TO postgres;
+
 --
--- Name: training_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: training_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.training_logs_id_seq
@@ -1357,8 +1483,10 @@ CREATE SEQUENCE public.training_logs_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.training_logs_id_seq OWNER TO postgres;
+
 --
--- Name: training_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: training_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.training_logs (
@@ -1381,8 +1509,10 @@ CREATE TABLE public.training_logs (
 );
 
 
+ALTER TABLE public.training_logs OWNER TO postgres;
+
 --
--- Name: transaction_log_items_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: transaction_log_items_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.transaction_log_items_id_seq
@@ -1393,8 +1523,10 @@ CREATE SEQUENCE public.transaction_log_items_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.transaction_log_items_id_seq OWNER TO postgres;
+
 --
--- Name: transaction_log_items; Type: TABLE; Schema: public; Owner: -
+-- Name: transaction_log_items; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.transaction_log_items (
@@ -1415,8 +1547,10 @@ CREATE TABLE public.transaction_log_items (
 );
 
 
+ALTER TABLE public.transaction_log_items OWNER TO postgres;
+
 --
--- Name: user_teams; Type: TABLE; Schema: public; Owner: -
+-- Name: user_teams; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.user_teams (
@@ -1426,8 +1560,10 @@ CREATE TABLE public.user_teams (
 );
 
 
+ALTER TABLE public.user_teams OWNER TO postgres;
+
 --
--- Name: users; Type: TABLE; Schema: public; Owner: -
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.users (
@@ -1464,8 +1600,10 @@ CREATE TABLE public.users (
 );
 
 
+ALTER TABLE public.users OWNER TO postgres;
+
 --
--- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.users_id_seq
@@ -1476,155 +1614,157 @@ CREATE SEQUENCE public.users_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
+
 --
--- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
--- Name: allocation_policy_versions id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: allocation_policy_versions id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.allocation_policy_versions ALTER COLUMN id SET DEFAULT nextval('public.allocation_policy_versions_id_seq'::regclass);
 
 
 --
--- Name: contracts id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: contracts id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts ALTER COLUMN id SET DEFAULT nextval('public.contracts_id_seq'::regclass);
 
 
 --
--- Name: event_attachments id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: event_attachments id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_attachments ALTER COLUMN id SET DEFAULT nextval('public.event_attachments_id_seq'::regclass);
 
 
 --
--- Name: event_in_charge id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: event_in_charge id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_in_charge ALTER COLUMN id SET DEFAULT nextval('public.event_in_charge_id_seq'::regclass);
 
 
 --
--- Name: event_logs id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: event_logs id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_logs ALTER COLUMN id SET DEFAULT nextval('public.event_logs_id_seq'::regclass);
 
 
 --
--- Name: event_organizer_roles id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: event_organizer_roles id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_organizer_roles ALTER COLUMN id SET DEFAULT nextval('public.event_organizer_roles_id_seq'::regclass);
 
 
 --
--- Name: event_registrations id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: event_registrations id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_registrations ALTER COLUMN id SET DEFAULT nextval('public.event_registrations_id_seq'::regclass);
 
 
 --
--- Name: events id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: events id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.events ALTER COLUMN id SET DEFAULT nextval('public.events_id_seq'::regclass);
 
 
 --
--- Name: fund_event_expenses id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: fund_event_expenses id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_event_expenses ALTER COLUMN id SET DEFAULT nextval('public.fund_event_expenses_id_seq'::regclass);
 
 
 --
--- Name: fund_weekly_allocations id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: fund_weekly_allocations id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_weekly_allocations ALTER COLUMN id SET DEFAULT nextval('public.fund_weekly_allocations_id_seq'::regclass);
 
 
 --
--- Name: invitations id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: invitations id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.invitations ALTER COLUMN id SET DEFAULT nextval('public.invitations_id_seq'::regclass);
 
 
 --
--- Name: permissions id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: permissions id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.permissions ALTER COLUMN id SET DEFAULT nextval('public.permissions_id_seq'::regclass);
 
 
 --
--- Name: table_tinh gid; Type: DEFAULT; Schema: public; Owner: -
+-- Name: table_tinh gid; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.table_tinh ALTER COLUMN gid SET DEFAULT nextval('public.table_tinh_gid_seq'::regclass);
 
 
 --
--- Name: teamlead_member_teams id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: teamlead_member_teams id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_member_teams ALTER COLUMN id SET DEFAULT nextval('public.teamlead_member_teams_id_seq'::regclass);
 
 
 --
--- Name: teamlead_members id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: teamlead_members id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_members ALTER COLUMN id SET DEFAULT nextval('public.teamlead_members_id_seq'::regclass);
 
 
 --
--- Name: teamlead_payout_rows id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows ALTER COLUMN id SET DEFAULT nextval('public.teamlead_payout_rows_id_seq'::regclass);
 
 
 --
--- Name: teamlead_periods id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: teamlead_periods id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_periods ALTER COLUMN id SET DEFAULT nextval('public.teamlead_periods_id_seq'::regclass);
 
 
 --
--- Name: teamlead_teams id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: teamlead_teams id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_teams ALTER COLUMN id SET DEFAULT nextval('public.teamlead_teams_id_seq'::regclass);
 
 
 --
--- Name: teams id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: teams id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teams ALTER COLUMN id SET DEFAULT nextval('public.teams_id_seq'::regclass);
 
 
 --
--- Name: users id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
 --
--- Data for Name: allocation_policy_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: allocation_policy_versions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.allocation_policy_versions (id, version_label, effective_date, note, rows, created_by, is_active, created_at) FROM stdin;
@@ -1633,7 +1773,7 @@ COPY public.allocation_policy_versions (id, version_label, effective_date, note,
 
 
 --
--- Data for Name: contracts; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: contracts; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.contracts (id, contract_code, contract_date, value, seller_id, referrer_id, closer_id, event_id, created_at, updated_at, customer_name, supporter_id, status, closer_fee, referrer_fee, supporter_fee, file_url, notes, allocated_value, closer_name, closer_phone, referrer_name, referrer_phone, supporter_name, supporter_phone, team_name, contract_type, approved_date, customer_phone, customer_birth_date, customer_address, collaborator_id, collaborator_name, collaborator_phone) FROM stdin;
@@ -1682,7 +1822,7 @@ COPY public.contracts (id, contract_code, contract_date, value, seller_id, refer
 
 
 --
--- Data for Name: event_attachments; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: event_attachments; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.event_attachments (id, event_id, file_url, file_name, file_type, created_at, file_size, uploaded_by) FROM stdin;
@@ -1690,7 +1830,7 @@ COPY public.event_attachments (id, event_id, file_url, file_name, file_type, cre
 
 
 --
--- Data for Name: event_in_charge; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: event_in_charge; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.event_in_charge (id, event_id, user_id, full_name, "position", phone, email, avatar, roles, status, created_at, updated_at, is_food_approved) FROM stdin;
@@ -1757,11 +1897,17 @@ COPY public.event_in_charge (id, event_id, user_id, full_name, "position", phone
 84	86	40	Cung Thu Hà	Phụng sự	0965759559	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Điều phối"}	Đã duyệt	2026-10-16 13:19:01.384	2026-10-16 13:19:01.384	t
 85	86	42	Lê Thị Chanh	Phụng sự	0385213858	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-16 13:19:39.015	2026-10-16 13:19:39.015	t
 86	86	217	Phượng Ngọc Thu	Thành viên	0969881698	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-16 13:19:55.962	2026-10-16 13:19:55.962	t
+87	86	66	Đinh thị thảo	Thành viên	0356044186	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Lễ tân"}	Đã duyệt	2026-10-17 03:55:39.792	2026-10-17 03:55:39.792	t
+88	86	43	Phạm Thị Hương	Chốt sự kiện, Lễ tân	0947876133	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Chốt sự kiện"}	Đã duyệt	2026-10-17 03:56:15.043	2026-10-17 03:56:15.043	t
+89	87	41	Nguyễn Hùng Vĩ	MC	0326894993	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{MC}	Đã duyệt	2026-10-19 08:03:29.176	2026-10-19 08:03:29.176	t
+90	87	15	Vũ Thị Cúc	Admin	0889225989	cucvt@nghiengcomplex.vn	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Chốt sự kiện"}	Đã duyệt	2026-10-19 08:03:43.1	2026-10-19 08:03:43.1	t
+91	87	43	Phạm Thị Hương	Chốt sự kiện, Lễ tân	0947876133	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{Khác}	Đã duyệt	2026-10-19 08:04:33.66	2026-10-19 08:04:33.66	t
+92	87	217	Phượng Ngọc Thu	Thành viên	0969881698	\N	https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80	{"Phụng sự"}	Đã duyệt	2026-10-19 08:53:45.232	2026-10-19 08:53:45.232	t
 \.
 
 
 --
--- Data for Name: event_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: event_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.event_logs (id, event_id, event_code, event_date, title, location, total_attendees, food_guests_count, staff_remuneration, tea_break_cost, total_cost, status, updater_name, notes, created_at, updated_at) FROM stdin;
@@ -1769,7 +1915,7 @@ COPY public.event_logs (id, event_id, event_code, event_date, title, location, t
 
 
 --
--- Data for Name: event_organizer_roles; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: event_organizer_roles; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.event_organizer_roles (id, event_id, user_id, role_type, remuneration_amount, updater_id, created_at, updated_at) FROM stdin;
@@ -1777,7 +1923,7 @@ COPY public.event_organizer_roles (id, event_id, user_id, role_type, remuneratio
 
 
 --
--- Data for Name: event_registrations; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: event_registrations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone, guest_email, company_address, source, referrer_id, referrer_group, attendance_status, is_food_approved, food_approved_by, notes, registered_at, checkin_at, created_at, updated_at, guest_code, guest_role, business_unit) FROM stdin;
@@ -2063,7 +2209,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 141	40	149	Nguyễn Văn Trung	0978581968	\N	Khách mời tham dự	Trang chủ Web	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-09-26 02:01:27.78	2026-09-26 02:18:02.619	2026-09-26 02:01:27.78	2026-09-26 02:18:02.619	QR-40-778351	MC	Khối kinh doanh
 142	40	150	Đào Thị Hoà	0981398785	\N	Khách mời tham dự	Trang chủ Web	118	Hồ Xuân thu( diệp Huế)	Đã check-in	t	\N	\N	2026-09-26 02:02:53.282	2026-09-26 02:07:11.678	2026-09-26 02:02:53.282	2026-09-26 02:07:11.678	QR-40-349755	MC	Khối kinh doanh
 143	40	151	Bùi Văn Tấn	0866852565	\N	Khách mời tham dự	Trang chủ Web	150	Đào Thị Hoà	Đã check-in	t	\N	\N	2026-09-26 02:04:02.438	2026-09-26 02:07:13.618	2026-09-26 02:04:02.438	2026-09-26 02:07:48.953	QR-40-666794	MC	Khối kinh doanh
-890	77	\N	PHAN THỊ LAM	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:47:07.154	\N	2026-10-12 08:47:07.154	2026-10-12 08:47:07.154	KH827147	MC	Ban nguồn vốn
+1248	86	\N	Lương Hồng Hải	\N	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 03:09:10.002	\N	2026-10-17 03:09:10.002	2026-10-17 03:09:15.021	KH549995	MC	Khối kinh doanh
 146	40	154	Trần Thị Thanh Hương	0876766327	\N	Khách mời tham dự	Trang chủ Web	41	Nguyễn Hùng Vĩ	Đã check-in	t	\N	\N	2026-09-26 02:15:55.785	2026-09-26 02:28:59.251	2026-09-26 02:15:55.785	2026-09-26 02:28:59.251	QR-40-643999	MC	Khối kinh doanh
 147	40	155	Trần thị minh thu	0856108703	\N	Khách mời tham dự	Trang chủ Web	154	Trần Thị Thanh Hương	Đã hủy	f	\N	\N	2026-09-26 02:16:15.71	2026-09-26 02:28:55.762	2026-09-26 02:16:15.71	2026-09-26 02:59:43.346	QR-40-206157	MC	Khối kinh doanh
 148	40	156	Nguyễn Thị Cẩm	0987821384	\N	Khách mời tham dự	Trang chủ Web	\N	Nguyễn Thị Hà	Đã check-in	t	\N	\N	2026-09-26 02:16:50.795	2026-09-26 02:28:53.629	2026-09-26 02:16:50.795	2026-09-26 02:58:08.759	QR-40-342109	MC	Khối kinh doanh
@@ -2487,9 +2633,28 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 203	40	44	Vũ Thị Thúy	0945172578	\N	Khách vãng lai	Trang chủ Web	\N	Sale	Đã check-in	t	\N	\N	2026-09-26 03:52:58.268	2026-09-26 08:47:22.118	2026-09-26 03:52:58.268	2026-10-15 03:19:33.536	QR-40-185815	MC	Ban nguồn vốn
 1204	86	\N	Vũ Thị Hòa	0328068588	\N	\N	Lễ tân nhập	183	Nguyễn Thị Dung	Đã check-in	t	\N	\N	2026-10-17 02:17:37.765	\N	2026-10-17 02:17:37.765	2026-10-17 02:17:42.826	KH457758	MC	Khối kinh doanh
 1205	86	\N	Đàm Thị Liên	0764959314	\N	\N	Lễ tân nhập	377	Hoàng Thị Luyện	Đã check-in	t	\N	\N	2026-10-17 02:18:45.725	\N	2026-10-17 02:18:45.725	2026-10-17 02:18:52.626	KH525718	MC	Ban nguồn vốn
-1233	86	\N	Lê Thị Hà	0333088873	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 02:59:13.234	\N	2026-10-17 02:59:13.234	2026-10-17 02:59:22.875	KH953228	MC	Ban nguồn vốn
-1234	86	\N	Lê Thị Hồng	0911831963	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:00:54.609	\N	2026-10-17 03:00:54.609	2026-10-17 03:01:08.271	KH054601	MC	Ban nguồn vốn
-1235	86	\N	Phạm Minh Tuấn	0768635148	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-17 03:01:41.628	\N	2026-10-17 03:01:41.628	2026-10-17 03:01:41.628	KH101621	MC	Khối kinh doanh
+1235	86	\N	Phạm Minh Tuấn	0768635148	\N	\N	Lễ tân nhập	\N	prosale	Đã check-in	t	\N	\N	2026-10-17 03:01:41.628	\N	2026-10-17 03:01:41.628	2026-10-17 03:01:51.352	KH101621	MC	Khối kinh doanh
+1242	86	\N	Lâm Đại Mộc	0828801313	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:06:25.165	\N	2026-10-17 03:06:25.165	2026-10-17 03:06:34.259	KH385160	MC	Ban nguồn vốn
+1233	86	\N	Lê Thị Hà	0333088873	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 02:59:13.234	\N	2026-10-17 02:59:13.234	2026-10-17 03:03:00.002	KH953228	MC	Ban nguồn vốn
+1234	86	\N	Lê Thị Hồng	0911831963	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:00:54.609	\N	2026-10-17 03:00:54.609	2026-10-17 03:03:02.333	KH054601	MC	Ban nguồn vốn
+1236	86	\N	Nguyễn Thị Chinh	0988787672	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:02:23.282	\N	2026-10-17 03:02:23.282	2026-10-17 03:03:05.388	KH143275	MC	Ban nguồn vốn
+1237	86	\N	Nguyễn Văn Quyết	0328906789	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:03:25.459	\N	2026-10-17 03:03:25.459	2026-10-17 03:03:33.638	KH205452	MC	Ban nguồn vốn
+1238	86	\N	Nguyễn Thị Kim Oanh	0987581195	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:03:58.911	\N	2026-10-17 03:03:58.911	2026-10-17 03:04:10.929	KH238903	MC	Ban nguồn vốn
+1239	86	\N	Lê Thị Hương	0912007997	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:04:49.242	\N	2026-10-17 03:04:49.242	2026-10-17 03:04:55.128	KH289235	MC	Ban nguồn vốn
+1240	86	\N	Lương Hồng Phong	0967695768	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:05:36.642	\N	2026-10-17 03:05:36.642	2026-10-17 03:05:47.938	KH336634	MC	Ban nguồn vốn
+1241	86	\N	Ngô Thị Hằng	0364658692	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:06:04.999	\N	2026-10-17 03:06:04.999	2026-10-17 03:06:10.093	KH364992	MC	Ban nguồn vốn
+1243	86	\N	Trần Văn Ton	0364688692	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:07:02.932	\N	2026-10-17 03:07:02.932	2026-10-17 03:09:26.068	KH422927	MC	Ban nguồn vốn
+1251	41	159	Hoàng Kim Hà	0342992674	\N	Khách mời tham dự	Trang chủ Web	154	Trần Thị Thanh Hương	Đã đăng ký	t	\N	\N	2026-10-17 03:10:14.247	\N	2026-10-17 03:10:14.247	2026-10-17 03:10:14.247	QR-41-668565	MC	Khối kinh doanh
+1253	86	\N	Hoa Anh Đào	0346450571	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:10:57.195	\N	2026-10-17 03:10:57.195	2026-10-17 03:11:25.155	KH657188	MC	Ban nguồn vốn
+1252	86	\N	Nguyễn Loan	0912281836	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:10:25.736	\N	2026-10-17 03:10:25.736	2026-10-17 03:11:29.804	KH625730	MC	Ban nguồn vốn
+1255	86	\N	Phạm Lệ Hà	0912768851	\N	\N	Lễ tân nhập	\N	Hằng Rô	Đã check-in	t	\N	\N	2026-10-17 03:11:48.508	\N	2026-10-17 03:11:48.508	2026-10-17 03:12:43.419	KH708500	MC	Ban nguồn vốn
+1250	86	\N	Bùi Đăng Lâm	0397887234	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:10:10.278	\N	2026-10-17 03:10:10.278	2026-10-17 03:12:51.378	KH610272	MC	Ban nguồn vốn
+1249	86	\N	Cao Minh Chỉnh	0389991668	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:09:41.775	\N	2026-10-17 03:09:41.775	2026-10-17 03:12:56.97	KH581769	MC	Ban nguồn vốn
+1247	86	\N	Trần Trà Giang	0936154254	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:08:32.716	\N	2026-10-17 03:08:32.716	2026-10-17 03:13:03.366	KH512709	MC	Ban nguồn vốn
+1246	86	\N	Nguyễn Thị Bảy	0946241164	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:08:18.216	\N	2026-10-17 03:08:18.216	2026-10-17 03:13:09.303	KH498208	MC	Ban nguồn vốn
+1245	86	\N	Vũ Ngọc Bảo	0966289668	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:07:51.576	\N	2026-10-17 03:07:51.576	2026-10-17 03:13:15.766	KH471570	MC	Ban nguồn vốn
+1244	86	\N	Nguyễn Văn Long	0816778895	\N	\N	Lễ tân nhập	301	Nguyễn Hải Quý	Đã check-in	t	\N	\N	2026-10-17 03:07:28.645	\N	2026-10-17 03:07:28.645	2026-10-17 03:13:20.684	KH448638	MC	Ban nguồn vốn
+1254	86	\N	Nguyễn Hải Quý	0971684398	\N	\N	Lễ tân nhập	\N	CTV	Đã check-in	t	\N	\N	2026-10-17 03:11:12.891	\N	2026-10-17 03:11:12.891	2026-10-17 03:56:44.069	KH672886	MC	Ban nguồn vốn
 753	71	\N	Nguyễn văn Ngọ	0915023869	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:42:06.79	\N	2026-10-12 07:42:06.79	2026-10-12 07:42:13.065	KH926783	MC	Khối kinh doanh
 754	71	\N	Đào thị Hòa	\N	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:42:25.129	\N	2026-10-12 07:42:25.129	2026-10-12 07:42:31.083	KH945124	MC	Khối kinh doanh
 755	71	\N	Phạm vinh Quang	\N	\N	\N	Lễ tân nhập	\N	Sale	Đã check-in	t	\N	\N	2026-10-12 07:42:42.879	\N	2026-10-12 07:42:42.879	2026-10-12 07:42:54.325	KH962873	MC	Khối kinh doanh
@@ -2540,7 +2705,6 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 800	72	\N	Bùi Văn Tuấn	0963216166	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:05:55.74	\N	2026-10-12 08:05:55.74	2026-10-12 08:05:55.74	KH355733	MC	Ban nguồn vốn
 814	73	\N	Ngô Thị Kim Dung	0767572949	\N	\N	Lễ tân nhập	221	Dương Hồng Phương	Đã check-in	t	\N	\N	2026-10-12 08:12:19.308	\N	2026-10-12 08:12:19.308	2026-10-15 02:55:50.228	KH739302	MC	Khối kinh doanh
 802	72	\N	Hồ Thị Liên	0766085756	\N	\N	Lễ tân nhập	\N	Nguyễn Tố Trinh	Đã check-in	t	\N	\N	2026-10-12 08:06:37.497	\N	2026-10-12 08:06:37.497	2026-10-12 08:06:51.983	KH397491	MC	Ban nguồn vốn
-940	79	\N	Phạm Văn Pha	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:30.237	\N	2026-10-12 09:03:30.237	2026-10-12 09:03:30.237	KH810231	MC	Ban nguồn vốn
 813	73	\N	Bùi Văn Tuấn	0963216166	\N	\N	Lễ tân nhập	81	Hoàng văn Nhật	Đã check-in	t	\N	\N	2026-10-12 08:11:52.24	\N	2026-10-12 08:11:52.24	2026-10-15 02:55:52.307	KH712234	MC	Khối kinh doanh
 811	73	\N	Ngô Hiền Lương	0975651566	\N	\N	Lễ tân nhập	205	Trần Thị Hồng Vân	Đã check-in	t	\N	\N	2026-10-12 08:10:50.098	\N	2026-10-12 08:10:50.098	2026-10-15 02:56:46.941	KH650091	MC	Khối kinh doanh
 19	38	45	Chu Thị Lương	0368684468	\N	Khách mời tham dự	Trang chủ Web	\N	Giảng sư	Đã check-in	t	\N	\N	2026-09-19 01:34:26.713	2026-09-19 01:45:44.242	2026-09-19 01:34:26.713	2026-10-15 04:02:00.981	QR-38-107145	MC	Ban nguồn vốn
@@ -2585,7 +2749,6 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 843	75	\N	Đào An	0972171162	\N	\N	Lễ tân nhập	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-12 08:23:58.38	\N	2026-10-12 08:23:58.38	2026-10-12 08:24:09.728	KH438371	MC	Ban nguồn vốn
 853	76	\N	Trần Sơn	0838092455	\N	\N	Lễ tân nhập	290	Vũ Thị Thúy	Đã check-in	t	\N	\N	2026-10-12 08:30:59.294	\N	2026-10-12 08:30:59.294	2026-10-15 08:17:38.174	KH859288	MC	Khối kinh doanh
 844	75	\N	Hà Hồng	0832895998	\N	\N	Lễ tân nhập	155	Trần thị minh thu	Đã check-in	t	\N	\N	2026-10-12 08:24:27.551	\N	2026-10-12 08:24:27.551	2026-10-12 08:24:42.023	KH467545	MC	Ban nguồn vốn
-1062	84	\N	CHÍCH BÔNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:06.365	\N	2026-10-13 04:17:06.365	2026-10-13 04:17:06.365	KH026358	MC	Khối kinh doanh
 1206	86	\N	Hoàng Công Nam	0947289003	\N	\N	Lễ tân nhập	87	Lê Thị Thanh Huyền	Đã check-in	t	\N	\N	2026-10-17 02:24:23.218	\N	2026-10-17 02:24:23.218	2026-10-17 02:24:31.521	KH863212	MC	Khối kinh doanh
 845	75	\N	Hoàng Văn Chinh	0963508656	\N	\N	Lễ tân nhập	42	Lê Thị Chanh	Đã check-in	t	\N	\N	2026-10-12 08:25:02.306	\N	2026-10-12 08:25:02.306	2026-10-12 08:25:07.123	KH502299	MC	Ban nguồn vốn
 789	72	\N	Vũ Thị Yến	0396460484	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 07:59:29	\N	2026-10-12 07:59:29	2026-10-12 08:28:46.553	KH968993	MC	Khối kinh doanh
@@ -2630,6 +2793,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 834	74	\N	Vũ Thúy Quỳnh	0982738426	\N	\N	Lễ tân nhập	109	Hoàng Thị Chích	Đã check-in	t	\N	\N	2026-10-12 08:19:31.153	\N	2026-10-12 08:19:31.153	2026-10-12 08:28:20.57	KH171147	MC	Khối kinh doanh
 888	77	\N	Dương Thị Thanh	0962683595	\N	\N	Lễ tân nhập	80	Cao t lan huong ( trinh )	Đã check-in	t	\N	\N	2026-10-12 08:46:23.696	\N	2026-10-12 08:46:23.696	2026-10-12 08:46:35.613	KH783691	MC	Ban nguồn vốn
 889	77	\N	Nguyễn Thị Kỷ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:46:56.379	\N	2026-10-12 08:46:56.379	2026-10-12 08:46:56.379	KH816369	MC	Ban nguồn vốn
+890	77	\N	PHAN THỊ LAM	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 08:47:07.154	\N	2026-10-12 08:47:07.154	2026-10-12 08:47:07.154	KH827147	MC	Ban nguồn vốn
 891	77	\N	Nguyễn Văn Thành	08666288665	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:47:26.878	\N	2026-10-12 08:47:26.878	2026-10-12 08:47:37.423	KH846871	MC	Ban nguồn vốn
 892	77	\N	Phùng Thị Điệp	\N	\N	\N	Lễ tân nhập	450	Đoàn Thị Tuyết Minh	Đã check-in	t	\N	\N	2026-10-12 08:47:58.755	\N	2026-10-12 08:47:58.755	2026-10-12 08:48:08.443	KH878748	MC	Ban nguồn vốn
 893	77	\N	Phan thị Nguyệt	0966382168	\N	\N	Lễ tân nhập	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-12 08:48:25.293	\N	2026-10-12 08:48:25.293	2026-10-12 08:48:30.163	KH905287	MC	Ban nguồn vốn
@@ -2678,6 +2842,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 937	79	\N	Nguyễn Thị Tâm	\N	\N	\N	Lễ tân nhập	56	Lê thanh vi	Đã check-in	t	\N	\N	2026-10-12 09:02:18.511	\N	2026-10-12 09:02:18.511	2026-10-12 09:02:26.431	KH738506	MC	Ban nguồn vốn
 938	79	\N	Tạ Thị pha	\N	\N	\N	Lễ tân nhập	\N	Dương Thị Thanh	Đã check-in	t	\N	\N	2026-10-12 09:02:51.65	\N	2026-10-12 09:02:51.65	2026-10-12 09:02:59.431	KH771644	MC	Ban nguồn vốn
 939	79	\N	Nguyễn Văn Giáp	0984767962	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:16.754	\N	2026-10-12 09:03:16.754	2026-10-12 09:03:16.754	KH796735	MC	Ban nguồn vốn
+940	79	\N	Phạm Văn Pha	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:30.237	\N	2026-10-12 09:03:30.237	2026-10-12 09:03:30.237	KH810231	MC	Ban nguồn vốn
 941	79	\N	Nguyễn Văn Trịnh	0905040579	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:03:49.152	\N	2026-10-12 09:03:49.152	2026-10-12 09:03:49.152	KH829145	MC	Ban nguồn vốn
 942	79	\N	Trần Ánh	0983661163	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:04:05.78	\N	2026-10-12 09:04:05.78	2026-10-12 09:04:05.78	KH845772	MC	Ban nguồn vốn
 943	79	\N	Trần Mai Lương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:04:16.601	\N	2026-10-12 09:04:16.601	2026-10-12 09:04:16.601	KH856596	MC	Ban nguồn vốn
@@ -2688,9 +2853,17 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 120	39	136	Đỗ thuý Hằng	0912519172	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-09-23 08:01:13.561	2026-09-23 08:01:24.08	2026-09-23 08:01:13.561	2026-10-15 04:04:00.294	QR-39-299409	MC	Ban nguồn vốn
 121	39	137	Nguyễn thị kim loan	0963239211	\N	Khách mời tham dự	Trang chủ Web	136	Đỗ thuý Hằng	Đã check-in	t	\N	\N	2026-09-23 08:01:32.48	2026-09-23 08:03:30.695	2026-09-23 08:01:32.48	2026-10-15 04:07:39.084	QR-39-255150	MC	Ban nguồn vốn
 100	39	117	Hoàng Thị Luyện ( A thịnh)	0972831568	\N	Khách vãng lai	Trang chủ Web	\N	Thịnh BNV	Đã check-in	t	\N	\N	2026-09-23 06:54:31.432	2026-09-23 07:04:23.472	2026-09-23 06:54:31.432	2026-10-15 04:19:48.083	QR-39-356411	MC	Ban nguồn vốn
-1207	86	\N	Đào Diệu Thúy	0966666751	\N	\N	Lễ tân nhập	157	Lưu Thanh Hải	Đã check-in	t	\N	\N	2026-10-17 02:25:55.696	\N	2026-10-17 02:25:55.696	2026-10-17 02:26:20.003	KH955690	MC	Ban nguồn vốn
+1261	87	504	Hường	0974130096	\N	Khách mời tham dự	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-19 12:06:26.515	\N	2026-10-19 12:06:26.515	2026-10-19 12:06:26.515	QR-87-722714	MC	Khối kinh doanh
 1209	86	\N	Nguyễn Thị Ngọc Dung	0978623232	\N	\N	Lễ tân nhập	121	Ngô Quang Trung	Đã check-in	t	\N	\N	2026-10-17 02:28:46.898	\N	2026-10-17 02:28:46.898	2026-10-17 02:28:57.39	KH126893	MC	Khối kinh doanh
+1262	87	505	Trân thu Huong	0329316443	\N	\N	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-19 12:10:06.463	\N	2026-10-19 12:10:06.463	2026-10-19 12:10:06.463	QR-87-424183	MC	Khối kinh doanh
+1264	87	507	Nguyenthj Hồng	0974970352	\N	\N	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-19 12:28:32.67	\N	2026-10-19 12:28:32.67	2026-10-19 12:28:32.67	QR-87-385370	MC	Khối kinh doanh
 1208	86	\N	Phùng Văn Dũng	0911521919	\N	\N	Lễ tân nhập	397	Chu Thị Lương	Đã check-in	f	\N	\N	2026-10-17 02:27:49.402	2026-10-17 02:32:40.422	2026-10-17 02:27:49.402	2026-10-17 02:32:42.465	KH069394	MC	Ban nguồn vốn
+1207	86	\N	Đào Diệu Thúy	0966666751	\N	\N	Lễ tân nhập	157	Lưu Thanh Hải	Đã check-in	t	\N	\N	2026-10-17 02:25:55.696	\N	2026-10-17 02:25:55.696	2026-10-17 03:58:32.338	KH955690	MC	Khối kinh doanh
+1256	87	214	Lê.Thị Nhung	0398733976	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã đăng ký	t	\N	\N	2026-10-19 08:07:13.555	\N	2026-10-19 08:07:13.555	2026-10-19 08:07:13.555	QR-87-207680	MC	Khối kinh doanh
+1257	41	500	Chị châu ở Nguyễn xiển	0942640310	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã đăng ký	t	\N	\N	2026-10-19 08:24:03.888	\N	2026-10-19 08:24:03.888	2026-10-19 08:24:03.888	QR-41-884392	MC	Khối kinh doanh
+1258	87	501	Kiều Mỹ	0899269686	\N	Khách mời tham dự	Trang chủ Web	\N	Ánh Hào	Đã đăng ký	t	\N	\N	2026-10-19 09:01:17.655	\N	2026-10-19 09:01:17.655	2026-10-19 09:01:17.655	QR-87-375349	MC	Khối kinh doanh
+1259	87	502	Vũ thị Hà	0983390251	\N	\N	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-19 11:47:34.232	\N	2026-10-19 11:47:34.232	2026-10-19 11:47:34.232	QR-87-816529	MC	Khối kinh doanh
+1265	41	508	Trần Thị Ngọc khách hàng của chị Lê Thị Nhung	0972733254	\N	Khách mời tham dự	Trang chủ Web	109	Hoàng Thị Chích	Đã đăng ký	t	\N	\N	2026-10-19 13:57:54.091	\N	2026-10-19 13:57:54.091	2026-10-19 13:57:54.091	QR-41-251356	MC	Khối kinh doanh
 933	79	\N	Trần Thị Anh Hương	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:01:31.214	\N	2026-10-12 09:01:31.214	2026-10-12 09:01:31.214	KH691165	MC	Ban nguồn vốn
 947	79	\N	Nguyễn Thị Huê	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-12 09:05:38.002	\N	2026-10-12 09:05:38.002	2026-10-12 09:05:38.002	KH937995	MC	Ban nguồn vốn
 946	79	\N	Ngô Doãn Dũng	0913525741	\N	\N	Lễ tân nhập	\N	Cao Thắng	Đã check-in	t	\N	\N	2026-10-12 09:05:13.286	\N	2026-10-12 09:05:13.286	2026-10-12 09:05:57.607	KH913279	MC	Ban nguồn vốn
@@ -2809,6 +2982,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 1059	84	\N	NGỌC THỦ	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:31.135	\N	2026-10-13 04:16:31.135	2026-10-13 04:16:31.135	KH991128	MC	Ban nguồn vốn
 1060	84	\N	ĐÀO THỊ MAI	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:45.424	\N	2026-10-13 04:16:45.424	2026-10-13 04:16:45.424	KH005416	MC	Ban nguồn vốn
 1061	84	\N	CAO THỊ LAN HƯƠNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:16:54.459	\N	2026-10-13 04:16:54.459	2026-10-13 04:16:54.459	KH014452	MC	Ban nguồn vốn
+1062	84	\N	CHÍCH BÔNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:06.365	\N	2026-10-13 04:17:06.365	2026-10-13 04:17:06.365	KH026358	MC	Khối kinh doanh
 1063	84	\N	LÊ THỊ THANH HUYỀN	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:15.509	\N	2026-10-13 04:17:15.509	2026-10-13 04:17:15.509	KH035502	MC	Ban nguồn vốn
 1064	84	\N	LÊ PHƯƠNG THU	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:25.53	\N	2026-10-13 04:17:25.53	2026-10-13 04:17:25.53	KH045523	MC	Ban nguồn vốn
 1065	84	\N	NGUYỄN THỊ HƯƠNG	\N	\N	\N	Lễ tân nhập	\N	\N	Đã check-in	t	\N	\N	2026-10-13 04:17:34.778	\N	2026-10-13 04:17:34.778	2026-10-13 04:17:34.778	KH054771	MC	Ban nguồn vốn
@@ -2864,6 +3038,8 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 1136	85	483	Ngô Thị Kim Thư	0834830927	\N	Khách mời tham dự	Trang chủ Web	392	Vũ Hùng Vĩ	Đã check-in	t	\N	\N	2026-10-14 03:17:29.56	2026-10-14 03:31:19.839	2026-10-14 03:17:29.56	2026-10-14 03:31:19.839	QR-85-572318	MC	Khối kinh doanh
 1135	85	51	Lương Hồng Hải	0919520885	\N	Khách mời tham dự	Trang chủ Web	\N	Prosale	Đã check-in	t	\N	\N	2026-10-14 03:16:36.328	2026-10-14 03:31:22.125	2026-10-14 03:16:36.328	2026-10-14 03:31:22.125	QR-85-262993	MC	Khối kinh doanh
 1210	86	\N	Nguyễn Thu Hương	0986849666	\N	\N	Lễ tân nhập	121	Ngô Quang Trung	Đã check-in	t	\N	\N	2026-10-17 02:31:11.03	\N	2026-10-17 02:31:11.03	2026-10-17 02:31:35.44	KH271023	MC	Khối kinh doanh
+1260	87	503	AN NHIEN	0962591382	\N	\N	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-19 11:49:24.398	\N	2026-10-19 11:49:24.398	2026-10-19 11:49:24.398	QR-87-361395	MC	Khối kinh doanh
+1263	87	506	Nguyenthi Nhâm	0916835556	\N	\N	Trang chủ Web	\N	Dương Hồng Phương (0979345229)	Đã đăng ký	t	\N	\N	2026-10-19 12:10:47.438	\N	2026-10-19 12:10:47.438	2026-10-19 12:10:47.438	QR-87-907673	MC	Khối kinh doanh
 1093	85	458	phan thị thanh thuỷ	0983009962	\N	Khách mời tham dự	Trang chủ Web	\N	0886265813Lê thị thanh huyền	Đã check-in	t	\N	\N	2026-10-13 10:08:52.195	2026-10-14 02:52:54.57	2026-10-13 10:08:52.195	2026-10-14 02:52:54.57	QR-85-561403	MC	Khối kinh doanh
 1115	85	469	Trương Thục Định	0356100791	\N	Khách mời tham dự	Trang chủ Web	375	Trần Thị Thanh Hương	Đã check-in	t	\N	\N	2026-10-14 02:51:38.111	2026-10-14 02:53:16.721	2026-10-14 02:51:38.111	2026-10-14 02:53:16.721	QR-85-175562	MC	Khối kinh doanh
 378	42	322	Lê Hồng Liên	0384473988	\N	Khách mời tham dự	Trang chủ Web	117	Hoàng Thị Luyện ( A thịnh)	Đã check-in	f	\N	\N	2026-10-03 03:36:23.046	2026-10-03 04:34:10.454	2026-10-03 03:36:23.046	2026-10-15 06:36:37.323	QR-42-931270	MC	Ban nguồn vốn
@@ -2888,15 +3064,15 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 1183	86	\N	Đào Thị Tươi	\N	\N	\N	Lễ tân nhập	486	Hoàng Thị Huề	Đã check-in	t	\N	\N	2026-10-17 01:50:18.532	2026-10-17 01:59:48.993	2026-10-17 01:50:18.532	2026-10-17 01:59:48.993	KH818525	MC	Khối kinh doanh
 1177	86	471	Nguyễn Quang Ánh	0332706584	\N	Khách mời tham dự	Trang chủ Web	\N	Vũ Thị Thúy (N_+84945172578)	Đã check-in	t	\N	\N	2026-10-16 23:58:19.333	2026-10-17 01:59:53.654	2026-10-16 23:58:19.333	2026-10-17 01:59:53.654	QR-86-335704	MC	Ban nguồn vốn
 1174	86	485	Nguyễn Thị Hồng	0974478595	\N	Khách mời tham dự	Trang chủ Web	465	Nguyễn Mai Thiện	Đã check-in	t	\N	\N	2026-10-16 05:04:11.257	2026-10-17 01:59:55.46	2026-10-16 05:04:11.257	2026-10-17 01:59:55.46	QR-86-477146	MC	Khối kinh doanh
+1187	86	495	Đỗ Duy Trưởng	0988834544	\N	Khách mời tham dự	Trang chủ Web	278	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-17 01:54:29.009	2026-10-17 02:00:57.952	2026-10-17 01:54:29.009	2026-10-17 04:00:35.807	QR-86-394052	MC	Ban nguồn vốn
 1193	86	498	Đặng Diệp Hà	0901771966	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:57:31.909	2026-10-17 02:00:12.378	2026-10-17 01:57:31.909	2026-10-17 02:00:12.378	QR-86-621853	MC	Khối kinh doanh
 1195	86	133	Bùi Thị Nguyệt	0932003666	\N	Khách mời tham dự	Trang chủ Web	73	Hồ Kim Thoa	Đã check-in	t	\N	\N	2026-10-17 01:57:54.395	2026-10-17 02:00:15.345	2026-10-17 01:57:54.395	2026-10-17 02:00:15.345	QR-86-523602	MC	Khối kinh doanh
 1189	86	496	Hoàng Văn Thoại	0986577981	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-17 01:55:36.774	2026-10-17 02:00:20.693	2026-10-17 01:55:36.774	2026-10-17 02:00:20.693	QR-86-245866	MC	Khối kinh doanh
 1188	86	486	Hoàng thị huề	0966116573	\N	Khách mời tham dự	Trang chủ Web	15	Vũ Thị Cúc	Đã check-in	t	\N	\N	2026-10-17 01:54:41.696	2026-10-17 02:00:22.58	2026-10-17 01:54:41.696	2026-10-17 02:00:22.58	QR-86-339089	MC	Khối kinh doanh
-1182	86	491	Nguyễn Thị Vui	0377009738	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-17 01:49:57.295	2026-10-17 02:00:37.714	2026-10-17 01:49:57.295	2026-10-17 02:00:37.714	QR-86-979455	MC	Khối kinh doanh
-1184	86	492	Phạm Thị Minh	0336879363	\N	Khách mời tham dự	Trang chủ Web	491	Nguyễn Thị Vui	Đã check-in	t	\N	\N	2026-10-17 01:50:31.417	2026-10-17 02:00:41.028	2026-10-17 01:50:31.417	2026-10-17 02:00:41.028	QR-86-219786	MC	Khối kinh doanh
-1185	86	493	Hứa Xuân Từ	0387077698	\N	Khách mời tham dự	Trang chủ Web	491	Nguyễn Thị Vui	Đã check-in	t	\N	\N	2026-10-17 01:51:49.988	2026-10-17 02:00:46.228	2026-10-17 01:51:49.988	2026-10-17 02:00:46.228	QR-86-687195	MC	Khối kinh doanh
-1186	86	494	Vũ Thị Phiêm	0862548959	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-17 01:52:54.699	2026-10-17 02:00:54.013	2026-10-17 01:52:54.699	2026-10-17 02:00:54.013	QR-86-849071	MC	Khối kinh doanh
-1187	86	495	Đỗ Duy Trưởng	0988834544	\N	Khách mời tham dự	Trang chủ Web	278	Trần Thị Mai Lương	Đã check-in	t	\N	\N	2026-10-17 01:54:29.009	2026-10-17 02:00:57.952	2026-10-17 01:54:29.009	2026-10-17 02:00:57.952	QR-86-394052	MC	Khối kinh doanh
+1182	86	491	Nguyễn Thị Vui	0377009738	\N	Khách mời tham dự	Trang chủ Web	93	Nguyễn Xuân mâụ	Đã check-in	t	\N	\N	2026-10-17 01:49:57.295	2026-10-17 02:00:37.714	2026-10-17 01:49:57.295	2026-10-17 04:00:52.09	QR-86-979455	MC	Ban nguồn vốn
+1184	86	492	Phạm Thị Minh	0336879363	\N	Khách mời tham dự	Trang chủ Web	491	Nguyễn Thị Vui	Đã check-in	t	\N	\N	2026-10-17 01:50:31.417	2026-10-17 02:00:41.028	2026-10-17 01:50:31.417	2026-10-17 04:00:47.418	QR-86-219786	MC	Ban nguồn vốn
+1185	86	493	Hứa Xuân Từ	0387077698	\N	Khách mời tham dự	Trang chủ Web	491	Nguyễn Thị Vui	Đã check-in	t	\N	\N	2026-10-17 01:51:49.988	2026-10-17 02:00:46.228	2026-10-17 01:51:49.988	2026-10-17 04:00:42.073	QR-86-687195	MC	Ban nguồn vốn
+1186	86	494	Vũ Thị Phiêm	0862548959	\N	Khách mời tham dự	Trang chủ Web	152	NGUYỄN NGỌC THỦ	Đã check-in	t	\N	\N	2026-10-17 01:52:54.699	2026-10-17 02:00:54.013	2026-10-17 01:52:54.699	2026-10-17 04:00:38.849	QR-86-849071	MC	Ban nguồn vốn
 1191	86	497	Nguyễn Thị Mai	0961185655	\N	Khách mời tham dự	Trang chủ Web	475	Vũ Văn Kiên	Đã check-in	t	\N	\N	2026-10-17 01:56:34.414	2026-10-17 02:00:10.309	2026-10-17 01:56:34.414	2026-10-17 02:08:03.478	QR-86-400211	MC	Ban nguồn vốn
 1113	85	468	Nguyễn Trí Đạo	0913043791	\N	Khách mời tham dự	Trang chủ Web	40	Cung Thu Hà	Đã check-in	t	\N	\N	2026-10-14 02:49:57.544	2026-10-14 02:53:13.922	2026-10-14 02:49:57.544	2026-10-14 03:01:12.485	QR-85-488613	MC	Khối kinh doanh
 1128	85	477	Nguyễn Thị Liễu	0967143276	\N	Khách mời tham dự	Trang chủ Web	381	Nguyễn Th��� Thịnh	Đã check-in	t	\N	\N	2026-10-14 03:10:45.569	2026-10-14 03:13:15.201	2026-10-14 03:10:45.569	2026-10-14 10:51:43.415	QR-85-915049	MC	Ban nguồn vốn
@@ -2981,7 +3157,7 @@ COPY public.event_registrations (id, event_id, user_id, guest_name, guest_phone,
 
 
 --
--- Data for Name: event_schedules; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: event_schedules; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.event_schedules (id, event_id, "time", title, speaker, description, order_num, created_at, updated_at) FROM stdin;
@@ -2989,7 +3165,7 @@ COPY public.event_schedules (id, event_id, "time", title, speaker, description, 
 
 
 --
--- Data for Name: events; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: events; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.events (id, code, name, short_description, detail_description, event_date, start_time, end_time, location, event_format, fee, registration_deadline, expected_guests, event_type, manager_id, creator_id, status, approval_status, approved_by, approved_at, approval_notes, mc_fee, speaker_fee, support_fee, closer_fee, tea_break_fee, notes, created_at, updated_at, content, image_url) FROM stdin;
@@ -3000,7 +3176,7 @@ COPY public.events (id, code, name, short_description, detail_description, event
 38	EVT20260038	TIỆC TRÀ 19/09/2026	Tiệc trà giao lưu kết nối doanh nghiệp và đối tác	Chương trình tiệc trà kết nối đối tác, mở rộng cơ hội hợp tác và phát triển kinh doanh bền vững.	2026-09-19	08:30:00	11:30:00	Công ty CP Tập đoàn Nghiêng Complex ML6-23 Vinhomes Green Bay đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-10-02 04:32:05.724	\N	0.00	0.00	0.00	0.00	0.00		2026-09-18 13:02:31.952	2026-10-15 02:34:55.942	Chương trình tiệc trà kết nối đối tác, mở rộng cơ hội hợp tác và phát triển kinh doanh bền vững.	/events/hero-banner.jpg
 82	\N	TIỆC TRÀ 22/07/2026	\N	\N	2026-07-22	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	17	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:45.949	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:12:32.008	2026-10-09 04:15:45.949	\N	/events/event-1.jpg
 81	\N	TIỆC TRÀ 18/07/2026	\N	\N	2026-07-18	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	33	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:40.561	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:12:07.134	2026-10-09 04:15:40.561	\N	/events/event-1.jpg
-41	\N	TIỆC TRÀ 30-9-2026	\N		2026-09-30	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	95	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-28 09:20:00.24	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-28 02:22:58.792	2026-10-01 02:31:22.768		/events/event-4.jpg
+41	\N	TIỆC TRÀ 30-9-2026	\N		2026-09-30	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	98	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-28 09:20:00.24	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-28 02:22:58.792	2026-10-01 02:31:22.768		/events/event-4.jpg
 79	\N	TIỆC TRÀ 11/07/2026	\N	\N	2026-07-11	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	57	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:54.221	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:10:59.916	2026-10-09 04:15:54.221	\N	/events/event-1.jpg
 77	\N	TIỆC TRÀ 04/07/2026	\N	\N	2026-07-04	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	22	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:59.135	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:08:54.602	2026-10-09 04:15:59.135	\N	/events/event-1.jpg
 78	\N	TIỆC TRÀ 08/07/2026	\N	\N	2026-07-08	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	1	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:56.764	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 04:09:29.076	2026-10-09 04:15:56.764	\N	/events/event-1.jpg
@@ -3019,13 +3195,14 @@ COPY public.events (id, code, name, short_description, detail_description, event
 39	\N	TIỆC TRÀ 23/09/2026	\N		2026-09-23	14:00:00	16:30:00	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	\N	Đã diễn ra	Đã duyệt	\N	2026-09-25 07:17:15.597	\N	200000.00	300000.00	300000.00	200000.00	50000.00		2026-09-22 10:52:18.252	2026-10-15 02:36:21.169		/events/event-1.jpg
 84	\N	TIỆC TRÀ 26/07/2026	\N		2026-07-26	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	0	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-09 04:15:33.278	\N	200000.00	300000.00	100000.00	200000.00	50000.00		2026-10-09 04:13:34.876	2026-10-15 02:36:40.217		/events/event-1.jpg
 85	\N	TIỆC TRÀ 14/10/2026	\N	\N	2026-10-14	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	76	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-16 13:17:35.076	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-13 02:43:25.871	2026-10-16 13:17:38.332	\N	/events/event-1.jpg
-86	\N	TIỆC TRÀ 17/10/2026	\N	\N	2026-10-17	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	61	\N	\N	15	Sắp diễn ra	Đã duyệt	15	2026-10-16 13:17:27.345	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-16 02:31:39.089	2026-10-16 13:17:27.345	\N	/events/event-1.jpg
+86	\N	TIỆC TRÀ 17/10/2026	\N	\N	2026-10-17	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	80	\N	\N	15	Đã diễn ra	Đã duyệt	15	2026-10-16 13:17:27.345	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-16 02:31:39.089	2026-10-19 07:54:25.838	\N	/events/event-1.jpg
 67	\N	TIỆC TRÀ 29/08/2026	\N	\N	2026-08-29	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	61	\N	\N	15	Đã diễn ra	Đã duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-09 03:58:52.937	2026-10-09 03:58:52.937	\N	/events/event-1.jpg
+87	\N	TIỆC TRÀ 20/10/2026	\N	\N	2026-10-20	\N	\N	ML6-23 Vinhomes Green Bay, đường Lương Thế Vinh, phường Đại Mỗ, TP Hà Nội	\N	0.00	\N	8	\N	\N	15	Sắp diễn ra	Chờ duyệt	\N	\N	\N	200000.00	300000.00	100000.00	200000.00	50000.00	\N	2026-10-19 07:56:47.468	2026-10-19 07:56:47.468	\N	/events/event-1.jpg
 \.
 
 
 --
--- Data for Name: fund_beneficiary_allocations; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: fund_beneficiary_allocations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_row, period_code, period_label, record_type, contract_ref, contract_date, customer_name, contract_value, beneficiary_name, beneficiary_phone, bank_account, bank_name, commission_rate, fund_source, allocated_amount, paid_amount, remaining_amount, created_at, updated_at) FROM stdin;
@@ -3358,7 +3535,7 @@ COPY public.fund_beneficiary_allocations (id, source_key, source_sheet, source_r
 
 
 --
--- Data for Name: fund_event_expenses; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: fund_event_expenses; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.fund_event_expenses (id, source_sheet, source_row, event_code, event_date, beneficiary_phone, beneficiary_name, expense_role, proposed_amount, status) FROM stdin;
@@ -3395,7 +3572,7 @@ COPY public.fund_event_expenses (id, source_sheet, source_row, event_code, event
 
 
 --
--- Data for Name: fund_weekly_allocations; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: fund_weekly_allocations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.fund_weekly_allocations (id, period_code, period_month, period_label, period_start, period_end, fund_key, fund_source, allocation_rate, requested_amount, source_sheet, allocated_amount, paid_amount, remaining_amount) FROM stdin;
@@ -3494,7 +3671,7 @@ COPY public.fund_weekly_allocations (id, period_code, period_month, period_label
 
 
 --
--- Data for Name: invitations; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: invitations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_phone, status, reward_points, created_at, updated_at) FROM stdin;
@@ -3614,6 +3791,7 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 205	122	Nguyễn Thị Ngọc	0376566725@guest.local	0376566725	Thành công	10	2026-10-03 01:40:12.206	2026-10-03 01:40:12.206
 96	48	Trần Thị Hà	0373360136@guest.local	0373360136	Thành công	10	2026-09-25 13:50:37.579	2026-09-25 13:50:37.579
 97	146	Nguyễn Văn Điền	0985544078@guest.local	0985544078	Thành công	10	2026-09-26 01:45:14.517	2026-09-26 01:45:14.517
+414	109	Chị châu ở Nguyễn xiển	0942640310@guest.local	0942640310	Thành công	10	2026-10-19 08:24:03.92	2026-10-19 08:24:03.92
 98	146	Lương Vũ Tiến	0974200697@guest.local	0974200697	Thành công	10	2026-09-26 01:46:06.538	2026-09-26 01:46:06.538
 381	49	Nguyễn Thị Yến	0967765626@guest.local	0967765626	Thành công	10	2026-10-14 02:36:06.791	2026-10-14 02:36:06.791
 383	375	Đỗ Thị Nhiệm	0985016368@guest.local	0985016368	Thành công	10	2026-10-14 02:51:03.418	2026-10-14 02:51:03.418
@@ -3671,6 +3849,7 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 139	45	Phạm Thanh Tùng	0913262869@guest.local	0913262869	Thành công	10	2026-09-26 03:22:35.079	2026-09-26 03:22:35.079
 140	92	Nguyễn Thị Thu	0334618677@guest.local	0334618677	Thành công	10	2026-09-26 03:24:15.238	2026-09-26 03:24:15.238
 141	167	Nguyễn Minh Khuê	0396764462@guest.local	0396764462	Thành công	10	2026-09-26 03:24:50.364	2026-09-26 03:24:50.364
+415	109	Trần Thị Ngọc khách hàng của chị Lê Thị Nhung	0972733254@guest.local	0972733254	Thành công	10	2026-10-19 13:57:54.129	2026-10-19 13:57:54.129
 382	392	Trần Văn Lâm	0983406098@guest.local	0983406098	Thành công	10	2026-10-14 02:37:55.054	2026-10-14 02:37:55.054
 396	392	Ngô Thị Kim Thư	0834830927@guest.local	0834830927	Thành công	10	2026-10-14 03:17:29.587	2026-10-14 03:17:29.587
 142	92	Lê Văn hòa	0345918265@guest.local	0345918265	Thành công	10	2026-09-26 03:25:14.309	2026-09-26 03:25:14.309
@@ -3901,7 +4080,7 @@ COPY public.invitations (id, inviter_id, invitee_name, invitee_email, invitee_ph
 
 
 --
--- Data for Name: lucky_wheel_spins; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: lucky_wheel_spins; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.lucky_wheel_spins (id, wheel_id, wheel_name, participant_name, participant_phone, participant_code, prize, spun_at, status) FROM stdin;
@@ -3914,7 +4093,7 @@ COPY public.lucky_wheel_spins (id, wheel_id, wheel_name, participant_name, parti
 
 
 --
--- Data for Name: lucky_wheels; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: lucky_wheels; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.lucky_wheels (id, name, description, reward_text, quantity, event_id, event_name, spins_count, status, is_active, slices_json, core_color, arrow_color, border_color, created_at) FROM stdin;
@@ -3932,7 +4111,7 @@ COPY public.lucky_wheels (id, name, description, reward_text, quantity, event_id
 
 
 --
--- Data for Name: operations_fund_beneficiaries; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: operations_fund_beneficiaries; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.operations_fund_beneficiaries (id, department_key, fund_key, fund_source, department, full_name, phone, bank_account, bank_name, weekly_rate, monthly_rate, effective_from, created_by, updated_by, created_at, updated_at) FROM stdin;
@@ -3946,7 +4125,7 @@ COPY public.operations_fund_beneficiaries (id, department_key, fund_key, fund_so
 
 
 --
--- Data for Name: permissions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: permissions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.permissions (id, user_id, module, can_view, can_create, can_edit, can_delete, created_at, updated_at) FROM stdin;
@@ -3954,7 +4133,7 @@ COPY public.permissions (id, user_id, module, can_view, can_create, can_edit, ca
 
 
 --
--- Data for Name: pointcloud_formats; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: pointcloud_formats; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.pointcloud_formats (pcid, srid, schema) FROM stdin;
@@ -3962,7 +4141,7 @@ COPY public.pointcloud_formats (pcid, srid, schema) FROM stdin;
 
 
 --
--- Data for Name: spatial_ref_sys; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: spatial_ref_sys; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text) FROM stdin;
@@ -7035,7 +7214,7 @@ COPY public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text) FROM
 
 
 --
--- Data for Name: system_settings; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: system_settings; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.system_settings (id, key, value, description, updated_at) FROM stdin;
@@ -7045,7 +7224,7 @@ COPY public.system_settings (id, key, value, description, updated_at) FROM stdin
 
 
 --
--- Data for Name: table_tinh; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: table_tinh; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.table_tinh (gid, gid_1, gid_0, country, name_1, varname_1, nl_name_1, type_1, engtype_1, cc_1, hasc_1, iso_1, geom) FROM stdin;
@@ -7116,7 +7295,7 @@ COPY public.table_tinh (gid, gid_1, gid_0, country, name_1, varname_1, nl_name_1
 
 
 --
--- Data for Name: teamlead_fund_splits; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_fund_splits; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_fund_splits (fund_month, leader_percent, updated_by, updated_at) FROM stdin;
@@ -7124,7 +7303,7 @@ COPY public.teamlead_fund_splits (fund_month, leader_percent, updated_by, update
 
 
 --
--- Data for Name: teamlead_member_teams; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_member_teams; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_member_teams (id, member_id, team_id, role, include_70) FROM stdin;
@@ -7187,7 +7366,7 @@ COPY public.teamlead_member_teams (id, member_id, team_id, role, include_70) FRO
 
 
 --
--- Data for Name: teamlead_members; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_members; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_members (id, month, member_id, member_name, member_phone, include_30, created_at) FROM stdin;
@@ -7204,15 +7383,18 @@ COPY public.teamlead_members (id, month, member_id, member_name, member_phone, i
 28	2026-11-01	48	Phạm Minh Tuấn	0768635148	t	2026-10-09 02:46:52.406+07
 6	2026-09-01	48	Phạm Minh Tuấn	0768635148	t	2026-10-08 22:11:24.887+07
 3	2026-09-01	41	Nguyễn Hùng Vĩ	0326894993	t	2026-10-08 22:11:24.887+07
+2	2026-09-01	43	Phạm Thị Hương	0947876133	t	2026-10-08 22:11:24.887+07
+24	2026-11-01	43	Phạm Thị Hương	0947876133	t	2026-10-09 02:46:52.406+07
+13	2026-10-01	43	Phạm Thị Hương	0947876133	t	2026-10-08 22:13:06.487+07
+4	2026-09-01	401	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:11:24.887+07
+26	2026-11-01	401	Vũ Hùng Vỹ	0984065555	t	2026-10-09 02:46:52.406+07
+15	2026-10-01	401	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:13:06.487+07
+7	2026-09-01	217	Phượng Ngọc Thu	0969881698	t	2026-10-08 22:11:24.887+07
+29	2026-11-01	217	Phượng Ngọc Thu	0969881698	t	2026-10-09 02:46:52.406+07
+18	2026-10-01	217	Phượng Ngọc Thu	0969881698	f	2026-10-08 22:13:06.487+07
 30	2026-11-01	40	Cung Thu Hà	0965759559	t	2026-10-09 02:46:52.406+07
 8	2026-09-01	40	Cung Thu Hà	0965759559	t	2026-10-08 22:11:24.887+07
 9	2026-09-01	221	Dương Hồng Phương	0979345229	t	2026-10-08 22:11:24.887+07
-4	2026-09-01	107	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:11:24.887+07
-26	2026-11-01	107	Vũ Hùng Vỹ	0984065555	t	2026-10-09 02:46:52.406+07
-15	2026-10-01	107	Vũ Hùng Vỹ	0984065555	t	2026-10-08 22:13:06.487+07
-2	2026-09-01	396	Phạm Thị Hương	0947876133	t	2026-10-08 22:11:24.887+07
-24	2026-11-01	396	Phạm Thị Hương	0947876133	t	2026-10-09 02:46:52.406+07
-13	2026-10-01	396	Phạm Thị Hương	0947876133	t	2026-10-08 22:13:06.487+07
 19	2026-10-01	40	Cung Thu Hà	0965759559	f	2026-10-08 22:13:06.487+07
 16	2026-10-01	402	Diệp Thị Huế	0915095848	t	2026-10-08 22:13:06.487+07
 20	2026-10-01	221	Dương Hồng Phương	0979345229	f	2026-10-08 22:13:06.487+07
@@ -7222,14 +7404,11 @@ COPY public.teamlead_members (id, month, member_id, member_name, member_phone, i
 34	2026-10-01	406	Nguyễn Minh Châu	0349791507	f	2026-10-10 22:00:20.49+07
 17	2026-10-01	48	Phạm Minh Tuấn	0768635148	f	2026-10-08 22:13:06.487+07
 12	2026-10-01	15	Vũ Thị Cúc	0889225989	t	2026-10-08 22:13:06.487+07
-7	2026-09-01	91	Phượng Ngọc Thu	0969881698	t	2026-10-08 22:11:24.887+07
-29	2026-11-01	91	Phượng Ngọc Thu	0969881698	t	2026-10-09 02:46:52.406+07
-18	2026-10-01	91	Phượng Ngọc Thu	0969881698	f	2026-10-08 22:13:06.487+07
 \.
 
 
 --
--- Data for Name: teamlead_payout_rows; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_payout_rows; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_payout_rows (id, period_id, membership_id, member_team_id, member_name, member_phone, team_id, team_name, role, eligible_30, eligible_70, sales_basis, payout_30, payout_70, total_amount) FROM stdin;
@@ -7328,7 +7507,7 @@ COPY public.teamlead_payout_rows (id, period_id, membership_id, member_team_id, 
 
 
 --
--- Data for Name: teamlead_periods; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_periods; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_periods (id, month, week_no, fund_rate, total_sales, gross_fund, fund_30, fund_70, is_locked, locked_at, is_imported, source_file, created_at) FROM stdin;
@@ -7341,7 +7520,7 @@ COPY public.teamlead_periods (id, month, week_no, fund_rate, total_sales, gross_
 
 
 --
--- Data for Name: teamlead_teams; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_teams; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_teams (id, name, created_at) FROM stdin;
@@ -7357,7 +7536,7 @@ COPY public.teamlead_teams (id, name, created_at) FROM stdin;
 
 
 --
--- Data for Name: teamlead_week_eligibility; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teamlead_week_eligibility; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teamlead_week_eligibility (member_team_id, week_no, include_70, updated_at, include_30) FROM stdin;
@@ -7514,7 +7693,7 @@ COPY public.teamlead_week_eligibility (member_team_id, week_no, include_70, upda
 
 
 --
--- Data for Name: teams; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: teams; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.teams (id, name, leader_id, created_at, updated_at) FROM stdin;
@@ -7538,7 +7717,7 @@ COPY public.teams (id, name, leader_id, created_at, updated_at) FROM stdin;
 
 
 --
--- Data for Name: training_courses; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: training_courses; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.training_courses (id, course_code, course_name, training_type, token_value, budget, created_at) FROM stdin;
@@ -7552,7 +7731,7 @@ COPY public.training_courses (id, course_code, course_name, training_type, token
 
 
 --
--- Data for Name: training_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: training_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.training_logs (id, session_code, session_name, member_phone, member_name, role, token_tier, token_count, session_budget, total_tokens, reward_amount, approver, status, training_date, created_at, course_code) FROM stdin;
@@ -7568,7 +7747,7 @@ COPY public.training_logs (id, session_code, session_name, member_phone, member_
 
 
 --
--- Data for Name: transaction_log_items; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: transaction_log_items; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.transaction_log_items (id, transaction_log_id, item_order, title, subtitle, fund_source, beneficiary_name, beneficiary_phone, beneficiary_bank_account, beneficiary_bank_name, beneficiary_user_id, amount, note, created_at) FROM stdin;
@@ -7634,7 +7813,7 @@ COPY public.transaction_log_items (id, transaction_log_id, item_order, title, su
 
 
 --
--- Data for Name: transaction_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: transaction_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.transaction_logs (id, request_code, request_date, fund_source, detail_content, requester_id, requester_name, approver_id, approver_name, beneficiary_name, proposed_amount, available_balance, fund_alert, status, actual_expense, receipt_url, created_at, requester_phone, approver_phone, beneficiary_phone, approval_date, payment_date, source_row, source_complete, request_type, beneficiary_bank_account, beneficiary_bank_name, source_period, contract_id, expense_type, beneficiary_user_id, source_contract_id, beneficiary_role, items, note) FROM stdin;
@@ -7700,7 +7879,7 @@ COPY public.transaction_logs (id, request_code, request_date, fund_source, detai
 
 
 --
--- Data for Name: user_teams; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: user_teams; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.user_teams (user_id, team_id, created_at) FROM stdin;
@@ -7708,16 +7887,16 @@ COPY public.user_teams (user_id, team_id, created_at) FROM stdin;
 
 
 --
--- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.users (id, full_name, phone, email, password, identity_card, bank_account, role, classification, title, team_id, ref_code, referrer_id, referral_group, source, join_date, status, is_team_leader_eligible, invite_count, guest_count, notes, created_at, updated_at, google_id, avatar_url, team_name, business_unit, bank_name, created_by_name, updated_by_name) FROM stdin;
 485	Nguyễn Thị Hồng	0974478595	\N	0974478595	\N	\N	Thành viên	Thành viên	\N	\N	N_0974478595	465	Nguyễn Mai Thiện	\N	2026-10-16	Đang hoạt động	f	0	0	\N	2026-10-16 05:04:11.234	2026-10-16 05:04:11.234	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 487	Đô đắc chiều	0392899842	\N	0392899842	\N	\N	Thành viên	Thành viên	\N	\N	N_0392899842	109	Hoàng Thị Chích	\N	2026-10-16	Đang hoạt động	f	0	0	\N	2026-10-16 12:33:35.622	2026-10-16 12:33:35.622	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-40	Cung Thu Hà	0965759559	\N	\N	\N	19023295042029	Phụng sự	Nhân sự	Trưởng phòng	1	N_0965759559	217	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-17 02:32:24.48	\N	\N	Kiến Vàng	Khối kinh doanh	Techcombank	\N	\N
+406	Nguyễn Minh Châu	0349791507	\N	\N	\N	8869085418	Khác	Nhân sự	Trưởng phòng	6	N_0349791507	109	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-19 15:20:14.479	\N	\N	Happy	Khối kinh doanh	BIDV	\N	\N
 490	Phạm Thị Khánh Vân	0987033405	\N	0987033405	\N	\N	Thành viên	Thành viên	\N	\N	N_0987033405	\N	Trần thị minh thu (0856108703)	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:38:24.103	2026-10-17 01:38:24.103	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 491	Nguyễn Thị Vui	0377009738	\N	0377009738	\N	\N	Thành viên	Thành viên	\N	\N	N_0377009738	93	Nguyễn Xuân mâụ	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:49:57.27	2026-10-17 01:49:57.27	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-221	Dương Hồng Phương	0979345229	\N	0946370299	\N	979345229	Thành viên	Thành viên	Trưởng phòng	5	\N	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:57:03.023	2026-10-17 02:32:24.695	\N	\N	Biệt đội Kim Cương	Khối kinh doanh	Vietinbank	\N	\N
+500	Chị châu ở Nguyễn xiển	0942640310	\N	0942640310	\N	\N	Thành viên	Thành viên	\N	\N	N_0942640310	109	Hoàng Thị Chích	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 08:24:03.862	2026-10-19 08:24:03.862	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 492	Phạm Thị Minh	0336879363	\N	0336879363	\N	\N	Thành viên	Thành viên	\N	\N	N_0336879363	491	Nguyễn Thị Vui	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:50:31.401	2026-10-17 01:50:31.401	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 51	Lương Hồng Hải	0919520885	\N	0919520885	\N	\N	Thành viên	Thành viên	\N	\N	N_0919520885	268	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 01:58:56.012	2026-10-10 02:15:02.646	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 53	Nguyễn Đức Côn	0971542688	\N	0971542688	\N	\N	Thành viên	Thành viên	\N	\N	N_0971542688	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:01:50.403	2026-09-19 02:01:50.403	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -7725,14 +7904,15 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 489	Phí thị Hương	0947943138	\N	0947943138	\N	\N	Thành viên	Thành viên	\N	\N	N_0947943138	\N	Vũ Thị Thúy (N_+84945172578)	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 00:01:27.435	2026-10-17 00:01:27.435	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 493	Hứa Xuân Từ	0387077698	\N	0387077698	\N	\N	Thành viên	Thành viên	\N	\N	N_0387077698	491	Nguyễn Thị Vui	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:51:49.973	2026-10-17 01:51:49.973	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 494	Vũ Thị Phiêm	0862548959	\N	0862548959	\N	\N	Thành viên	Thành viên	\N	\N	N_0862548959	152	NGUYỄN NGỌC THỦ	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:52:54.687	2026-10-17 01:52:54.687	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-406	Nguyễn Minh Châu	0349791507	\N	\N	\N	8869085418	Khác	Nhân sự	Trưởng phòng	6	N_0349791507	109	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:32:24.786	\N	\N	Happy	Khối kinh doanh	BIDV	\N	\N
+502	Vũ thị Hà	0983390251	\N	0983390251	\N	\N	Thành viên	Thành viên	\N	\N	N_0983390251	\N	Dương Hồng Phương (0979345229)	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 11:47:34.209	2026-10-19 11:47:34.209	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 55	Nguyễn Thị Đào	0385562896	\N	0385562896	\N	\N	Thành viên	Thành viên	\N	\N	N_0385562896	\N	Khách vãng lai	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:03:10.531	2026-09-19 02:03:10.531	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 56	Lê thanh vi	0913258659	\N	0913258659	\N	\N	Thành viên	Thành viên	\N	\N	N_0913258659	45	Chu Thị Lương	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:15.29	2026-09-30 02:49:39.555	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 57	Quản Thị Phòng	0386708895	\N	0386708895	\N	\N	Thành viên	Thành viên	\N	\N	N_0386708895	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:04:38.425	2026-09-19 02:04:38.425	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 488	Tran le phat dat	0947289003	\N	0947289003	\N	\N	Thành viên	Thành viên	\N	\N	N_0947289003	\N	0886265813 le thi thanh huyen	\N	2026-10-16	Đang hoạt động	f	0	0	\N	2026-10-16 15:10:50.035	2026-10-16 15:10:50.035	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-48	Phạm Minh Tuấn	0768635148	\N	0768635148	\N	11004198385	Thành viên	Thành viên	Phó Giám đốc	2	N_0768635148	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 01:49:07.545	2026-10-17 02:32:24.541	\N	\N	Ong Vàng	Khối kinh doanh	Vietcombank	\N	\N
+159	Hoàng kim hà	0342992674	\N	0342992674	\N	\N	Thành viên	Thành viên	\N	\N	N_0342992674	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:47.438	2026-10-17 03:10:14.227	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+501	Kiều Mỹ	0899269686	\N	0899269686	\N	\N	Thành viên	Thành viên	\N	\N	N_0899269686	\N	Ánh Hào	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 09:01:17.634	2026-10-19 09:01:17.634	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+40	Cung Thu Hà	0965759559	\N	\N	\N	19023295042029	Phụng sự	Nhân sự	Trưởng phòng	1	N_0965759559	217	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-19 15:20:09.659	\N	\N	Kiến Vàng	Khối kinh doanh	Techcombank	\N	\N
 495	Đỗ Duy Trưởng	0988834544	\N	0988834544	\N	\N	Thành viên	Thành viên	\N	\N	N_0988834544	278	Trần Thị Mai Lương	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:54:28.991	2026-10-17 01:54:28.991	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-43	Phạm Thị Hương	0947876133	\N	\N	\N	\N	Chốt sự kiện, Lễ tân	Nhân sự	Giám đốc	7	N_0947876133	15	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-17 02:24:01.511	\N	\N	Thịnh Vượng	Khối kinh doanh	\N	\N	\N
 486	Hoàng Thị Huề	0966116573	\N	\N	\N	\N	Nhân viên	Sale	Thành viên	\N	N_0966116573	15	Khách vãng lai	\N	\N	Hoạt động	f	0	0	\N	2026-10-16 09:21:02.716	2026-10-17 01:54:41.677	\N	\N	\N	Khối kinh doanh	\N	Vũ Thị Cúc	Vũ Thị Cúc
 496	Hoàng Văn Thoại	0986577981	\N	0986577981	\N	\N	Thành viên	Thành viên	\N	\N	N_0986577981	152	NGUYỄN NGỌC THỦ	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:55:36.763	2026-10-17 01:55:36.763	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 497	Nguyễn Thị Mai	0961185655	\N	0961185655	\N	\N	Thành viên	Thành viên	\N	\N	N_0961185655	45	Chu Thị Lương	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:56:34.397	2026-10-17 01:56:34.397	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -7740,8 +7920,12 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 499	Lê Hằng	0914571331	\N	0914571331	\N	\N	Thành viên	Thành viên	\N	\N	N_0914571331	73	Hồ Kim Thoa	\N	2026-10-17	Đang hoạt động	f	0	0	\N	2026-10-17 01:58:19.096	2026-10-17 01:58:19.096	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 111	Đặng Thế Long	0972847275	\N	0972847275	\N	\N	Thành viên	Thành viên	\N	\N	N_0972847275	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:25:36.034	2026-09-23 06:25:36.034	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 112	A Phong	0934635468	\N	0934635468	\N	\N	Thành viên	Thành viên	\N	\N	N_0934635468	40	Cung Thu Hà	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:25:45.583	2026-09-23 06:25:45.583	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-15	Vũ Thị Cúc	0889225989	cucvt@nghiengcomplex.vn	\N	001200000014	MB Bank - 0914556677	Admin	Nhân sự	Chủ tịch	6	N_0914556677	66	Thành viên hệ thống	Sáng lập viên	2024-12-01	Đang hoạt động	t	0	30	Người duyệt điều kiện Team Leader & duyệt chi phí sự kiện	2026-09-01 17:18:05.8	2026-10-17 02:32:24.449	\N	\N	Happy, Thịnh Vượng	Khối kinh doanh	Techcombank	\N	\N
-214	Lê Thị Nhung	0398733976	\N	0398733976	\N	\N	Thành viên	Thành viên	Thành viên	\N	N_0398733976	109	Hoàng Thị Chích	\N	2026-09-28	Đang hoạt động	f	0	3	\N	2026-09-28 04:11:34.145	2026-10-16 09:24:46.825	\N	\N	\N	Khối kinh doanh	\N	\N	Vũ Thị Cúc
+504	Hường	0974130096	\N	0974130096	\N	\N	Thành viên	Thành viên	\N	\N	N_0974130096	\N	Dương Hồng Phương (0979345229)	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 12:06:26.488	2026-10-19 12:06:26.488	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+505	Trân thu Huong	0329316443	\N	0329316443	\N	\N	Thành viên	Thành viên	\N	\N	N_0329316443	\N	Dương Hồng Phương (0979345229)	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 12:10:06.444	2026-10-19 12:10:06.444	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+507	Nguyenthj Hồng	0974970352	\N	0974970352	\N	\N	Thành viên	Thành viên	\N	\N	N_0974970352	\N	Dương Hồng Phương (0979345229)	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 12:28:32.639	2026-10-19 12:28:32.639	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+508	Trần Thị Ngọc khách hàng của chị Lê Thị Nhung	0972733254	\N	0972733254	\N	\N	Thành viên	Thành viên	\N	\N	N_0972733254	109	Hoàng Thị Chích	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 13:57:54.065	2026-10-19 13:57:54.065	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+43	Phạm Thị Hương	0947876133	\N	\N	\N	\N	Chốt sự kiện, Lễ tân	Nhân sự	Giám đốc	7	N_0947876133	15	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-19 15:20:10.622	\N	\N	Thịnh Vượng	Khối kinh doanh	\N	\N	\N
+48	Phạm Minh Tuấn	0768635148	\N	0768635148	\N	11004198385	Thành viên	Thành viên	Phó Giám đốc	2	N_0768635148	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 01:49:07.545	2026-10-19 15:20:11.103	\N	\N	Ong Vàng	Khối kinh doanh	Vietcombank	\N	\N
 118	Hồ Xuân thu( diệp Huế)	0988388012	\N	0988388012	\N	\N	Thành viên	Thành viên	\N	\N	N_0988388012	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:58:00.717	2026-09-23 06:58:00.717	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 73	Hồ Kim Thoa	0774244280	\N	0774244280	\N	\N	Thành viên	Thành viên	\N	\N	N_0774244280	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:23:12.805	2026-09-19 02:23:12.805	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 75	Phạm thị nguyệt	0979012294	\N	0979012294	\N	\N	Thành viên	Thành viên	\N	\N	N_0979012294	74	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:30:01.05	2026-09-26 03:30:20.877	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -7763,7 +7947,12 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 119	Ngô Thanh Bình ( Quang Trung)	0987922275	\N	0987922275	\N	\N	Thành viên	Thành viên	\N	\N	N_0987922275	\N	Khách vãng lai	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 06:58:55.116	2026-09-23 06:58:55.116	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 127	Khuyến	0911755777	\N	0911755777	\N	\N	Thành viên	Thành viên	\N	\N	N_0911755777	\N	Chỉnh	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:28.174	2026-09-23 07:26:28.174	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 129	Bùi đăng lâm	0328001998	\N	0328001998	\N	\N	Thành viên	Thành viên	\N	\N	N_0328001998	196	Nguyễn hải quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:26:36.28	2026-09-30 03:07:26.08	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+214	Lê Thị Nhung	0398733976	\N	0398733976	\N	\N	Thành viên	Thành viên	Thành viên	\N	N_0398733976	109	Hoàng Thị Chích	\N	2026-09-28	Đang hoạt động	f	0	3	\N	2026-09-28 04:11:34.145	2026-10-19 08:07:13.541	\N	\N	\N	Khối kinh doanh	\N	\N	Vũ Thị Cúc
+503	AN NHIEN	0962591382	\N	0962591382	\N	\N	Thành viên	Thành viên	\N	\N	N_0962591382	\N	Dương Hồng Phương (0979345229)	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 11:49:24.382	2026-10-19 11:49:24.382	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+506	Nguyenthi Nhâm	0916835556	\N	0916835556	\N	\N	Thành viên	Thành viên	\N	\N	N_0916835556	\N	Dương Hồng Phương (0979345229)	\N	2026-10-19	Đang hoạt động	f	0	0	\N	2026-10-19 12:10:47.421	2026-10-19 12:10:47.421	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+15	Vũ Thị Cúc	0889225989	cucvt@nghiengcomplex.vn	\N	001200000014	MB Bank - 0914556677	Admin	Nhân sự	Chủ tịch	6	N_0914556677	66	Thành viên hệ thống	Sáng lập viên	2024-12-01	Đang hoạt động	t	0	30	Người duyệt điều kiện Team Leader & duyệt chi phí sự kiện	2026-09-01 17:18:05.8	2026-10-19 15:20:09.163	\N	\N	Happy, Thịnh Vượng	Khối kinh doanh	Techcombank	\N	\N
 59	Vũ van biên	0989944612	\N	0989944612	\N	\N	Thành viên	Thành viên	\N	\N	N_0989944612	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:05:15.295	2026-09-19 02:05:15.295	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+221	Dương Hồng Phương	0979345229	\N	0946370299	\N	979345229	Thành viên	Thành viên	Trưởng phòng	5	\N	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:57:03.023	2026-10-19 15:20:13.034	\N	\N	Biệt đội Kim Cương	Khối kinh doanh	Vietinbank	\N	\N
 463	Nguyễn Thị Yến	0347871795	\N	0347871795	\N	\N	Thành viên	Thành viên	\N	\N	N_0347871795	155	Trần thị minh thu	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 01:48:25.856	2026-10-14 01:48:25.856	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 464	Trần Bích Uyên	0977956825	\N	0977956825	\N	\N	Thành viên	Thành viên	\N	\N	N_0977956825	150	Đào Thị Hoà	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:30:19.94	2026-10-14 02:30:19.94	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 60	Vũ Thị Kim Thư( Hùng Vỹ)	0854716372	\N	0854716372	\N	\N	Thành viên	Thành viên	\N	\N	N_0854716372	41	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:05:22.891	2026-10-10 02:38:38.388	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -7820,7 +8009,6 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 470	Nguyễn Thị Yến	034781795	\N	034781795	\N	\N	Thành viên	Thành viên	\N	\N	N_034781795	155	Trần thị minh thu	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:52:06.531	2026-10-14 02:52:06.531	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 471	Nguyễn Quang Ánh	0332706584	\N	0332706584	\N	\N	Thành viên	Thành viên	\N	\N	N_0332706584	\N	Vũ Thị Thúy (N_+84945172578)	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 02:52:14.293	2026-10-14 02:52:14.293	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 475	Vũ Văn Kiên	0967773184	\N	0967773184	\N	\N	Thành viên	Thành viên	\N	\N	N_0967773184	45	Chu Thị Lương	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:07:45.673	2026-10-14 03:07:45.673	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-159	Hoàng kim hà	0342992674	\N	0342992674	\N	\N	Thành viên	Thành viên	\N	\N	N_0342992674	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:47.438	2026-09-26 02:22:47.438	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 160	Nguyễn Thị Liên Hương	0354824859	\N	0354824859	\N	\N	Thành viên	Thành viên	\N	\N	N_0354824859	154	Trần Thị Thanh Hương	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:22:54	2026-09-26 02:22:54	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 161	Phạm Vinh Quang	0913073619	\N	0913073619	\N	\N	Thành viên	Thành viên	\N	\N	N_0913073619	107	Vũ Hùng Vỹ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:28:29.653	2026-09-26 02:28:29.653	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 163	Phạm Thu Hương	0349572568	\N	0349572568	\N	\N	Thành viên	Thành viên	\N	\N	N_0349572568	152	NGUYỄN NGỌC THỦ	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 02:36:06.691	2026-09-26 02:36:06.691	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -8020,7 +8208,7 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 390	Đàm Thị Liên	0764959314	\N	0764959314	\N	\N	Thành viên	Thành viên	\N	\N	N_0764959314	279	Hoàng Thị Luyện	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:31:24.13	2026-10-07 03:31:24.13	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 391	Nguyễn Vũ Hưng	0345466260	\N	0345466260	\N	\N	Thành viên	Thành viên	\N	\N	N_0345466260	40	Cung Thu Hà	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 03:33:51.36	2026-10-07 03:33:51.36	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 359	Nguyễn Đức Huy	0348778893	\N	0348778893	\N	\N	Thành viên	Thành viên	\N	\N	N_0348778893	73	Nguyễn Hùng Vĩ	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:18:40.621	2026-10-17 01:58:58.821	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-107	Vũ Hùng Vỹ	0984967555	\N	0984967555	\N	\N	Thành viên	Thành viên	Trưởng phòng	2	N_0984967555	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:41:53.708	2026-10-17 02:32:24.633	\N	\N	Ong Vàng	Khối kinh doanh	Vietinbank	\N	\N
+107	Vũ Hùng Vỹ	0984967555	\N	0984967555	\N	\N	Thành viên	Thành viên	Trưởng phòng	2	N_0984967555	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:41:53.708	2026-10-19 10:47:07.579	\N	\N	Ong Vàng	Khối kinh doanh	Vietinbank	\N	\N
 108	Lê Văn Linh	0347321111	\N	0347321111	\N	\N	Thành viên	Thành viên	\N	\N	N_0347321111	\N	Nguyễn Tuấn	\N	2026-09-21	Đang hoạt động	f	0	0	\N	2026-09-21 02:56:18.207	2026-09-21 02:56:18.207	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 88	Vũ Thị Thanh ( Thanh Hương)	0989905945	\N	0989905945	\N	\N	Thành viên	Thành viên	\N	\N	N_0989905945	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:55:36.868	2026-09-19 02:55:36.868	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 483	Ngô Thị Kim Thư	0834830927	\N	0834830927	\N	\N	Thành viên	Thành viên	\N	\N	N_0834830927	392	Vũ Hùng Vĩ	\N	2026-10-14	Đang hoạt động	f	0	0	\N	2026-10-14 03:17:29.546	2026-10-14 03:17:29.546	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -8050,7 +8238,7 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 124	Giang Thanh Ngọc	0376317831	\N	0376317831	\N	\N	Thành viên	Thành viên	\N	4	N_0376317831	41	Vũ Hùng Vỹ	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:14:45.6	2026-10-09 00:26:35.228	\N	\N	Thành Công	Khối kinh doanh	\N	\N	\N
 125	Nguyễn Thị Bảy	0912882722	\N	0912882722	\N	\N	Thành viên	Thành viên	\N	\N	N_0912882722	301	Hải Quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:20:49.716	2026-10-07 03:14:20.696	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 126	Lê Thị Bích Ngần	0984298738	\N	0984298738	\N	\N	Thành viên	Thành viên	\N	\N	N_0984298738	\N	Hải Quý	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:21:22.443	2026-09-23 07:21:22.443	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-396	Phạm Thị Hương	0947876136	\N	\N	\N	\N	Khác	Nhân sự	Giám đốc	7	N_0947876136	15	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:32:24.725	\N	\N	Thịnh Vượng	Khối kinh doanh	\N	\N	\N
+396	Phạm Thị Hương	0947876136	\N	\N	\N	\N	Khác	Nhân sự	Giám đốc	7	N_0947876136	15	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-19 10:47:08.965	\N	\N	Thịnh Vượng	Khối kinh doanh	\N	\N	\N
 131	Triệu Thị Yến	0352287668	\N	0352287668	\N	\N	Thành viên	Thành viên	\N	\N	N_0352287668	\N	Chị Khôi	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:29:42.683	2026-09-23 07:29:42.683	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 132	Hoàng Văn Định	0913968752	\N	0913968752	\N	\N	Thành viên	Thành viên	\N	\N	N_0913968752	\N	Cô Linh	\N	2026-09-23	Đang hoạt động	f	0	0	\N	2026-09-23 07:34:16.581	2026-09-23 07:34:16.581	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 181	Đào Thị Dung	0901106706	\N	0901106706	\N	\N	Thành viên	Thành viên	\N	\N	N_0901106706	170	Đào Thị Mai	\N	2026-09-26	Đang hoạt động	f	0	0	\N	2026-09-26 03:12:05.89	2026-09-26 03:12:05.89	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -8069,9 +8257,9 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 361	Trần Văn Bình	0989558609	\N	0989558609	\N	\N	Thành viên	Thành viên	\N	\N	N_0989558609	199	Đỗ Thị Lanh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:23:35.944	2026-10-07 02:23:35.944	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 362	Phạm Đức Nhật	0912055531	\N	0912055531	\N	\N	Thành viên	Thành viên	\N	\N	N_0912055531	199	Đỗ Thị Lanh	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:24:39.452	2026-10-07 02:24:39.452	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 363	Nguyễn Thị Hồng Minh	0932672476	\N	0932672476	\N	\N	Thành viên	Thành viên	\N	\N	N_0932672476	122	Phạm Văn thịnh (a thủ )	\N	2026-10-07	Đang hoạt động	f	0	0	\N	2026-10-07 02:49:44.444	2026-10-07 02:49:44.444	\N	\N	\N	Khối kinh doanh	\N	\N	\N
+90	Nguyễn Đức Vĩnh	0984398568	\N	0984398568	\N	\N	Thành viên	Thành viên	Phó Giám đốc	6	N_0984398568	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 02:59:57.316	2026-10-19 15:20:11.584	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
+401	Vũ Hùng Vỹ	0984065555	\N	\N	\N	109613685568	Khác	Nhân sự	Trưởng phòng	2	N_0984065555	145	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-19 15:20:13.514	\N	\N	Ong Vàng	Khối kinh doanh	Vietinbank	\N	\N
 81	Hoàng văn Nhật	0915026767	\N	0915026767	\N	\N	Thành viên	Thành viên	\N	2	N_0915026767	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	f	0	0	\N	2026-09-19 02:41:56.509	2026-10-09 00:26:35.228	\N	\N	Ong Vàng	Khối kinh doanh	\N	\N	\N
-401	Vũ Hùng Vỹ	0984065555	\N	\N	\N	109613685568	Khác	Nhân sự	Trưởng phòng	2	N_0984065555	145	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:24:01.672	\N	\N	Ong Vàng	Khối kinh doanh	Vietinbank	\N	\N
-90	Nguyễn Đức Vĩnh	0984398568	\N	0984398568	\N	\N	Thành viên	Thành viên	Phó Giám đốc	6	N_0984398568	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 02:59:57.316	2026-10-17 02:32:24.572	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
 447	Cao Minh Chính	0887426981	\N	0887426981	\N	\N	Thành viên	Thành viên	\N	\N	N_0887426981	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:22:19.599	2026-10-10 03:22:19.599	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 448	Đỗ Quyên	0982717285	\N	0982717285	\N	\N	Thành viên	Thành viên	\N	\N	N_0982717285	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:23:41.341	2026-10-10 03:23:41.341	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 449	Bùi Đăng Lâm	0888685610	\N	0888685610	\N	\N	Thành viên	Thành viên	\N	\N	N_0888685610	301	Nguyễn Hải Quý	\N	2026-10-10	Đang hoạt động	f	0	0	\N	2026-10-10 03:30:28.733	2026-10-10 03:30:28.733	\N	\N	\N	Khối kinh doanh	\N	\N	\N
@@ -8161,16 +8349,16 @@ COPY public.users (id, full_name, phone, email, password, identity_card, bank_ac
 417	Đảo Quang Trung	0962839461	\N	0962839461	\N	\N	Thành viên	Thành viên	\N	\N	N_0962839461	42	Lê Thị Chanh	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 03:19:31.627	2026-10-09 03:19:31.627	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 418	Mã Thanh Hưng	0931645134	\N	0931645134	\N	\N	Thành viên	Thành viên	\N	\N	N_0931645134	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:50:07.575	2026-10-09 06:50:28.19	\N	\N	\N	Khối kinh doanh	\N	\N	\N
 419	Lê Thị Thư	0822295386	\N	0822295386	\N	\N	Thành viên	Thành viên	\N	\N	N_0822295386	49	Lê Thị Hà	\N	2026-10-09	Đang hoạt động	f	0	0	\N	2026-10-09 06:52:36.412	2026-10-09 06:52:36.412	\N	\N	\N	Khối kinh doanh	\N	\N	\N
-217	Phượng Ngọc Thu	0969881698	\N	0969881698	\N	28275222	Thành viên	Thành viên	Trưởng phòng	1	N_0969881698	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:28:58.973	2026-10-17 02:24:01.616	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh	\N	\N	\N
-41	Nguyễn Hùng Vĩ	0326894993	\N	\N	\N	31978686868	MC	Nhân sự	Giám đốc	5	N_0326894993	45	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-17 02:32:24.51	\N	\N	Biệt đội Kim Cương, Hải Đăng Vàng, Kiến Vàng, Lộc Phát, Ong Vàng, Thành Công	Khối kinh doanh	\N	\N	\N
-91	Phượng Ngọc Thu	+84969881698	\N	+84969881698	\N	\N	Thành viên	Thành viên	Trưởng phòng	1	N_+84969881698	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:03:23.918	2026-10-17 02:32:24.603	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh	\N	\N	\N
-109	Hoàng Thị Chích	0384081272	\N	0384081272	\N	0384081272	Thành viên	Thành viên	Trưởng phòng	6	N_0384081272	90	Nguyễn Đức Vĩnh	\N	2026-09-22	Đang hoạt động	t	0	0	\N	2026-09-22 11:09:43.688	2026-10-17 02:32:24.664	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
-402	Diệp Thị Huế	0915095848	\N	\N	\N	22891177	Khác	Nhân sự	Trưởng phòng	2	N_0915095848	401	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-17 02:32:24.755	\N	\N	Ong Vàng	Khối kinh doanh	ACB	\N	\N
+217	Phượng Ngọc Thu	0969881698	\N	0969881698	\N	28275222	Thành viên	Thành viên	Trưởng phòng	1	N_0969881698	\N	Khách vãng lai	\N	2026-09-28	Đang hoạt động	t	0	0	\N	2026-09-28 08:28:58.973	2026-10-19 15:20:12.548	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh	\N	\N	\N
+402	Diệp Thị Huế	0915095848	\N	\N	\N	22891177	Khác	Nhân sự	Trưởng phòng	2	N_0915095848	401	Chọn người mời trong hệ thống	\N	\N	Hoạt động	t	0	0	\N	2026-10-09 01:34:41.63	2026-10-19 15:20:13.997	\N	\N	Ong Vàng	Khối kinh doanh	ACB	\N	\N
+91	Phượng Ngọc Thu	+84969881698	\N	+84969881698	\N	\N	Thành viên	Thành viên	Trưởng phòng	1	N_+84969881698	\N	Vũ Thị Cúc	\N	2026-09-19	Đang hoạt động	t	0	0	\N	2026-09-19 03:03:23.918	2026-10-19 10:47:07.134	\N	\N	Kiến Vàng, Lộc Phát	Khối kinh doanh	\N	\N	\N
+41	Nguyễn Hùng Vĩ	0326894993	\N	\N	\N	31978686868	MC	Nhân sự	Giám đốc	5	N_0326894993	45	Chọn người mời trong hệ thống	\N	2026-09-18	Đang hoạt động	t	0	0	\N	2026-09-18 16:30:27.372	2026-10-19 15:20:10.141	\N	\N	Biệt đội Kim Cương, Hải Đăng Vàng, Kiến Vàng, Lộc Phát, Ong Vàng, Thành Công	Khối kinh doanh	\N	\N	\N
+109	Hoàng Thị Chích	0384081272	\N	0384081272	\N	0384081272	Thành viên	Thành viên	Trưởng phòng	6	N_0384081272	90	Nguyễn Đức Vĩnh	\N	2026-09-22	Đang hoạt động	t	0	0	\N	2026-09-22 11:09:43.688	2026-10-19 15:20:12.066	\N	\N	Happy	Khối kinh doanh	\N	\N	\N
 \.
 
 
 --
--- Data for Name: geocode_settings; Type: TABLE DATA; Schema: tiger; Owner: -
+-- Data for Name: geocode_settings; Type: TABLE DATA; Schema: tiger; Owner: postgres
 --
 
 COPY tiger.geocode_settings (name, setting, unit, category, short_desc) FROM stdin;
@@ -8178,7 +8366,7 @@ COPY tiger.geocode_settings (name, setting, unit, category, short_desc) FROM std
 
 
 --
--- Data for Name: pagc_gaz; Type: TABLE DATA; Schema: tiger; Owner: -
+-- Data for Name: pagc_gaz; Type: TABLE DATA; Schema: tiger; Owner: postgres
 --
 
 COPY tiger.pagc_gaz (id, seq, word, stdword, token, is_custom) FROM stdin;
@@ -8186,7 +8374,7 @@ COPY tiger.pagc_gaz (id, seq, word, stdword, token, is_custom) FROM stdin;
 
 
 --
--- Data for Name: pagc_lex; Type: TABLE DATA; Schema: tiger; Owner: -
+-- Data for Name: pagc_lex; Type: TABLE DATA; Schema: tiger; Owner: postgres
 --
 
 COPY tiger.pagc_lex (id, seq, word, stdword, token, is_custom) FROM stdin;
@@ -8194,7 +8382,7 @@ COPY tiger.pagc_lex (id, seq, word, stdword, token, is_custom) FROM stdin;
 
 
 --
--- Data for Name: pagc_rules; Type: TABLE DATA; Schema: tiger; Owner: -
+-- Data for Name: pagc_rules; Type: TABLE DATA; Schema: tiger; Owner: postgres
 --
 
 COPY tiger.pagc_rules (id, rule, is_custom) FROM stdin;
@@ -8202,7 +8390,7 @@ COPY tiger.pagc_rules (id, rule, is_custom) FROM stdin;
 
 
 --
--- Data for Name: topology; Type: TABLE DATA; Schema: topology; Owner: -
+-- Data for Name: topology; Type: TABLE DATA; Schema: topology; Owner: postgres
 --
 
 COPY topology.topology (id, name, srid, "precision", hasz) FROM stdin;
@@ -8210,7 +8398,7 @@ COPY topology.topology (id, name, srid, "precision", hasz) FROM stdin;
 
 
 --
--- Data for Name: layer; Type: TABLE DATA; Schema: topology; Owner: -
+-- Data for Name: layer; Type: TABLE DATA; Schema: topology; Owner: postgres
 --
 
 COPY topology.layer (topology_id, layer_id, schema_name, table_name, feature_column, feature_type, level, child_id) FROM stdin;
@@ -8218,217 +8406,217 @@ COPY topology.layer (topology_id, layer_id, schema_name, table_name, feature_col
 
 
 --
--- Name: allocation_policy_versions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: allocation_policy_versions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.allocation_policy_versions_id_seq', 1, true);
-
-
---
--- Name: contracts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.contracts_id_seq', 61, true);
+SELECT pg_catalog.setval('public.allocation_policy_versions_id_seq', 2, false);
 
 
 --
--- Name: event_attachments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: contracts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.contracts_id_seq', 62, false);
+
+
+--
+-- Name: event_attachments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.event_attachments_id_seq', 1, false);
 
 
 --
--- Name: event_in_charge_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: event_in_charge_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.event_in_charge_id_seq', 86, true);
+SELECT pg_catalog.setval('public.event_in_charge_id_seq', 93, false);
 
 
 --
--- Name: event_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: event_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.event_logs_id_seq', 1, false);
 
 
 --
--- Name: event_organizer_roles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: event_organizer_roles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.event_organizer_roles_id_seq', 1, false);
 
 
 --
--- Name: event_registrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: event_registrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.event_registrations_id_seq', 1235, true);
+SELECT pg_catalog.setval('public.event_registrations_id_seq', 1266, false);
 
 
 --
--- Name: event_schedules_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: event_schedules_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.event_schedules_id_seq', 1, false);
 
 
 --
--- Name: events_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: events_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.events_id_seq', 86, true);
-
-
---
--- Name: fund_beneficiary_allocations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.fund_beneficiary_allocations_id_seq', 1185, true);
+SELECT pg_catalog.setval('public.events_id_seq', 88, false);
 
 
 --
--- Name: fund_event_expenses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: fund_beneficiary_allocations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.fund_event_expenses_id_seq', 29, true);
-
-
---
--- Name: fund_weekly_allocations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.fund_weekly_allocations_id_seq', 140, true);
+SELECT pg_catalog.setval('public.fund_beneficiary_allocations_id_seq', 1186, false);
 
 
 --
--- Name: invitations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: fund_event_expenses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.invitations_id_seq', 413, true);
-
-
---
--- Name: lucky_wheel_spins_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.lucky_wheel_spins_id_seq', 5, true);
+SELECT pg_catalog.setval('public.fund_event_expenses_id_seq', 30, false);
 
 
 --
--- Name: lucky_wheels_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: fund_weekly_allocations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.lucky_wheels_id_seq', 10, true);
-
-
---
--- Name: operations_fund_beneficiaries_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.operations_fund_beneficiaries_id_seq', 6, true);
+SELECT pg_catalog.setval('public.fund_weekly_allocations_id_seq', 141, false);
 
 
 --
--- Name: permissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: invitations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.invitations_id_seq', 416, false);
+
+
+--
+-- Name: lucky_wheel_spins_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.lucky_wheel_spins_id_seq', 6, false);
+
+
+--
+-- Name: lucky_wheels_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.lucky_wheels_id_seq', 11, false);
+
+
+--
+-- Name: operations_fund_beneficiaries_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.operations_fund_beneficiaries_id_seq', 7, false);
+
+
+--
+-- Name: permissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.permissions_id_seq', 1, false);
 
 
 --
--- Name: system_settings_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: system_settings_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.system_settings_id_seq', 2, true);
-
-
---
--- Name: table_tinh_gid_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.table_tinh_gid_seq', 63, true);
+SELECT pg_catalog.setval('public.system_settings_id_seq', 3, false);
 
 
 --
--- Name: teamlead_member_teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: table_tinh_gid_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.teamlead_member_teams_id_seq', 55, true);
-
-
---
--- Name: teamlead_members_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.teamlead_members_id_seq', 34, true);
+SELECT pg_catalog.setval('public.table_tinh_gid_seq', 64, false);
 
 
 --
--- Name: teamlead_payout_rows_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: teamlead_member_teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.teamlead_payout_rows_id_seq', 181, true);
-
-
---
--- Name: teamlead_periods_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.teamlead_periods_id_seq', 5, true);
+SELECT pg_catalog.setval('public.teamlead_member_teams_id_seq', 56, false);
 
 
 --
--- Name: teamlead_teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: teamlead_members_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.teamlead_teams_id_seq', 48, true);
-
-
---
--- Name: teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.teams_id_seq', 32, true);
+SELECT pg_catalog.setval('public.teamlead_members_id_seq', 35, false);
 
 
 --
--- Name: training_courses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: teamlead_payout_rows_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.training_courses_id_seq', 6, true);
-
-
---
--- Name: training_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.training_logs_id_seq', 26, true);
+SELECT pg_catalog.setval('public.teamlead_payout_rows_id_seq', 182, false);
 
 
 --
--- Name: transaction_log_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: teamlead_periods_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.transaction_log_items_id_seq', 70, true);
-
-
---
--- Name: transaction_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
---
-
-SELECT pg_catalog.setval('public.transaction_logs_id_seq', 159, true);
+SELECT pg_catalog.setval('public.teamlead_periods_id_seq', 6, false);
 
 
 --
--- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: teamlead_teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.users_id_seq', 499, true);
+SELECT pg_catalog.setval('public.teamlead_teams_id_seq', 49, false);
 
 
 --
--- Name: allocation_policy_versions allocation_policy_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teams_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.teams_id_seq', 33, false);
+
+
+--
+-- Name: training_courses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.training_courses_id_seq', 7, false);
+
+
+--
+-- Name: training_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.training_logs_id_seq', 27, false);
+
+
+--
+-- Name: transaction_log_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.transaction_log_items_id_seq', 71, false);
+
+
+--
+-- Name: transaction_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.transaction_logs_id_seq', 160, false);
+
+
+--
+-- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.users_id_seq', 509, false);
+
+
+--
+-- Name: allocation_policy_versions allocation_policy_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.allocation_policy_versions
@@ -8436,7 +8624,7 @@ ALTER TABLE ONLY public.allocation_policy_versions
 
 
 --
--- Name: contracts contracts_contract_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: contracts contracts_contract_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts
@@ -8444,7 +8632,7 @@ ALTER TABLE ONLY public.contracts
 
 
 --
--- Name: contracts contracts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: contracts contracts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts
@@ -8452,7 +8640,7 @@ ALTER TABLE ONLY public.contracts
 
 
 --
--- Name: event_attachments event_attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: event_attachments event_attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_attachments
@@ -8460,7 +8648,7 @@ ALTER TABLE ONLY public.event_attachments
 
 
 --
--- Name: event_in_charge event_in_charge_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: event_in_charge event_in_charge_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_in_charge
@@ -8468,7 +8656,7 @@ ALTER TABLE ONLY public.event_in_charge
 
 
 --
--- Name: event_logs event_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: event_logs event_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_logs
@@ -8476,7 +8664,7 @@ ALTER TABLE ONLY public.event_logs
 
 
 --
--- Name: event_organizer_roles event_organizer_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: event_organizer_roles event_organizer_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_organizer_roles
@@ -8484,7 +8672,7 @@ ALTER TABLE ONLY public.event_organizer_roles
 
 
 --
--- Name: event_registrations event_registrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: event_registrations event_registrations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_registrations
@@ -8492,7 +8680,7 @@ ALTER TABLE ONLY public.event_registrations
 
 
 --
--- Name: event_schedules event_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: event_schedules event_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_schedules
@@ -8500,7 +8688,7 @@ ALTER TABLE ONLY public.event_schedules
 
 
 --
--- Name: events events_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: events events_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.events
@@ -8508,7 +8696,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- Name: events events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: events events_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.events
@@ -8516,7 +8704,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- Name: fund_beneficiary_allocations fund_beneficiary_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fund_beneficiary_allocations fund_beneficiary_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_beneficiary_allocations
@@ -8524,7 +8712,7 @@ ALTER TABLE ONLY public.fund_beneficiary_allocations
 
 
 --
--- Name: fund_event_expenses fund_event_expenses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fund_event_expenses fund_event_expenses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_event_expenses
@@ -8532,7 +8720,7 @@ ALTER TABLE ONLY public.fund_event_expenses
 
 
 --
--- Name: fund_event_expenses fund_event_expenses_source_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fund_event_expenses fund_event_expenses_source_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_event_expenses
@@ -8540,7 +8728,7 @@ ALTER TABLE ONLY public.fund_event_expenses
 
 
 --
--- Name: fund_weekly_allocations fund_weekly_allocations_period_fund_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fund_weekly_allocations fund_weekly_allocations_period_fund_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_weekly_allocations
@@ -8548,7 +8736,7 @@ ALTER TABLE ONLY public.fund_weekly_allocations
 
 
 --
--- Name: fund_weekly_allocations fund_weekly_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fund_weekly_allocations fund_weekly_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fund_weekly_allocations
@@ -8556,7 +8744,7 @@ ALTER TABLE ONLY public.fund_weekly_allocations
 
 
 --
--- Name: invitations invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: invitations invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.invitations
@@ -8564,7 +8752,7 @@ ALTER TABLE ONLY public.invitations
 
 
 --
--- Name: lucky_wheel_spins lucky_wheel_spins_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: lucky_wheel_spins lucky_wheel_spins_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.lucky_wheel_spins
@@ -8572,7 +8760,7 @@ ALTER TABLE ONLY public.lucky_wheel_spins
 
 
 --
--- Name: lucky_wheels lucky_wheels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: lucky_wheels lucky_wheels_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.lucky_wheels
@@ -8580,7 +8768,7 @@ ALTER TABLE ONLY public.lucky_wheels
 
 
 --
--- Name: operations_fund_beneficiaries operations_fund_beneficiaries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: operations_fund_beneficiaries operations_fund_beneficiaries_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.operations_fund_beneficiaries
@@ -8588,7 +8776,7 @@ ALTER TABLE ONLY public.operations_fund_beneficiaries
 
 
 --
--- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.permissions
@@ -8596,7 +8784,7 @@ ALTER TABLE ONLY public.permissions
 
 
 --
--- Name: permissions permissions_user_id_module_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: permissions permissions_user_id_module_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.permissions
@@ -8604,7 +8792,7 @@ ALTER TABLE ONLY public.permissions
 
 
 --
--- Name: system_settings system_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: system_settings system_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.system_settings
@@ -8612,7 +8800,7 @@ ALTER TABLE ONLY public.system_settings
 
 
 --
--- Name: table_tinh table_tinh_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: table_tinh table_tinh_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.table_tinh
@@ -8620,7 +8808,7 @@ ALTER TABLE ONLY public.table_tinh
 
 
 --
--- Name: teamlead_fund_splits teamlead_fund_splits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_fund_splits teamlead_fund_splits_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_fund_splits
@@ -8628,7 +8816,7 @@ ALTER TABLE ONLY public.teamlead_fund_splits
 
 
 --
--- Name: teamlead_member_teams teamlead_member_teams_member_id_team_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_member_teams teamlead_member_teams_member_id_team_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_member_teams
@@ -8636,7 +8824,7 @@ ALTER TABLE ONLY public.teamlead_member_teams
 
 
 --
--- Name: teamlead_member_teams teamlead_member_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_member_teams teamlead_member_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_member_teams
@@ -8644,7 +8832,7 @@ ALTER TABLE ONLY public.teamlead_member_teams
 
 
 --
--- Name: teamlead_members teamlead_members_month_member_phone_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_members teamlead_members_month_member_phone_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_members
@@ -8652,7 +8840,7 @@ ALTER TABLE ONLY public.teamlead_members
 
 
 --
--- Name: teamlead_members teamlead_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_members teamlead_members_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_members
@@ -8660,7 +8848,7 @@ ALTER TABLE ONLY public.teamlead_members
 
 
 --
--- Name: teamlead_payout_rows teamlead_payout_rows_period_id_member_phone_team_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows teamlead_payout_rows_period_id_member_phone_team_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows
@@ -8668,7 +8856,7 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 
 --
--- Name: teamlead_payout_rows teamlead_payout_rows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows teamlead_payout_rows_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows
@@ -8676,7 +8864,7 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 
 --
--- Name: teamlead_periods teamlead_periods_month_week_no_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_periods teamlead_periods_month_week_no_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_periods
@@ -8684,7 +8872,7 @@ ALTER TABLE ONLY public.teamlead_periods
 
 
 --
--- Name: teamlead_periods teamlead_periods_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_periods teamlead_periods_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_periods
@@ -8692,7 +8880,7 @@ ALTER TABLE ONLY public.teamlead_periods
 
 
 --
--- Name: teamlead_teams teamlead_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_teams teamlead_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_teams
@@ -8700,7 +8888,7 @@ ALTER TABLE ONLY public.teamlead_teams
 
 
 --
--- Name: teamlead_week_eligibility teamlead_week_eligibility_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_week_eligibility teamlead_week_eligibility_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_week_eligibility
@@ -8708,7 +8896,7 @@ ALTER TABLE ONLY public.teamlead_week_eligibility
 
 
 --
--- Name: teams teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: teams teams_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teams
@@ -8716,7 +8904,7 @@ ALTER TABLE ONLY public.teams
 
 
 --
--- Name: training_courses training_courses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: training_courses training_courses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.training_courses
@@ -8724,7 +8912,7 @@ ALTER TABLE ONLY public.training_courses
 
 
 --
--- Name: training_logs training_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: training_logs training_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.training_logs
@@ -8732,7 +8920,7 @@ ALTER TABLE ONLY public.training_logs
 
 
 --
--- Name: transaction_log_items transaction_log_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: transaction_log_items transaction_log_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.transaction_log_items
@@ -8740,7 +8928,7 @@ ALTER TABLE ONLY public.transaction_log_items
 
 
 --
--- Name: transaction_logs transaction_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: transaction_logs transaction_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.transaction_logs
@@ -8748,7 +8936,7 @@ ALTER TABLE ONLY public.transaction_logs
 
 
 --
--- Name: users unique_users_email; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users unique_users_email; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -8756,7 +8944,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: permissions uq_permissions_user_module; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: permissions uq_permissions_user_module; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.permissions
@@ -8764,7 +8952,7 @@ ALTER TABLE ONLY public.permissions
 
 
 --
--- Name: user_teams user_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: user_teams user_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.user_teams
@@ -8772,7 +8960,7 @@ ALTER TABLE ONLY public.user_teams
 
 
 --
--- Name: users users_google_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_google_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -8780,7 +8968,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_phone_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_phone_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -8788,7 +8976,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -8796,7 +8984,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_ref_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_ref_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -8804,63 +8992,63 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: allocation_policy_one_active_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: allocation_policy_one_active_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX allocation_policy_one_active_idx ON public.allocation_policy_versions USING btree (is_active) WHERE (is_active = true);
 
 
 --
--- Name: table_tinh_geom_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: table_tinh_geom_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX table_tinh_geom_idx ON public.table_tinh USING gist (geom);
 
 
 --
--- Name: teamlead_members_month_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: teamlead_members_month_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX teamlead_members_month_idx ON public.teamlead_members USING btree (month);
 
 
 --
--- Name: teamlead_payout_rows_period_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: teamlead_payout_rows_period_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX teamlead_payout_rows_period_idx ON public.teamlead_payout_rows USING btree (period_id);
 
 
 --
--- Name: teamlead_teams_name_ci_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: teamlead_teams_name_ci_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX teamlead_teams_name_ci_idx ON public.teamlead_teams USING btree (lower(btrim((name)::text)));
 
 
 --
--- Name: training_courses_course_code_uidx; Type: INDEX; Schema: public; Owner: -
+-- Name: training_courses_course_code_uidx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX training_courses_course_code_uidx ON public.training_courses USING btree (course_code);
 
 
 --
--- Name: training_logs_course_date_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: training_logs_course_date_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX training_logs_course_date_idx ON public.training_logs USING btree (course_code, training_date);
 
 
 --
--- Name: transaction_logs_contract_role_unique_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: transaction_logs_contract_role_unique_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX transaction_logs_contract_role_unique_idx ON public.transaction_logs USING btree (source_contract_id, beneficiary_role) WHERE (source_contract_id IS NOT NULL);
 
 
 --
--- Name: contracts contracts_closer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contracts contracts_closer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts
@@ -8868,7 +9056,7 @@ ALTER TABLE ONLY public.contracts
 
 
 --
--- Name: contracts contracts_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contracts contracts_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts
@@ -8876,7 +9064,7 @@ ALTER TABLE ONLY public.contracts
 
 
 --
--- Name: contracts contracts_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contracts contracts_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts
@@ -8884,7 +9072,7 @@ ALTER TABLE ONLY public.contracts
 
 
 --
--- Name: contracts contracts_seller_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contracts contracts_seller_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contracts
@@ -8892,7 +9080,7 @@ ALTER TABLE ONLY public.contracts
 
 
 --
--- Name: event_attachments event_attachments_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_attachments event_attachments_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_attachments
@@ -8900,7 +9088,7 @@ ALTER TABLE ONLY public.event_attachments
 
 
 --
--- Name: event_in_charge event_in_charge_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_in_charge event_in_charge_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_in_charge
@@ -8908,7 +9096,7 @@ ALTER TABLE ONLY public.event_in_charge
 
 
 --
--- Name: event_logs event_logs_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_logs event_logs_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_logs
@@ -8916,7 +9104,7 @@ ALTER TABLE ONLY public.event_logs
 
 
 --
--- Name: event_organizer_roles event_organizer_roles_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_organizer_roles event_organizer_roles_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_organizer_roles
@@ -8924,7 +9112,7 @@ ALTER TABLE ONLY public.event_organizer_roles
 
 
 --
--- Name: event_organizer_roles event_organizer_roles_updater_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_organizer_roles event_organizer_roles_updater_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_organizer_roles
@@ -8932,7 +9120,7 @@ ALTER TABLE ONLY public.event_organizer_roles
 
 
 --
--- Name: event_organizer_roles event_organizer_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_organizer_roles event_organizer_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_organizer_roles
@@ -8940,7 +9128,7 @@ ALTER TABLE ONLY public.event_organizer_roles
 
 
 --
--- Name: event_registrations event_registrations_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_registrations event_registrations_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_registrations
@@ -8948,7 +9136,7 @@ ALTER TABLE ONLY public.event_registrations
 
 
 --
--- Name: event_registrations event_registrations_food_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_registrations event_registrations_food_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_registrations
@@ -8956,7 +9144,7 @@ ALTER TABLE ONLY public.event_registrations
 
 
 --
--- Name: event_registrations event_registrations_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_registrations event_registrations_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_registrations
@@ -8964,7 +9152,7 @@ ALTER TABLE ONLY public.event_registrations
 
 
 --
--- Name: event_registrations event_registrations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: event_registrations event_registrations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.event_registrations
@@ -8972,7 +9160,7 @@ ALTER TABLE ONLY public.event_registrations
 
 
 --
--- Name: events events_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: events events_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.events
@@ -8980,7 +9168,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- Name: events events_creator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: events events_creator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.events
@@ -8988,7 +9176,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- Name: events events_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: events events_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.events
@@ -8996,7 +9184,7 @@ ALTER TABLE ONLY public.events
 
 
 --
--- Name: teams fk_teams_leader; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teams fk_teams_leader; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teams
@@ -9004,7 +9192,7 @@ ALTER TABLE ONLY public.teams
 
 
 --
--- Name: invitations invitations_inviter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: invitations invitations_inviter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.invitations
@@ -9012,7 +9200,7 @@ ALTER TABLE ONLY public.invitations
 
 
 --
--- Name: permissions permissions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: permissions permissions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.permissions
@@ -9020,7 +9208,7 @@ ALTER TABLE ONLY public.permissions
 
 
 --
--- Name: teamlead_member_teams teamlead_member_teams_member_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_member_teams teamlead_member_teams_member_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_member_teams
@@ -9028,7 +9216,7 @@ ALTER TABLE ONLY public.teamlead_member_teams
 
 
 --
--- Name: teamlead_member_teams teamlead_member_teams_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_member_teams teamlead_member_teams_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_member_teams
@@ -9036,7 +9224,7 @@ ALTER TABLE ONLY public.teamlead_member_teams
 
 
 --
--- Name: teamlead_members teamlead_members_member_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_members teamlead_members_member_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_members
@@ -9044,7 +9232,7 @@ ALTER TABLE ONLY public.teamlead_members
 
 
 --
--- Name: teamlead_payout_rows teamlead_payout_rows_member_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows teamlead_payout_rows_member_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows
@@ -9052,7 +9240,7 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 
 --
--- Name: teamlead_payout_rows teamlead_payout_rows_membership_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows teamlead_payout_rows_membership_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows
@@ -9060,7 +9248,7 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 
 --
--- Name: teamlead_payout_rows teamlead_payout_rows_period_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows teamlead_payout_rows_period_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows
@@ -9068,7 +9256,7 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 
 --
--- Name: teamlead_payout_rows teamlead_payout_rows_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_payout_rows teamlead_payout_rows_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_payout_rows
@@ -9076,7 +9264,7 @@ ALTER TABLE ONLY public.teamlead_payout_rows
 
 
 --
--- Name: teamlead_week_eligibility teamlead_week_eligibility_member_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: teamlead_week_eligibility teamlead_week_eligibility_member_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.teamlead_week_eligibility
@@ -9084,7 +9272,7 @@ ALTER TABLE ONLY public.teamlead_week_eligibility
 
 
 --
--- Name: training_logs training_logs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: training_logs training_logs_course_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.training_logs
@@ -9092,7 +9280,7 @@ ALTER TABLE ONLY public.training_logs
 
 
 --
--- Name: transaction_logs transaction_logs_beneficiary_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: transaction_logs transaction_logs_beneficiary_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.transaction_logs
@@ -9100,7 +9288,7 @@ ALTER TABLE ONLY public.transaction_logs
 
 
 --
--- Name: transaction_logs transaction_logs_source_contract_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: transaction_logs transaction_logs_source_contract_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.transaction_logs
@@ -9108,7 +9296,7 @@ ALTER TABLE ONLY public.transaction_logs
 
 
 --
--- Name: users users_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -9116,11 +9304,19 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
 --

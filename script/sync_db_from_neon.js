@@ -48,7 +48,11 @@ async function syncDatabases() {
   const localPool = new Pool(LOCAL_CONFIG);
   const localClient = await localPool.connect();
 
+  let transactionStarted = false;
   try {
+    await localClient.query('BEGIN');
+    transactionStarted = true;
+
     const neonVer = await neonPool.query('SELECT version()');
     console.log('[Neon DB] Đã kết nối:', neonVer.rows[0].version.split(' on ')[0]);
 
@@ -71,11 +75,7 @@ async function syncDatabases() {
     console.log(neonTables.join(', '));
     console.log('');
 
-    try {
-      await localClient.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
-    } catch (e) {
-      // ignore
-    }
+    await localClient.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
 
     // 1. Đồng bộ cấu trúc bảng và cột
     for (const tableName of neonTables) {
@@ -257,49 +257,7 @@ async function syncDatabases() {
     await localClient.query("SET session_replication_role = 'origin'");
     console.log('\n[Dữ liệu] Đã kích hoạt lại kiểm tra Foreign Key.');
 
-    // 5. Cập nhật Sequences
-    console.log('\n=== ĐỒNG BỘ AUTO-INCREMENT SEQUENCES ===\n');
-    const neonSeqCols = await neonPool.query(`
-      SELECT table_name, column_name, column_default 
-      FROM information_schema.columns 
-      WHERE table_schema = 'public' AND column_default LIKE '%nextval%'
-    `);
-
-    for (const seqCol of neonSeqCols.rows) {
-      const { table_name, column_name, column_default } = seqCol;
-      const match = column_default.match(/nextval\('([^']+)'/);
-      if (match) {
-        const seqName = match[1].replace(/^public\./, '');
-        const maxRes = await localClient.query(`SELECT COALESCE(MAX("${column_name}"), 0) as max_val FROM "${table_name}"`);
-        const maxVal = parseInt(maxRes.rows[0].max_val, 10);
-        const nextVal = maxVal > 0 ? maxVal : 1;
-        const isCalled = maxVal > 0;
-
-        try {
-          const seqCheck = await localClient.query(`
-            SELECT 1 FROM pg_class WHERE relkind = 'S' AND relname = $1
-          `, [seqName]);
-
-          if (seqCheck.rows.length === 0) {
-            await localClient.query(`CREATE SEQUENCE "${seqName}" START WITH ${nextVal}`);
-            console.log(`  + Đã tạo mới sequence "${seqName}"`);
-          }
-
-          try {
-            await localClient.query(`ALTER TABLE "${table_name}" ALTER COLUMN "${column_name}" SET DEFAULT nextval('${seqName}'::regclass)`);
-          } catch (e) {
-            // might already be default
-          }
-
-          await localClient.query(`SELECT setval('${seqName}', ${nextVal}, ${isCalled})`);
-          console.log(`  ✓ Sequence "${seqName}" (${table_name}.${column_name}) -> setval(${nextVal}, ${isCalled})`);
-        } catch (seqErr) {
-          console.warn(`  ! Lỗi sequence "${seqName}":`, seqErr.message);
-        }
-      }
-    }
-
-    // 5b. Đồng bộ Views
+    // 5. Đồng bộ Views
     console.log('\n=== ĐỒNG BỘ VIEWS TỪ NEON ===\n');
     const viewsToSync = [
       {
@@ -317,15 +275,11 @@ async function syncDatabases() {
     ];
 
     for (const v of viewsToSync) {
-      try {
-        await localClient.query(v.sql);
-        console.log(`  ✓ Đã cập nhật view "${v.name}"`);
-      } catch (err) {
-        console.warn(`  ! Lỗi cập nhật view "${v.name}":`, err.message);
-      }
+      await localClient.query(v.sql);
+      console.log(`  ✓ Đã cập nhật view "${v.name}"`);
     }
 
-    // 6. Đối soát tổng kết
+    // 6. Đối soát dữ liệu trước khi cập nhật sequences và commit
     console.log('\n=== KẾT QUẢ ĐỐI SOÁT DỮ LIỆU ===\n');
     console.log('| # | Tên bảng | Số dòng Neon | Số dòng Localhost | Trạng thái |');
     console.log('|---|---|---|---|---|');
@@ -344,12 +298,60 @@ async function syncDatabases() {
     }
 
     console.log('');
-    if (allMatch) {
-      console.log('>>> THÀNH CÔNG RỰC RỠ: 100% DỮ LIỆU ĐÃ ĐƯỢC CHUYỂN VỀ POSTGRESQL LOCALHOST AN TOÀN VÀ CHÍNH XÁC! <<<');
+    if (!allMatch) {
+      throw new Error('Số dòng ở nguồn và đích không khớp; giao dịch sẽ được hoàn tác.');
     }
 
+    // ALTER SEQUENCE RESTART is transactional, unlike setval.
+    console.log('\n=== ĐỒNG BỘ AUTO-INCREMENT SEQUENCES ===\n');
+    const neonSeqCols = await neonPool.query(`
+      SELECT table_name, column_name, column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND column_default LIKE '%nextval%'
+    `);
+
+    for (const seqCol of neonSeqCols.rows) {
+      const { table_name, column_name, column_default } = seqCol;
+      const match = column_default.match(/nextval\('([^']+)'/);
+      if (!match) continue;
+
+      const seqName = match[1].replace(/^public\./, '');
+      const maxRes = await localClient.query(
+        `SELECT COALESCE(MAX("${column_name}"), 0) AS max_val FROM "${table_name}"`
+      );
+      const maxVal = parseInt(maxRes.rows[0].max_val, 10);
+      const nextVal = maxVal > 0 ? maxVal + 1 : 1;
+      const seqCheck = await localClient.query(
+        `SELECT 1 FROM pg_class WHERE relkind = 'S' AND relname = $1`,
+        [seqName]
+      );
+
+      if (seqCheck.rows.length === 0) {
+        await localClient.query(`CREATE SEQUENCE "${seqName}" START WITH ${nextVal}`);
+        console.log(`  + Đã tạo mới sequence "${seqName}"`);
+      }
+
+      await localClient.query(
+        `ALTER TABLE "${table_name}" ALTER COLUMN "${column_name}" SET DEFAULT nextval('${seqName}'::regclass)`
+      );
+      await localClient.query(`ALTER SEQUENCE "${seqName}" RESTART WITH ${nextVal}`);
+      console.log(`  ✓ Sequence "${seqName}" (${table_name}.${column_name}) -> ${nextVal}`);
+    }
+
+    await localClient.query('COMMIT');
+    transactionStarted = false;
+    console.log('>>> ĐỒNG BỘ THÀNH CÔNG: tất cả bảng nguồn đã được nạp và xác minh. <<<');
   } catch (err) {
     console.error('\nLỗi khi đồng bộ:', err);
+    if (transactionStarted) {
+      try {
+        await localClient.query('ROLLBACK');
+        console.error('Đã hoàn tác toàn bộ thay đổi tại database đích.');
+      } catch (rollbackErr) {
+        console.error('Không thể hoàn tác giao dịch:', rollbackErr);
+      }
+    }
+    throw err;
   } finally {
     localClient.release();
     await neonPool.end();
@@ -358,4 +360,7 @@ async function syncDatabases() {
   }
 }
 
-syncDatabases();
+syncDatabases().catch((err) => {
+  console.error('Đồng bộ thất bại:', err.message);
+  process.exitCode = 1;
+});

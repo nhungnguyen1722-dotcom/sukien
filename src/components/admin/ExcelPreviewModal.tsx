@@ -115,7 +115,7 @@ function DistributionMatrixControls({
 function DistributionMatrixSection({
   title,
   matrix,
-  showSignatures = false,
+  showSignatures = true,
 }: {
   title?: string;
   matrix?: React.ReactNode;
@@ -139,18 +139,18 @@ function DistributionMatrixSection({
 
 function PreviewSignatures() {
   return (
-    <div className="mb-4 grid grid-cols-3 gap-4 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-center text-[11px] text-slate-800">
+    <div className="mb-4 grid grid-cols-3 gap-4 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 text-center text-[11px] text-slate-800 shadow-2xs">
       <div>
-        <p className="font-semibold uppercase tracking-wider">NGƯỜI LẬP</p>
-        <p className="mt-1 font-bold text-slate-900">Vũ Thị Cúc</p>
+        <p className="font-semibold uppercase tracking-wider text-slate-600">NGƯỜI LẬP</p>
+        <p className="mt-1 font-bold text-slate-900 text-xs">Vũ Thị Cúc</p>
       </div>
       <div>
-        <p className="font-semibold uppercase tracking-wider">PHÓ CHỦ TỊCH</p>
-        <p className="mt-1 font-bold text-slate-900">Nguyễn Thị Thương Hiếu</p>
+        <p className="font-semibold uppercase tracking-wider text-slate-600">PHÓ CHỦ TỊCH</p>
+        <p className="mt-1 font-bold text-slate-900 text-xs">Nguyễn Thị Thương Hiếu</p>
       </div>
       <div>
-        <p className="font-semibold uppercase tracking-wider">TỔNG GIÁM ĐỐC</p>
-        <p className="mt-1 font-bold text-slate-900">Nguyễn Thị Hương Thảo</p>
+        <p className="font-semibold uppercase tracking-wider text-slate-600">TỔNG GIÁM ĐỐC</p>
+        <p className="mt-1 font-bold text-slate-900 text-xs">Nguyễn Thị Hương Thảo</p>
       </div>
     </div>
   );
@@ -256,10 +256,9 @@ function ExcelPreviewModal({
                 <DistributionMatrixSection
                   title={distributionTitle}
                   matrix={distributionMatrix}
-                  showSignatures={distributionView !== 'person'}
+                  showSignatures={true}
                 />
               )}
-              showPeopleSignatures={distributionView === 'person'}
             />}
             {mode === 'cashflow_month' && <CashflowMonthPreview data={data} />}
             {mode === 'training' && <TrainingPreview data={data} />}
@@ -307,11 +306,9 @@ export default React.memo(ExcelPreviewModal);
 function CashflowWeekPreview({
   data,
   distributionSection,
-  showPeopleSignatures = false,
 }: {
   data: ExcelPreviewModalProps['data'];
   distributionSection?: React.ReactNode;
-  showPeopleSignatures?: boolean;
 }) {
   const funds = data.funds || [];
   const people = data.people || [];
@@ -416,93 +413,6 @@ function CashflowWeekPreview({
       </div>
 
       {distributionSection}
-
-      {/* Bảng 2: Bảng kê chi tiết nhân sự nhận hoa hồng nếu có */}
-      {people.length > 0 && (
-        <div className="space-y-2">
-          {showPeopleSignatures && <PreviewSignatures />}
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-              Danh sách chi tiết chi trả hoa hồng ({people.length} người nhận)
-            </h3>
-          </div>
-          <div className="border border-slate-300 rounded-xs overflow-hidden">
-            <table className="w-full text-left border-collapse text-[11px]">
-              <thead>
-                <tr className="bg-[#2F5597] text-white">
-                  <th className="px-2 py-2 text-center w-10 border-r border-[#244277]">STT</th>
-                  <th className="px-3 py-2 border-r border-[#244277]">Họ và tên</th>
-                  <th className="px-3 py-2 border-r border-[#244277]">Số điện thoại</th>
-                  <th className="px-3 py-2 border-r border-[#244277]">Số tài khoản</th>
-                  <th className="px-3 py-2 border-r border-[#244277]">Ngân hàng</th>
-                  {fundCols.map((c) => (
-                    <th key={c.key} className="px-2.5 py-2 text-right border-r border-[#244277] whitespace-nowrap">
-                      {c.label}
-                    </th>
-                  ))}
-                  <th className="px-3 py-2 text-right bg-[#1F3B6E]">Tổng thực nhận</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {people.map((p, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-2 py-1.5 text-center text-slate-500 font-mono border-r border-slate-200">
-                      {p.stt || idx + 1}
-                    </td>
-                    <td className="px-3 py-1.5 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                      {p.name}
-                    </td>
-                    <td className="px-3 py-1.5 text-slate-600 font-mono border-r border-slate-200 whitespace-nowrap">
-                      {p.phone || '—'}
-                    </td>
-                    <td className="px-3 py-1.5 text-slate-700 font-mono border-r border-slate-200 whitespace-nowrap">
-                      {p.bankAccount || '—'}
-                    </td>
-                    <td className="px-3 py-1.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
-                      {p.bankName || '—'}
-                    </td>
-                    {fundCols.map((c) => {
-                      const amt = p.amounts?.[c.key] || 0;
-                      return (
-                        <td
-                          key={c.key}
-                          className={`px-2.5 py-1.5 text-right font-mono border-r border-slate-200 whitespace-nowrap ${
-                            amt === 0 ? 'text-slate-300' : 'text-slate-800 font-medium'
-                          }`}
-                        >
-                          {amt > 0 ? formatPlainNumber(amt) : '0'}
-                        </td>
-                      );
-                    })}
-                    <td className="px-3 py-1.5 text-right font-bold text-emerald-700 font-mono whitespace-nowrap bg-emerald-50/30">
-                      {formatMoney(p.total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
-                  <td colSpan={5} className="px-4 py-2 text-center uppercase tracking-wide border-r border-slate-300">
-                    Tổng cộng thực chi ({people.length} người)
-                  </td>
-                  {fundCols.map((c) => {
-                    const colTotal = people.reduce((sum, p) => sum + (p.amounts?.[c.key] || 0), 0);
-                    return (
-                      <td key={c.key} className="px-2.5 py-2 text-right font-mono border-r border-slate-300">
-                        {formatPlainNumber(colTotal)}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 text-right font-mono text-emerald-700 bg-emerald-100/50">
-                    {formatMoney(people.reduce((sum, p) => sum + p.total, 0))}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
@@ -612,7 +522,7 @@ function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }
         <div className="space-y-2">
           <PreviewSignatures />
           <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-            Bảng kê người nhận hoa hồng và thù lao tháng ({people.length} người)
+            BẢNG KÊ NGƯỜI NHẬN HOA HỒNG VÀ THÙ LAO THÁNG ({people.length} NGƯỜI)
           </h3>
           <div className="border border-slate-300 rounded-xs overflow-hidden">
             <table className="w-full text-left border-collapse text-[11px]">
