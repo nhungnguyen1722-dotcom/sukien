@@ -3397,9 +3397,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             <h1 className="text-sm font-bold uppercase tracking-wider text-slate-900">
               CÔNG TY CỔ PHẦN TẬP ĐOÀN NGHIÊNG COMPLEX
             </h1>
-            <p className="mt-1 text-[11px] text-slate-600">
-              Hệ thống quản lý sự kiện & phân bổ nguồn quỹ tự động
-            </p>
             <h2 className="mt-4 text-2xl font-black uppercase tracking-tight text-slate-900">
               PHIẾU ĐỀ NGHỊ THANH TOÁN
             </h2>
@@ -3413,10 +3410,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
               <span className="text-slate-600">Người đề xuất:</span>{' '}
               <strong className="text-slate-900">{safeText(printLog.requester_name)}</strong>
               {printLog.requester_phone && <span> · {printLog.requester_phone}</span>}
-            </div>
-            <div className="space-y-1">
-              <div><span className="text-slate-600">PHÓ CHỦ TỊCH:</span>{' '}<strong className="text-slate-900">Nguyễn Thị Thương Hiếu</strong></div>
-              <div><span className="text-slate-600">TỔNG GIÁM ĐỐC:</span>{' '}<strong className="text-slate-900">Nguyễn Thị Hương Thảo</strong></div>
             </div>
             <div>
               <span className="text-slate-600">Người thụ hưởng:</span>{' '}
@@ -3432,10 +3425,6 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
             <div>
               <span className="text-slate-600">Quỹ:</span>{' '}
               <strong className="text-slate-900">{printLog.fund_source}</strong>
-            </div>
-            <div>
-              <span className="text-slate-600">Trạng thái phiếu:</span>{' '}
-              <strong className="text-slate-900 uppercase">{printLog.status}</strong>
             </div>
             <div className="col-span-2 mt-1 rounded-lg bg-slate-50 p-2.5 border border-slate-200">
               <span className="font-semibold text-slate-700">Lý do thanh toán:</span>{' '}

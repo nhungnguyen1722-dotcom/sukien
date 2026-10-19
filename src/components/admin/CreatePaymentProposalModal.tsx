@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import * as XLSX from 'xlsx';
 import {
   X,
@@ -13,7 +14,6 @@ import {
   FileSpreadsheet,
   Link as LinkIcon,
   Send,
-  Save,
   User,
   ShieldCheck,
   Calendar,
@@ -155,6 +155,7 @@ export default function CreatePaymentProposalModal({
   onSuccess,
   onTriggerPrint,
 }: Props) {
+  const { data: session } = useSession();
   // Form top fields
   const [requestCode] = useState(() => `YC${String(Math.floor(10000 + Math.random() * 90000))}`);
   const [requestDate, setRequestDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -164,6 +165,23 @@ export default function CreatePaymentProposalModal({
   const [status, setStatus] = useState('Chờ duyệt');
   const [fundSource, setFundSource] = useState(() => getFundOptionLabel(initialFundSource || FUND_OPTIONS[0]));
   const [note, setNote] = useState(() => initialNote ?? '');
+
+  useEffect(() => {
+    const cookieUserName = document.cookie
+      .split('; ')
+      .find((cookie) => cookie.startsWith('user_name='))
+      ?.slice('user_name='.length);
+    let decodedCookieName = '';
+    try {
+      decodedCookieName = cookieUserName ? decodeURIComponent(cookieUserName) : '';
+    } catch (error) {
+      console.warn('Could not decode the current user name cookie:', error);
+    }
+    const defaultApprover = session?.user?.name?.trim() || decodedCookieName.trim();
+    if (isOpen && defaultApprover) {
+      setApproverName((current) => current.trim() || defaultApprover);
+    }
+  }, [isOpen, session?.user?.name]);
 
   const createEmptyItem = (order: number = 1): TransactionLogItem => {
     return {
@@ -1033,16 +1051,6 @@ export default function CreatePaymentProposalModal({
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
             >
               Hủy bỏ
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSaveProposal('Lưu nháp')}
-              disabled={isSubmitting || status === 'Xóa phiếu'}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer disabled:opacity-50"
-            >
-              <Save className="h-3.5 w-3.5" />
-              <span>Lưu nháp</span>
             </button>
 
             <button

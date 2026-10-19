@@ -62,6 +62,16 @@ export async function PUT(request: NextRequest) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        const currentRateResult = await client.query(
+          "SELECT value FROM system_settings WHERE key = 'training_token_rate' FOR UPDATE"
+        );
+        const currentRate = normalizeTrainingTokenRate(currentRateResult.rows[0]?.value);
+        await client.query(
+          `UPDATE training_logs
+           SET reward_amount = token_count * $1
+           WHERE reward_amount IS NULL`,
+          [currentRate]
+        );
         await client.query(`
           INSERT INTO system_settings (key, value, description, updated_at)
           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
@@ -71,12 +81,6 @@ export async function PUT(request: NextRequest) {
             updated_at = CURRENT_TIMESTAMP
         `, [key, String(rate), description || 'Giá trị quy đổi của một Token (VNĐ)']);
         await client.query('UPDATE training_courses SET budget = token_value * $1', [rate]);
-        await client.query(`
-          UPDATE training_logs AS log
-          SET session_budget = course.budget
-          FROM training_courses AS course
-          WHERE course.course_code = log.course_code
-        `);
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');

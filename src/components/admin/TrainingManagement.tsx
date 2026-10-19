@@ -405,10 +405,6 @@ export default function TrainingManagement({
         ...course,
         budget: course.token_value * nextRate,
       })));
-      setLogs((current) => current.map((log) => {
-        const course = courses.find((item) => item.course_code === log.course_code);
-        return course ? { ...log, session_budget: course.token_value * nextRate } : log;
-      }));
       setCourseForm((current) => ({ ...current, budget: current.token_value * nextRate }));
       showToast('success', `Đã cập nhật tỷ giá: 1 Token = ${formatCurrency(nextRate)}.`);
     } catch (error) {
@@ -417,7 +413,7 @@ export default function TrainingManagement({
     } finally {
       setIsSavingTokenRate(false);
     }
-  }, [courses, showToast, tokenRate, tokenRateDraft]);
+  }, [showToast, tokenRate, tokenRateDraft]);
 
   const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
