@@ -125,6 +125,7 @@ function DistributionMatrixSection({
 
   return (
     <section className="mt-8 border-t border-slate-200 pt-6">
+      <PreviewSignatures />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-slate-900">{title || 'Bảng kê hợp đồng & nhân sự thụ hưởng'}</h2>
@@ -532,6 +533,7 @@ function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }
       {/* Bảng Kê Người Nhận Tháng */}
       {people.length > 0 ? (
         <div className="space-y-4">
+          <PreviewSignatures />
           <div className="space-y-2">
             <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
               BẢNG KÊ NGƯỜI NHẬN HOA HỒNG VÀ THÙ LAO THÁNG ({people.length} NGƯỜI)
