@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { TransactionMember, TransactionLogItem, TransactionLog, EventFundExpense } from './TransactionLogManagement';
 import { numberToVietnameseWords } from '@/lib/numberToWords';
+import { safeDecodeURI } from '@/lib/authUtils';
 
 const FUND_OPTIONS = [
   'Sale trực tiếp · Pro sale',
@@ -171,13 +172,7 @@ export default function CreatePaymentProposalModal({
       .split('; ')
       .find((cookie) => cookie.startsWith('user_name='))
       ?.slice('user_name='.length);
-    let decodedCookieName = '';
-    try {
-      decodedCookieName = cookieUserName ? decodeURIComponent(cookieUserName) : '';
-    } catch (error) {
-      console.warn('Could not decode the current user name cookie:', error);
-    }
-    const defaultApprover = session?.user?.name?.trim() || decodedCookieName.trim();
+    const defaultApprover = safeDecodeURI(session?.user?.name) || safeDecodeURI(cookieUserName);
     if (isOpen && defaultApprover) {
       setApproverName((current) => current.trim() || defaultApprover);
     }
