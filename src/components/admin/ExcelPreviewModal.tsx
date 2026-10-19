@@ -125,7 +125,6 @@ function DistributionMatrixSection({
 
   return (
     <section className="mt-8 border-t border-slate-200 pt-6">
-      {showSignatures && <PreviewSignatures />}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-slate-900">{title || 'Bảng kê hợp đồng & nhân sự thụ hưởng'}</h2>
@@ -133,24 +132,36 @@ function DistributionMatrixSection({
         </div>
       </div>
       {matrix}
+      {showSignatures && <PreviewSignatures />}
     </section>
   );
 }
 
 function PreviewSignatures() {
   return (
-    <div className="mb-4 grid grid-cols-3 gap-4 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 text-center text-[11px] text-slate-800 shadow-2xs">
-      <div>
-        <p className="font-semibold uppercase tracking-wider text-slate-600">NGƯỜI LẬP</p>
-        <p className="mt-1 font-bold text-slate-900 text-xs">Vũ Thị Cúc</p>
-      </div>
-      <div>
-        <p className="font-semibold uppercase tracking-wider text-slate-600">PHÓ CHỦ TỊCH</p>
-        <p className="mt-1 font-bold text-slate-900 text-xs">Nguyễn Thị Thương Hiếu</p>
-      </div>
-      <div>
-        <p className="font-semibold uppercase tracking-wider text-slate-600">TỔNG GIÁM ĐỐC</p>
-        <p className="mt-1 font-bold text-slate-900 text-xs">Nguyễn Thị Hương Thảo</p>
+    <div className="mt-8 border-t border-slate-200 pt-6">
+      <div className="grid grid-cols-3 gap-6 rounded-lg border border-slate-200 bg-slate-50/70 p-5 text-center text-xs text-slate-800 shadow-2xs">
+        <div className="flex flex-col items-center justify-between min-h-[90px]">
+          <div>
+            <p className="font-bold uppercase tracking-wider text-slate-900 text-xs">NGƯỜI LẬP</p>
+            <p className="mt-0.5 text-[11px] text-slate-500 italic">(Ký, họ tên)</p>
+          </div>
+          <p className="mt-6 font-bold text-slate-900 text-xs sm:text-sm">Vũ Thị Cúc</p>
+        </div>
+        <div className="flex flex-col items-center justify-between min-h-[90px]">
+          <div>
+            <p className="font-bold uppercase tracking-wider text-slate-900 text-xs">PHÓ CHỦ TỊCH</p>
+            <p className="mt-0.5 text-[11px] text-slate-500 italic">(Ký, họ tên)</p>
+          </div>
+          <p className="mt-6 font-bold text-slate-900 text-xs sm:text-sm">Nguyễn Thị Thương Hiếu</p>
+        </div>
+        <div className="flex flex-col items-center justify-between min-h-[90px]">
+          <div>
+            <p className="font-bold uppercase tracking-wider text-slate-900 text-xs">TỔNG GIÁM ĐỐC</p>
+            <p className="mt-0.5 text-[11px] text-slate-500 italic">(Phê duyệt chi)</p>
+          </div>
+          <p className="mt-6 font-bold text-slate-900 text-xs sm:text-sm">Nguyễn Thị Hương Thảo</p>
+        </div>
       </div>
     </div>
   );
@@ -413,6 +424,7 @@ function CashflowWeekPreview({
       </div>
 
       {distributionSection}
+      {!distributionSection && <PreviewSignatures />}
     </div>
   );
 }
@@ -518,59 +530,63 @@ function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }
       </div>
 
       {/* Bảng Kê Người Nhận Tháng */}
-      {people.length > 0 && (
-        <div className="space-y-2">
-          <PreviewSignatures />
-          <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-            BẢNG KÊ NGƯỜI NHẬN HOA HỒNG VÀ THÙ LAO THÁNG ({people.length} NGƯỜI)
-          </h3>
-          <div className="border border-slate-300 rounded-xs overflow-hidden">
-            <table className="w-full text-left border-collapse text-[11px]">
-              <thead>
-                <tr className="bg-[#2F5597] text-white">
-                  <th className="px-2 py-2 text-center w-10 border-r border-[#244277]">STT</th>
-                  <th className="px-3 py-2 border-r border-[#244277] w-28">Mã Người nhận</th>
-                  <th className="px-3 py-2 border-r border-[#244277]">Thông tin người nhận (Tên / STK / NH)</th>
-                  <th className="px-3 py-2 border-r border-[#244277]">Chi tiết nội dung nhận</th>
-                  <th className="px-3 py-2 text-right w-36 bg-[#1F3B6E]">Tổng tiền</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {people.map((p, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-2 py-2 text-center text-slate-500 font-mono border-r border-slate-200 align-top">
-                      {p.stt || idx + 1}
+      {people.length > 0 ? (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+              BẢNG KÊ NGƯỜI NHẬN HOA HỒNG VÀ THÙ LAO THÁNG ({people.length} NGƯỜI)
+            </h3>
+            <div className="border border-slate-300 rounded-xs overflow-hidden">
+              <table className="w-full text-left border-collapse text-[11px]">
+                <thead>
+                  <tr className="bg-[#2F5597] text-white">
+                    <th className="px-2 py-2 text-center w-10 border-r border-[#244277]">STT</th>
+                    <th className="px-3 py-2 border-r border-[#244277] w-28">Mã Người nhận</th>
+                    <th className="px-3 py-2 border-r border-[#244277]">Thông tin người nhận (Tên / STK / NH)</th>
+                    <th className="px-3 py-2 border-r border-[#244277]">Chi tiết nội dung nhận</th>
+                    <th className="px-3 py-2 text-right w-36 bg-[#1F3B6E]">Tổng tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {people.map((p, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-2 py-2 text-center text-slate-500 font-mono border-r border-slate-200 align-top">
+                        {p.stt || idx + 1}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200 align-top whitespace-nowrap">
+                        {p.phone || '—'}
+                      </td>
+                      <td className="px-3 py-2 border-r border-slate-200 align-top">
+                        <p className="font-bold text-slate-900">{p.name}</p>
+                        {p.bankAccount && <p className="text-[10px] text-slate-600 font-mono">STK: {p.bankAccount}</p>}
+                        {p.bankName && <p className="text-[10px] text-slate-500">{p.bankName}</p>}
+                      </td>
+                      <td className="px-3 py-2 border-r border-slate-200 align-top text-slate-700 whitespace-pre-line text-[10px] leading-relaxed">
+                        {p.detail || 'Hoa hồng phân bổ theo các kỳ tuần'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-bold text-emerald-700 font-mono align-top whitespace-nowrap">
+                        {formatMoney(p.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                    <td colSpan={4} className="px-4 py-2.5 text-center uppercase tracking-wide border-r border-slate-300">
+                      Tổng cộng thực chi ({people.length} người)
                     </td>
-                    <td className="px-3 py-2 font-mono text-slate-700 border-r border-slate-200 align-top whitespace-nowrap">
-                      {p.phone || '—'}
-                    </td>
-                    <td className="px-3 py-2 border-r border-slate-200 align-top">
-                      <p className="font-bold text-slate-900">{p.name}</p>
-                      {p.bankAccount && <p className="text-[10px] text-slate-600 font-mono">STK: {p.bankAccount}</p>}
-                      {p.bankName && <p className="text-[10px] text-slate-500">{p.bankName}</p>}
-                    </td>
-                    <td className="px-3 py-2 border-r border-slate-200 align-top text-slate-700 whitespace-pre-line text-[10px] leading-relaxed">
-                      {p.detail || 'Hoa hồng phân bổ theo các kỳ tuần'}
-                    </td>
-                    <td className="px-3 py-2 text-right font-bold text-emerald-700 font-mono align-top whitespace-nowrap">
-                      {formatMoney(p.total)}
+                    <td className="px-3 py-2.5 text-right font-mono text-emerald-700 bg-emerald-100/50">
+                      {formatMoney(people.reduce((sum, p) => sum + p.total, 0))}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
-                  <td colSpan={4} className="px-4 py-2.5 text-center uppercase tracking-wide border-r border-slate-300">
-                    Tổng cộng thực chi ({people.length} người)
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-emerald-700 bg-emerald-100/50">
-                    {formatMoney(people.reduce((sum, p) => sum + p.total, 0))}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                </tfoot>
+              </table>
+            </div>
           </div>
+          <PreviewSignatures />
         </div>
+      ) : (
+        <PreviewSignatures />
       )}
 
     </div>
@@ -741,6 +757,8 @@ function TrainingPreview({ data }: { data: ExcelPreviewModalProps['data'] }) {
           </table>
         </div>
       </div>
+
+      <PreviewSignatures />
     </div>
   );
 }
