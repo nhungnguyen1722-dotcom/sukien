@@ -311,6 +311,61 @@ const safeText = (value?: string | null) => value?.trim() || 'Chưa có dữ li�
 const isPaidStatus = (status: string) => ['Đã chi', 'Đã thanh toán', 'Đã thực hiện'].includes(status);
 const normalizeFund = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim().toLocaleLowerCase('vi');
 
+function previewCommissionLabel(source: string, calculation: string) {
+  const normalizedSource = normalizeFund(source);
+  const calculatedRate = calculation.match(/\d+(?:[,.]\d+)?\s*%/)?.[0]?.replace(/\s/g, '');
+  const fundKey = Object.keys(FUND_SOURCE_BY_KEY).find((key) => (
+    normalizedSource.includes(normalizeFund(FUND_SOURCE_BY_KEY[key]))
+    || normalizedSource.includes(normalizeFund(FUND_LABELS[key] || ''))
+  )) || (
+    normalizedSource.includes('su kien') ? 'event_close'
+      : normalizedSource.includes('dao tao') ? 'training'
+        : normalizedSource.includes('cham soc') ? 'customer_care'
+          : normalizedSource.includes('thi dua') || normalizedSource.includes('thuc day') ? 'incentive'
+            : normalizedSource.includes('cong tac') ? 'travel'
+              : normalizedSource.includes('ho tro kt') ? 'support_kt'
+                : normalizedSource.includes('ho tro cn') ? 'support_cn'
+                  : undefined
+  );
+  const rateForFund = (key: string) => calculatedRate || (
+    DEFAULT_FUND_RATES[key] === undefined
+      ? ''
+      : `${(DEFAULT_FUND_RATES[key] * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`
+  );
+
+  if (normalizedSource.includes('teamlead') || normalizedSource.includes('leader team')) {
+    const share = calculation.match(/2[,\.]9%\s*[×x]\s*(30|70)%/i)?.[1]
+      || normalizedSource.match(/\b(30|70)\s*%/)?.[1]
+      || '70';
+    return `Hoa hồng Leader team ${share}%`;
+  }
+  if (normalizedSource.includes('sale truc tiep') || normalizedSource.includes('pro sale')) {
+    return `Hoa hồng Sale trực tiếp - Pro sale ${rateForFund('direct_sale') || '6%'}`;
+  }
+  if (normalizedSource.includes('cong tac vien')) {
+    return `Hoa hồng Cộng tác viên ${calculatedRate || '3%'}`;
+  }
+  if (normalizedSource.includes('tri an ho tro sale')) {
+    return `Hoa hồng Tri ân hỗ trợ sale ${rateForFund('tribute_support') || '0,5%'}`;
+  }
+  if (normalizedSource.includes('tri an ket noi sale')) {
+    return `Hoa hồng Tri ân kết nối sale ${rateForFund('tribute_connection') || '1%'}`;
+  }
+  if (normalizedSource.includes('quy van hanh')) {
+    const recipient = source.split(/[→>]/).at(-1)?.replace(/\s*\([^)]*%\)/g, '').trim();
+    return `Hoa hồng Quỹ vận hành${recipient && recipient !== source ? ` - ${recipient}` : ''} ${rateForFund('operations') || '2,2%'}`;
+  }
+  if (fundKey && FUND_LABELS[fundKey]) {
+    return `Hoa hồng ${FUND_LABELS[fundKey]} ${rateForFund(fundKey)}`;
+  }
+
+  const cleanSource = source
+    .replace(/\s*\([^)]*\d+(?:[,.]\d+)?\s*%\)/g, '')
+    .replace(/\s*→\s*/g, ' - ')
+    .trim();
+  return `Hoa hồng ${cleanSource}${calculatedRate ? ` ${calculatedRate}` : ''}`;
+}
+
 export function isBdsContract(contractType?: string | null): boolean {
   if (!contractType) return false;
   const upper = contractType.trim().toUpperCase();
@@ -2028,10 +2083,42 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
 
   const previewPeople: ExcelPreviewCashflowPerson[] = useMemo(() => {
     const list = isMonthOverview ? monthPeopleRows : selectedPeopleRows;
+    const beneficiariesByContract = new Map<FundContract, FundContractBeneficiary[]>();
+    if (isMonthOverview) {
+      for (const person of list) {
+        for (const { contract } of person.contracts) {
+          if (!beneficiariesByContract.has(contract)) {
+            beneficiariesByContract.set(contract, contractBeneficiaries(contract, initialMembers));
+          }
+        }
+      }
+    }
+
     return list.map((p, idx) => {
       const amounts: Record<string, number> = {};
       const memberKey = normalizePersonName(p.name).replace(/y/g, 'i');
       const memberInfo = initialMembersMap.get(memberKey);
+      const detailAmounts = new Map<string, number>();
+      const addDetailAmount = (label: string, amount: number) => {
+        detailAmounts.set(label, (detailAmounts.get(label) || 0) + amount);
+      };
+
+      for (const { contract, amount } of isMonthOverview ? p.contracts : []) {
+        const beneficiary = beneficiariesByContract.get(contract)
+          ?.find((item) => areNamesMatching(item.name, p.name));
+        const disclosure = beneficiary
+          ? beneficiarySourceDisclosure(contract, beneficiary)
+          : { lines: [], unattributedAmount: amount };
+
+        for (const line of disclosure.lines) {
+          addDetailAmount(previewCommissionLabel(line.source, line.calculation), Number(line.amount) || 0);
+        }
+
+        if (disclosure.unattributedAmount > 0) {
+          addDetailAmount('Khoản nhận theo hợp đồng chưa phân loại', disclosure.unattributedAmount);
+        }
+      }
+
       return {
         stt: idx + 1,
         name: p.name,
@@ -2039,11 +2126,11 @@ export default function TransactionLogManagement({ initialLogs, initialMembers, 
         bankAccount: memberInfo?.bank_account || null,
         bankName: memberInfo?.bank_name || 'MB Bank',
         total: p.total,
-        detail: p.contracts?.map((c) => `- HĐ ${c.contract.contract_code || c.contract.customer_name}: ${formatVND(c.amount)}`).join('\n') || '',
+        detail: Array.from(detailAmounts, ([label, amount]) => `- ${label}: ${formatVND(amount).replace('₫', 'đ')}`).join('\n'),
         amounts,
       };
     });
-  }, [isMonthOverview, monthPeopleRows, selectedPeopleRows, initialMembersMap]);
+  }, [isMonthOverview, monthPeopleRows, selectedPeopleRows, initialMembersMap, initialMembers]);
 
   const closeExcelPreview = useCallback(() => setIsExcelPreviewOpen(false), []);
   const handlePreviewPageChange = useCallback((_page: number) => undefined, []);

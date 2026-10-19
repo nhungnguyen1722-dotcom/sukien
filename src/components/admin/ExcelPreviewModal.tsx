@@ -112,11 +112,20 @@ function DistributionMatrixControls({
   );
 }
 
-function DistributionMatrixSection({ title, matrix }: { title?: string; matrix?: React.ReactNode }) {
+function DistributionMatrixSection({
+  title,
+  matrix,
+  showSignatures = false,
+}: {
+  title?: string;
+  matrix?: React.ReactNode;
+  showSignatures?: boolean;
+}) {
   if (!matrix) return null;
 
   return (
     <section className="mt-8 border-t border-slate-200 pt-6">
+      {showSignatures && <PreviewSignatures />}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-slate-900">{title || 'Bảng kê hợp đồng & nhân sự thụ hưởng'}</h2>
@@ -125,6 +134,25 @@ function DistributionMatrixSection({ title, matrix }: { title?: string; matrix?:
       </div>
       {matrix}
     </section>
+  );
+}
+
+function PreviewSignatures() {
+  return (
+    <div className="mb-4 grid grid-cols-3 gap-4 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-center text-[11px] text-slate-800">
+      <div>
+        <p className="font-semibold uppercase tracking-wider">NGƯỜI LẬP</p>
+        <p className="mt-1 font-bold text-slate-900">Vũ Thị Cúc</p>
+      </div>
+      <div>
+        <p className="font-semibold uppercase tracking-wider">PHÓ CHỦ TỊCH</p>
+        <p className="mt-1 font-bold text-slate-900">Nguyễn Thị Thương Hiếu</p>
+      </div>
+      <div>
+        <p className="font-semibold uppercase tracking-wider">TỔNG GIÁM ĐỐC</p>
+        <p className="mt-1 font-bold text-slate-900">Nguyễn Thị Hương Thảo</p>
+      </div>
+    </div>
   );
 }
 
@@ -222,9 +250,17 @@ function ExcelPreviewModal({
             </div>
           )}
           <div className="min-w-[1050px] bg-white p-6 sm:p-8 shadow-sm border border-slate-300 rounded-sm font-sans text-xs text-slate-800">
-            {mode === 'cashflow_week' && <CashflowWeekPreview data={data} distributionSection={(
-              <DistributionMatrixSection title={distributionTitle} matrix={distributionMatrix} />
-            )} />}
+            {mode === 'cashflow_week' && <CashflowWeekPreview
+              data={data}
+              distributionSection={(
+                <DistributionMatrixSection
+                  title={distributionTitle}
+                  matrix={distributionMatrix}
+                  showSignatures={distributionView !== 'person'}
+                />
+              )}
+              showPeopleSignatures={distributionView === 'person'}
+            />}
             {mode === 'cashflow_month' && <CashflowMonthPreview data={data} />}
             {mode === 'training' && <TrainingPreview data={data} />}
           </div>
@@ -268,7 +304,15 @@ export default React.memo(ExcelPreviewModal);
 // -------------------------------------------------------------
 // PREVIEW 1: Cashflow Weekly Report (Theo tuần - chuẩn Hình 1 & Hình 3)
 // -------------------------------------------------------------
-function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreviewModalProps['data']; distributionSection?: React.ReactNode }) {
+function CashflowWeekPreview({
+  data,
+  distributionSection,
+  showPeopleSignatures = false,
+}: {
+  data: ExcelPreviewModalProps['data'];
+  distributionSection?: React.ReactNode;
+  showPeopleSignatures?: boolean;
+}) {
   const funds = data.funds || [];
   const people = data.people || [];
   const fundCols = data.fundColumns || [];
@@ -376,6 +420,7 @@ function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreview
       {/* Bảng 2: Bảng kê chi tiết nhân sự nhận hoa hồng nếu có */}
       {people.length > 0 && (
         <div className="space-y-2">
+          {showPeopleSignatures && <PreviewSignatures />}
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
               Danh sách chi tiết chi trả hoa hồng ({people.length} người nhận)
@@ -458,21 +503,6 @@ function CashflowWeekPreview({ data, distributionSection }: { data: ExcelPreview
         </div>
       )}
 
-      {/* Signature Section */}
-      <div className="grid grid-cols-3 gap-4 pt-6 text-center text-xs font-semibold text-slate-800">
-        <div className="space-y-16">
-          <p className="uppercase tracking-wider">NGƯỜI LẬP</p>
-          <p className="font-bold text-slate-900">Vũ Thị Cúc</p>
-        </div>
-        <div className="space-y-16">
-          <p className="uppercase tracking-wider">PHÓ CHỦ TỊCH</p>
-          <p className="font-bold text-slate-900">Nguyễn Thị Thương Hiếu</p>
-        </div>
-        <div className="space-y-16">
-          <p className="uppercase tracking-wider">TỔNG GIÁM ĐỐC</p>
-          <p className="font-bold text-slate-900">Nguyễn Thị Hương Thảo</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -580,6 +610,7 @@ function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }
       {/* Bảng Kê Người Nhận Tháng */}
       {people.length > 0 && (
         <div className="space-y-2">
+          <PreviewSignatures />
           <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
             Bảng kê người nhận hoa hồng và thù lao tháng ({people.length} người)
           </h3>
@@ -632,21 +663,6 @@ function CashflowMonthPreview({ data }: { data: ExcelPreviewModalProps['data'] }
         </div>
       )}
 
-      {/* Signatures */}
-      <div className="grid grid-cols-3 gap-4 pt-6 text-center text-xs font-semibold text-slate-800">
-        <div className="space-y-16">
-          <p className="uppercase tracking-wider">NGƯỜI LẬP</p>
-          <p className="font-bold text-slate-900">Vũ Thị Cúc</p>
-        </div>
-        <div className="space-y-16">
-          <p className="uppercase tracking-wider">PHÓ CHỦ TỊCH</p>
-          <p className="font-bold text-slate-900">Nguyễn Thị Thương Hiếu</p>
-        </div>
-        <div className="space-y-16">
-          <p className="uppercase tracking-wider">TỔNG GIÁM ĐỐC</p>
-          <p className="font-bold text-slate-900">Nguyễn Thị Hương Thảo</p>
-        </div>
-      </div>
     </div>
   );
 }
