@@ -152,45 +152,24 @@ export async function POST(request: NextRequest) {
               await client.query('ROLLBACK');
               return Response.json({ success: false, error: 'Không tìm thấy thành viên trong tháng.' }, { status: 404 });
             }
-            // Tự động áp dụng cho TẤT CẢ CÁC TUẦN (1..5)
-            const memberTeams = await client.query(
-              `SELECT id, include_70 FROM teamlead_member_teams WHERE member_id = $1`,
-              [membershipId]
-            );
-            for (const mt of memberTeams.rows) {
-              const mtId = Number(mt.id);
-              for (let w = 1; w <= 5; w++) {
-                await client.query(
-                  `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
-                   VALUES ($1, $2, $3, $4)
-                   ON CONFLICT (member_team_id, week_no)
-                   DO UPDATE SET include_30 = EXCLUDED.include_30, updated_at = NOW()`,
-                  [mtId, w, Boolean(mt.include_70), include30Val]
-                );
-              }
-            }
           } else if (Number.isInteger(weekNo) && weekNo >= 1 && weekNo <= 5) {
-            let targetTeamIds: number[] = [];
-            if (memberTeamId) {
-              targetTeamIds = [memberTeamId];
-            } else {
-              const memberTeams = await client.query(
-                `SELECT id, include_70 FROM teamlead_member_teams WHERE member_id = $1`,
-                [membershipId]
-              );
-              targetTeamIds = memberTeams.rows.map((r: any) => Number(r.id));
+            const memberTeam = await client.query(
+              `SELECT mt.id, mt.include_70 FROM teamlead_member_teams mt
+               JOIN teamlead_members m ON m.id = mt.member_id
+               WHERE mt.id = $1 AND m.id = $2 AND m.month = $3`,
+              [memberTeamId, membershipId, month]
+            );
+            if (!memberTeam.rows.length) {
+              await client.query('ROLLBACK');
+              return Response.json({ success: false, error: 'Không tìm thấy đội nhóm của thành viên.' }, { status: 404 });
             }
-            for (const mtId of targetTeamIds) {
-              const cur = (await client.query(`SELECT include_70 FROM teamlead_member_teams WHERE id = $1`, [mtId])).rows[0];
-              const cur70 = cur ? Boolean(cur.include_70) : true;
-              await client.query(
-                `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT (member_team_id, week_no)
-                 DO UPDATE SET include_30 = EXCLUDED.include_30, updated_at = NOW()`,
-                [mtId, weekNo, cur70, include30Val]
-              );
-            }
+            await client.query(
+              `INSERT INTO teamlead_week_eligibility (member_team_id, week_no, include_70, include_30)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (member_team_id, week_no)
+               DO UPDATE SET include_30 = EXCLUDED.include_30, updated_at = NOW()`,
+              [memberTeam.rows[0].id, weekNo, Boolean(memberTeam.rows[0].include_70), include30Val]
+            );
           }
         }
 

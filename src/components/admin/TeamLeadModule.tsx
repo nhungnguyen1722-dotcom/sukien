@@ -208,6 +208,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   const [allocationPage, setAllocationPage] = useState(1);
   const [allocationPageSize, setAllocationPageSize] = useState(30);
+  const [allocationTableExpanded, setAllocationTableExpanded] = useState(false);
 
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(30);
@@ -535,7 +536,8 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
 
   useEffect(() => {
     setAllocationPage(1);
-  }, [salesFilter, salesSort, teamFilter]);
+    setAllocationTableExpanded(false);
+  }, [month, weekNo, search, salesFilter, salesSort, teamFilter]);
 
   const filteredContracts = useMemo(() => reportContracts.filter((contract) => reportWeekNo === 0 || contract.weekNo === reportWeekNo), [reportContracts, reportWeekNo]);
 
@@ -767,14 +769,16 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
   };
 
   const toggleAllocation30 = async (row: AllocationRow) => {
-    if (saving || allocation?.meta.locked || !row.membershipId) return;
+    if (saving || allocation?.meta.locked || !row.membershipId || (weekNo > 0 && !row.memberTeamId)) return;
     const nextValue = !row.eligible30;
     setAllocation((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         rows: prev.rows.map((r) =>
-          r.membershipId === row.membershipId ? { ...r, eligible30: nextValue } : r
+          (weekNo > 0 ? r.memberTeamId === row.memberTeamId : r.membershipId === row.membershipId)
+            ? { ...r, eligible30: nextValue }
+            : r
         ),
       };
     });
@@ -795,10 +799,10 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Không thể cập nhật tỷ lệ quỹ 30%.');
-      await loadAllocation();
+      await loadAllocation(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không thể cập nhật tỷ lệ quỹ 30%.');
-      await loadAllocation();
+      await loadAllocation(true);
     } finally {
       setSaving(false);
     }
@@ -833,10 +837,10 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Không thể cập nhật tỷ lệ quỹ 70%.');
-      await loadAllocation();
+      await loadAllocation(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không thể cập nhật tỷ lệ quỹ 70%.');
-      await loadAllocation();
+      await loadAllocation(true);
     } finally {
       setSaving(false);
     }
@@ -1449,7 +1453,7 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
               </div>
               {loading && !allocation ? <div className="p-12 text-center text-sm text-slate-500">Đang tính dữ liệu…</div> : (
                 <div>
-                  <div className="max-h-[470px] overflow-auto">
+                  <div className={`${allocationTableExpanded ? 'max-h-none' : 'max-h-[470px]'} overflow-auto`}>
                   <table className="w-full min-w-[1180px] text-left text-sm border-separate border-spacing-0">
                     <thead className="sticky top-0 z-30 shadow-sm">
                       <tr className="bg-slate-900 text-xs uppercase tracking-wide text-slate-300">
@@ -1571,6 +1575,19 @@ export default function TeamLeadModule({ activeTab, initialMonth, initialWeekNo 
                           Sau
                         </button>
                       </div>
+                    </div>
+                  )}
+                  {!!filteredAllocationRows.length && (
+                    <div className="flex justify-center border-t border-slate-100 px-4 py-2">
+                      <button
+                        type="button"
+                        aria-expanded={allocationTableExpanded}
+                        onClick={() => setAllocationTableExpanded((expanded) => !expanded)}
+                        className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                      >
+                        {allocationTableExpanded ? 'Thu gọn' : 'Xem thêm'}
+                        <ChevronDown className={`h-4 w-4 transition-transform ${allocationTableExpanded ? 'rotate-180' : ''}`} />
+                      </button>
                     </div>
                   )}
                 </div>

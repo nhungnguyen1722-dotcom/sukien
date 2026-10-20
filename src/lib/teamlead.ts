@@ -251,6 +251,7 @@ type RosterMember = {
     role: string;
     include70Default: boolean;
     include70: boolean;
+    include30: boolean;
   }>;
 };
 
@@ -292,9 +293,6 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
   for (const row of result.rows) {
     const id = Number(row.membership_id);
     let member = byId.get(id);
-    const memberInclude30 = weekNo > 0 && row.include_30_week !== null
-      ? Boolean(row.include_30_week)
-      : Boolean(row.include_30);
     if (!member) {
       member = {
         membershipId: id,
@@ -302,12 +300,10 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
         name: row.member_name,
         phone: row.member_phone,
         title: row.user_title || null,
-        include30: memberInclude30,
+        include30: Boolean(row.include_30),
         teams: [],
       };
       byId.set(id, member);
-    } else if (weekNo > 0 && row.include_30_week !== null) {
-      member.include30 = Boolean(row.include_30_week);
     }
     if (row.member_team_id !== null) {
       member.teams.push({
@@ -319,6 +315,9 @@ async function loadRoster(month: string, weekNo = 0, db: typeof pool = pool): Pr
         include70: weekNo > 0 && row.include_70_week !== null
           ? Boolean(row.include_70_week)
           : Boolean(row.include_70_default),
+        include30: weekNo > 0 && row.include_30_week !== null
+          ? Boolean(row.include_30_week)
+          : Boolean(row.include_30),
       });
     }
   }
@@ -382,7 +381,7 @@ function rowFor(member: RosterMember, team?: RosterMember['teams'][number]): All
     teamId: team?.teamId ?? null,
     teamName: team?.teamName ?? '',
     role: team?.role ?? '',
-    eligible30: member.include30,
+    eligible30: team?.include30 ?? member.include30,
     eligible70: team?.include70 ?? false,
     salesBasis: 0,
     payout30: 0,
@@ -410,7 +409,6 @@ function calculateTeam70Payouts(
   if (!teamSales || !candidates.length) return payouts;
 
   const pool70 = teamSales * fundRate * 0.7;
-
   const countGd = candidates.filter((c) => canonicalRole(c.role) === 'Giám đốc').length;
   const countPgd = candidates.filter((c) => canonicalRole(c.role) === 'Phó Giám đốc').length;
   const countTp = candidates.filter((c) => canonicalRole(c.role) === 'Trưởng phòng').length;
@@ -534,19 +532,9 @@ async function calculateWeekRows(
     }
   }
 
-  const eligible30Members = roster.filter((member) => member.include30);
-  const count30 = eligible30Members.length;
-  const shares30 = splitEvenly(weekFund30, count30);
-  const shareByMember = new Map(eligible30Members.map((m, index) => [m.membershipId, shares30[index]]));
-
-  const primaryTeamByMember = new Map<number, number>();
-  for (const member of eligible30Members) {
-    if (!member.teams.length) continue;
-    const tvTeam = member.teams.find((t) => t.teamName.trim().toLowerCase() === 'thịnh vượng');
-    const tcTeam = member.teams.find((t) => t.teamName.trim().toLowerCase() === 'thành công');
-    const chosen = tvTeam || tcTeam || member.teams[0];
-    primaryTeamByMember.set(member.membershipId, chosen.memberTeamId);
-  }
+  const eligible30Teams = roster.flatMap((member) => member.teams.filter((team) => team.include30));
+  const shares30 = splitEvenly(weekFund30, eligible30Teams.length);
+  const shareByTeam = new Map(eligible30Teams.map((team, index) => [team.memberTeamId, shares30[index]]));
 
   const rows = roster.flatMap((member) => {
     const outputTeams = member.teams.length ? member.teams : [undefined];
@@ -556,9 +544,8 @@ async function calculateWeekRows(
       row.salesBasis = team ? (salesByTeam.get(key) || 0) : 0;
       row.payout70 = team ? (payouts70.get(team.memberTeamId) || 0) : 0;
 
-      const isPrimary30 = member.include30 && team && primaryTeamByMember.get(member.membershipId) === team.memberTeamId;
-      row.eligible30 = Boolean(member.include30);
-      row.payout30 = isPrimary30 ? (shareByMember.get(member.membershipId) || 0) : 0;
+      row.eligible30 = team ? team.include30 : false;
+      row.payout30 = team?.include30 ? (shareByTeam.get(team.memberTeamId) || 0) : 0;
 
       row.total = row.payout70;
       return row;
