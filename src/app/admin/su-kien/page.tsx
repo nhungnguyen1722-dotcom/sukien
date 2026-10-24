@@ -39,7 +39,12 @@ async function getInitialData(): Promise<{
             WHEN e.status = 'Sắp diễn ra' THEN 2 
             ELSE 3 
           END ASC, 
-          e.event_date ASC, 
+          CASE 
+            WHEN e.status IN ('Đang thực hiện', 'Đang diễn ra', 'Sắp diễn ra') THEN e.event_date 
+          END ASC,
+          CASE 
+            WHEN e.status NOT IN ('Đang thực hiện', 'Đang diễn ra', 'Sắp diễn ra') THEN e.event_date 
+          END DESC,
           e.id DESC
       `),
       pool.query(`

@@ -505,6 +505,8 @@ export default function EventManagement({
       if (pA !== pB) return pA - pB;
       const tA = a.event_date ? new Date(a.event_date).getTime() : 0;
       const tB = b.event_date ? new Date(b.event_date).getTime() : 0;
+      // Sắp diễn ra: gần nhất lên đầu (ASC), Đã diễn ra: mới nhất lên đầu (DESC)
+      if (pA >= 3) return tB - tA;
       return tA - tB;
     });
   }, [events, searchQuery, statusFilter, managerFilter, timeFilter, activeTab]);

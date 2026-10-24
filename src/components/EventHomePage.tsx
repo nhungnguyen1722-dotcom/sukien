@@ -217,7 +217,11 @@ export default function EventHomePage({ events }: EventHomePageProps) {
       const pA = getStatusPriority(a.status);
       const pB = getStatusPriority(b.status);
       if (pA !== pB) return pA - pB;
-      return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+      const tA = new Date(a.event_date).getTime();
+      const tB = new Date(b.event_date).getTime();
+      // Đã diễn ra: mới nhất lên đầu (DESC), còn lại: gần nhất lên đầu (ASC)
+      if (pA >= 3) return tB - tA;
+      return tA - tB;
     });
 
     return list;
@@ -242,8 +246,20 @@ export default function EventHomePage({ events }: EventHomePageProps) {
     });
 
     list.sort((a, b) => {
+      const getStatusPriority = (s: string) => {
+        if (s === 'Đang diễn ra' || s === 'Đang thực hiện') return 1;
+        if (s === 'Sắp diễn ra' || s === 'Kế hoạch') return 2;
+        if (s === 'Đã diễn ra' || s === 'Đã hoàn thành') return 3;
+        return 4;
+      };
+      const pA = getStatusPriority(a.status);
+      const pB = getStatusPriority(b.status);
+      if (pA !== pB) return pA - pB;
       const dateA = new Date(a.event_date).getTime();
       const dateB = new Date(b.event_date).getTime();
+      // Sắp diễn ra: gần nhất lên đầu (ASC)
+      // Đã diễn ra: mới nhất lên đầu (DESC)
+      if (pA <= 2) return dateA - dateB;
       return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
 
